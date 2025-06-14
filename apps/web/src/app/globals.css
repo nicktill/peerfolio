@@ -1,26 +1,30 @@
-@import "tailwindcss";
+@import 'animate.css';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  html {
+    font-family: "Inter", system-ui, sans-serif;
   }
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+@layer utilities {
+  .animate__delay-1s {
+    animation-delay: 0.2s;
+  }
+  .animate__delay-2s {
+    animation-delay: 0.4s;
+  }
+  .animate__delay-3s {
+    animation-delay: 0.6s;
+  }
+  .animate__slower {
+    animation-duration: 3s;
+  }
 }
