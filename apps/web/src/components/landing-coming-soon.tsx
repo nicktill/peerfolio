@@ -1,5 +1,15 @@
+"use client";
+
 import { TrendingUp, Users, Link2, BarChart3, CheckCircle, Sparkles, Award } from "lucide-react"
 import Image from "next/image"
+import { BrokerageMarquee } from "./brokerage-marquee"
+import { AnimatedGridPattern } from "./magicui/animated-grid-pattern"
+import { DotPattern } from "./magicui/dot-pattern"
+import { MorphingText } from "./magicui/morphing-text"
+import { NumberTicker } from "./magicui/number-ticker"
+import { AnimatedShinyText } from "./magicui/animated-shiny-text"
+import { Particles } from "./magicui/particles"
+import { cn } from "@web/lib/utils"
 
 // Simple inline components with more professional styling
 interface ButtonProps {
@@ -56,22 +66,35 @@ const Badge = ({ children, className = "", ...props }: any) => (
 
 export default function PeerfolioLanding() {
   return (
-    <div className="flex flex-col min-h-screen bg-white relative">
-      {/* Plus Pattern Background */}
-      <div 
-        className="fixed inset-0 opacity-[0.08] pointer-events-none z-0"
-        style={{
-          backgroundImage: `
-            linear-gradient(90deg, #9ca3af 1px, transparent 1px),
-            linear-gradient(180deg, #9ca3af 1px, transparent 1px)
-          `,
-          backgroundSize: '30px 30px',
-          backgroundPosition: '0 0, 0 0'
-        }}
-      />
+    <div className="flex flex-col min-h-screen relative overflow-x-hidden">
+      {/* Subtle Global Background - Main Areas */}
+      <div className="fixed inset-0 z-0">
+        {/* Base gradient background */}
+        <div className="absolute inset-0 bg-gradient-to-br from-gray-50 via-white to-emerald-50/20" />
+        
+        {/* Subtle dot pattern for main areas */}
+        <DotPattern
+          className={cn(
+            "absolute inset-0 h-full w-full opacity-[0.015]",
+            "[mask-image:radial-gradient(800px_circle_at_center,white,transparent)]"
+          )}
+          width={24}
+          height={24}
+        />
+        
+        {/* Additional subtle dot pattern overlay */}
+        <DotPattern
+          className={cn(
+            "absolute inset-0 h-full w-full opacity-[0.008]",
+            "[mask-image:radial-gradient(1000px_circle_at_center,white,transparent)]"
+          )}
+          width={20}
+          height={20}
+        />
+      </div>
       
       {/* Header */}
-      <header className="sticky top-0 z-50 w-full border-b border-gray-100 bg-white/95 backdrop-blur-sm relative">
+      <header className="sticky top-0 z-50 w-full border-b border-gray-100/50 bg-white/80 backdrop-blur-md relative">
         <div className="container flex h-16 items-center justify-between px-6 max-w-6xl mx-auto">
           <div className="flex items-center space-x-3">
             <Image
@@ -93,9 +116,9 @@ export default function PeerfolioLanding() {
         </div>
       </header>
 
-      <main className="flex-1">
+      <main className="flex-1 relative z-10">
         {/* Hero Section */}
-        <section className="relative py-24 md:py-32 bg-gradient-to-b from-gray-50 to-white">
+        <section className="relative py-24 md:py-32 bg-gradient-to-b from-transparent via-white/30 to-white/60">
           <div className="container relative px-6 max-w-6xl mx-auto">
             <div className="mx-auto max-w-4xl text-center">
               <Badge className="mb-8 bg-gray-100 text-gray-700 border border-gray-200 animate__animated animate__fadeIn">
@@ -103,11 +126,18 @@ export default function PeerfolioLanding() {
                 Trusted by 2,847+ investors
               </Badge>
 
-              <h1 className="mb-8 text-5xl font-bold tracking-tight text-gray-900 sm:text-6xl md:text-7xl leading-tight animate__animated animate__fadeIn">
-                Track your investments{" "}
-                <span className="bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 bg-clip-text text-transparent">
-                  with friends
-                </span>
+              <h1 className="mb-8 font-bold tracking-tight animate__animated animate__fadeIn">
+                <div className="text-5xl sm:text-6xl md:text-7xl text-gray-900 leading-none">
+                  Track your <MorphingText 
+                    texts={["investments", "spending", "budgeting", "savings"]} 
+                    className="inline-block align-baseline"
+                  />
+                </div>
+                <div className="mt-2 text-5xl sm:text-6xl md:text-7xl leading-none">
+                  <span className="bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 bg-clip-text text-transparent">
+                    with friends
+                  </span>
+                </div>
               </h1>
 
               <p className="mx-auto mb-12 max-w-2xl text-xl text-gray-600 leading-relaxed animate__animated animate__fadeIn animate__delay-1s">
@@ -131,68 +161,109 @@ export default function PeerfolioLanding() {
             {/* Hero Visual - Portfolio Dashboard */}
             <div className="mx-auto max-w-6xl mt-20 animate__animated animate__fadeInUp animate__delay-3s">
               <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-gray-200/50 to-emerald-200/30 rounded-3xl blur-3xl" />
-                <div className="relative bg-white rounded-3xl p-8 shadow-2xl border border-gray-100">
+                {/* Add animated grid pattern specifically to this section */}
+                <div className="absolute inset-0 rounded-3xl overflow-hidden">
+                  <AnimatedGridPattern
+                    numSquares={20}
+                    maxOpacity={0.02}
+                    duration={3}
+                    repeatDelay={1}
+                    className={cn(
+                      "absolute inset-0 h-full w-full skew-y-12",
+                      "[mask-image:radial-gradient(600px_circle_at_center,white,transparent)]"
+                    )}
+                  />
+                </div>
+                <div className="absolute inset-0 bg-gradient-to-r from-emerald-100/30 to-blue-100/30 rounded-3xl blur-3xl" />
+                <div className="relative bg-white/95 rounded-3xl p-8 shadow-2xl border border-gray-100 backdrop-blur-sm">
                   {/* Dashboard Header */}
                   <div className="flex items-center justify-between mb-8 pb-6 border-b border-gray-100">
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-900">Portfolio Performance</h3>
-                      <p className="text-sm text-gray-500">Stanford CS Group • 24 members</p>
+                      <h3 className="text-xl font-bold text-gray-900">Portfolio Performance</h3>
+                      <p className="text-sm text-gray-500 flex items-center gap-2">
+                        <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
+                        Stanford CS Group • 24 members online
+                      </p>
                     </div>
                     <div className="text-right">
-                      <div className="text-2xl font-bold text-gray-900">+12.4%</div>
-                      <div className="text-sm text-emerald-600">↗ Outperforming S&P 500</div>
+                      <div className="text-3xl font-bold text-gray-900 mb-1">
+                        +<NumberTicker value={12.4} decimalPlaces={1} />%
+                      </div>
+                      <AnimatedShinyText className="text-sm text-emerald-600 font-medium">
+                        ↗ Outperforming S&P 500
+                      </AnimatedShinyText>
                     </div>
                   </div>
 
                   <div className="grid gap-6 md:grid-cols-3">
-                    <Card className="bg-white animate__animated animate__fadeIn animate__delay-1s">
+                    <Card className="bg-gradient-to-r from-emerald-50 to-emerald-100 border-emerald-200 animate__animated animate__fadeIn animate__delay-1s">
                       <div className="p-6">
                         <div className="flex items-center justify-between mb-4">
-                          <div className="h-12 w-12 rounded-xl bg-gray-100 flex items-center justify-center">
-                            <TrendingUp className="h-6 w-6 text-gray-600" />
+                          <div className="h-12 w-12 rounded-xl bg-emerald-500 flex items-center justify-center shadow-lg">
+                            <TrendingUp className="h-6 w-6 text-white" />
                           </div>
-                          <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200">Top 10%</Badge>
+                          <Badge className="bg-emerald-500 text-white border-0 shadow-sm">🏆 Top 10%</Badge>
                         </div>
                         <div className="space-y-2">
-                          <div className="text-sm text-gray-500 font-medium">Your Rank</div>
-                          <div className="text-3xl font-bold text-gray-900">#3 of 24</div>
-                          <div className="text-xs text-gray-400">Portfolio: $18,920</div>
+                          <div className="text-sm text-emerald-700 font-semibold">Your Rank</div>
+                          <div className="text-3xl font-bold text-gray-900">
+                            #<NumberTicker value={3} /> of <NumberTicker value={24} />
+                          </div>
+                          <div className="text-xs text-gray-600">
+                            Portfolio Value: $<NumberTicker value={18920} className="font-semibold" />
+                          </div>
                         </div>
                       </div>
                     </Card>
 
-                    <Card className="bg-white ring-2 ring-blue-100 animate__animated animate__fadeIn animate__delay-1s">
+                    <Card className="bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200 ring-2 ring-blue-200 animate__animated animate__fadeIn animate__delay-1s">
                       <div className="p-6">
                         <div className="flex items-center justify-between mb-4">
-                          <div className="h-12 w-12 rounded-xl bg-gray-100 flex items-center justify-center">
-                            <BarChart3 className="h-6 w-6 text-gray-600" />
+                          <div className="h-12 w-12 rounded-xl bg-blue-500 flex items-center justify-center shadow-lg">
+                            <BarChart3 className="h-6 w-6 text-white" />
                           </div>
-                          <Badge className="bg-blue-50 text-blue-700 border border-blue-200">+8.7%</Badge>
+                          <Badge className="bg-blue-500 text-white border-0 shadow-sm">📈 +8.7%</Badge>
                         </div>
                         <div className="space-y-2">
-                          <div className="text-sm text-blue-600 font-medium">30-Day Return</div>
-                          <div className="text-3xl font-bold text-gray-900">$1,520</div>
-                          <div className="text-xs text-gray-400">vs $890 group avg</div>
+                          <div className="text-sm text-blue-700 font-semibold">30-Day Return</div>
+                          <div className="text-3xl font-bold text-gray-900">
+                            $<NumberTicker value={1520} />
+                          </div>
+                          <div className="text-xs text-gray-600">
+                            vs $<NumberTicker value={890} /> group average
+                          </div>
                         </div>
                       </div>
                     </Card>
 
-                    <Card className="bg-white animate__animated animate__fadeIn animate__delay-1s">
+                    <Card className="bg-gradient-to-r from-purple-50 to-purple-100 border-purple-200 animate__animated animate__fadeIn animate__delay-1s">
                       <div className="p-6">
                         <div className="flex items-center justify-between mb-4">
-                          <div className="h-12 w-12 rounded-xl bg-gray-100 flex items-center justify-center">
-                            <Users className="h-6 w-6 text-gray-600" />
+                          <div className="h-12 w-12 rounded-xl bg-purple-500 flex items-center justify-center shadow-lg">
+                            <Users className="h-6 w-6 text-white" />
                           </div>
-                          <Badge className="bg-gray-100 text-gray-700 border border-gray-200">Active</Badge>
+                          <Badge className="bg-purple-500 text-white border-0 shadow-sm">🔥 Active</Badge>
                         </div>
                         <div className="space-y-2">
-                          <div className="text-sm text-gray-500 font-medium">Group Activity</div>
-                          <div className="text-3xl font-bold text-gray-900">47 trades</div>
-                          <div className="text-xs text-gray-400">this week</div>
+                          <div className="text-sm text-purple-700 font-semibold">Group Activity</div>
+                          <div className="text-3xl font-bold text-gray-900">
+                            <NumberTicker value={47} /> trades
+                          </div>
+                          <div className="text-xs text-gray-600">this week</div>
                         </div>
                       </div>
                     </Card>
+                  </div>
+
+                  {/* Additional insights */}
+                  <div className="mt-6 pt-6 border-t border-gray-100">
+                    <div className="flex items-center justify-between text-sm text-gray-600">
+                      <span className="flex items-center gap-2">
+                        <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                        Live data • Updated 2 mins ago
+                      </span>
+                      <span>🎯 Goal: Beat market by 5%</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -200,10 +271,13 @@ export default function PeerfolioLanding() {
           </div>
         </section>
 
+        {/* Brokerage Partners Marquee */}
+        <BrokerageMarquee />
+
         {/* Features Section */}
-        <section className="py-24 md:py-32 bg-white">
+        <section className="py-24 md:py-32 bg-white/60 backdrop-blur-sm relative">
           <div className="container px-6 max-w-6xl mx-auto">
-            <div className="mx-auto max-w-3xl text-center mb-20">
+            <div className="mx-auto max-w-4xl text-center mb-20">
               <h2 className="mb-6 text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl animate__animated animate__fadeInUp">
                 Investing, but make it{" "}
                 <span className="bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 bg-clip-text text-transparent">
@@ -227,7 +301,9 @@ export default function PeerfolioLanding() {
                 </p>
                 <div className="text-sm text-gray-500">
                   <div className="flex items-center justify-center space-x-4">
-                    <span>• Bank-level security</span>
+                    <AnimatedShinyText className="text-emerald-600">
+                      • Bank-level security
+                    </AnimatedShinyText>
                     <span>• Real-time sync</span>
                   </div>
                 </div>
@@ -271,7 +347,31 @@ export default function PeerfolioLanding() {
         </section>
 
         {/* Final CTA Section */}
-        <section className="py-24 md:py-32 bg-gray-900">
+        <section className="py-24 md:py-32 bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 relative overflow-hidden">
+          {/* Enhanced background elements for CTA */}
+          <div className="absolute inset-0 w-full h-full">
+            {/* Rotated grid pattern */}
+            <div className="absolute inset-0 w-full h-full transform -skew-y-12 origin-top-left scale-110">
+              <AnimatedGridPattern
+                numSquares={30}
+                maxOpacity={0.05}
+                duration={3}
+                repeatDelay={1}
+                className={cn(
+                  "absolute inset-0 h-full w-full",
+                  "[mask-image:radial-gradient(1000px_circle_at_center,white,transparent)]"
+                )}
+              />
+            </div>
+            {/* Subtle white particles */}
+            <Particles
+              className="absolute inset-0 opacity-10"
+              quantity={40}
+              ease={100}
+              color="#ffffff"
+              refresh
+            />
+          </div>
           <div className="container relative px-6 max-w-4xl mx-auto text-center">
             <h2 className="mb-6 text-4xl font-bold tracking-tight text-white sm:text-5xl animate__animated animate__fadeIn">
               Ready to invest{" "}
@@ -309,7 +409,7 @@ export default function PeerfolioLanding() {
       </main>
 
       {/* Simple Footer */}
-      <footer className="border-t border-gray-100 bg-white py-12">
+      <footer className="border-t border-gray-100/50 bg-white/90 backdrop-blur-sm py-12 relative z-10">
         <div className="container px-6 max-w-6xl mx-auto">
           <div className="flex flex-col md:flex-row items-center justify-between">
             <div className="flex items-center space-x-3 mb-4 md:mb-0">
