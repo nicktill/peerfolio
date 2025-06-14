@@ -103,14 +103,14 @@ export default function PeerfolioLanding() {
                 Trusted by 2,847+ investors
               </Badge>
 
-              <h1 className="mb-8 text-5xl font-bold tracking-tight text-gray-900 sm:text-6xl md:text-7xl leading-tight animate__animated animate__fadeInUp">
+              <h1 className="mb-8 text-5xl font-bold tracking-tight text-gray-900 sm:text-6xl md:text-7xl leading-tight animate__animated animate__fadeIn">
                 Track your investments{" "}
                 <span className="bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 bg-clip-text text-transparent">
                   with friends
                 </span>
               </h1>
 
-              <p className="mx-auto mb-12 max-w-2xl text-xl text-gray-600 leading-relaxed animate__animated animate__fadeInUp animate__delay-1s">
+              <p className="mx-auto mb-12 max-w-2xl text-xl text-gray-600 leading-relaxed animate__animated animate__fadeIn animate__delay-1s">
                 Peerfolio lets you compare portfolios, stay accountable, and grow wealth together. The social investment
                 platform built for your generation.
               </p>
@@ -129,7 +129,7 @@ export default function PeerfolioLanding() {
             </div>
 
             {/* Hero Visual - Portfolio Dashboard */}
-            <div className="mx-auto max-w-6xl mt-20 animate__animated animate__fadeInUp animate__delay-1s">
+            <div className="mx-auto max-w-6xl mt-20 animate__animated animate__fadeInUp animate__delay-3s">
               <div className="relative">
                 <div className="absolute inset-0 bg-gradient-to-r from-gray-200/50 to-emerald-200/30 rounded-3xl blur-3xl" />
                 <div className="relative bg-white rounded-3xl p-8 shadow-2xl border border-gray-100">
