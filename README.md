@@ -1,3 +1,8 @@
+# Peerfolio
+<img width="1728" alt="Screenshot 2025-06-14 at 3 50 17 AM" src="https://github.com/user-attachments/assets/d490dede-b978-4a8c-aaa6-ff93ed741b95" />
+Peerfolio is a social investing platform that lets users track their portfolios, compare performance with friends, and grow wealth together. Connect accounts, join groups, and invest transparently in a community-driven way.
+
+
 # Turborepo starter
 
 This Turborepo starter is maintained by the Turborepo core team.
