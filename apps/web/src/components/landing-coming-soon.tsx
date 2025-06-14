@@ -126,19 +126,22 @@ export default function PeerfolioLanding() {
                 Trusted by 2,847+ investors
               </Badge>
 
-              <h1 className="mb-8 font-bold tracking-tight animate__animated animate__fadeIn">
-                <div className="text-5xl sm:text-6xl md:text-7xl text-gray-900 leading-none">
-                  Track your <MorphingText 
-                    texts={["investments", "spending", "budgeting", "savings"]} 
+            <h1 className="mb-8 font-bold tracking-tight animate__animated animate__fadeIn">
+            <div className="text-5xl sm:text-6xl md:text-7xl text-gray-900 leading-none ml-4 sm:ml-6 md:ml-8">
+                Track your{" "}
+                <span className="ml-4 inline-block min-w-[280px] sm:min-w-[350px] md:min-w-[420px] text-left">
+                <MorphingText 
+                    texts={["investments", " budgeting", "retirement", "brokerages", "savings"]} 
                     className="inline-block align-baseline"
-                  />
-                </div>
-                <div className="mt-2 text-5xl sm:text-6xl md:text-7xl leading-none">
-                  <span className="bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 bg-clip-text text-transparent">
-                    with friends
-                  </span>
-                </div>
-              </h1>
+                />
+                </span>
+            </div>
+            <div className="mt-2 text-5xl sm:text-6xl md:text-7xl leading-none">
+                <span className="bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 bg-clip-text text-transparent">
+                with friends
+                </span>
+            </div>
+            </h1>
 
               <p className="mx-auto mb-12 max-w-2xl text-xl text-gray-600 leading-relaxed animate__animated animate__fadeIn animate__delay-1s">
                 Peerfolio lets you compare portfolios, stay accountable, and grow wealth together. The social investment
