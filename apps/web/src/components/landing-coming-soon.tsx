@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react"
 import { TrendingUp, Users, Link2, BarChart3, CheckCircle, Sparkles, Award, Star, ArrowRight, Globe, Shield, Zap } from "lucide-react"
 import Image from "next/image"
+import Link from "next/link"
 import { signIn } from "next-auth/react"
 import { BrokerageMarquee } from "./brokerage-marquee"
 import { AnimatedGridPattern } from "./magicui/animated-grid-pattern"
@@ -10,6 +12,39 @@ import { MorphingText } from "./magicui/morphing-text"
 import { NumberTicker } from "./magicui/number-ticker"
 import { AnimatedShinyText } from "./magicui/animated-shiny-text"
 import { cn } from "@web/lib/utils"
+
+// Toast component for success notifications
+interface ToastProps {
+  show: boolean
+  onClose: () => void
+  message: string
+}
+
+const Toast = ({ show, onClose, message }: ToastProps) => {
+  if (!show) return null
+
+  return (
+    <div className="fixed top-20 right-4 z-40 animate-in slide-in-from-right-2 duration-200">
+      <div className="bg-white border border-green-200 shadow-lg rounded-lg px-4 py-3 flex items-center gap-3 max-w-xs">
+        <div className="flex-shrink-0">
+          <CheckCircle className="w-4 h-4 text-green-600" />
+        </div>
+        <div className="flex-1">
+          <p className="text-xs font-medium text-gray-900 leading-tight">{message}</p>
+        </div>
+        <button
+          onClick={onClose}
+          className="flex-shrink-0 text-gray-400 hover:text-gray-600 transition-colors"
+        >
+          <span className="sr-only">Close</span>
+          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  )
+}
 
 // Simple inline components with more professional styling
 interface ButtonProps {
@@ -65,6 +100,40 @@ const Badge = ({ children, className = "", ...props }: any) => (
 )
 
 export default function PeerfolioLanding() {
+  const [heroEmail, setHeroEmail] = useState("")
+  const [showToast, setShowToast] = useState(false)
+  const [toastMessage, setToastMessage] = useState("")
+
+  const handleHeroEmailSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    
+    if (!heroEmail.trim()) {
+      setToastMessage("Please enter your email address to join the waitlist!")
+      setShowToast(true)
+      // Auto hide toast after 5 seconds
+      setTimeout(() => setShowToast(false), 5000)
+      return
+    }
+    
+    if (!emailRegex.test(heroEmail)) {
+      setToastMessage("Please enter a valid email address!")
+      setShowToast(true)
+      // Auto hide toast after 5 seconds
+      setTimeout(() => setShowToast(false), 5000)
+      return
+    }
+    
+    // Success - simulate adding to waitlist
+    setToastMessage(`Thanks for joining our waitlist! We'll send you early access and updates soon! 🚀`)
+    setShowToast(true)
+    setHeroEmail("") // Clear the input
+    // Auto hide toast after 5 seconds
+    setTimeout(() => setShowToast(false), 5000)
+  }
+
   return (
     <div className="flex flex-col min-h-screen relative overflow-x-hidden">
       {/* Clean Global Background with Single Rotated Animated Grid */}
@@ -96,7 +165,10 @@ export default function PeerfolioLanding() {
         {/* Subtle animated border */}
         <div className="absolute bottom-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-emerald-500/20 to-transparent" />
         <div className="container flex h-16 items-center justify-between px-6 max-w-6xl mx-auto">
-          <div className="flex items-center space-x-3 group cursor-pointer">
+          <div 
+            className="flex items-center space-x-3 group cursor-pointer"
+            onClick={() => window.location.reload()}
+          >
             <div className="relative">
               <Image
                 src="/logo.png"
@@ -169,17 +241,23 @@ export default function PeerfolioLanding() {
               </p>
 
               <div className="mx-auto max-w-lg animate__animated animate__fadeInUp animate__delay-2s">
-                <div className="flex gap-3 p-2 bg-white/90 backdrop-blur-sm rounded-full shadow-xl border border-gray-100/50 hover:shadow-2xl transition-all duration-300 group">
+                <form onSubmit={handleHeroEmailSubmit} className="flex gap-3 p-2 bg-white/90 backdrop-blur-sm rounded-full shadow-xl border border-gray-100/50 hover:shadow-2xl transition-all duration-300 group">
                   <Input
                     type="email"
                     placeholder="Enter your email"
+                    value={heroEmail}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setHeroEmail(e.target.value)}
                     className="flex-1 border-0 bg-transparent focus:ring-0 shadow-none group-hover:bg-white/50 transition-colors duration-300"
+                    required
                   />
-                  <Button className="bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-700 text-white hover:text-white font-medium">
+                  <Button 
+                    type="submit"
+                    className="bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-700 text-white hover:text-white font-medium"
+                  >
                     Join Waitlist
                     <Sparkles className="w-4 h-4 ml-2" />
                   </Button>
-                </div>
+                </form>
                 <p className="mt-4 text-sm text-gray-500">Free forever • No credit card required</p>
               </div>
             </div>
@@ -460,10 +538,12 @@ export default function PeerfolioLanding() {
             </div>
 
             <div className="animate__animated animate__fadeIn animate__delay-3s">
-              <Button size="lg" className="bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-700 text-white hover:text-white font-semibold shadow-xl">
-                <Sparkles className="w-5 h-5 mr-2" />
-                Join the Waitlist
-              </Button>
+              <Link href="/waitlist">
+                <Button size="lg" className="bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-700 text-white hover:text-white font-semibold shadow-xl">
+                  <Sparkles className="w-5 h-5 mr-2" />
+                  Join the Waitlist
+                </Button>
+              </Link>
             </div>
           </div>
         </section>
@@ -499,6 +579,13 @@ export default function PeerfolioLanding() {
           </div>
         </div>
       </footer>
+
+      {/* Toast Notification */}
+      <Toast
+        show={showToast}
+        onClose={() => setShowToast(false)}
+        message={toastMessage}
+      />
     </div>
   )
 }
