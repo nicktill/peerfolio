@@ -141,8 +141,9 @@ export default function PeerfolioLanding() {
                 Track your{" "}
                 <span className="inline-block min-w-[280px] sm:min-w-[350px] md:min-w-[420px] text-left align-baseline">
                 <MorphingText 
-                    texts={["investments", "budgeting", "retirement", "brokerages", "savings"]} 
-                    className="inline-block align-baseline"
+                    texts={["investments", "budgeting", "retirement", "trading",  "dividends", "brokerages", "finances"]} 
+                    className="inline-block align-baseline text-5xl sm:text-6xl md:text-7xl"
+                    animationType="typewriter"
                 />
                 </span>
             </div>
