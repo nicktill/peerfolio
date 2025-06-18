@@ -4,6 +4,7 @@ import { useSession, signOut } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import Loading from "@web/components/loading"
+import Image from "next/image"
 
 export default function DashboardPage() {
   const { data: session, status } = useSession()
@@ -45,8 +46,16 @@ export default function DashboardPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-3">
-              <h1 className="text-xl font-semibold text-gray-900">Peerfolio Dashboard</h1>
-            </div>
+                <div className="flex items-center space-x-3">
+                <Image
+                    src="/logo.png"
+                    alt="Peerfolio"
+                    width={32}
+                    height={32}
+                    className="rounded-lg"
+                />
+                <h1 className="text-xl font-semibold text-gray-900">Dashboard</h1>
+                </div>            </div>
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-3">
                 {session.user?.image && (

@@ -1,139 +1,162 @@
 "use client"
 
-import type React from "react"
-
-import { useCallback, useEffect, useRef } from "react"
+import { useEffect, useState } from "react"
 import { cn } from "@web/lib/utils"
-
-const morphTime = 1.5
-const cooldownTime = 0.5
-
-const useMorphingText = (texts: string[]) => {
-  const textIndexRef = useRef(0)
-  const morphRef = useRef(0)
-  const cooldownRef = useRef(0)
-  const timeRef = useRef(new Date())
-
-  const text1Ref = useRef<HTMLSpanElement>(null)
-  const text2Ref = useRef<HTMLSpanElement>(null)
-
-  const setStyles = useCallback(
-    (fraction: number) => {
-      const [current1, current2] = [text1Ref.current, text2Ref.current]
-      if (!current1 || !current2) return
-
-      current2.style.filter = `blur(${Math.min(8 / fraction - 8, 100)}px)`
-      current2.style.opacity = `${Math.pow(fraction, 0.4) * 100}%`
-
-      const invertedFraction = 1 - fraction
-      current1.style.filter = `blur(${Math.min(8 / invertedFraction - 8, 100)}px)`
-      current1.style.opacity = `${Math.pow(invertedFraction, 0.4) * 100}%`
-
-      current1.textContent = texts[textIndexRef.current % texts.length]
-      current2.textContent = texts[(textIndexRef.current + 1) % texts.length]
-    },
-    [texts],
-  )
-
-  const doMorph = useCallback(() => {
-    morphRef.current -= cooldownRef.current
-    cooldownRef.current = 0
-
-    let fraction = morphRef.current / morphTime
-
-    if (fraction > 1) {
-      cooldownRef.current = cooldownTime
-      fraction = 1
-    }
-
-    setStyles(fraction)
-
-    if (fraction === 1) {
-      textIndexRef.current++
-    }
-  }, [setStyles])
-
-  const doCooldown = useCallback(() => {
-    morphRef.current = 0
-    const [current1, current2] = [text1Ref.current, text2Ref.current]
-    if (current1 && current2) {
-      current2.style.filter = "none"
-      current2.style.opacity = "100%"
-      current1.style.filter = "none"
-      current1.style.opacity = "0%"
-    }
-  }, [])
-
-  useEffect(() => {
-    let animationFrameId: number
-
-    // Initialize the first text
-    const [current1, current2] = [text1Ref.current, text2Ref.current]
-    if (current1 && current2 && texts.length > 0) {
-      current1.textContent = texts[0]
-      current2.textContent = texts[1] || texts[0]
-      current1.style.opacity = "100%"
-      current2.style.opacity = "0%"
-    }
-
-    const animate = () => {
-      animationFrameId = requestAnimationFrame(animate)
-
-      const newTime = new Date()
-      const dt = (newTime.getTime() - timeRef.current.getTime()) / 1000
-      timeRef.current = newTime
-
-      cooldownRef.current -= dt
-
-      if (cooldownRef.current <= 0) doMorph()
-      else doCooldown()
-    }
-
-    animate()
-    return () => {
-      cancelAnimationFrame(animationFrameId)
-    }
-  }, [doMorph, doCooldown, texts])
-
-  return { text1Ref, text2Ref }
-}
 
 interface MorphingTextProps {
   className?: string
   texts: string[]
+  animationType?: "slide" | "typewriter" | "fade"
 }
 
-const Texts: React.FC<Pick<MorphingTextProps, "texts">> = ({ texts }) => {
-  const { text1Ref, text2Ref } = useMorphingText(texts)
+export const MorphingText: React.FC<MorphingTextProps> = ({ 
+  texts, 
+  className,
+  animationType = "slide" 
+}) => {
+  const [currentIndex, setCurrentIndex] = useState(0)
+  const [isAnimating, setIsAnimating] = useState(false)
+  const [displayText, setDisplayText] = useState(texts[0] || "")
+
+  useEffect(() => {
+    if (texts.length <= 1) return
+
+    if (animationType === "typewriter") {
+      // Typewriter effect
+      const interval = setInterval(() => {
+        const currentText = texts[currentIndex]
+        const nextIndex = (currentIndex + 1) % texts.length
+        const nextText = texts[nextIndex]
+        
+        setIsAnimating(true)
+        
+        // Erase current text
+        let eraseIndex = currentText.length
+        const eraseInterval = setInterval(() => {
+          if (eraseIndex > 0) {
+            setDisplayText(currentText.substring(0, eraseIndex - 1))
+            eraseIndex--
+          } else {
+            clearInterval(eraseInterval)
+            
+            // Type new text
+            let typeIndex = 0
+            const typeInterval = setInterval(() => {
+              if (typeIndex < nextText.length) {
+                setDisplayText(nextText.substring(0, typeIndex + 1))
+                typeIndex++
+              } else {
+                clearInterval(typeInterval)
+                setCurrentIndex(nextIndex)
+                setIsAnimating(false)
+              }
+            }, 80) // Typing speed
+          }
+        }, 60) // Erasing speed
+      }, 4000)
+      
+      return () => clearInterval(interval)
+    } else {
+      // Slide or fade animation
+      const interval = setInterval(() => {
+        setIsAnimating(true)
+        
+        setTimeout(() => {
+          setCurrentIndex((prev) => (prev + 1) % texts.length)
+        }, 250)
+        
+        setTimeout(() => {
+          setIsAnimating(false)
+        }, 500)
+        
+      }, 3000)
+
+      return () => clearInterval(interval)
+    }
+  }, [texts.length, currentIndex, animationType])
+
+  // Update display text for non-typewriter animations
+  useEffect(() => {
+    if (animationType !== "typewriter") {
+      setDisplayText(texts[currentIndex])
+    }
+  }, [currentIndex, animationType, texts])
+
+  // Find the longest text to prevent layout shift
+  const longestText = texts.reduce((a, b) => a.length > b.length ? a : b, "")
+
+  const getAnimationClasses = () => {
+    // Base classes that should be applied to all animations
+    const baseClasses = cn("font-bold text-gray-900 transition-all", className)
+    
+    if (animationType === "typewriter") {
+      return cn(
+        baseClasses,
+        "duration-200",
+        "after:content-['|'] after:animate-pulse after:text-emerald-500 after:ml-1",
+        isAnimating ? "after:opacity-100" : "after:opacity-0"
+      )
+    }
+    
+    if (animationType === "fade") {
+      return cn(
+        baseClasses,
+        "duration-500 ease-out",
+        isAnimating ? "opacity-0" : "opacity-100"
+      )
+    }
+    
+    // Default slide animation
+    return cn(
+      baseClasses,
+      "duration-500 ease-out transform-gpu",
+      isAnimating 
+        ? "opacity-0 translate-y-[-20px] scale-95" 
+        : "opacity-100 translate-y-0 scale-100"
+    )
+  }
+
   return (
-    <span className="relative inline-block -ml-2">
-      <span className="invisible font-bold">{texts[0]}</span>
-      <span className="absolute inset-0 font-bold text-black [text-shadow:0_1px_2px_rgba(0,0,0,0.15),0_0_1px_rgba(0,0,0,0.8)]" ref={text1Ref} />
-      <span className="absolute inset-0 font-bold text-black [text-shadow:0_1px_2px_rgba(0,0,0,0.15),0_0_1px_rgba(0,0,0,0.8)]" ref={text2Ref} />
+    <span className={cn("relative inline-block", animationType !== "typewriter" && "overflow-hidden")}>
+      {/* Invisible spacer to maintain consistent width */}
+      <span className={cn("invisible font-bold", className)} aria-hidden="true">
+        {animationType === "typewriter" ? longestText + "|" : longestText}
+      </span>
+      
+      {/* Animated text */}
+      <span className="absolute inset-0 flex items-center">
+        <span 
+          className={getAnimationClasses()}
+          style={{
+            transitionProperty: "opacity, transform",
+            transitionTimingFunction: "cubic-bezier(0.4, 0, 0.2, 1)"
+          }}
+        >
+          {displayText}
+        </span>
+      </span>
+      
+      {/* Subtle highlight effect during transition (only for slide animation) */}
+      {animationType === "slide" && (
+        <span 
+          className={cn(
+            "absolute inset-0 bg-gradient-to-r from-emerald-500/5 via-emerald-400/10 to-emerald-500/5",
+            "transition-opacity duration-300 ease-out rounded-lg -mx-2 -my-1",
+            isAnimating ? "opacity-100" : "opacity-0"
+          )}
+        />
+      )}
+      
+      {/* Glow effect for typewriter */}
+      {animationType === "typewriter" && (
+        <span 
+          className={cn(
+            "absolute inset-0 bg-emerald-500/5 blur-xl rounded-lg -mx-4 -my-2",
+            "transition-opacity duration-300 ease-out",
+            isAnimating ? "opacity-100" : "opacity-0"
+          )}
+        />
+      )}
     </span>
   )
 }
-
-const SvgFilters: React.FC = () => (
-  <svg id="filters" className="fixed h-0 w-0" preserveAspectRatio="xMidYMid slice">
-    <defs>
-      <filter id="threshold">
-        <feColorMatrix
-          in="SourceGraphic"
-          type="matrix"
-          values="1 0 0 0 0
-                  0 1 0 0 0
-                  0 0 1 0 0
-                  0 0 0 255 -140"
-        />
-      </filter>
-    </defs>
-  </svg>
-)
-
-export const MorphingText: React.FC<MorphingTextProps> = ({ texts, className }) => (
-  <span className={cn("inline-block [filter:url(#threshold)_blur(0.3px)]", className)}>
-    <Texts texts={texts} />
-    <SvgFilters />
-  </span>
-)
