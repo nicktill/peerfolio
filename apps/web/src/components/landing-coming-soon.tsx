@@ -2,6 +2,7 @@
 
 import { TrendingUp, Users, Link2, BarChart3, CheckCircle, Sparkles, Award } from "lucide-react"
 import Image from "next/image"
+import { signIn } from "next-auth/react"
 import { BrokerageMarquee } from "./brokerage-marquee"
 import { AnimatedGridPattern } from "./magicui/animated-grid-pattern"
 import { DotPattern } from "./magicui/dot-pattern"
@@ -108,10 +109,19 @@ export default function PeerfolioLanding() {
           </div>
 
           <div className="flex items-center space-x-4">
-            <Button variant="ghost" className="hidden md:inline-flex">
+            <Button 
+              variant="ghost" 
+              className="hidden md:inline-flex"
+              onClick={() => signIn('google')}
+            >
               Sign in
             </Button>
-            <Button variant="dark">Get Started</Button>
+            <Button 
+              variant="dark"
+              onClick={() => signIn('google')}
+            >
+              Get Started
+            </Button>
           </div>
         </div>
       </header>
