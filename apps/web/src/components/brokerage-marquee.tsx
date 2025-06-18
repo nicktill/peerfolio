@@ -60,8 +60,19 @@ function ReviewCard({ img, name }: { img: string; name: string }) {
             className="w-6 h-6 object-contain" 
             alt={`${name} logo`} 
             src={img}
+            loading="eager"
+            decoding="async"
+            onError={(e) => {
+              // Fallback to a generic icon if image fails to load
+              const target = e.target as HTMLImageElement;
+              target.style.display = 'none';
+              target.nextElementSibling?.classList.remove('hidden');
+            }}
             style={{ maxWidth: '100%', maxHeight: '100%' }}
           />
+          <div className="hidden w-4 h-4 rounded bg-gray-300 flex items-center justify-center text-xs text-gray-600 font-bold">
+            {name.charAt(0)}
+          </div>
         </div>
         <figcaption className="text-xs font-medium text-gray-700 text-center truncate w-full">
           {name}
@@ -85,7 +96,14 @@ export function BrokerageMarquee() {
         </div>
         
         <div className="relative flex w-full flex-col items-center justify-center overflow-hidden">
-          <Marquee pauseOnHover className="[--duration:20s]">
+          <Marquee 
+            pauseOnHover 
+            className="[--duration:20s]"
+            style={{
+              '--duration': '20s',
+              '--gap': '1rem'
+            } as React.CSSProperties}
+          >
             {brokerages.map((brokerage) => (
               <ReviewCard key={brokerage.name} img={brokerage.logo} name={brokerage.name} />
             ))}
