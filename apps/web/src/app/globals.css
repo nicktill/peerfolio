@@ -3,6 +3,88 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Custom Loading Animations */
+@keyframes progress {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-progress {
+  animation: progress 2s ease-in-out infinite;
+}
+
+.animation-delay-75 {
+  animation-delay: 75ms;
+}
+
+.animation-delay-150 {
+  animation-delay: 150ms;
+}
+
+/* Enhanced pulse animation */
+@keyframes enhanced-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.05);
+  }
+}
+
+.animate-enhanced-pulse {
+  animation: enhanced-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Custom Loading Animations */
+@keyframes progress {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-progress {
+  animation: progress 2s ease-in-out infinite;
+}
+
+.animation-delay-75 {
+  animation-delay: 75ms;
+}
+
+.animation-delay-150 {
+  animation-delay: 150ms;
+}
+
+/* Enhanced pulse animation */
+@keyframes enhanced-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.05);
+  }
+}
+
+.animate-enhanced-pulse {
+  animation: enhanced-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
 @layer base {
   html {
     font-family: "Inter", system-ui, sans-serif;
@@ -60,13 +142,6 @@
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
   }
-  .theme {
-    --animate-marquee: marquee var(--duration) infinite linear;
-    --animate-marquee-vertical: marquee-vertical var(--duration) linear infinite;
-    --animate-shiny-text: shiny-text 8s infinite;
-    --animate-ripple: ripple var(--duration,2s) ease calc(var(--i, 0)*.2s) infinite;
-    --animate-orbit: orbit calc(var(--duration)*1s) linear infinite;
-  }
 }
 
 body {
@@ -98,45 +173,15 @@ body {
   }
 }
 
-@theme inline {
-  @keyframes marquee {
-  from {
-    transform: translateX(0);
-    }
-  to {
-    transform: translateX(calc(-100% - var(--gap)));
-    }
-  }
-  @keyframes marquee-vertical {
-  from {
-    transform: translateY(0);
-    }
-  to {
-    transform: translateY(calc(-100% - var(--gap)));
-    }
-  }
-  @keyframes shiny-text {
-  0%, 90%, 100% {
-    background-position: calc(-100% - var(--shiny-width)) 0;
-    }
-  30%, 60% {
-    background-position: calc(100% + var(--shiny-width)) 0;
-    }
-  }
-  @keyframes ripple {
-  0%, 100% {
-    transform: translate(-50%, -50%) scale(1);
-    }
-  50% {
-    transform: translate(-50%, -50%) scale(0.9);
-    }
-  }
-  @keyframes orbit {
-  0% {
-    transform: rotate(calc(var(--angle) * 1deg)) translateY(calc(var(--radius) * 1px)) rotate(calc(var(--angle) * -1deg));
-    }
-  100% {
-    transform: rotate(calc(var(--angle) * 1deg + 360deg)) translateY(calc(var(--radius) * 1px)) rotate(calc((var(--angle) * -1deg) - 360deg));
-    }
-  }
+/* Marquee Animations - Production optimized */
+.animate-marquee {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+.animate-marquee-vertical {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
