@@ -1,6 +1,6 @@
 "use client";
 
-import { TrendingUp, Users, Link2, BarChart3, CheckCircle, Sparkles, Award } from "lucide-react"
+import { TrendingUp, Users, Link2, BarChart3, CheckCircle, Sparkles, Award, Star, ArrowRight, Globe, Shield, Zap } from "lucide-react"
 import Image from "next/image"
 import { signIn } from "next-auth/react"
 import { BrokerageMarquee } from "./brokerage-marquee"
@@ -22,7 +22,7 @@ interface ButtonProps {
 
 const Button = ({ children, variant = "default", size = "default", className = "", ...props }: ButtonProps) => {
   const baseClasses =
-    "inline-flex items-center justify-center font-medium transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2"
+    "inline-flex items-center justify-center font-medium transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 transform hover:scale-[1.02] active:scale-[0.98]"
   const variants = {
     default: "bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg hover:shadow-xl focus:ring-emerald-500 rounded-full",
     dark: "bg-gray-900 hover:bg-gray-800 text-white shadow-lg hover:shadow-xl focus:ring-gray-500 rounded-full",
@@ -51,7 +51,7 @@ const Input = ({ className = "", ...props }: any) => (
 
 const Card = ({ children, className = "", ...props }: any) => (
   <div
-    className={`rounded-2xl border border-gray-100 bg-white shadow-sm hover:shadow-lg hover:border-gray-200 transition-all duration-300 cursor-pointer ${className}`}
+    className={`rounded-2xl border border-gray-100 bg-white shadow-sm hover:shadow-lg hover:border-gray-200 transition-all duration-300 cursor-pointer transform hover:scale-[1.02] hover:-translate-y-1 ${className}`}
     {...props}
   >
     {children}
@@ -67,50 +67,53 @@ const Badge = ({ children, className = "", ...props }: any) => (
 export default function PeerfolioLanding() {
   return (
     <div className="flex flex-col min-h-screen relative overflow-x-hidden">
-      {/* Subtle Global Background - Main Areas */}
+      {/* Clean Global Background with Single Rotated Animated Grid */}
       <div className="fixed inset-0 z-0">
         {/* Base gradient background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-gray-50 via-white to-emerald-50/30" />
+        <div className="absolute inset-0 bg-gradient-to-br from-gray-50 via-white to-emerald-50/20" />
         
-        {/* More visible dot pattern for main areas */}
-        <DotPattern
-          className={cn(
-            "absolute inset-0 h-full w-full opacity-[0.25] text-emerald-600",
-            "[mask-image:radial-gradient(1000px_circle_at_center,white,transparent)]"
-          )}
-          width={32}
-          height={32}
-        />
+        {/* Single subtle rotated animated grid background */}
+        <div className="absolute -inset-[10%] w-[120%] h-[120%] transform rotate-12 origin-center">
+          <AnimatedGridPattern
+            numSquares={80}
+            maxOpacity={0.18}
+            duration={6}
+            repeatDelay={0.5}
+            className={cn(
+              "absolute inset-0 h-full w-full text-emerald-500/70",
+              "[mask-image:radial-gradient(2000px_circle_at_center,white,transparent)]"
+            )}
+          />
+        </div>
         
-        {/* Additional subtle dot pattern overlay */}
-        <DotPattern
-          className={cn(
-            "absolute inset-0 h-full w-full opacity-[0.12] text-gray-700",
-            "[mask-image:radial-gradient(1200px_circle_at_center,white,transparent)]"
-          )}
-          width={48}
-          height={48}
-        />
+        {/* Additional floating elements for depth */}
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-gradient-to-r from-emerald-200/10 to-teal-200/10 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-gradient-to-r from-blue-200/10 to-purple-200/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }} />
       </div>
       
       {/* Header */}
       <header className="sticky top-0 z-50 w-full border-b border-gray-100/50 bg-white/80 backdrop-blur-md relative">
+        {/* Subtle animated border */}
+        <div className="absolute bottom-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-emerald-500/20 to-transparent" />
         <div className="container flex h-16 items-center justify-between px-6 max-w-6xl mx-auto">
-          <div className="flex items-center space-x-3">
-            <Image
-              src="/logo.png"
-              alt="Peerfolio Logo"
-              width={36}
-              height={36}
-              className="rounded-lg"
-            />
-            <span className="text-xl font-semibold text-gray-900">Peerfolio</span>
+          <div className="flex items-center space-x-3 group cursor-pointer">
+            <div className="relative">
+              <Image
+                src="/logo.png"
+                alt="Peerfolio Logo"
+                width={36}
+                height={36}
+                className="rounded-lg transition-transform duration-300 group-hover:scale-110"
+              />
+              <div className="absolute inset-0 rounded-lg bg-emerald-500/20 blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            </div>
+            <span className="text-xl font-semibold text-gray-900 group-hover:text-emerald-600 transition-colors duration-300">Peerfolio</span>
           </div>
 
           <div className="flex items-center space-x-4">
             <Button 
               variant="ghost" 
-              className="hidden md:inline-flex"
+              className="hidden md:inline-flex hover:bg-emerald-50 hover:text-emerald-600"
               onClick={() => signIn('google')}
             >
               Sign in
@@ -118,8 +121,10 @@ export default function PeerfolioLanding() {
             <Button 
               variant="dark"
               onClick={() => signIn('google')}
+              className="bg-gradient-to-r from-gray-900 to-gray-800 hover:from-gray-800 hover:to-gray-700"
             >
               Get Started
+              <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform duration-300" />
             </Button>
           </div>
         </div>
@@ -127,15 +132,20 @@ export default function PeerfolioLanding() {
 
       <main className="flex-1 relative z-10">
         {/* Hero Section */}
-        <section className="relative py-24 md:py-32 bg-gradient-to-b from-transparent via-white/30 to-white/60">
+        <section className="relative py-24 md:py-32 bg-gradient-to-b from-transparent via-white/30 to-white/60 overflow-hidden">
+          {/* Static floating elements for visual interest */}
+          <div className="absolute top-20 left-10 w-20 h-20 bg-emerald-400/10 rounded-full blur-xl" />
+          <div className="absolute top-40 right-20 w-16 h-16 bg-blue-400/10 rounded-full blur-xl" />
+          <div className="absolute bottom-20 left-1/4 w-24 h-24 bg-purple-400/10 rounded-full blur-xl" />
+          
           <div className="container relative px-6 max-w-6xl mx-auto">
             <div className="mx-auto max-w-4xl text-center">
-              <Badge className="mb-8 bg-gray-100 text-gray-700 border border-gray-200 animate__animated animate__fadeIn">
-                <Award className="w-3 h-3 mr-2" />
+              <Badge className="mb-8 bg-white/80 backdrop-blur-sm text-gray-700 border border-gray-200/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
+                <Star className="w-3 h-3 mr-2 text-yellow-500" />
                 Trusted by 2,847+ investors
               </Badge>
 
-            <h1 className="mb-8 font-bold tracking-tight animate__animated animate__fadeIn">
+            <h1 className="mb-8 font-bold tracking-tight animate__animated animate__fadeInUp">
             <div className="text-5xl sm:text-6xl md:text-7xl text-gray-900 leading-none">
                 Track your{" "}
                 <span className="inline-block min-w-[280px] sm:min-w-[350px] md:min-w-[420px] text-left align-baseline">
@@ -153,19 +163,22 @@ export default function PeerfolioLanding() {
             </div>
             </h1>
 
-              <p className="mx-auto mb-12 max-w-2xl text-xl text-gray-600 leading-relaxed animate__animated animate__fadeIn animate__delay-1s">
+              <p className="mx-auto mb-12 max-w-2xl text-xl text-gray-600 leading-relaxed animate__animated animate__fadeInUp animate__delay-1s">
                 Peerfolio lets you compare portfolios, stay accountable, and grow wealth together. The social investment
                 platform built for your generation.
               </p>
 
               <div className="mx-auto max-w-lg animate__animated animate__fadeInUp animate__delay-2s">
-                <div className="flex gap-3 p-2 bg-white rounded-full shadow-xl border border-gray-100">
+                <div className="flex gap-3 p-2 bg-white/90 backdrop-blur-sm rounded-full shadow-xl border border-gray-100/50 hover:shadow-2xl transition-all duration-300 group">
                   <Input
                     type="email"
                     placeholder="Enter your email"
-                    className="flex-1 border-0 bg-transparent focus:ring-0 shadow-none"
+                    className="flex-1 border-0 bg-transparent focus:ring-0 shadow-none group-hover:bg-white/50 transition-colors duration-300"
                   />
-                  <Button className="bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-700 text-white hover:text-white font-medium">Join Waitlist</Button>
+                  <Button className="bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-700 text-white hover:text-white font-medium">
+                    Join Waitlist
+                    <Sparkles className="w-4 h-4 ml-2" />
+                  </Button>
                 </div>
                 <p className="mt-4 text-sm text-gray-500">Free forever • No credit card required</p>
               </div>
@@ -173,29 +186,29 @@ export default function PeerfolioLanding() {
 
             {/* Hero Visual - Portfolio Dashboard */}
             <div className="mx-auto max-w-6xl mt-20 animate__animated animate__fadeInUp animate__delay-3s">
-              <div className="relative">
-                {/* Enhanced animated grid pattern specifically to this section */}
+              <div className="relative group">
+                {/* Enhanced animated grid pattern for hero dashboard */}
                 <div className="absolute inset-0 rounded-3xl overflow-hidden">
                   <AnimatedGridPattern
                     numSquares={25}
                     maxOpacity={0.15}
-                    duration={3}
-                    repeatDelay={1}
+                    duration={4}
+                    repeatDelay={0.5}
                     className={cn(
-                      "absolute inset-0 h-full w-full text-emerald-500",
+                      "absolute inset-0 h-full w-full text-emerald-400/80",
                       "[mask-image:radial-gradient(600px_circle_at_center,white,transparent)]"
                     )}
                   />
                 </div>
-                <div className="absolute inset-0 bg-gradient-to-r from-emerald-100/30 to-blue-100/30 rounded-3xl blur-3xl" />
-                <div className="relative bg-white/95 rounded-3xl p-8 shadow-2xl border border-gray-100 backdrop-blur-sm">
+                <div className="absolute inset-0 bg-gradient-to-r from-emerald-100/30 to-blue-100/30 rounded-3xl blur-3xl group-hover:blur-2xl transition-all duration-700" />
+                <div className="relative bg-white/95 rounded-3xl p-8 shadow-2xl border border-gray-100 backdrop-blur-sm group-hover:shadow-3xl transition-all duration-500">
                   {/* Dashboard Header */}
                   <div className="flex items-center justify-between mb-8 pb-6 border-b border-gray-100">
                     <div>
                       <h3 className="text-xl font-bold text-gray-900">Portfolio Performance</h3>
                       <p className="text-sm text-gray-500 flex items-center gap-2">
-                        <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
-                        Stanford CS Group • 24 members online
+                        <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+                        Stanford CS Group • <NumberTicker value={24} /> members online
                       </p>
                     </div>
                     <div className="text-right">
@@ -209,13 +222,13 @@ export default function PeerfolioLanding() {
                   </div>
 
                   <div className="grid gap-6 md:grid-cols-3">
-                    <Card className="bg-gradient-to-r from-emerald-50 to-emerald-100 border-emerald-200 animate__animated animate__fadeIn animate__delay-1s">
+                    <Card className="bg-gradient-to-r from-emerald-50 to-emerald-100 border-emerald-200 hover:from-emerald-100 hover:to-emerald-200 transition-all duration-500">
                       <div className="p-6">
                         <div className="flex items-center justify-between mb-4">
-                          <div className="h-12 w-12 rounded-xl bg-emerald-500 flex items-center justify-center shadow-lg">
+                          <div className="h-12 w-12 rounded-xl bg-emerald-500 flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-110 transition-all duration-300">
                             <TrendingUp className="h-6 w-6 text-white" />
                           </div>
-                          <Badge className="bg-emerald-500 text-white border-0 shadow-sm">🏆 Top 10%</Badge>
+                          <Badge className="bg-emerald-500 text-white border-0 shadow-sm hover:shadow-md transition-shadow duration-300">🏆 Top 10%</Badge>
                         </div>
                         <div className="space-y-2">
                           <div className="text-sm text-emerald-700 font-semibold">Your Rank</div>
@@ -229,13 +242,13 @@ export default function PeerfolioLanding() {
                       </div>
                     </Card>
 
-                    <Card className="bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200 ring-2 ring-blue-200 animate__animated animate__fadeIn animate__delay-1s">
+                    <Card className="bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200 ring-2 ring-blue-200 hover:ring-blue-300 hover:from-blue-100 hover:to-blue-200 transition-all duration-500">
                       <div className="p-6">
                         <div className="flex items-center justify-between mb-4">
-                          <div className="h-12 w-12 rounded-xl bg-blue-500 flex items-center justify-center shadow-lg">
+                          <div className="h-12 w-12 rounded-xl bg-blue-500 flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-110 transition-all duration-300">
                             <BarChart3 className="h-6 w-6 text-white" />
                           </div>
-                          <Badge className="bg-blue-500 text-white border-0 shadow-sm">📈 +8.7%</Badge>
+                          <Badge className="bg-blue-500 text-white border-0 shadow-sm hover:shadow-md transition-shadow duration-300">📈 +8.7%</Badge>
                         </div>
                         <div className="space-y-2">
                           <div className="text-sm text-blue-700 font-semibold">30-Day Return</div>
@@ -249,13 +262,13 @@ export default function PeerfolioLanding() {
                       </div>
                     </Card>
 
-                    <Card className="bg-gradient-to-r from-purple-50 to-purple-100 border-purple-200 animate__animated animate__fadeIn animate__delay-1s">
+                    <Card className="bg-gradient-to-r from-purple-50 to-purple-100 border-purple-200 hover:from-purple-100 hover:to-purple-200 transition-all duration-500">
                       <div className="p-6">
                         <div className="flex items-center justify-between mb-4">
-                          <div className="h-12 w-12 rounded-xl bg-purple-500 flex items-center justify-center shadow-lg">
+                          <div className="h-12 w-12 rounded-xl bg-purple-500 flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-110 transition-all duration-300">
                             <Users className="h-6 w-6 text-white" />
                           </div>
-                          <Badge className="bg-purple-500 text-white border-0 shadow-sm">🔥 Active</Badge>
+                          <Badge className="bg-purple-500 text-white border-0 shadow-sm hover:shadow-md transition-shadow duration-300">🔥 Active</Badge>
                         </div>
                         <div className="space-y-2">
                           <div className="text-sm text-purple-700 font-semibold">Group Activity</div>
@@ -273,9 +286,11 @@ export default function PeerfolioLanding() {
                     <div className="flex items-center justify-between text-sm text-gray-600">
                       <span className="flex items-center gap-2">
                         <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                        Live data • Updated 2 mins ago
+                        Live data • Updated <NumberTicker value={2} /> mins ago
                       </span>
-                      <span>🎯 Goal: Beat market by 5%</span>
+                      <span className="flex items-center gap-2">
+                        🎯 Goal: Beat market by <NumberTicker value={5} />%
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -285,15 +300,17 @@ export default function PeerfolioLanding() {
         </section>
 
         {/* Brokerage Partners Marquee */}
-        <BrokerageMarquee />
+        <div className="animate__animated animate__fadeInUp">
+          <BrokerageMarquee />
+        </div>
 
         {/* Features Section */}
         <section className="py-24 md:py-32 bg-gradient-to-b from-white/80 to-gray-50/80 backdrop-blur-sm relative overflow-hidden">
-          {/* Subtle background pattern */}
-          <div className="absolute inset-0 opacity-40">
+          {/* Subtle background pattern for features */}
+          <div className="absolute inset-0 opacity-20">
             <DotPattern
               className={cn(
-                "absolute inset-0 h-full w-full opacity-[0.30] text-blue-500",
+                "absolute inset-0 h-full w-full opacity-[0.15] text-blue-400/60",
                 "[mask-image:radial-gradient(1200px_circle_at_center,white,transparent)]"
               )}
               width={40}
@@ -406,7 +423,7 @@ export default function PeerfolioLanding() {
             <div className="absolute -inset-[20%] w-[140%] h-[140%] transform -skew-y-12 origin-center">
               <AnimatedGridPattern
                 numSquares={40}
-                maxOpacity={0.20}
+                maxOpacity={0.35}
                 duration={3}
                 repeatDelay={1}
                 className={cn(
@@ -453,7 +470,7 @@ export default function PeerfolioLanding() {
       </main>
 
       {/* Simple Footer */}
-      <footer className="border-t border-gray-100/50 bg-white/90 backdrop-blur-sm py-12 relative z-10">
+      <footer className="border-t border-gray-100/50 bg-white/90 backdrop-blur-sm py-12 relative z-10 animate__animated animate__fadeIn">
         <div className="container px-6 max-w-6xl mx-auto">
           <div className="flex flex-col md:flex-row items-center justify-between">
             <div className="flex items-center space-x-3 mb-4 md:mb-0">
