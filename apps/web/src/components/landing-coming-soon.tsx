@@ -9,7 +9,6 @@ import { DotPattern } from "./magicui/dot-pattern"
 import { MorphingText } from "./magicui/morphing-text"
 import { NumberTicker } from "./magicui/number-ticker"
 import { AnimatedShinyText } from "./magicui/animated-shiny-text"
-import { Particles } from "./magicui/particles"
 import { cn } from "@web/lib/utils"
 
 // Simple inline components with more professional styling
@@ -71,26 +70,26 @@ export default function PeerfolioLanding() {
       {/* Subtle Global Background - Main Areas */}
       <div className="fixed inset-0 z-0">
         {/* Base gradient background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-gray-50 via-white to-emerald-50/20" />
+        <div className="absolute inset-0 bg-gradient-to-br from-gray-50 via-white to-emerald-50/30" />
         
-        {/* Subtle dot pattern for main areas */}
+        {/* More visible dot pattern for main areas */}
         <DotPattern
           className={cn(
-            "absolute inset-0 h-full w-full opacity-[0.015]",
-            "[mask-image:radial-gradient(800px_circle_at_center,white,transparent)]"
+            "absolute inset-0 h-full w-full opacity-[0.25] text-emerald-600",
+            "[mask-image:radial-gradient(1000px_circle_at_center,white,transparent)]"
           )}
-          width={24}
-          height={24}
+          width={32}
+          height={32}
         />
         
         {/* Additional subtle dot pattern overlay */}
         <DotPattern
           className={cn(
-            "absolute inset-0 h-full w-full opacity-[0.008]",
-            "[mask-image:radial-gradient(1000px_circle_at_center,white,transparent)]"
+            "absolute inset-0 h-full w-full opacity-[0.12] text-gray-700",
+            "[mask-image:radial-gradient(1200px_circle_at_center,white,transparent)]"
           )}
-          width={20}
-          height={20}
+          width={48}
+          height={48}
         />
       </div>
       
@@ -141,7 +140,7 @@ export default function PeerfolioLanding() {
                 Track your{" "}
                 <span className="inline-block min-w-[280px] sm:min-w-[350px] md:min-w-[420px] text-left align-baseline">
                 <MorphingText 
-                    texts={["investments", "budgeting", "retirement", "trading",  "dividends", "brokerages", "finances"]} 
+                    texts={["investments", "budgeting", "retirement", "allocations",  "dividends", "brokerages", "finances"]} 
                     className="inline-block align-baseline text-5xl sm:text-6xl md:text-7xl"
                     animationType="typewriter"
                 />
@@ -166,7 +165,7 @@ export default function PeerfolioLanding() {
                     placeholder="Enter your email"
                     className="flex-1 border-0 bg-transparent focus:ring-0 shadow-none"
                   />
-                  <Button className="bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-700">Join Waitlist</Button>
+                  <Button className="bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-700 text-white hover:text-white font-medium">Join Waitlist</Button>
                 </div>
                 <p className="mt-4 text-sm text-gray-500">Free forever • No credit card required</p>
               </div>
@@ -175,15 +174,15 @@ export default function PeerfolioLanding() {
             {/* Hero Visual - Portfolio Dashboard */}
             <div className="mx-auto max-w-6xl mt-20 animate__animated animate__fadeInUp animate__delay-3s">
               <div className="relative">
-                {/* Add animated grid pattern specifically to this section */}
+                {/* Enhanced animated grid pattern specifically to this section */}
                 <div className="absolute inset-0 rounded-3xl overflow-hidden">
                   <AnimatedGridPattern
-                    numSquares={20}
-                    maxOpacity={0.02}
+                    numSquares={25}
+                    maxOpacity={0.15}
                     duration={3}
                     repeatDelay={1}
                     className={cn(
-                      "absolute inset-0 h-full w-full skew-y-12",
+                      "absolute inset-0 h-full w-full text-emerald-500",
                       "[mask-image:radial-gradient(600px_circle_at_center,white,transparent)]"
                     )}
                   />
@@ -289,8 +288,20 @@ export default function PeerfolioLanding() {
         <BrokerageMarquee />
 
         {/* Features Section */}
-        <section className="py-24 md:py-32 bg-white/60 backdrop-blur-sm relative">
-          <div className="container px-6 max-w-6xl mx-auto">
+        <section className="py-24 md:py-32 bg-gradient-to-b from-white/80 to-gray-50/80 backdrop-blur-sm relative overflow-hidden">
+          {/* Subtle background pattern */}
+          <div className="absolute inset-0 opacity-40">
+            <DotPattern
+              className={cn(
+                "absolute inset-0 h-full w-full opacity-[0.30] text-blue-500",
+                "[mask-image:radial-gradient(1200px_circle_at_center,white,transparent)]"
+              )}
+              width={40}
+              height={40}
+            />
+          </div>
+          
+          <div className="container px-6 max-w-6xl mx-auto relative">
             <div className="mx-auto max-w-4xl text-center mb-20">
               <h2 className="mb-6 text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl animate__animated animate__fadeInUp">
                 Investing, but make it{" "}
@@ -303,56 +314,83 @@ export default function PeerfolioLanding() {
               </p>
             </div>
 
-            <div className="grid gap-12 md:grid-cols-3">
-              <div className="text-center animate__animated animate__fadeIn animate__delay-1s">
-                <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-900 shadow-lg mx-auto">
-                  <Link2 className="h-8 w-8 text-white" />
+            <div className="grid gap-8 md:grid-cols-3 lg:gap-12">
+              <div className="group text-center animate__animated animate__fadeIn animate__delay-1s">
+                <div className="relative mb-8">
+                  {/* Gradient background glow */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-emerald-400/20 to-teal-400/20 rounded-3xl blur-xl group-hover:blur-2xl transition-all duration-300"></div>
+                  {/* Icon container */}
+                  <div className="relative mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-xl mx-auto group-hover:shadow-2xl group-hover:scale-105 transition-all duration-300">
+                    <Link2 className="h-10 w-10 text-white" />
+                  </div>
                 </div>
-                <h3 className="mb-4 text-xl font-semibold text-gray-900">Connect all your accounts</h3>
-                <p className="text-gray-600 leading-relaxed mb-6">
+                <h3 className="mb-4 text-xl font-bold text-gray-900 group-hover:text-emerald-600 transition-colors duration-300">Connect all your accounts</h3>
+                <p className="text-gray-600 leading-relaxed mb-6 max-w-sm mx-auto">
                   Securely link your brokerage accounts through Plaid. Support for Robinhood, Fidelity, Charles Schwab,
                   and 12,000+ institutions.
                 </p>
-                <div className="text-sm text-gray-500">
-                  <div className="flex items-center justify-center space-x-4">
-                    <AnimatedShinyText className="text-emerald-600">
-                      • Bank-level security
+                <div className="flex items-center justify-center gap-6 text-sm text-gray-500">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
+                    <AnimatedShinyText className="text-emerald-600 font-medium">
+                      Bank-level security
                     </AnimatedShinyText>
-                    <span>• Real-time sync</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                    <span className="font-medium">Real-time sync</span>
                   </div>
                 </div>
               </div>
 
-              <div className="text-center animate__animated animate__fadeIn animate__delay-2s">
-                <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-900 shadow-lg mx-auto">
-                  <Users className="h-8 w-8 text-white" />
+              <div className="group text-center animate__animated animate__fadeIn animate__delay-2s">
+                <div className="relative mb-8">
+                  {/* Gradient background glow */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-400/20 to-purple-400/20 rounded-3xl blur-xl group-hover:blur-2xl transition-all duration-300"></div>
+                  {/* Icon container */}
+                  <div className="relative mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-blue-500 to-blue-600 shadow-xl mx-auto group-hover:shadow-2xl group-hover:scale-105 transition-all duration-300">
+                    <Users className="h-10 w-10 text-white" />
+                  </div>
                 </div>
-                <h3 className="mb-4 text-xl font-semibold text-gray-900">Group investing</h3>
-                <p className="text-gray-600 leading-relaxed mb-6">
+                <h3 className="mb-4 text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors duration-300">Group investing</h3>
+                <p className="text-gray-600 leading-relaxed mb-6 max-w-sm mx-auto">
                   Create groups with friends or join curated communities. Compare performance side-by-side and stay
                   motivated with friendly competition.
                 </p>
-                <div className="text-sm text-gray-500">
-                  <div className="flex items-center justify-center space-x-4">
-                    <span>• University groups</span>
-                    <span>• Anonymous rankings</span>
+                <div className="flex items-center justify-center gap-6 text-sm text-gray-500">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                    <span className="font-medium">University groups</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                    <span className="font-medium">Anonymous rankings</span>
                   </div>
                 </div>
               </div>
 
-              <div className="text-center animate__animated animate__fadeIn animate__delay-3s">
-                <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-900 shadow-lg mx-auto">
-                  <BarChart3 className="h-8 w-8 text-white" />
+              <div className="group text-center animate__animated animate__fadeIn animate__delay-3s">
+                <div className="relative mb-8">
+                  {/* Gradient background glow */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-purple-400/20 to-pink-400/20 rounded-3xl blur-xl group-hover:blur-2xl transition-all duration-300"></div>
+                  {/* Icon container */}
+                  <div className="relative mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-purple-500 to-purple-600 shadow-xl mx-auto group-hover:shadow-2xl group-hover:scale-105 transition-all duration-300">
+                    <BarChart3 className="h-10 w-10 text-white" />
+                  </div>
                 </div>
-                <h3 className="mb-4 text-xl font-semibold text-gray-900">Portfolio growth insights</h3>
-                <p className="text-gray-600 leading-relaxed mb-6">
+                <h3 className="mb-4 text-xl font-bold text-gray-900 group-hover:text-purple-600 transition-colors duration-300">Portfolio growth insights</h3>
+                <p className="text-gray-600 leading-relaxed mb-6 max-w-sm mx-auto">
                   See how your gains compare over time with beautiful charts and insights. Track your progress and learn
                   from top performers.
                 </p>
-                <div className="text-sm text-gray-500">
-                  <div className="flex items-center justify-center space-x-4">
-                    <span>• Performance analytics</span>
-                    <span>• Growth tracking</span>
+                <div className="flex items-center justify-center gap-6 text-sm text-gray-500">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                    <span className="font-medium">Performance analytics</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-pink-500 rounded-full"></div>
+                    <span className="font-medium">Growth tracking</span>
                   </div>
                 </div>
               </div>
@@ -364,27 +402,19 @@ export default function PeerfolioLanding() {
         <section className="py-24 md:py-32 bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 relative overflow-hidden">
           {/* Enhanced background elements for CTA */}
           <div className="absolute inset-0 w-full h-full">
-            {/* Rotated grid pattern */}
-            <div className="absolute inset-0 w-full h-full transform -skew-y-12 origin-top-left scale-110">
+            {/* Rotated grid pattern covering full section */}
+            <div className="absolute -inset-[20%] w-[140%] h-[140%] transform -skew-y-12 origin-center">
               <AnimatedGridPattern
-                numSquares={30}
-                maxOpacity={0.05}
+                numSquares={40}
+                maxOpacity={0.20}
                 duration={3}
                 repeatDelay={1}
                 className={cn(
-                  "absolute inset-0 h-full w-full",
-                  "[mask-image:radial-gradient(1000px_circle_at_center,white,transparent)]"
+                  "absolute inset-0 h-full w-full text-emerald-400",
+                  "[mask-image:radial-gradient(1400px_circle_at_center,white,transparent)]"
                 )}
               />
             </div>
-            {/* Subtle white particles */}
-            <Particles
-              className="absolute inset-0 opacity-10"
-              quantity={40}
-              ease={100}
-              color="#ffffff"
-              refresh
-            />
           </div>
           <div className="container relative px-6 max-w-4xl mx-auto text-center">
             <h2 className="mb-6 text-4xl font-bold tracking-tight text-white sm:text-5xl animate__animated animate__fadeIn">
@@ -413,7 +443,7 @@ export default function PeerfolioLanding() {
             </div>
 
             <div className="animate__animated animate__fadeIn animate__delay-3s">
-              <Button size="lg" className="bg-white text-gray-900 hover:bg-gray-100 shadow-xl">
+              <Button size="lg" className="bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-700 text-white hover:text-white font-semibold shadow-xl">
                 <Sparkles className="w-5 h-5 mr-2" />
                 Join the Waitlist
               </Button>
