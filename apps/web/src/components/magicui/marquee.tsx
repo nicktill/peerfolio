@@ -52,6 +52,11 @@ export function Marquee({
         },
         className,
       )}
+      style={{
+        // Ensure CSS variables are properly set for production
+        '--duration': '40s',
+        '--gap': '1rem',
+      } as React.CSSProperties}
     >
       {Array(repeat)
         .fill(0)
@@ -64,6 +69,14 @@ export function Marquee({
               "group-hover:[animation-play-state:paused]": pauseOnHover,
               "[animation-direction:reverse]": reverse,
             })}
+            style={{
+              // Force animation properties for production reliability
+              animationDuration: 'var(--duration)',
+              animationTimingFunction: 'linear',
+              animationIterationCount: 'infinite',
+              animationDirection: reverse ? 'reverse' : 'normal',
+              animationPlayState: 'running',
+            }}
           >
             {children}
           </div>
