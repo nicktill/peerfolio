@@ -82,6 +82,28 @@ export default function DashboardPage() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Development Status Banner */}
+        <div className="mb-6 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg p-4 shadow-sm">
+          <div className="flex items-center space-x-3">
+            <div className="flex-shrink-0">
+              <div className="h-2 w-2 bg-yellow-300 rounded-full animate-pulse"></div>
+            </div>
+            <div className="flex-1">
+              <p className="text-white font-medium text-sm">
+                🏗️ Plaid Integration In Development
+              </p>
+              <p className="text-blue-100 text-xs mt-1">
+                Portfolio connection features coming soon! We're working hard to bring you seamless brokerage integration.
+              </p>
+            </div>
+            <div className="flex-shrink-0">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/20 text-white">
+                In Progress
+              </span>
+            </div>
+          </div>
+        </div>
+
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-2xl font-bold text-gray-900 mb-4">
             Welcome to Peerfolio, {session.user?.name?.split(' ')[0]}! 👋
