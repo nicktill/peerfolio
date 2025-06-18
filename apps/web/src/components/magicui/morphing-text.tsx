@@ -108,8 +108,8 @@ const Texts: React.FC<Pick<MorphingTextProps, "texts">> = ({ texts }) => {
   return (
     <span className="relative inline-block -ml-2">
       <span className="invisible font-bold">{texts[0]}</span>
-      <span className="absolute inset-0 font-bold text-black" ref={text1Ref} />
-      <span className="absolute inset-0 font-bold text-black" ref={text2Ref} />
+      <span className="absolute inset-0 font-bold text-black [text-shadow:0_1px_2px_rgba(0,0,0,0.15),0_0_1px_rgba(0,0,0,0.8)]" ref={text1Ref} />
+      <span className="absolute inset-0 font-bold text-black [text-shadow:0_1px_2px_rgba(0,0,0,0.15),0_0_1px_rgba(0,0,0,0.8)]" ref={text2Ref} />
     </span>
   )
 }
