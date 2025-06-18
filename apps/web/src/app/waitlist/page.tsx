@@ -156,7 +156,7 @@ export default function WaitlistPage() {
       </div>
 
       {/* Header */}
-      <header className="sticky top-0 z-50 w-full border-b border-gray-100/50 bg-white/80 backdrop-blur-md relative">
+      <header className="sticky top-0 z-50 w-full border-b border-gray-100/50 bg-white/80 backdrop-blur-md relative animate__animated animate__fadeIn animate__faster">
         <div className="absolute bottom-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-emerald-500/20 to-transparent" />
         <div className="container flex h-16 items-center justify-between px-6 max-w-6xl mx-auto">
           <div className="flex items-center space-x-3">
@@ -193,25 +193,25 @@ export default function WaitlistPage() {
           
           <div className="container relative px-6 max-w-2xl mx-auto">
             <div className="text-center mb-12">
-              <Badge className="mb-6 bg-white/80 backdrop-blur-sm text-gray-700 border border-gray-200/50 shadow-lg">
+              <Badge className="mb-6 bg-white/80 backdrop-blur-sm text-gray-700 border border-gray-200/50 shadow-lg animate__animated animate__fadeIn animate__faster">
                 <Star className="w-3 h-3 mr-2 text-yellow-500" />
                 Join 2,847+ early investors
               </Badge>
 
-              <h1 className="mb-6 text-4xl md:text-5xl font-bold text-gray-900 leading-tight">
+              <h1 className="mb-6 text-4xl md:text-5xl font-bold text-gray-900 leading-tight animate__animated animate__fadeIn animate__faster animate__delay-300ms">
                 Join the{" "}
                 <span className="bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 bg-clip-text text-transparent">
                   Waitlist
                 </span>
               </h1>
 
-              <p className="text-xl text-gray-600 leading-relaxed max-w-xl mx-auto">
+              <p className="text-xl text-gray-600 leading-relaxed max-w-xl mx-auto animate__animated animate__fadeIn animate__faster animate__delay-500ms">
                 Be the first to know when Peerfolio launches. Get early access and exclusive updates on the future of social investing.
               </p>
             </div>
 
             {/* Waitlist Form */}
-            <div className="relative">
+            <div className="relative animate__animated animate__fadeIn animate__faster animate__delay-700ms">
               <div className="absolute inset-0 bg-gradient-to-r from-emerald-100/30 to-blue-100/30 rounded-3xl blur-3xl" />
               <div className="relative bg-white/95 rounded-3xl p-8 shadow-2xl border border-gray-100 backdrop-blur-sm">
                 <form onSubmit={handleSubmit} className="space-y-6">
