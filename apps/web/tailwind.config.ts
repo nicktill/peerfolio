@@ -9,6 +9,16 @@ const config = {
     "./src/**/*.{js,ts,jsx,tsx,mdx}",
     "*.{js,ts,jsx,tsx,mdx}",
   ],
+  safelist: [
+    // Ensure marquee animations are never purged
+    'animate-marquee',
+    'animate-marquee-vertical',
+    '[animation-direction:reverse]',
+    'group-hover:[animation-play-state:paused]',
+    '[--duration:20s]',
+    '[--duration:40s]',
+    '[--gap:1rem]',
+  ],
   theme: {
   	extend: {
   		colors: {
