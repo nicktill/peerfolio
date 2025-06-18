@@ -137,11 +137,11 @@ export default function PeerfolioLanding() {
               </Badge>
 
             <h1 className="mb-8 font-bold tracking-tight animate__animated animate__fadeIn">
-            <div className="text-5xl sm:text-6xl md:text-7xl text-gray-900 leading-none ml-4 sm:ml-6 md:ml-8">
+            <div className="text-5xl sm:text-6xl md:text-7xl text-gray-900 leading-none">
                 Track your{" "}
-                <span className="ml-4 inline-block min-w-[280px] sm:min-w-[350px] md:min-w-[420px] text-left">
+                <span className="inline-block min-w-[280px] sm:min-w-[350px] md:min-w-[420px] text-left align-baseline">
                 <MorphingText 
-                    texts={["investments", " budgeting", "retirement", "brokerages", "savings"]} 
+                    texts={["investments", "budgeting", "retirement", "brokerages", "savings"]} 
                     className="inline-block align-baseline"
                 />
                 </span>
