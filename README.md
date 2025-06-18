@@ -1,5 +1,5 @@
 # Peerfolio
-<img width="1728" alt="Screenshot 2025-06-14 at 3 50 17 AM" src="https://github.com/user-attachments/assets/d490dede-b978-4a8c-aaa6-ff93ed741b95" />
+<img width="1728" alt="Screenshot 2025-06-18 at 7 15 52 PM" src="https://github.com/user-attachments/assets/ebc50594-1be2-4a02-9429-92797f52e946" />
 Peerfolio is a social investing platform that lets users track their portfolios, compare performance with friends, and grow wealth together. Connect accounts, join groups, and invest transparently in a community-driven way.
 
 
