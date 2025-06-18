@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { cn } from "@web/lib/utils"
 
 interface MorphingTextProps {
@@ -17,63 +17,97 @@ export const MorphingText: React.FC<MorphingTextProps> = ({
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isAnimating, setIsAnimating] = useState(false)
   const [displayText, setDisplayText] = useState(texts[0] || "")
+  const [isVisible, setIsVisible] = useState(true)
+  
+  // Refs to store interval/timeout IDs for cleanup
+  const intervalRef = useRef<NodeJS.Timeout | null>(null)
+  const eraseIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const typeIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const animationTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const delayTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Handle page visibility changes
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      setIsVisible(!document.hidden)
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [])
+
+  // Cleanup function
+  const cleanup = () => {
+    if (intervalRef.current) clearInterval(intervalRef.current)
+    if (eraseIntervalRef.current) clearInterval(eraseIntervalRef.current)
+    if (typeIntervalRef.current) clearInterval(typeIntervalRef.current)
+    if (animationTimeoutRef.current) clearTimeout(animationTimeoutRef.current)
+    if (delayTimeoutRef.current) clearTimeout(delayTimeoutRef.current)
+  }
 
   useEffect(() => {
-    if (texts.length <= 1) return
+    if (texts.length <= 1 || !isVisible) return
+
+    // Cleanup any existing intervals
+    cleanup()
 
     if (animationType === "typewriter") {
-      // Typewriter effect
-      const interval = setInterval(() => {
-        const currentText = texts[currentIndex]
-        const nextIndex = (currentIndex + 1) % texts.length
-        const nextText = texts[nextIndex]
-        
-        setIsAnimating(true)
-        
-        // Erase current text
-        let eraseIndex = currentText.length
-        const eraseInterval = setInterval(() => {
-          if (eraseIndex > 0) {
-            setDisplayText(currentText.substring(0, eraseIndex - 1))
-            eraseIndex--
-          } else {
-            clearInterval(eraseInterval)
-            
-            // Type new text
-            let typeIndex = 0
-            const typeInterval = setInterval(() => {
-              if (typeIndex < nextText.length) {
-                setDisplayText(nextText.substring(0, typeIndex + 1))
-                typeIndex++
-              } else {
-                clearInterval(typeInterval)
-                setCurrentIndex(nextIndex)
-                setIsAnimating(false)
-              }
-            }, 80) // Typing speed
-          }
-        }, 60) // Erasing speed
-      }, 4000)
+      // Reset to a clean state when restarting
+      setDisplayText(texts[currentIndex])
+      setIsAnimating(false)
       
-      return () => clearInterval(interval)
+      // Add a small delay before starting the animation
+      delayTimeoutRef.current = setTimeout(() => {
+        intervalRef.current = setInterval(() => {
+          const currentText = texts[currentIndex]
+          const nextIndex = (currentIndex + 1) % texts.length
+          const nextText = texts[nextIndex]
+          
+          setIsAnimating(true)
+          
+          // Erase current text
+          let eraseIndex = currentText.length
+          eraseIntervalRef.current = setInterval(() => {
+            if (eraseIndex > 0) {
+              setDisplayText(currentText.substring(0, eraseIndex - 1))
+              eraseIndex--
+            } else {
+              if (eraseIntervalRef.current) clearInterval(eraseIntervalRef.current)
+              
+              // Type new text
+              let typeIndex = 0
+              typeIntervalRef.current = setInterval(() => {
+                if (typeIndex < nextText.length) {
+                  setDisplayText(nextText.substring(0, typeIndex + 1))
+                  typeIndex++
+                } else {
+                  if (typeIntervalRef.current) clearInterval(typeIntervalRef.current)
+                  setCurrentIndex(nextIndex)
+                  setIsAnimating(false)
+                }
+              }, 80) // Typing speed
+            }
+          }, 60) // Erasing speed
+        }, 4000)
+      }, 500) // Initial delay
+      
     } else {
       // Slide or fade animation
-      const interval = setInterval(() => {
+      intervalRef.current = setInterval(() => {
         setIsAnimating(true)
         
-        setTimeout(() => {
+        animationTimeoutRef.current = setTimeout(() => {
           setCurrentIndex((prev) => (prev + 1) % texts.length)
         }, 250)
         
-        setTimeout(() => {
+        delayTimeoutRef.current = setTimeout(() => {
           setIsAnimating(false)
         }, 500)
-        
       }, 3000)
-
-      return () => clearInterval(interval)
     }
-  }, [texts.length, currentIndex, animationType])
+
+    return cleanup
+  }, [texts.length, currentIndex, animationType, isVisible])
 
   // Update display text for non-typewriter animations
   useEffect(() => {
@@ -81,6 +115,11 @@ export const MorphingText: React.FC<MorphingTextProps> = ({
       setDisplayText(texts[currentIndex])
     }
   }, [currentIndex, animationType, texts])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return cleanup
+  }, [])
 
   // Find the longest text to prevent layout shift
   const longestText = texts.reduce((a, b) => a.length > b.length ? a : b, "")

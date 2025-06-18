@@ -14,39 +14,46 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Peerfolio - Track Your Investments with Friends",
-  description: "Peerfolio lets you compare portfolios, stay accountable, and grow wealth together. The social investment platform built for your generation.",
-  keywords: ["investing", "portfolio", "social investing", "finance", "wealth building", "investment tracking"],
+  metadataBase: new URL(
+    process.env.NODE_ENV === 'production' 
+      ? 'https://peerfolio.com' // Replace with your actual domain
+      : 'http://localhost:3000'
+  ),
+  title: {
+    default: "Peerfolio",
+    template: "%s | Peerfolio"
+  },
+  description: "The social investment platform built for your generation. Compare portfolios, stay accountable, and grow wealth together.",
+  keywords: ["investment", "portfolio", "social", "finance", "trading", "stocks"],
   authors: [{ name: "Peerfolio Team" }],
   creator: "Peerfolio",
-  publisher: "Peerfolio",
-  icons: {
-    icon: "/favicon.png",
-    apple: "/favicon.png",
-  },
   openGraph: {
     type: "website",
     locale: "en_US",
-    title: "Peerfolio - Track Your Investments with Friends",
-    description: "Compare portfolios, stay accountable, and grow wealth together. The social investment platform built for your generation.",
+    url: "/",
+    title: "Peerfolio",
+    description: "The social investment platform built for your generation. Compare portfolios, stay accountable, and grow wealth together.",
     siteName: "Peerfolio",
     images: [
       {
         url: "/preview.png",
         width: 1200,
         height: 630,
-        alt: "Peerfolio - Social Investment Tracking Platform",
-        type: "image/png",
-      },
-    ],
+        alt: "Peerfolio - Social Investment Platform"
+      }
+    ]
   },
   twitter: {
     card: "summary_large_image",
-    title: "Peerfolio - Track Your Investments with Friends",
-    description: "Compare portfolios, stay accountable, and grow wealth together. The social investment platform built for your generation.",
+    title: "Peerfolio",
+    description: "The social investment platform built for your generation. Compare portfolios, stay accountable, and grow wealth together.",
     images: ["/preview.png"],
-    creator: "@peerfolio",
-    site: "@peerfolio",
+    creator: "@peerfolio" // Replace with your actual Twitter handle
+  },
+  icons: {
+    icon: "/favicon.png",
+    shortcut: "/favicon.png",
+    apple: "/favicon.png"
   },
   robots: {
     index: true,
@@ -54,9 +61,9 @@ export const metadata: Metadata = {
     googleBot: {
       index: true,
       follow: true,
-      "max-video-preview": -1,
-      "max-image-preview": "large",
-      "max-snippet": -1,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
     },
   },
 };
