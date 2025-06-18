@@ -73,8 +73,7 @@ export default function Loading({ variant = "branded", className, isExiting = fa
           {/* Brand name with animated text */}
           <div className="space-y-4">
             <h1 className="text-3xl font-bold text-gray-900">
-              Peer
-              <span className="text-emerald-600 animate-pulse">folio</span>
+              Peerfolio
             </h1>
             <p className="text-gray-500 animate-pulse">Loading your portfolio...</p>
           </div>
