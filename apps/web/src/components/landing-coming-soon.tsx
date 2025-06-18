@@ -165,7 +165,10 @@ export default function PeerfolioLanding() {
         {/* Subtle animated border */}
         <div className="absolute bottom-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-emerald-500/20 to-transparent" />
         <div className="container flex h-16 items-center justify-between px-6 max-w-6xl mx-auto">
-          <div className="flex items-center space-x-3 group cursor-pointer">
+          <div 
+            className="flex items-center space-x-3 group cursor-pointer"
+            onClick={() => window.location.reload()}
+          >
             <div className="relative">
               <Image
                 src="/logo.png"
