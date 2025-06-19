@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@web/
 import { Button } from "@web/components/ui/button"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@web/components/ui/chart"
 import { PlaidLink } from "./plaid-link"
-import { TrendingUp, TrendingDown, DollarSign, PieChart, Building2, Eye, EyeOff, RefreshCw, X, Play, Plus } from "lucide-react"
+import { TrendingUp, TrendingDown, DollarSign, PieChart, Building2, Eye, EyeOff, RefreshCw, X, Play, Plus, AlertTriangle } from "lucide-react"
 import {
   XAxis,
   YAxis,
@@ -872,6 +872,49 @@ export function PortfolioDashboard({
   }
   return (
     <div className="space-y-8 dark:text-foreground text-gray-900 transition-colors duration-300">
+      {/* Demo Mode Banner */}
+      {isDemoMode && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-lg p-4 mb-6">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0">
+              <svg className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-blue-800 dark:text-blue-200 mb-1">
+                Demo Mode Active
+              </h3>
+              <p className="text-sm text-blue-700 dark:text-blue-300">
+                This is mock demo data shown to demonstrate Peerfolio's features and interface. 
+                The sample portfolio data illustrates how your real investment accounts would appear once connected.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Plaid Sandbox Mode Banner */}
+      {hasConnectedAccounts && !isDemoMode && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-lg p-4 mb-6">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0">
+              <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-1">
+                Sandbox Mode Active
+              </h3>
+              <p className="text-sm text-amber-700 dark:text-amber-300">
+                Note: You’re currently viewing data from Plaid’s sandbox environment, which uses mock financial information for testing purposes. This is not your actual account data.
+                We’ll update this once our app is approved for production access to real financial institutions.
+
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Portfolio Overview Header */}
       <div className="flex items-center justify-between">
         <div>
