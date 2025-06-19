@@ -37,7 +37,7 @@ export default function HomePage() {
 
   return (
     <div 
-      className={`transition-opacity duration-500 ease-in-out ${
+      className={`transition-opacity duration-500 ease-in-out min-h-screen bg-white ${
         isVisible ? 'opacity-100' : 'opacity-0'
       }`}
     >

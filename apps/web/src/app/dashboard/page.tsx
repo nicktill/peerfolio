@@ -8,8 +8,12 @@ import Image from "next/image"
 import { PortfolioDashboard } from "@web/components/portfolio-dashboard"
 import { Button } from "@web/components/ui/button"
 import { addConnectedAccount, getConnectedAccounts, type ConnectedAccount } from "@web/lib/account-storage"
+import { useTheme } from "@web/components/theme-provider"
+import { ThemeProvider } from "@web/components/theme-provider"
+import { PlaidLink } from "@web/components/plaid-link"
+import { Eye, EyeOff, Plus } from "lucide-react"
 
-export default function DashboardPage() {  
+function DashboardContent() {  
   const { data: session, status } = useSession()
   const router = useRouter()
   const [isVisible, setIsVisible] = useState(false)
@@ -17,6 +21,8 @@ export default function DashboardPage() {
   const [plaidData, setPlaidData] = useState<any>(null)
   const [isConnecting, setIsConnecting] = useState(false)
   const [hasExitedDashboard, setHasExitedDashboard] = useState(false)
+  const [balanceVisible, setBalanceVisible] = useState(true)
+  const { isDark, toggleDark } = useTheme()
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -165,34 +171,47 @@ export default function DashboardPage() {
 
   return (
     <div
-      className={`min-h-screen bg-gray-50 transition-opacity duration-500 ease-in-out ${
+      className={`min-h-screen bg-gray-50 dark:bg-background dark:text-foreground transition-opacity duration-500 ease-in-out ${
         isVisible ? "opacity-100" : "opacity-0"
       }`}
     >
       {/* Header */}
-      <header className="bg-white shadow-sm border-b sticky top-0 z-40">
+      <header className="bg-white dark:bg-background/90 shadow-sm border-b border-gray-200 dark:border-gray-800 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-3">
-              <div className="flex items-center space-x-3">
-                <Image src="/logo.png" alt="Peerfolio" width={32} height={32} className="rounded-lg" />
-                <h1 className="text-xl font-semibold text-gray-900">Peerfolio</h1>
-              </div>
+          <div className="flex flex-wrap justify-between items-center h-16 gap-2 md:gap-0">
+            <div className="flex items-center space-x-3 min-w-0">
+              <Image src="/logo.png" alt="Peerfolio" width={32} height={32} className="rounded-lg" />
+              <h1 className="text-xl font-semibold text-gray-900 dark:text-foreground truncate">Peerfolio</h1>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 md:space-x-4 flex-shrink-0">
+              {/* Dark mode toggle button */}
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label="Toggle dark mode"
+                onClick={toggleDark}
+                className="flex items-center justify-center border-gray-200 dark:border-gray-700 bg-white dark:bg-background hover:bg-gray-50 dark:hover:bg-gray-800"
+              >
+                {isDark ? (
+                  <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                ) : (
+                  <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="2"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+                )}
+              </Button>
               <div className="flex items-center space-x-3">
                 {session.user?.image && (
                   <img src={session.user.image || "/placeholder.svg"} alt="Profile" className="h-8 w-8 rounded-full" />
                 )}
-                <span className="text-sm font-medium text-gray-700">{session.user?.name}</span>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{session.user?.name}</span>
               </div>
-              <Button onClick={() => signOut({ callbackUrl: "/" })} variant="outline" size="sm">
+              <Button onClick={() => signOut({ callbackUrl: "/" })} variant="outline" size="sm" className="ml-2">
                 Sign Out
               </Button>
             </div>
           </div>
         </div>
-      </header>      {/* Main Content */}
+      </header>
+      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <PortfolioDashboard 
           hasConnectedAccounts={hasConnectedAccounts} 
@@ -203,8 +222,18 @@ export default function DashboardPage() {
           hasExitedDashboard={hasExitedDashboard}
           plaidData={plaidData}
           isConnecting={isConnecting}
+          balanceVisible={balanceVisible}
+          setBalanceVisible={setBalanceVisible}
         />
       </main>
     </div>
+  )
+}
+
+export default function DashboardPage() {
+  return (
+    <ThemeProvider>
+      <DashboardContent />
+    </ThemeProvider>
   )
 }
