@@ -154,7 +154,21 @@ export function PortfolioDashboard({
   useEffect(() => {
     const stored = getConnectedAccounts()
     setConnectedPlaidAccounts(stored)
-  }, [hasConnectedAccounts]) // Add dependency to refresh when new accounts are connected
+    
+    // Check if user just connected an account and should see connected accounts view
+    if (typeof window !== 'undefined') {
+      const justConnected = localStorage.getItem('lastConnectedAccount') === 'true'
+      if (justConnected && stored.length > 0) {
+        // Clear the flag and ensure user sees connected accounts (not demo mode)
+        localStorage.removeItem('lastConnectedAccount')
+        setIsDemoMode(false) // Ensure we're not in demo mode
+      } else if (stored.length > 0 && !hasExitedDashboard) {
+        // If user has connected accounts but hasn't explicitly chosen demo mode,
+        // prefer showing real data over demo mode
+        setIsDemoMode(false)
+      }
+    }
+  }, [hasConnectedAccounts, hasExitedDashboard]) // Add hasExitedDashboard dependency
 
   // Show dashboard if user has connected accounts OR is in demo mode, BUT NOT if they've explicitly exited
   const showDashboard = !hasExitedDashboard && (hasConnectedAccounts || isDemoMode || connectedPlaidAccounts.length > 0)

@@ -101,13 +101,15 @@ export default function DashboardPage() {
       // Add to localStorage
       addConnectedAccount(newAccount)
       
-      // Update component state
+      // Update component state - this ensures user sees connected accounts view
       setHasConnectedAccounts(true)
       
       // Clear the exit flag since user is now connecting an account
       if (typeof window !== 'undefined') {
         localStorage.removeItem('hasExitedDashboard')
         setHasExitedDashboard(false)
+        // Set a flag to indicate we just connected an account (for UI flow)
+        localStorage.setItem('lastConnectedAccount', 'true')
       }
       
       // For backwards compatibility, also set plaidData for the first account
