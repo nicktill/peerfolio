@@ -154,7 +154,17 @@ export function PortfolioDashboard({
   useEffect(() => {
     const stored = getConnectedAccounts()
     setConnectedPlaidAccounts(stored)
-  }, [hasConnectedAccounts]) // Add dependency to refresh when new accounts are connected
+    
+    // Check if user just connected an account and should see connected accounts view
+    if (typeof window !== 'undefined') {
+      const justConnected = localStorage.getItem('lastConnectedAccount') === 'true'
+      if (justConnected && stored.length > 0) {
+        // Clear the flag and ensure user sees connected accounts (not demo mode)
+        localStorage.removeItem('lastConnectedAccount')
+        setIsDemoMode(false) // Ensure we're not in demo mode
+      } 
+    }
+  }, [hasConnectedAccounts, hasExitedDashboard]) // Add hasExitedDashboard dependency
 
   // Show dashboard if user has connected accounts OR is in demo mode, BUT NOT if they've explicitly exited
   const showDashboard = !hasExitedDashboard && (hasConnectedAccounts || isDemoMode || connectedPlaidAccounts.length > 0)
@@ -233,8 +243,11 @@ export function PortfolioDashboard({
   }
 
   // Transform Plaid data into our dashboard format
-  const getAccountsData = () => {
-    if (!isDemoMode && connectedPlaidAccounts.length > 0) {
+   const getAccountsData = () => {
+    if (isDemoMode) {
+      // Always use demo data when in demo mode
+      return connectedAccounts
+    } else if (connectedPlaidAccounts.length > 0) {
       // Use multiple connected accounts from localStorage
       const allAccounts: any[] = []
       
@@ -257,7 +270,7 @@ export function PortfolioDashboard({
       })
       
       return allAccounts
-    } else if (plaidData && hasConnectedAccounts && !isDemoMode) {
+    } else if (plaidData && hasConnectedAccounts) {
       // Use single Plaid data (legacy support)
       const institutionName = plaidData.item?.institution_name || plaidData.institution?.name || 'Connected Bank'
       
@@ -275,7 +288,7 @@ export function PortfolioDashboard({
         }
       }) || []
     } else {
-      // Use demo data
+      // Use demo data as fallback
       return connectedAccounts
     }
   }
