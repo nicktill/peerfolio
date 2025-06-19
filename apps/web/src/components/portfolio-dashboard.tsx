@@ -132,6 +132,8 @@ interface PortfolioDashboardProps {
   onExitDashboard?: () => void
   onDemoConnect?: () => void
   hasExitedDashboard?: boolean
+  balanceVisible?: boolean
+  setBalanceVisible?: (visible: boolean) => void
 }
 
 export function PortfolioDashboard({ 
@@ -142,13 +144,19 @@ export function PortfolioDashboard({
   onRemoveAccount,
   onExitDashboard,
   onDemoConnect,
-  hasExitedDashboard = false
+  hasExitedDashboard = false,
+  balanceVisible: externalBalanceVisible,
+  setBalanceVisible: externalSetBalanceVisible
 }: PortfolioDashboardProps) {
   const router = useRouter()
-  const [balanceVisible, setBalanceVisible] = useState(true)
+  const [localBalanceVisible, setLocalBalanceVisible] = useState(true)
   const [selectedTimeframe, setSelectedTimeframe] = useState("1Y")
   const [isDemoMode, setIsDemoMode] = useState(false)
   const [connectedPlaidAccounts, setConnectedPlaidAccounts] = useState<ConnectedAccount[]>([])
+
+  // Use external balance visibility state if provided, otherwise use local state
+  const balanceVisible = externalBalanceVisible !== undefined ? externalBalanceVisible : localBalanceVisible
+  const setBalanceVisible = externalSetBalanceVisible || setLocalBalanceVisible
 
   // Custom CSS animations
   useEffect(() => {
