@@ -162,11 +162,7 @@ export function PortfolioDashboard({
         // Clear the flag and ensure user sees connected accounts (not demo mode)
         localStorage.removeItem('lastConnectedAccount')
         setIsDemoMode(false) // Ensure we're not in demo mode
-      } else if (stored.length > 0 && !hasExitedDashboard) {
-        // If user has connected accounts but hasn't explicitly chosen demo mode,
-        // prefer showing real data over demo mode
-        setIsDemoMode(false)
-      }
+      } 
     }
   }, [hasConnectedAccounts, hasExitedDashboard]) // Add hasExitedDashboard dependency
 
@@ -247,8 +243,11 @@ export function PortfolioDashboard({
   }
 
   // Transform Plaid data into our dashboard format
-  const getAccountsData = () => {
-    if (!isDemoMode && connectedPlaidAccounts.length > 0) {
+   const getAccountsData = () => {
+    if (isDemoMode) {
+      // Always use demo data when in demo mode
+      return connectedAccounts
+    } else if (connectedPlaidAccounts.length > 0) {
       // Use multiple connected accounts from localStorage
       const allAccounts: any[] = []
       
@@ -271,7 +270,7 @@ export function PortfolioDashboard({
       })
       
       return allAccounts
-    } else if (plaidData && hasConnectedAccounts && !isDemoMode) {
+    } else if (plaidData && hasConnectedAccounts) {
       // Use single Plaid data (legacy support)
       const institutionName = plaidData.item?.institution_name || plaidData.institution?.name || 'Connected Bank'
       
@@ -289,7 +288,7 @@ export function PortfolioDashboard({
         }
       }) || []
     } else {
-      // Use demo data
+      // Use demo data as fallback
       return connectedAccounts
     }
   }
