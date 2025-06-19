@@ -1,11 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@web/components/ui/card"
 import { Button } from "@web/components/ui/button"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@web/components/ui/chart"
 import { PlaidLink } from "./plaid-link"
-import { TrendingUp, TrendingDown, DollarSign, PieChart, Building2, Eye, EyeOff, RefreshCw } from "lucide-react"
+import { TrendingUp, TrendingDown, DollarSign, PieChart, Building2, Eye, EyeOff, RefreshCw, X, Play } from "lucide-react"
 import {
   XAxis,
   YAxis,
@@ -17,6 +18,13 @@ import {
   Area,
   Pie,
 } from "recharts"
+import { getStockLogoWithFallback } from "@web/lib/stock-logos"
+import { 
+  getConnectedAccounts, 
+  addConnectedAccount, 
+  removeConnectedAccount, 
+  type ConnectedAccount 
+} from "@web/lib/account-storage"
 
 // Demo data for portfolio performance - expanded with more data points
 const portfolioData = [
@@ -120,19 +128,80 @@ interface PortfolioDashboardProps {
   onConnectAccount: (publicToken: string, metadata: any) => void
   plaidData?: any
   isConnecting?: boolean
+  onRemoveAccount?: (accountId: string) => void
+  onExitDashboard?: () => void
+  onDemoConnect?: () => void
+  hasExitedDashboard?: boolean
 }
 
 export function PortfolioDashboard({ 
   hasConnectedAccounts, 
   onConnectAccount, 
   plaidData, 
-  isConnecting = false 
+  isConnecting = false,
+  onRemoveAccount,
+  onExitDashboard,
+  onDemoConnect,
+  hasExitedDashboard = false
 }: PortfolioDashboardProps) {
+  const router = useRouter()
   const [balanceVisible, setBalanceVisible] = useState(true)
   const [selectedTimeframe, setSelectedTimeframe] = useState("1Y")
   const [isDemoMode, setIsDemoMode] = useState(false)
-  // Show dashboard if user has connected accounts OR is in demo mode
-  const showDashboard = hasConnectedAccounts || isDemoMode
+  const [connectedPlaidAccounts, setConnectedPlaidAccounts] = useState<ConnectedAccount[]>([])
+
+  // Load connected accounts from localStorage on mount and when hasConnectedAccounts changes
+  useEffect(() => {
+    const stored = getConnectedAccounts()
+    setConnectedPlaidAccounts(stored)
+  }, [hasConnectedAccounts]) // Add dependency to refresh when new accounts are connected
+
+  // Show dashboard if user has connected accounts OR is in demo mode, BUT NOT if they've explicitly exited
+  const showDashboard = !hasExitedDashboard && (hasConnectedAccounts || isDemoMode || connectedPlaidAccounts.length > 0)
+
+  // Calculate today's change from chart data
+  const calculateTodaysChange = (chartData: any[]) => {
+    if (chartData.length < 2) return { value: 0, percentage: 0 }
+    
+    const today = chartData[chartData.length - 1]?.value || 0
+    const yesterday = chartData[chartData.length - 2]?.value || 0
+    
+    const changeValue = today - yesterday
+    const changePercentage = yesterday > 0 ? (changeValue / yesterday) * 100 : 0
+    
+    return { value: changeValue, percentage: changePercentage }
+  }
+
+  // Utility functions (local versions to avoid import issues)
+  const getAccountTypeIcon = (type: string, subtype?: string) => {
+    const accountType = (subtype || type || '').toLowerCase()
+    
+    if (accountType.includes('credit')) return { icon: "💳", color: "from-red-500 to-red-600", bgColor: "bg-red-50" }
+    if (accountType.includes('saving')) return { icon: "💰", color: "from-green-500 to-green-600", bgColor: "bg-green-50" }
+    if (accountType.includes('checking')) return { icon: "🏦", color: "from-blue-500 to-blue-600", bgColor: "bg-blue-50" }
+    if (accountType.includes('investment') || accountType.includes('brokerage')) return { icon: "📈", color: "from-purple-500 to-purple-600", bgColor: "bg-purple-50" }
+    if (accountType.includes('401k') || accountType.includes('retirement')) return { icon: "🏛️", color: "from-orange-500 to-orange-600", bgColor: "bg-orange-50" }
+    if (accountType.includes('hsa')) return { icon: "🏥", color: "from-teal-500 to-teal-600", bgColor: "bg-teal-50" }
+    if (accountType.includes('cash management') || accountType.includes('money market')) return { icon: "💵", color: "from-emerald-500 to-emerald-600", bgColor: "bg-emerald-50" }
+    if (accountType.includes('cd') || accountType.includes('certificate')) return { icon: "🏆", color: "from-yellow-500 to-yellow-600", bgColor: "bg-yellow-50" }
+    if (accountType.includes('loan') || accountType.includes('mortgage')) return { icon: "🏠", color: "from-indigo-500 to-indigo-600", bgColor: "bg-indigo-50" }
+    
+    return { icon: "💼", color: "from-gray-500 to-gray-600", bgColor: "bg-gray-50" }
+  }
+
+  const formatAccountName = (fullName: string) => {
+    if (fullName.includes(' - ')) {
+      return fullName.split(' - ')[1]
+    }
+    return fullName
+  }
+
+  const getInstitutionDisplayName = (fullName: string) => {
+    if (fullName.includes(' - ')) {
+      return fullName.split(' - ')[0]
+    }
+    return fullName
+  }
   // Get institution logo based on institution name or ID
   const getInstitutionLogo = (institutionName: string, institutionId?: string) => {
     const name = institutionName.toLowerCase()
@@ -165,8 +234,31 @@ export function PortfolioDashboard({
 
   // Transform Plaid data into our dashboard format
   const getAccountsData = () => {
-    if (plaidData && hasConnectedAccounts && !isDemoMode) {
-      // Use real Plaid data
+    if (!isDemoMode && connectedPlaidAccounts.length > 0) {
+      // Use multiple connected accounts from localStorage
+      const allAccounts: any[] = []
+      
+      connectedPlaidAccounts.forEach((plaidAccount) => {
+        plaidAccount.accountsData.accounts?.forEach((account: any) => {
+          const balance = account.balances?.current || account.balances?.available || 0
+          allAccounts.push({
+            id: `${plaidAccount.institutionName}-${account.account_id}`,
+            name: `${plaidAccount.institutionName} - ${account.name}`,
+            type: account.subtype || account.type || 'Investment',
+            balance: balance,
+            percentage: 0, // Will be calculated later
+            logo: getInstitutionLogo(plaidAccount.institutionName),
+            lastSync: new Date(plaidAccount.connectedAt).toLocaleString(),
+            institutionName: plaidAccount.institutionName,
+            connectedAt: plaidAccount.connectedAt,
+            accountId: plaidAccount.id
+          })
+        })
+      })
+      
+      return allAccounts
+    } else if (plaidData && hasConnectedAccounts && !isDemoMode) {
+      // Use single Plaid data (legacy support)
       const institutionName = plaidData.item?.institution_name || plaidData.institution?.name || 'Connected Bank'
       
       return plaidData.accounts?.map((account: any, index: number) => {
@@ -185,6 +277,17 @@ export function PortfolioDashboard({
     } else {
       // Use demo data
       return connectedAccounts
+    }
+  }
+
+  // Function to remove a connected account
+  const handleRemoveAccount = (accountId: string) => {
+    removeConnectedAccount(accountId)
+    setConnectedPlaidAccounts(getConnectedAccounts())
+    
+    // Notify parent component if provided
+    if (onRemoveAccount) {
+      onRemoveAccount(accountId)
     }
   }
 
@@ -212,53 +315,97 @@ export function PortfolioDashboard({
       ]
     }
 
-    // Filter data based on selected timeframe
-    const now = new Date()
-    const filterData = (months: number) => {
-      if (months === 0) return baseData // ALL
+    // Generate appropriate short-term data for 1D and 1W
+    const generateShortTermData = (timeframe: string) => {
+      const currentValue = baseData[baseData.length - 1]?.value || totalBalance || 50000
+      const baseVariation = currentValue * 0.02 // 2% variation range
       
-      // Get the last N data points instead of filtering by date for better chart display
-      if (months === 1) return baseData.slice(-2) // Last 2 points for 1M
-      if (months === 3) return baseData.slice(-4) // Last 4 points for 3M
-      if (months === 6) return baseData.slice(-7) // Last 7 points for 6M
-      if (months === 12) return baseData.slice(-13) // Last 13 points for 1Y
+      if (timeframe === "1D") {
+        // Generate hourly data points for 1 day (24 hours)
+        const hourlyData = []
+        for (let i = 23; i >= 0; i--) {
+          const hour = new Date()
+          hour.setHours(hour.getHours() - i)
+          const variation = (Math.random() - 0.5) * baseVariation
+          hourlyData.push({
+            date: hour.toISOString(),
+            value: Math.round(currentValue + variation),
+            month: hour.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+          })
+        }
+        return hourlyData
+      }
+      
+      if (timeframe === "1W") {
+        // Generate daily data points for 1 week (7 days)
+        const dailyData = []
+        for (let i = 6; i >= 0; i--) {
+          const day = new Date()
+          day.setDate(day.getDate() - i)
+          const variation = (Math.random() - 0.5) * baseVariation * 2
+          dailyData.push({
+            date: day.toISOString().slice(0, 10),
+            value: Math.round(currentValue + variation),
+            month: day.toLocaleDateString('en-US', { weekday: 'short' })
+          })
+        }
+        return dailyData
+      }
       
       return baseData
     }
 
-    switch (selectedTimeframe) {
-      case "1M":
-        return filterData(1)
-      case "3M":
-        return filterData(3)
-      case "6M":
-        return filterData(6)
-      case "1Y":
-        return filterData(12)
-      case "ALL":
-      default:
-        return baseData
+    // Filter data based on selected timeframe
+    const filterData = (timeframe: string) => {
+      switch (timeframe) {
+        case "1D":
+          return generateShortTermData("1D")
+        case "1W":
+          return generateShortTermData("1W")
+        case "1M":
+          // Show last 2 data points for 1 month view
+          return baseData.slice(-2)
+        case "3M":
+          // Show last 4 data points for 3 months
+          return baseData.slice(-4)
+        case "6M":
+          // Show last 7 data points for 6 months
+          return baseData.slice(-7)
+        case "1Y":
+          // Show last 13 data points for 1 year
+          return baseData.slice(-13)
+        case "ALL":
+        default:
+          return baseData
+      }
     }
-  }// Get top holdings - use stocks if available, otherwise show top accounts
+
+    return filterData(selectedTimeframe)
+  }  // Get top holdings - use stocks if available, otherwise show top accounts
   const getTopHoldings = () => {
-    if (plaidData && hasConnectedAccounts && !isDemoMode) {
-      // Check if we have actual stock holdings with real values
-      const validHoldings = plaidData.holdings?.filter((holding: any) => 
+    if (!isDemoMode && (plaidData || connectedPlaidAccounts.length > 0)) {
+      // For real connected accounts, check if we have actual investment holdings
+      const validHoldings = plaidData?.holdings?.filter((holding: any) => 
         (holding.market_value || 0) > 0
       ) || []
       
       if (validHoldings.length > 0) {
-        // Use real stock holdings with actual values
+        // Use real stock holdings with actual values (only if we have real holdings)
         return validHoldings
           .slice(0, 5)
           .map((holding: any) => {
             const security = plaidData.securities?.find((s: any) => s.security_id === holding.security_id)
+            const ticker = security?.ticker_symbol || 'STOCK'
+            const logoUrls = getStockLogoWithFallback(ticker)
+            
             return {
-              symbol: security?.ticker_symbol || 'STOCK',
+              symbol: ticker,
               name: security?.name || 'Investment Position',
               value: holding.market_value || 0,
               change: 0, // Would need historical data for real change
-              logo: getStockIcon(security?.ticker_symbol || 'STOCK'),
+              logo: logoUrls.primary,
+              fallbackLogo: logoUrls.fallback,
+              defaultLogo: logoUrls.default,
               isStock: true
             }
           })
@@ -268,33 +415,43 @@ export function PortfolioDashboard({
           .filter((account: any) => account.balance > 0)
           .sort((a: any, b: any) => b.balance - a.balance)
           .slice(0, 5)
-          .map((account: any) => ({
-            symbol: account.type?.toUpperCase().substring(0, 4) || 'ACCT',
-            name: account.name.split(' - ')[1] || account.name, // Just the account name part
-            value: account.balance,
-            change: 0,
-            logo: getAccountTypeIcon(account.type, account.subtype),
-            isStock: false
-          }))
+          .map((account: any) => {
+            const accountTypeInfo = getAccountTypeIcon(account.type, account.subtype)
+            const institutionName = getInstitutionDisplayName(account.name)
+            const accountName = formatAccountName(account.name)
+            
+            return {
+              symbol: account.type?.replace(/\s+/g, '').substring(0, 4).toUpperCase() || 'ACCT',
+              name: accountName,
+              value: account.balance,
+              change: 0,
+              logo: account.logo,
+              isStock: false,
+              institutionName: institutionName,
+              accountType: account.type,
+              accountTypeInfo: accountTypeInfo
+            }
+          })
       }
-    } else {      // Demo data
+    } else {
+      // Demo data with real stock logos
       return [
-        { symbol: "AAPL", name: "Apple Inc.", value: 8500, change: 2.4, logo: getStockIcon("AAPL"), isStock: true },
-        { symbol: "SPY", name: "SPDR S&P 500 ETF", value: 9000, change: 1.8, logo: getStockIcon("SPY"), isStock: true },
-        { symbol: "VTI", name: "Vanguard Total Stock Market", value: 12400, change: 1.2, logo: getStockIcon("VTI"), isStock: true },
-        { symbol: "TSLA", name: "Tesla Inc.", value: 6200, change: -0.8, logo: getStockIcon("TSLA"), isStock: true },
-        { symbol: "AMZN", name: "Amazon.com Inc.", value: 6000, change: 3.1, logo: getStockIcon("AMZN"), isStock: true },
+        { symbol: "AAPL", name: "Apple Inc.", value: 8500, change: 2.4, ...getStockLogoWithFallback("AAPL"), isStock: true },
+        { symbol: "SPY", name: "SPDR S&P 500 ETF", value: 9000, change: 1.8, ...getStockLogoWithFallback("SPY"), isStock: true },
+        { symbol: "VTI", name: "Vanguard Total Stock Market", value: 12400, change: 1.2, ...getStockLogoWithFallback("VTI"), isStock: true },
+        { symbol: "TSLA", name: "Tesla Inc.", value: 6200, change: -0.8, ...getStockLogoWithFallback("TSLA"), isStock: true },
+        { symbol: "AMZN", name: "Amazon.com Inc.", value: 6000, change: 3.1, ...getStockLogoWithFallback("AMZN"), isStock: true },
       ]
     }
   }
 
-  // Get better icons for account types
-  const getAccountTypeIcon = (type: string, subtype: string) => {
+  // Get better icons for account types (legacy function - using utility now)
+  const getAccountTypeIconLegacy = (type: string, subtype: string) => {
     const accountType = (subtype || type || '').toLowerCase()
     if (accountType.includes('credit')) return "💳"
     if (accountType.includes('saving')) return "💰"
     if (accountType.includes('checking')) return "🏦"
-    if (accountType.includes('investment') || accountType.includes('brokerage')) return "�"
+    if (accountType.includes('investment') || accountType.includes('brokerage')) return "📈"
     if (accountType.includes('401k') || accountType.includes('retirement')) return "🏛️"
     if (accountType.includes('hsa')) return "🏥"
     if (accountType.includes('cash management')) return "💵"
@@ -324,6 +481,9 @@ export function PortfolioDashboard({
   const chartData = getPortfolioData()
   const totalGain = totalBalance - chartData[0].value
   const totalGainPercentage = chartData[0].value > 0 ? (totalGain / chartData[0].value) * 100 : 0
+  
+  // Calculate today's change from chart data
+  const todaysChange = calculateTodaysChange(chartData)
 
   const formatCurrency = (value: number) => {
     if (!balanceVisible) return "••••••"
@@ -383,7 +543,13 @@ export function PortfolioDashboard({
               ))}
             </div>            <div className="flex flex-col sm:flex-row gap-4 items-center justify-center">
               <Button
-                onClick={() => setIsDemoMode(true)}
+                onClick={() => {
+                  setIsDemoMode(true)
+                  // Call the parent handler to clear exit flag
+                  if (onDemoConnect) {
+                    onDemoConnect()
+                  }
+                }}
                 size="lg"
                 className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium px-6 py-3 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 rounded-lg flex items-center"
               >
@@ -391,14 +557,41 @@ export function PortfolioDashboard({
                 View Demo Portfolio
               </Button>
               
-              <PlaidLink
-                onSuccess={onConnectAccount}
-                size="lg"
-                className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-medium px-6 py-3 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 rounded-lg flex items-center"
-              >
-                <Building2 className="w-4 h-4 mr-2" />
-                Connect Real Account
-              </PlaidLink>
+              {(() => {
+                // Check if there are existing accounts in localStorage
+                const existingAccounts = getConnectedAccounts()
+                
+                if (existingAccounts.length > 0) {
+                  // If accounts exist, show button that takes user to dashboard
+                  return (
+                    <Button
+                      onClick={() => {
+                        // Clear exit flag and show dashboard with existing accounts
+                        if (onDemoConnect) {
+                          onDemoConnect()
+                        }
+                      }}
+                      size="lg"
+                      className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-medium px-6 py-3 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 rounded-lg flex items-center"
+                    >
+                      <Building2 className="w-4 h-4 mr-2" />
+                      View Connected Accounts
+                    </Button>
+                  )
+                } else {
+                  // If no accounts exist, show Plaid link
+                  return (
+                    <PlaidLink
+                      onSuccess={onConnectAccount}
+                      size="lg"
+                      className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-medium px-6 py-3 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 rounded-lg flex items-center"
+                    >
+                      <Building2 className="w-4 h-4 mr-2" />
+                      Connect Real Account
+                    </PlaidLink>
+                  )
+                }
+              })()}
             </div>
 
             {isConnecting && (
@@ -500,43 +693,96 @@ export function PortfolioDashboard({
               <span className="bg-blue-100 text-blue-800 text-sm font-medium px-3 py-1 rounded-full">
                 Demo Mode
               </span>
-            )}            {hasConnectedAccounts && !isDemoMode && (
+            )}
+            {hasConnectedAccounts && !isDemoMode && (
               <span className="bg-green-100 text-green-800 text-sm font-medium px-3 py-1 rounded-full">
-                {plaidData ? "Live Data" : "Connected"}
+                Connected ({connectedPlaidAccounts.length} account{connectedPlaidAccounts.length !== 1 ? 's' : ''})
               </span>
             )}
-          </div>          <p className="text-gray-600 mt-1">
-            {isDemoMode 
-              ? "Viewing sample portfolio data for demonstration"
-              : hasConnectedAccounts && plaidData
-                ? `Connected accounts: ${accountsWithPercentages.length} • Total: ${formatCurrency(totalBalance)}`
-                : "Track your investments across all accounts"
-            }
+          </div>
+          <p className="text-gray-600 mt-1">
+            {isDemoMode ? "Explore with sample portfolio data" :
+             hasConnectedAccounts ? "Real data from your connected accounts" :
+             "Connect your accounts to see real portfolio data"}
           </p>
         </div>
+        
+        {/* Navigation and Controls */}
         <div className="flex items-center gap-3">
-          {isDemoMode && (
+          {/* Navigation Buttons */}
+          {(hasConnectedAccounts || connectedPlaidAccounts.length > 0 || isDemoMode) && (
+            <div className="flex items-center gap-2">
+              <Button
+                variant={isDemoMode ? "default" : "outline"}
+                onClick={() => setIsDemoMode(true)}
+                className="flex items-center gap-2 min-w-[120px] justify-center"
+                size="sm"
+              >
+                <PieChart className="w-4 h-4" />
+                View Demo
+              </Button>
+              {(hasConnectedAccounts || connectedPlaidAccounts.length > 0) && (
+                <Button
+                  variant={!isDemoMode ? "default" : "outline"}
+                  onClick={() => {
+                    // Only show connected accounts view if there are actually accounts
+                    if (connectedPlaidAccounts.length > 0) {
+                      setIsDemoMode(false)
+                    } else {
+                      // If no accounts exist, exit to landing screen to let user connect
+                      if (onExitDashboard) {
+                        onExitDashboard()
+                      }
+                    }
+                  }}
+                  className="flex items-center gap-2 min-w-[180px] justify-center"
+                  size="sm"
+                >
+                  <Building2 className="w-4 h-4" />
+                  {connectedPlaidAccounts.length > 0 ? "View Connected Accounts" : "Connect Real Account"}
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  // Reset demo mode
+                  setIsDemoMode(false)
+                  // Clear connected accounts from localStorage to reset dashboard state
+                  if (typeof window !== 'undefined') {
+                    localStorage.removeItem('connectedAccounts')
+                  }
+                  // Reset local state
+                  setConnectedPlaidAccounts([])
+                  // Call the exit function if provided to reset parent state
+                  if (onExitDashboard) {
+                    onExitDashboard()
+                  }
+                  // This will cause showDashboard to be false and show the landing screen
+                }}
+                className="flex items-center gap-2 text-gray-600 hover:text-gray-900 min-w-[120px] justify-center"
+                size="sm"
+              >
+                <X className="w-4 h-4" />
+                Exit Dashboard
+              </Button>
+            </div>
+          )}
+          
+          {/* Additional Controls */}
+          <div className="flex items-center gap-2 border-l border-gray-200 pl-3">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setIsDemoMode(false)}
-              className="text-blue-600 border-blue-200 hover:bg-blue-50"
+              onClick={() => setBalanceVisible(!balanceVisible)}
+              className="flex items-center gap-2"
             >
-              Exit Demo
+              {balanceVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              {balanceVisible ? "Hide" : "Show"}
             </Button>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setBalanceVisible(!balanceVisible)}
-            className="flex items-center gap-2"
-          >
-            {balanceVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            {balanceVisible ? "Hide" : "Show"}
-          </Button>
-          <PlaidLink onSuccess={onConnectAccount} variant="outline" size="sm">
-            Add Account
-          </PlaidLink>
+            <PlaidLink onSuccess={onConnectAccount} variant="outline" size="sm">
+              Add Account
+            </PlaidLink>
+          </div>
         </div>
       </div>
 
@@ -564,10 +810,12 @@ export function PortfolioDashboard({
             <CardTitle className="text-sm font-medium text-gray-600">Today's Change</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-emerald-600 mb-1">{formatCurrency(1240)}</div>
-            <div className="flex items-center gap-1 text-sm text-emerald-600">
-              <TrendingUp className="w-4 h-4" />
-              <span>{formatPercentage(1.94)}</span>
+            <div className={`text-2xl font-bold mb-1 ${todaysChange.value >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+              {formatCurrency(todaysChange.value)}
+            </div>
+            <div className={`flex items-center gap-1 text-sm ${todaysChange.value >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+              {todaysChange.value >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+              <span>{formatPercentage(todaysChange.percentage)}</span>
             </div>
           </CardContent>
         </Card>
@@ -577,9 +825,9 @@ export function PortfolioDashboard({
             <CardTitle className="text-sm font-medium text-gray-600">Connected Accounts</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-gray-900 mb-1">{connectedAccounts.length}</div>
+            <div className="text-2xl font-bold text-gray-900 mb-1">{accountsWithPercentages.length}</div>
             <div className="text-sm text-gray-600">
-              Across {new Set(accountsWithPercentages.map((a: any) => a.type)).size} account types
+              Across {new Set(accountsWithPercentages.map((a: any) => a.institutionName || a.name.split(' - ')[0])).size} {new Set(accountsWithPercentages.map((a: any) => a.institutionName || a.name.split(' - ')[0])).size === 1 ? 'institution' : 'institutions'}
             </div>
           </CardContent>
         </Card>
@@ -608,7 +856,7 @@ export function PortfolioDashboard({
                 <CardDescription>Your investment growth over time</CardDescription>
               </div>
               <div className="flex items-center gap-2">
-                {["1M", "3M", "6M", "1Y", "ALL"].map((timeframe) => (
+                {["1D", "1W", "1M", "3M", "6M", "1Y", "ALL"].map((timeframe) => (
                   <Button
                     key={timeframe}
                     variant={selectedTimeframe === timeframe ? "default" : "outline"}
@@ -660,19 +908,39 @@ export function PortfolioDashboard({
             </ChartContainer>
           </CardContent>
         </Card>        {/* Top Holdings */}
-        <Card>          <CardHeader>
+        <Card>
+          <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              Top Holdings
-              {plaidData && hasConnectedAccounts && !isDemoMode && topHoldings.length > 0 && !topHoldings[0].isStock && (
-                <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded-full">
-                  Accounts
-                </span>
+              {/* Dynamic title based on content type */}
+              {!isDemoMode && (plaidData || connectedPlaidAccounts.length > 0) && topHoldings.length > 0 && !topHoldings[0].isStock ? (
+                <>
+                  Top Accounts
+                  <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded-full">
+                    By Balance
+                  </span>
+                </>
+              ) : (
+                <>
+                  Top Holdings
+                  {isDemoMode && (
+                    <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded-full">
+                      Demo
+                    </span>
+                  )}
+                  {!isDemoMode && (plaidData || connectedPlaidAccounts.length > 0) && (
+                    <span className="bg-green-100 text-green-800 text-xs font-medium px-2 py-1 rounded-full">
+                      Live
+                    </span>
+                  )}
+                </>
               )}
             </CardTitle>
             <CardDescription>
-              {plaidData && hasConnectedAccounts && !isDemoMode && topHoldings.length > 0 && !topHoldings[0].isStock
+              {!isDemoMode && (plaidData || connectedPlaidAccounts.length > 0) && topHoldings.length > 0 && !topHoldings[0].isStock
                 ? "Your largest accounts by balance"
-                : "Your largest positions"
+                : isDemoMode
+                  ? "Sample investment positions"
+                  : "Your largest investment positions"
               }
             </CardDescription>
           </CardHeader>
@@ -691,12 +959,63 @@ export function PortfolioDashboard({
                     className="flex items-center justify-between p-4 rounded-xl hover:bg-gradient-to-r hover:from-gray-50 hover:to-gray-50/50 transition-all duration-200 border border-gray-100 hover:border-gray-200 hover:shadow-sm group"
                   >
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl flex items-center justify-center text-xl border border-blue-100 group-hover:from-blue-100 group-hover:to-indigo-100 transition-all duration-200">
-                        {holding.logo}
+                      <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center border border-gray-200 group-hover:border-gray-300 transition-all duration-200 overflow-hidden relative">
+                        {holding.isStock ? (
+                          <img 
+                            src={holding.logo || holding.primary}
+                            alt={`${holding.symbol} logo`}
+                            className="w-8 h-8 object-contain"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              if (holding.fallbackLogo && target.src !== holding.fallbackLogo) {
+                                target.src = holding.fallbackLogo;
+                              } else if (holding.defaultLogo && target.src !== holding.defaultLogo) {
+                                target.src = holding.defaultLogo;
+                              } else {
+                                // Final fallback - create a text-based logo
+                                const parent = target.parentElement;
+                                if (parent) {
+                                  parent.innerHTML = `<div class="w-8 h-8 rounded bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center text-white text-sm font-bold">${holding.symbol.charAt(0)}</div>`;
+                                }
+                              }
+                            }}
+                          />
+                        ) : (
+                          <div className="relative">
+                            <img 
+                              src={holding.logo}
+                              alt={`${holding.institutionName} logo`}
+                              className="w-8 h-8 object-contain"
+                              onError={(e) => {
+                                // Fallback for institution logos
+                                const target = e.target as HTMLImageElement;
+                                const parent = target.parentElement;
+                                if (parent) {
+                                  parent.innerHTML = `<div class="w-8 h-8 rounded bg-gradient-to-br from-gray-500 to-gray-600 flex items-center justify-center text-white text-sm font-bold">${holding.institutionName?.charAt(0) || 'A'}</div>`;
+                                }
+                              }}
+                            />
+                            {/* Account Type Badge */}
+                            {holding.accountTypeInfo && (
+                              <div className={`absolute -bottom-1 -right-1 w-5 h-5 ${holding.accountTypeInfo.bgColor} rounded-full flex items-center justify-center border border-white shadow-sm`}>
+                                <span className="text-xs">{holding.accountTypeInfo.icon}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                       <div>
                         <div className="font-semibold text-gray-900 text-base">{holding.symbol}</div>
-                        <div className="text-sm text-gray-600 truncate max-w-[140px]">{holding.name}</div>
+                        <div className="text-sm text-gray-600 truncate max-w-[140px]">
+                          {holding.isStock ? holding.name : (
+                            <div className="flex flex-col">
+                              <span>{holding.name}</span>
+                              {holding.institutionName && (
+                                <span className="text-xs text-gray-500">from {holding.institutionName}</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <div className="text-right">
@@ -724,7 +1043,7 @@ export function PortfolioDashboard({
                 ))}
                 <div className="pt-3 border-t border-gray-200">
                   <Button variant="ghost" size="sm" className="w-full text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
-                    {plaidData && hasConnectedAccounts && !isDemoMode && topHoldings.length > 0 && !topHoldings[0].isStock
+                    {!isDemoMode && (plaidData || connectedPlaidAccounts.length > 0) && topHoldings.length > 0 && !topHoldings[0].isStock
                       ? "View All Accounts"
                       : "View All Holdings"
                     }
@@ -789,47 +1108,94 @@ export function PortfolioDashboard({
         {/* Connected Accounts */}
         <Card>
           <CardHeader>
-            <CardTitle>Connected Accounts</CardTitle>
+            <CardTitle className="flex items-center justify-between">
+              <span>Connected Accounts</span>
+              <span className="text-sm font-normal text-gray-500">
+                {accountsWithPercentages.length} {accountsWithPercentages.length === 1 ? 'account' : 'accounts'}
+              </span>
+            </CardTitle>
             <CardDescription>Your linked investment accounts</CardDescription>
           </CardHeader>
-          <CardContent>            <div className="space-y-3">
+          <CardContent>
+            <div className="space-y-3">
               {accountsWithPercentages.map((account: any) => (
                 <div
                   key={account.id}
                   className="flex items-center justify-between p-4 border border-gray-100 rounded-xl hover:border-gray-200 hover:bg-gradient-to-r hover:from-gray-50 hover:to-gray-50/50 transition-all duration-200 hover:shadow-sm group"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl flex items-center justify-center overflow-hidden border border-gray-200 group-hover:from-gray-100 group-hover:to-gray-150 transition-all duration-200">
-                      <img
-                        src={account.logo || "/placeholder.svg"}
-                        alt={account.name}
-                        className="w-8 h-8 object-contain"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement
-                          const parent = target.parentElement
-                          if (parent) {
-                            const accountType = getAccountTypeIcon(account.type, account.subtype || account.type)
-                            parent.innerHTML = `<div class="w-8 h-8 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-lg flex items-center justify-center text-white text-lg shadow-sm">${accountType}</div>`
-                          }
-                        }}
-                      />
+                    <div className="relative">
+                      {/* Institution Logo */}
+                      <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center overflow-hidden border border-gray-200 group-hover:border-gray-300 transition-all duration-200 shadow-sm">
+                        <img
+                          src={account.logo || "/placeholder.svg"}
+                          alt={getInstitutionDisplayName(account.name)}
+                          className="w-8 h-8 object-contain"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement
+                            const parent = target.parentElement
+                            if (parent) {
+                              const institutionName = getInstitutionDisplayName(account.name)
+                              parent.innerHTML = `<div class="w-8 h-8 rounded bg-gradient-to-br from-gray-500 to-gray-600 flex items-center justify-center text-white text-sm font-bold">${institutionName.charAt(0)}</div>`
+                            }
+                          }}
+                        />
+                      </div>
+                      
+                      {/* Account Type Badge */}
+                      {(() => {
+                        const accountTypeInfo = getAccountTypeIcon(account.type, account.subtype)
+                        return (
+                          <div className={`absolute -bottom-1 -right-1 w-6 h-6 ${accountTypeInfo.bgColor} rounded-full flex items-center justify-center border-2 border-white shadow-sm`}>
+                            <span className="text-xs">{accountTypeInfo.icon}</span>
+                          </div>
+                        )
+                      })()}
                     </div>
+                    
                     <div>
-                      <div className="font-semibold text-gray-900 text-base">{account.name}</div>
+                      <div className="font-semibold text-gray-900 text-base">{formatAccountName(account.name)}</div>
                       <div className="text-sm text-gray-600 flex items-center gap-2">
-                        <span className="capitalize">{account.type}</span>
+                        <span className="font-medium text-gray-800">{getInstitutionDisplayName(account.name)}</span>
+                        <span className="text-gray-400">•</span>
+                        <span className="capitalize text-gray-600">{account.type}</span>
                         <span className="text-gray-400">•</span>
                         <span className="text-emerald-600 font-medium">{account.lastSync}</span>
                       </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="font-bold text-gray-900 text-base">{formatCurrency(account.balance)}</div>
-                    <div className="text-sm text-gray-500 font-medium">{account.percentage.toFixed(1)}% of total</div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <div className="font-bold text-gray-900 text-base">{formatCurrency(account.balance)}</div>
+                      <div className="text-sm text-gray-500 font-medium">{account.percentage.toFixed(1)}% of total</div>
+                    </div>
+                    {account.accountId && !isDemoMode && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRemoveAccount(account.accountId)}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-red-500 hover:bg-red-50 p-2"
+                        title="Remove account"
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}
-            </div></CardContent>
+              
+              {/* Add Account Button */}
+              <div className="pt-2">
+                <PlaidLink
+                  onSuccess={onConnectAccount}
+                  variant="outline"
+                  className="w-full border-dashed border-2 border-gray-300 hover:border-gray-400 text-gray-600 hover:text-gray-700 bg-transparent hover:bg-gray-50"
+                >
+                  Add Another Account
+                </PlaidLink>
+              </div>
+            </div>
+          </CardContent>
         </Card>
       </div>
 

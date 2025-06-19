@@ -7,19 +7,39 @@ import Loading from "@web/components/loading"
 import Image from "next/image"
 import { PortfolioDashboard } from "@web/components/portfolio-dashboard"
 import { Button } from "@web/components/ui/button"
+import { addConnectedAccount, getConnectedAccounts, type ConnectedAccount } from "@web/lib/account-storage"
 
-export default function DashboardPage() {  const { data: session, status } = useSession()
+export default function DashboardPage() {  
+  const { data: session, status } = useSession()
   const router = useRouter()
   const [isVisible, setIsVisible] = useState(false)
   const [hasConnectedAccounts, setHasConnectedAccounts] = useState(false)
   const [plaidData, setPlaidData] = useState<any>(null)
   const [isConnecting, setIsConnecting] = useState(false)
+  const [hasExitedDashboard, setHasExitedDashboard] = useState(false)
 
   useEffect(() => {
     if (status === "unauthenticated") {
       router.push("/")
     }
   }, [status, router])
+
+  // Check for existing connected accounts on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // Check if user has explicitly exited the dashboard
+      const exitedFlag = localStorage.getItem('hasExitedDashboard') === 'true'
+      setHasExitedDashboard(exitedFlag)
+      
+      if (!exitedFlag) {
+        const existingAccounts = getConnectedAccounts()
+        if (existingAccounts.length > 0) {
+          setHasConnectedAccounts(true)
+        }
+      }
+      // If user has exited, keep hasConnectedAccounts as false to show landing screen
+    }
+  }, [])
 
   // Fade in dashboard after loading
   useEffect(() => {
@@ -68,9 +88,34 @@ export default function DashboardPage() {  const { data: session, status } = use
 
       console.log("✅ Account data fetched successfully:", accountsData)
 
-      // Step 3: Update state with real data
-      setPlaidData(accountsData)
+      // Step 3: Save to localStorage and update state
+      const newAccount: ConnectedAccount = {
+        id: exchangeData.item_id || `account_${Date.now()}`,
+        accessToken: exchangeData.access_token,
+        institutionName: metadata?.institution?.name || accountsData.institution?.name || 'Unknown Bank',
+        accountsData: accountsData,
+        connectedAt: new Date().toISOString(),
+        metadata: metadata
+      }
+
+      // Add to localStorage
+      addConnectedAccount(newAccount)
+      
+      // Update component state
       setHasConnectedAccounts(true)
+      
+      // Clear the exit flag since user is now connecting an account
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('hasExitedDashboard')
+        setHasExitedDashboard(false)
+      }
+      
+      // For backwards compatibility, also set plaidData for the first account
+      if (!plaidData) {
+        setPlaidData(accountsData)
+      }
+      
+      console.log("✅ Account successfully saved and connected!")
       
     } catch (error) {
       console.error("❌ Connection failed:", error)
@@ -80,12 +125,36 @@ export default function DashboardPage() {  const { data: session, status } = use
     }
   }
 
+  const handleRemoveAccount = (accountId: string) => {
+    const remainingAccounts = getConnectedAccounts()
+    if (remainingAccounts.length === 0) {
+      setHasConnectedAccounts(false)
+      setPlaidData(null)
+    }
+  }
+
   const handleDemoConnect = () => {
     setHasConnectedAccounts(true)
+    // Clear the exit flag since user is now entering demo mode
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('hasExitedDashboard')
+      setHasExitedDashboard(false)
+    }
+  }
+
+  const handleExitDashboard = () => {
+    // Reset dashboard state without signing out
+    setHasConnectedAccounts(false)
+    setPlaidData(null)
+    // Set exited flag but keep connected accounts in localStorage
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('hasExitedDashboard', 'true')
+      setHasExitedDashboard(true)
+    }
   }
 
   if (status === "loading") {
-    return <Loading variant="pulse" />
+    return <Loading variant="branded" />
   }
 
   if (!session) {
@@ -126,6 +195,10 @@ export default function DashboardPage() {  const { data: session, status } = use
         <PortfolioDashboard 
           hasConnectedAccounts={hasConnectedAccounts} 
           onConnectAccount={handleConnectAccount}
+          onRemoveAccount={handleRemoveAccount}
+          onExitDashboard={handleExitDashboard}
+          onDemoConnect={handleDemoConnect}
+          hasExitedDashboard={hasExitedDashboard}
           plaidData={plaidData}
           isConnecting={isConnecting}
         />
