@@ -97,15 +97,74 @@ const chartConfig = {
 interface PortfolioDashboardProps {
   hasConnectedAccounts: boolean
   onConnectAccount: (publicToken: string, metadata: any) => void
+  plaidData?: any
+  isConnecting?: boolean
 }
 
-export function PortfolioDashboard({ hasConnectedAccounts, onConnectAccount }: PortfolioDashboardProps) {
+export function PortfolioDashboard({ 
+  hasConnectedAccounts, 
+  onConnectAccount, 
+  plaidData, 
+  isConnecting = false 
+}: PortfolioDashboardProps) {
   const [balanceVisible, setBalanceVisible] = useState(true)
   const [selectedTimeframe, setSelectedTimeframe] = useState("1Y")
+  const [isDemoMode, setIsDemoMode] = useState(false)
+  // Show dashboard if user has connected accounts OR is in demo mode
+  const showDashboard = hasConnectedAccounts || isDemoMode
 
-  const totalBalance = connectedAccounts.reduce((sum, account) => sum + account.balance, 0)
-  const totalGain = totalBalance - portfolioData[0].value
-  const totalGainPercentage = (totalGain / portfolioData[0].value) * 100
+  // Transform Plaid data into our dashboard format
+  const getAccountsData = () => {
+    if (plaidData && hasConnectedAccounts && !isDemoMode) {
+      // Use real Plaid data
+      return plaidData.accounts?.map((account: any, index: number) => {
+        const balance = account.balances?.current || account.balances?.available || 0
+        return {
+          id: account.account_id,
+          name: `${plaidData.institution?.name || 'Connected Account'} - ${account.name}`,
+          type: account.subtype || account.type || 'Investment',
+          balance: balance,
+          percentage: 0, // We'll calculate this after we have all balances
+          logo: "https://logo.clearbit.com/plaid.com", // Default for now
+          lastSync: "Just now",
+          holdings: account.holdings || [], // Will be populated if we have investment holdings
+        }
+      }) || []
+    } else {
+      // Use demo data
+      return connectedAccounts
+    }
+  }
+
+  const accountsData = getAccountsData()
+  const totalBalance = accountsData.reduce((sum: number, account: any) => sum + account.balance, 0)
+  
+  // Update percentages now that we have total balance
+  const accountsWithPercentages = accountsData.map((account: any) => ({
+    ...account,
+    percentage: totalBalance > 0 ? ((account.balance / totalBalance) * 100) : 0
+  }))
+  // Get portfolio chart data - use current balance for real data
+  const getPortfolioData = () => {
+    if (plaidData && hasConnectedAccounts && !isDemoMode && totalBalance > 0) {
+      // For real data, create a simple chart showing current value
+      // In a real app, you'd track historical data
+      const currentValue = totalBalance
+      return [
+        ...portfolioData.slice(0, -1), // Keep historical demo data for context
+        { 
+          date: new Date().toISOString().slice(0, 7), 
+          value: currentValue, 
+          month: new Date().toLocaleDateString('en-US', { month: 'short' })
+        }
+      ]
+    }
+    return portfolioData
+  }
+
+  const chartData = getPortfolioData()
+  const totalGain = totalBalance - chartData[0].value
+  const totalGainPercentage = chartData[0].value > 0 ? (totalGain / chartData[0].value) * 100 : 0
 
   const formatCurrency = (value: number) => {
     if (!balanceVisible) return "••••••"
@@ -122,7 +181,7 @@ export function PortfolioDashboard({ hasConnectedAccounts, onConnectAccount }: P
     return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`
   }
 
-  if (!hasConnectedAccounts) {
+  if (!showDashboard) {
     return (
       <div className="space-y-8">
         {/* Hero Section */}
@@ -163,16 +222,40 @@ export function PortfolioDashboard({ hasConnectedAccounts, onConnectAccount }: P
                   <span className="text-xs text-gray-500 font-medium">{broker.name}</span>
                 </div>
               ))}
+            </div>            <div className="flex flex-col sm:flex-row gap-4 items-center justify-center">              <button
+                onClick={() => setIsDemoMode(true)}
+                className="bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600 hover:from-blue-600 hover:via-blue-700 hover:to-indigo-700 text-white font-semibold px-8 py-4 text-lg shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 rounded-full flex items-center"
+              >
+                <PieChart className="w-5 h-5 mr-2" />
+                View Demo Portfolio
+              </button>
+              
+              <PlaidLink
+                onSuccess={onConnectAccount}
+                size="lg"
+                className="bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-700 text-white font-semibold px-8 py-4 text-lg shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 rounded-full flex items-center"
+              >
+                <Building2 className="w-5 h-5 mr-2" />                Connect Real Account
+              </PlaidLink>
             </div>
 
-            <PlaidLink
-              onSuccess={onConnectAccount}
-              size="lg"
-              className="bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-700 text-white font-semibold px-8 py-4 text-lg shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 rounded-full"
-            >
-              <Building2 className="w-5 h-5 mr-2" />
-              Connect Your First Account
-            </PlaidLink>
+            {isConnecting && (
+              <div className="mt-6 text-center">
+                <div className="inline-flex items-center px-4 py-2 bg-emerald-50 rounded-full text-emerald-600 text-sm font-medium">
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                  Connecting your account...
+                </div>
+              </div>
+            )}
+
+            <div className="mt-4 text-center">
+              <p className="text-sm text-gray-500 mb-2">
+                <span className="font-medium text-blue-600">Demo:</span> See how the dashboard works with sample data
+              </p>
+              <p className="text-sm text-gray-500">
+                <span className="font-medium text-emerald-600">Real Account:</span> Connect your actual investment accounts
+              </p>
+            </div>
 
             <div className="mt-6 flex items-center justify-center space-x-6 text-sm text-gray-500">
               <div className="flex items-center space-x-2">
@@ -244,16 +327,42 @@ export function PortfolioDashboard({ hasConnectedAccounts, onConnectAccount }: P
       </div>
     )
   }
-
   return (
     <div className="space-y-8">
       {/* Portfolio Overview Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Portfolio Dashboard</h1>
-          <p className="text-gray-600 mt-1">Track your investments across all accounts</p>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold text-gray-900">Portfolio Dashboard</h1>
+            {isDemoMode && (
+              <span className="bg-blue-100 text-blue-800 text-sm font-medium px-3 py-1 rounded-full">
+                Demo Mode
+              </span>
+            )}            {hasConnectedAccounts && !isDemoMode && (
+              <span className="bg-green-100 text-green-800 text-sm font-medium px-3 py-1 rounded-full">
+                {plaidData ? "Live Data" : "Connected"}
+              </span>
+            )}
+          </div>          <p className="text-gray-600 mt-1">
+            {isDemoMode 
+              ? "Viewing sample portfolio data for demonstration"
+              : hasConnectedAccounts && plaidData
+                ? `Connected accounts: ${accountsWithPercentages.length} • Total: ${formatCurrency(totalBalance)}`
+                : "Track your investments across all accounts"
+            }
+          </p>
         </div>
         <div className="flex items-center gap-3">
+          {isDemoMode && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsDemoMode(false)}
+              className="text-blue-600 border-blue-200 hover:bg-blue-50"
+            >
+              Exit Demo
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -308,7 +417,7 @@ export function PortfolioDashboard({ hasConnectedAccounts, onConnectAccount }: P
           <CardContent>
             <div className="text-2xl font-bold text-gray-900 mb-1">{connectedAccounts.length}</div>
             <div className="text-sm text-gray-600">
-              Across {new Set(connectedAccounts.map((a) => a.type)).size} account types
+              Across {new Set(accountsWithPercentages.map((a: any) => a.type)).size} account types
             </div>
           </CardContent>
         </Card>
@@ -353,7 +462,7 @@ export function PortfolioDashboard({ hasConnectedAccounts, onConnectAccount }: P
           </CardHeader>
           <CardContent>
             <ChartContainer config={chartConfig} className="h-[400px]">
-              <AreaChart data={portfolioData}>
+              <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#10B981" stopOpacity={0.3} />
@@ -495,7 +604,7 @@ export function PortfolioDashboard({ hasConnectedAccounts, onConnectAccount }: P
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {connectedAccounts.map((account) => (
+              {accountsWithPercentages.map((account: any) => (
                 <div
                   key={account.id}
                   className="flex items-center justify-between p-4 border border-gray-100 rounded-lg hover:border-gray-200 transition-colors"
@@ -527,10 +636,36 @@ export function PortfolioDashboard({ hasConnectedAccounts, onConnectAccount }: P
                   </div>
                 </div>
               ))}
+            </div>          </CardContent>
+        </Card>
+      </div>
+
+      {/* Debug Section - Show Real Plaid Data (for testing) */}
+      {plaidData && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="text-green-600">🔗 Real Plaid Data Connected!</CardTitle>
+            <CardDescription>This is actual data from your connected account(s)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <pre className="text-xs overflow-auto max-h-40">
+                {JSON.stringify(plaidData, null, 2)}
+              </pre>
+            </div>
+            <div className="mt-4 text-sm text-gray-600">
+              <p><strong>Accounts found:</strong> {plaidData.accounts?.length || 0}</p>
+              <p><strong>Institution:</strong> {plaidData.institution?.name || 'Unknown'}</p>
+              {plaidData.accounts?.map((account: any, index: number) => (
+                <p key={index}>
+                  <strong>{account.name}:</strong> {account.balances.current ? `$${account.balances.current}` : 'N/A'} 
+                  ({account.type})
+                </p>
+              ))}
             </div>
           </CardContent>
         </Card>
-      </div>
+      )}
     </div>
   )
 }
