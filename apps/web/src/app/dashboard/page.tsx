@@ -12,7 +12,7 @@ export default function DashboardPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const [isVisible, setIsVisible] = useState(false)
-  const [connectedAccounts, setConnectedAccounts] = useState([]) // Will store Plaid account data
+  const [connectedAccounts, setConnectedAccounts] = useState<any[]>([]) // Will store Plaid account data
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -38,9 +38,8 @@ export default function DashboardPage() {
     return null
   }
 
-  return (
-    <div 
-      className={`min-h-screen bg-gray-50 transition-opacity duration-500 ease-in-out ${
+  return (    <div 
+      className={`min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/50 transition-opacity duration-500 ease-in-out ${
         isVisible ? 'opacity-100' : 'opacity-0'
       }`}
     >
