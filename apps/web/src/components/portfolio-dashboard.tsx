@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@web/components/ui/card"
 import { Button } from "@web/components/ui/button"
@@ -149,6 +149,86 @@ export function PortfolioDashboard({
   const [selectedTimeframe, setSelectedTimeframe] = useState("1Y")
   const [isDemoMode, setIsDemoMode] = useState(false)
   const [connectedPlaidAccounts, setConnectedPlaidAccounts] = useState<ConnectedAccount[]>([])
+
+  // Custom CSS animations
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      const style = document.createElement('style')
+      style.textContent = `
+        @keyframes expandWidth {
+          from { width: 0%; }
+          to { width: var(--final-width, 100%); }
+        }
+        
+        @keyframes slideToPosition {
+          from { left: 0%; }
+          to { left: var(--final-position, 100%); }
+        }
+        
+        @keyframes shimmer {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
+        }
+        
+        @keyframes shimmer-slow {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(200%); }
+        }
+        
+        @keyframes float-1 {
+          0%, 100% { transform: translateY(0px) translateX(-50%); }
+          50% { transform: translateY(-10px) translateX(-50%); }
+        }
+        
+        @keyframes float-2 {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-8px); }
+        }
+        
+        @keyframes float-3 {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-6px); }
+        }
+        
+        .animate-shimmer {
+          animation: shimmer 2s infinite;
+        }
+        
+        .animate-shimmer-slow {
+          animation: shimmer-slow 3s infinite;
+        }
+        
+        .animate-float-1 {
+          animation: float-1 2s ease-in-out infinite;
+        }
+        
+        .animate-float-2 {
+          animation: float-2 2.5s ease-in-out infinite;
+        }
+        
+        .animate-float-3 {
+          animation: float-3 3s ease-in-out infinite;
+        }
+        
+        .animation-delay-150 {
+          animation-delay: 150ms;
+        }
+        
+        .animation-delay-300 {
+          animation-delay: 300ms;
+        }
+        
+        .animation-delay-600 {
+          animation-delay: 600ms;
+        }
+      `
+      document.head.appendChild(style)
+      
+      return () => {
+        document.head.removeChild(style)
+      }
+    }
+  }, [])
 
   // Dark mode toggle logic
   const [isDark, setIsDark] = useState(false)
@@ -345,7 +425,7 @@ export function PortfolioDashboard({
 
   // Function to get portfolio vs total balances
   const getBalanceSummary = (accounts: any[]) => {
-    let portfolioValue = 0
+    let portfolioAssetsValue = 0  // Just assets included in portfolio
     let totalAssets = 0
     let totalLiabilities = 0
     
@@ -353,7 +433,7 @@ export function PortfolioDashboard({
       const balance = Math.abs(account.balance) // Use absolute value for calculations
       
       if (shouldIncludeInPortfolio(account.type)) {
-        portfolioValue += account.balance // Keep original sign for portfolio
+        portfolioAssetsValue += account.balance // Keep original sign for portfolio assets
         totalAssets += balance
       } else {
         totalLiabilities += balance
@@ -361,7 +441,8 @@ export function PortfolioDashboard({
     })
     
     return {
-      portfolioValue,
+      portfolioAssetsValue,  // Assets only (for percentage calculations)
+      portfolioValue: totalAssets - totalLiabilities,  // Net portfolio value (for display)
       totalAssets,
       totalLiabilities,
       netWorth: totalAssets - totalLiabilities
@@ -370,13 +451,14 @@ export function PortfolioDashboard({
 
   const accountsData = getAccountsData()
   const balanceSummary = getBalanceSummary(accountsData)
-  const totalBalance = balanceSummary.portfolioValue // Use portfolio value instead of raw sum
+  const totalBalance = balanceSummary.portfolioValue // Use net portfolio value for display
+  const totalAssetsOnly = balanceSummary.portfolioAssetsValue // Use assets only for percentage calculations
   
   // Update percentages and add portfolio inclusion flag
   const accountsWithPercentages = accountsData.map((account: any) => {
     const isIncludedInPortfolio = shouldIncludeInPortfolio(account.type)
-    const percentage = isIncludedInPortfolio && totalBalance > 0 ? 
-      ((account.balance / totalBalance) * 100) : 0
+    const percentage = isIncludedInPortfolio && totalAssetsOnly > 0 ? 
+      ((account.balance / totalAssetsOnly) * 100) : 0  // Use assets only for percentages
     
     return {
       ...account,
@@ -897,7 +979,7 @@ export function PortfolioDashboard({
           <CardHeader className="relative pb-2">
             <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400 flex items-center gap-2">
               <DollarSign className="w-4 h-4" />
-              Total Portfolio Value
+              Net Portfolio Value
             </CardTitle>
           </CardHeader>
           <CardContent className="relative">
@@ -907,8 +989,8 @@ export function PortfolioDashboard({
               <span>{formatPercentage(totalGainPercentage)} all time</span>
             </div>
             {balanceSummary.totalLiabilities > 0 && (
-              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Net Worth: {formatCurrency(balanceSummary.netWorth)}
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 space-y-0.5">
+                <div>Assets: {formatCurrency(balanceSummary.totalAssets)} • Liabilities: {formatCurrency(balanceSummary.totalLiabilities)}</div>
               </div>
             )}
           </CardContent>
@@ -1182,45 +1264,230 @@ export function PortfolioDashboard({
       {/* Asset Allocation and Connected Accounts */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Asset Allocation */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="dark:text-foreground">Asset Allocation</CardTitle>
-            <CardDescription className="dark:text-gray-400">How your investments are distributed</CardDescription>
+        <Card className="overflow-hidden relative group">
+          {/* Subtle animated background */}
+          <div className="absolute inset-0 bg-gradient-to-br from-violet-50/40 via-blue-50/20 to-emerald-50/30 dark:from-violet-950/20 dark:via-blue-950/10 dark:to-emerald-950/15 transition-all duration-700 group-hover:from-violet-50/60 group-hover:via-blue-50/30 group-hover:to-emerald-50/40 dark:group-hover:from-violet-950/30 dark:group-hover:via-blue-950/20 dark:group-hover:to-emerald-950/25"></div>
+          
+          <CardHeader className="relative bg-gradient-to-r from-white/80 via-white/60 to-white/40 dark:from-gray-900/80 dark:via-gray-900/60 dark:to-gray-900/40 backdrop-blur-sm border-b border-violet-100/60 dark:border-violet-800/30">
+            <CardTitle className="flex items-center gap-3 text-gray-900 dark:text-foreground">
+              <div className="relative">
+                <PieChart className="w-5 h-5 text-violet-600 dark:text-violet-400 transition-transform duration-300 group-hover:scale-110" />
+                <div className="absolute -inset-1 bg-violet-500/20 rounded-full blur-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              </div>
+              <span className="font-semibold">Asset Allocation</span>
+              <div className="flex items-center gap-1 ml-auto">
+                <div className="w-2 h-2 bg-violet-400 rounded-full animate-pulse"></div>
+                <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse animation-delay-300"></div>
+                <div className="w-1 h-1 bg-emerald-400 rounded-full animate-pulse animation-delay-500"></div>
+              </div>
+            </CardTitle>
+            <CardDescription className="text-gray-600 dark:text-gray-300">
+              Professional breakdown of your investment portfolio
+            </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="h-[200px]">
+          
+          <CardContent className="relative p-6">
+            <div className="space-y-8">
+              {/* Enhanced Pie Chart */}
+              <div className="relative h-[320px] flex items-center justify-center group/chart">
                 <ResponsiveContainer width="100%" height="100%">
                   <RechartsPieChart>
+                    <defs>
+                      {/* Professional gradient definitions */}
+                      {assetAllocation.map((entry, index) => (
+                        <linearGradient key={`gradient-${index}`} id={`gradient-${index}`} x1="0%" y1="0%" x2="100%" y2="100%">
+                          <stop offset="0%" stopColor={entry.color} stopOpacity={1} />
+                          <stop offset="100%" stopColor={entry.color} stopOpacity={0.8} />
+                        </linearGradient>
+                      ))}
+                      {/* Subtle shadow filter */}
+                      <filter id="drop-shadow" x="-50%" y="-50%" width="200%" height="200%">
+                        <feDropShadow dx="0" dy="4" stdDeviation="8" floodOpacity="0.1"/>
+                      </filter>
+                    </defs>
                     <Pie
                       data={assetAllocation}
                       cx="50%"
                       cy="50%"
-                      innerRadius={60}
-                      outerRadius={80}
-                      paddingAngle={5}
+                      innerRadius={65}
+                      outerRadius={110}
+                      paddingAngle={3}
                       dataKey="value"
+                      stroke="rgba(255,255,255,0.9)"
+                      strokeWidth={2}
+                      filter="url(#drop-shadow)"
+                      className="transition-all duration-500"
                     >
                       {assetAllocation.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
+                        <Cell 
+                          key={`cell-${index}`} 
+                          fill={`url(#gradient-${index})`}
+                          className="hover:opacity-90 transition-all duration-300 cursor-pointer hover:scale-105 origin-center"
+                        />
                       ))}
                     </Pie>
                     <ChartTooltip
-                      content={<ChartTooltipContent formatter={(value) => [formatCurrency(value as number), ""]} />}
+                      content={<ChartTooltipContent 
+                        formatter={(value, name) => [
+                          `${formatCurrency(value as number)} (${((value as number / assetAllocation.reduce((sum, item) => sum + item.value, 0)) * 100).toFixed(1)}%)`, 
+                          name
+                        ]} 
+                        className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-lg border border-gray-200/60 dark:border-gray-700/60 shadow-xl rounded-xl"
+                      />}
                     />
                   </RechartsPieChart>
                 </ResponsiveContainer>
-              </div>
-              <div className="space-y-3">
-                {assetAllocation.map((item, index) => (
-                  <div key={item.name} className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
-                      <span className="font-medium text-gray-900 dark:text-foreground">{item.name}</span>
+                
+                {/* Enhanced Center Display */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="text-center bg-white/95 dark:bg-gray-900/95 backdrop-blur-lg rounded-full w-28 h-28 flex flex-col items-center justify-center border-2 border-white/80 dark:border-gray-700/80 shadow-xl group-hover/chart:scale-105 transition-all duration-500">
+                    <div className="space-y-1">
+                      <div className="text-xs font-semibold text-violet-600 dark:text-violet-400 uppercase tracking-wider">Total Value</div>
+                      <div className="text-sm font-bold text-gray-900 dark:text-gray-100 leading-tight">
+                        {formatCurrency(assetAllocation.reduce((sum, item) => sum + item.value, 0))}
+                      </div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                        {assetAllocation.length} classes
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <div className="font-semibold text-gray-900 dark:text-foreground">{formatCurrency(item.value)}</div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400">{item.percentage}%</div>
+                  </div>
+                </div>
+                
+                {/* Floating indicators on hover */}
+                <div className="absolute top-6 right-6 opacity-0 group-hover/chart:opacity-100 transition-all duration-500">
+                  <div className="flex items-center gap-2 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm px-3 py-2 rounded-full border border-gray-200/50 dark:border-gray-700/50 shadow-lg">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Live Data</span>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Professional Asset List */}
+              <div className="space-y-4">
+                {assetAllocation.map((item, index) => {
+                  const percentage = (item.value / assetAllocation.reduce((sum, asset) => sum + asset.value, 0)) * 100;
+                  return (
+                    <div 
+                      key={item.name} 
+                      className="group/item relative p-5 bg-gradient-to-r from-white/80 via-white/60 to-white/40 dark:from-gray-800/60 dark:via-gray-800/40 dark:to-gray-800/20 backdrop-blur-sm rounded-xl border border-gray-200/60 dark:border-gray-700/40 hover:border-violet-300/60 dark:hover:border-violet-600/50 hover:shadow-lg dark:hover:shadow-gray-900/20 transition-all duration-300 hover:scale-[1.02] cursor-pointer overflow-hidden"
+                    >
+                      {/* Subtle hover background */}
+                      <div className="absolute inset-0 bg-gradient-to-r from-violet-50/50 to-blue-50/30 dark:from-violet-950/30 dark:to-blue-950/20 opacity-0 group-hover/item:opacity-100 transition-opacity duration-500"></div>
+                      
+                      <div className="relative flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          {/* Enhanced color indicator */}
+                          <div className="relative">
+                            <div 
+                              className="w-5 h-5 rounded-lg shadow-md border-2 border-white/80 dark:border-gray-700/80 group-hover/item:scale-110 transition-transform duration-300"
+                              style={{ backgroundColor: item.color }}
+                            />
+                            <div 
+                              className="absolute inset-0 rounded-lg opacity-0 group-hover/item:opacity-40 transition-opacity duration-300"
+                              style={{ 
+                                backgroundColor: item.color,
+                                filter: 'blur(8px)',
+                                transform: 'scale(1.5)'
+                              }}
+                            />
+                          </div>
+                          
+                          {/* Asset info */}
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-3">
+                              <span className="font-semibold text-gray-900 dark:text-gray-100 text-lg group-hover/item:text-violet-700 dark:group-hover/item:text-violet-300 transition-colors duration-300">
+                                {item.name}
+                              </span>
+                              <span 
+                                className="px-2.5 py-1 rounded-full text-xs font-semibold text-white shadow-sm group-hover/item:shadow-md transition-shadow duration-300"
+                                style={{ backgroundColor: item.color }}
+                              >
+                                {percentage.toFixed(1)}%
+                              </span>
+                            </div>
+                            <div className="text-sm text-gray-500 dark:text-gray-400 font-medium">
+                              Portfolio allocation • Investment category
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Value display with progress bar */}
+                        <div className="text-right space-y-3 min-w-[160px]">
+                          <div className="space-y-1">
+                            <div className="font-bold text-gray-900 dark:text-gray-100 text-lg group-hover/item:text-violet-700 dark:group-hover/item:text-violet-300 transition-colors duration-300">
+                              {formatCurrency(item.value)}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                              Asset Value
+                            </div>
+                          </div>
+                          
+                          {/* Professional progress bar */}
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                              <span>Allocation</span>
+                              <span className="font-semibold">{percentage.toFixed(1)}%</span>
+                            </div>
+                            <div className="relative w-full h-2 bg-gray-200/80 dark:bg-gray-700/80 rounded-full overflow-hidden">
+                              <div 
+                                className="absolute top-0 left-0 h-full rounded-full transition-all duration-1000 ease-out"
+                                style={{ 
+                                  width: `${percentage}%`,
+                                  background: `linear-gradient(90deg, ${item.color}, ${item.color}cc)`,
+                                  boxShadow: `0 0 8px ${item.color}40`
+                                }}
+                              />
+                              {/* Subtle shimmer effect */}
+                              <div 
+                                className="absolute top-0 left-0 h-full w-6 bg-gradient-to-r from-transparent via-white/30 to-transparent rounded-full opacity-0 group-hover/item:opacity-100 group-hover/item:animate-pulse transition-opacity duration-300"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              
+              {/* Enhanced Summary Stats */}
+              <div className="grid grid-cols-3 gap-6 pt-6 border-t border-gradient-to-r from-transparent via-gray-200/50 to-transparent dark:via-gray-700/50">
+                {[
+                  {
+                    label: "Asset Classes",
+                    value: assetAllocation.length,
+                    color: "blue",
+                    icon: "🎯"
+                  },
+                  {
+                    label: "Largest Holding", 
+                    value: `${Math.max(...assetAllocation.map(item => item.percentage)).toFixed(0)}%`,
+                    color: "emerald",
+                    icon: "📊"
+                  },
+                  {
+                    label: "Diversification",
+                    value: (() => {
+                      const maxPercentage = Math.max(...assetAllocation.map(item => item.percentage));
+                      if (maxPercentage < 50) return "High";
+                      if (maxPercentage < 70) return "Good";
+                      return "Moderate";
+                    })(),
+                    color: "violet",
+                    icon: "⚖️"
+                  }
+                ].map((stat, index) => (
+                  <div key={stat.label} className={`group/stat text-center p-4 rounded-xl bg-gradient-to-br from-${stat.color}-50/50 to-${stat.color}-100/30 dark:from-${stat.color}-950/30 dark:to-${stat.color}-900/20 border border-${stat.color}-200/40 dark:border-${stat.color}-800/40 hover:border-${stat.color}-300/60 dark:hover:border-${stat.color}-600/50 transition-all duration-300 hover:scale-105 cursor-pointer`}>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-center gap-2">
+                        <span className="text-lg">{stat.icon}</span>
+                        <div className={`text-sm font-semibold text-${stat.color}-600 dark:text-${stat.color}-400 uppercase tracking-wide`}>
+                          {stat.label}
+                        </div>
+                      </div>
+                      <div className={`text-2xl font-bold text-${stat.color}-800 dark:text-${stat.color}-300 group-hover/stat:scale-110 transition-transform duration-300`}>
+                        {stat.value}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -1230,32 +1497,35 @@ export function PortfolioDashboard({
         </Card>
 
         {/* Connected Accounts */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>Connected Accounts</span>
-              <span className="text-sm font-normal text-gray-500">
+        <Card className="overflow-hidden">
+          <CardHeader className="bg-gradient-to-br from-blue-50/50 to-indigo-50/50 dark:from-blue-950/20 dark:to-indigo-950/20 border-b border-gray-100 dark:border-gray-800 pb-4">
+            <CardTitle className="flex items-center justify-between text-gray-900 dark:text-foreground">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                <span>Connected Accounts</span>
+              </div>
+              <span className="text-sm font-normal text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 px-3 py-1 rounded-full border border-gray-200 dark:border-gray-700">
                 {accountsWithPercentages.length} {accountsWithPercentages.length === 1 ? 'account' : 'accounts'}
               </span>
             </CardTitle>
-            <CardDescription>Your linked financial accounts</CardDescription>
+            <CardDescription className="text-gray-600 dark:text-gray-300">Your linked financial accounts</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4">
             {/* Balance Summary */}
             {balanceSummary.totalLiabilities > 0 && (
-              <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-700">
+              <div className="mb-4 p-4 bg-gradient-to-br from-gray-50 to-gray-100/50 dark:from-gray-800/50 dark:to-gray-900/30 rounded-xl border border-gray-200/50 dark:border-gray-700/50 shadow-sm">
                 <div className="grid grid-cols-3 gap-4 text-center">
-                  <div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Total Assets</div>
-                    <div className="font-semibold text-green-600">{formatCurrency(balanceSummary.totalAssets)}</div>
+                  <div className="space-y-1">
+                    <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Total Assets</div>
+                    <div className="text-base font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(balanceSummary.totalAssets)}</div>
                   </div>
-                  <div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Total Liabilities</div>
-                    <div className="font-semibold text-red-600">{formatCurrency(balanceSummary.totalLiabilities)}</div>
+                  <div className="space-y-1 border-x border-gray-200 dark:border-gray-700">
+                    <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Total Liabilities</div>
+                    <div className="text-base font-bold text-red-500 dark:text-red-400">{formatCurrency(balanceSummary.totalLiabilities)}</div>
                   </div>
-                  <div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Net Worth</div>
-                    <div className="font-semibold text-gray-900 dark:text-foreground">{formatCurrency(balanceSummary.netWorth)}</div>
+                  <div className="space-y-1">
+                    <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Net Worth</div>
+                    <div className="text-base font-bold text-gray-900 dark:text-gray-100">{formatCurrency(balanceSummary.netWorth)}</div>
                   </div>
                 </div>
               </div>
@@ -1265,83 +1535,90 @@ export function PortfolioDashboard({
               {accountsWithPercentages.map((account: any) => (
                 <div
                   key={account.id}
-                  className="flex items-center justify-between p-4 border border-gray-100 rounded-xl hover:border-gray-200 hover:bg-gradient-to-r hover:from-gray-50 hover:to-gray-50/50 transition-all duration-200 hover:shadow-sm group"
+                  className="group relative p-4 bg-white dark:bg-gray-800/30 border border-gray-200/60 dark:border-gray-700/50 rounded-xl hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md dark:hover:shadow-gray-900/20 transition-all duration-300 hover:scale-[1.01]"
                 >
-                  <div className="flex items-center gap-4">
-                    <div className="relative">
-                      {/* Institution Logo */}
-                      <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center overflow-hidden border border-gray-200 group-hover:border-gray-300 transition-all duration-200 shadow-sm">
-                        <img
-                          src={account.logo || "/placeholder.svg"}
-                          alt={getInstitutionDisplayName(account.name)}
-                          className="w-8 h-8 object-contain"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement
-                            const parent = target.parentElement
-                            if (parent) {
-                              const institutionName = getInstitutionDisplayName(account.name)
-                              parent.innerHTML = `<div class="w-8 h-8 rounded bg-gradient-to-br from-gray-500 to-gray-600 flex items-center justify-center text-white text-sm font-bold">${institutionName.charAt(0)}</div>`
-                            }
-                          }}
-                        />
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="relative">
+                        {/* Institution Logo */}
+                        <div className="w-12 h-12 bg-gradient-to-br from-white to-gray-50 dark:from-gray-700 dark:to-gray-800 rounded-xl flex items-center justify-center overflow-hidden border-2 border-gray-200/70 dark:border-gray-600/50 group-hover:border-gray-300 dark:group-hover:border-gray-500 transition-all duration-300 shadow-sm">
+                          <img
+                            src={account.logo || "/placeholder.svg"}
+                            alt={getInstitutionDisplayName(account.name)}
+                            className="w-8 h-8 object-contain"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement
+                              const parent = target.parentElement
+                              if (parent) {
+                                const institutionName = getInstitutionDisplayName(account.name)
+                                parent.innerHTML = `<div class="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-sm font-bold shadow-inner">${institutionName.charAt(0)}</div>`
+                              }
+                            }}
+                          />
+                        </div>
+                        
+                        {/* Account Type Badge */}
+                        {(() => {
+                          const accountTypeInfo = getAccountTypeIcon(account.type, account.subtype)
+                          return (
+                            <div className={`absolute -bottom-1 -right-1 w-6 h-6 ${accountTypeInfo.bgColor} dark:bg-opacity-90 rounded-full flex items-center justify-center border-2 border-white dark:border-gray-800 shadow-md transition-transform duration-300 group-hover:scale-110`}>
+                              <span className="text-xs">{accountTypeInfo.icon}</span>
+                            </div>
+                          )
+                        })()}
                       </div>
                       
-                      {/* Account Type Badge */}
-                      {(() => {
-                        const accountTypeInfo = getAccountTypeIcon(account.type, account.subtype)
-                        return (
-                          <div className={`absolute -bottom-1 -right-1 w-6 h-6 ${accountTypeInfo.bgColor} rounded-full flex items-center justify-center border-2 border-white shadow-sm`}>
-                            <span className="text-xs">{accountTypeInfo.icon}</span>
-                          </div>
-                        )
-                      })()}
+                      <div className="min-w-0 flex-1">
+                        <div className="font-bold text-gray-900 dark:text-gray-100 text-base mb-1 truncate">{formatAccountName(account.name)}</div>
+                        <div className="text-sm text-gray-600 dark:text-gray-300 flex items-center gap-2 flex-wrap">
+                          <span className="font-medium text-gray-800 dark:text-gray-200 bg-gray-100 dark:bg-gray-700/50 px-2 py-0.5 rounded text-xs">{getInstitutionDisplayName(account.name)}</span>
+                          <span className="text-gray-400 dark:text-gray-500">•</span>
+                          <span className="capitalize text-gray-600 dark:text-gray-300 font-medium text-xs">{account.type}</span>
+                        </div>
+                      </div>
                     </div>
                     
-                    <div>
-                      <div className="font-semibold text-gray-900 text-base">{formatAccountName(account.name)}</div>
-                      <div className="text-sm text-gray-600 flex items-center gap-2">
-                        <span className="font-medium text-gray-800">{getInstitutionDisplayName(account.name)}</span>
-                        <span className="text-gray-400">•</span>
-                        <span className="capitalize text-gray-600">{account.type}</span>
-                        <span className="text-gray-400">•</span>
-                        <span className="text-emerald-600 font-medium">{account.lastSync}</span>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right min-w-[120px]">
+                        <div className="font-bold text-gray-900 dark:text-gray-100 text-lg mb-1">{formatCurrency(account.balance)}</div>
+                        <div className="flex justify-end">
+                          {account.isIncludedInPortfolio ? (
+                            <span className="inline-flex items-center text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded-full text-xs font-medium border border-blue-200 dark:border-blue-800">
+                              {account.percentage.toFixed(1)}% of portfolio
+                            </span>
+                          ) : account.isLiability ? (
+                            <span className="inline-flex items-center text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30 px-2 py-1 rounded-full text-xs font-medium border border-red-200 dark:border-red-800">
+                              Liability
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700/50 px-2 py-1 rounded-full text-xs font-medium border border-gray-200 dark:border-gray-600">
+                              Not in portfolio
+                            </span>
+                          )}
+                        </div>
                       </div>
+                      {account.accountId && !isDemoMode && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRemoveAccount(account.accountId)}
+                          className="opacity-0 group-hover:opacity-100 transition-all duration-300 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-lg hover:scale-110 flex-shrink-0"
+                          title="Remove account"
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      )}
                     </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-right">
-                      <div className="font-bold text-gray-900 text-base">{formatCurrency(account.balance)}</div>
-                      <div className="text-sm text-gray-500 font-medium">
-                        {account.isIncludedInPortfolio ? (
-                          `${account.percentage.toFixed(1)}% of portfolio`
-                        ) : account.isLiability ? (
-                          <span className="text-red-600">Liability</span>
-                        ) : (
-                          <span className="text-gray-400">Not in portfolio</span>
-                        )}
-                      </div>
-                    </div>
-                    {account.accountId && !isDemoMode && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleRemoveAccount(account.accountId)}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-red-500 hover:bg-red-50 p-2"
-                        title="Remove account"
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
-                    )}
                   </div>
                 </div>
               ))}
               
               {/* Add Account Button */}
-              <div className="pt-2">
+              <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
                 <PlaidLink
                   onSuccess={onConnectAccount}
                   variant="outline"
-                  className="w-full border-dashed border-2 border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 bg-transparent hover:bg-gray-50 dark:hover:bg-gray-800"
+                  className="w-full h-12 border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500 text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 bg-transparent hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-all duration-300 rounded-xl group flex items-center justify-center gap-2 font-medium hover:scale-[1.01]"
                 >
                   Add Another Account
                 </PlaidLink>
