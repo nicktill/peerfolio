@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@web/
 import { Button } from "@web/components/ui/button"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@web/components/ui/chart"
 import { PlaidLink } from "./plaid-link"
-import { TrendingUp, TrendingDown, DollarSign, PieChart, Building2, Eye, EyeOff, RefreshCw, X, Play } from "lucide-react"
+import { TrendingUp, TrendingDown, DollarSign, PieChart, Building2, Eye, EyeOff, RefreshCw, X, Play, Plus } from "lucide-react"
 import {
   XAxis,
   YAxis,
@@ -807,7 +807,7 @@ export function PortfolioDashboard({
         
         {/* Navigation and Controls */}
         <div className="flex items-center gap-3">
-          {/* Navigation Buttons */}
+          {/* Navigation Buttons - First Section */}
           {(hasConnectedAccounts || connectedPlaidAccounts.length > 0 || isDemoMode) && (
             <div className="flex items-center gap-2">
               <Button
@@ -865,6 +865,28 @@ export function PortfolioDashboard({
               </Button>
             </div>
           )}
+          
+          {/* Hide and Add Account buttons - Second Section */}
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setBalanceVisible(!balanceVisible)}
+              className="flex items-center gap-2"
+            >
+              {balanceVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              Hide
+            </Button>
+            
+            <PlaidLink 
+              onSuccess={onConnectAccount} 
+              variant="outline" 
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              Add Account
+            </PlaidLink>
+          </div>
         </div>
       </div>
 

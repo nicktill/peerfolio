@@ -9,8 +9,11 @@ import { PortfolioDashboard } from "@web/components/portfolio-dashboard"
 import { Button } from "@web/components/ui/button"
 import { addConnectedAccount, getConnectedAccounts, type ConnectedAccount } from "@web/lib/account-storage"
 import { useTheme } from "@web/components/theme-provider"
+import { ThemeProvider } from "@web/components/theme-provider"
+import { PlaidLink } from "@web/components/plaid-link"
+import { Eye, EyeOff, Plus } from "lucide-react"
 
-export default function DashboardPage() {  
+function DashboardContent() {  
   const { data: session, status } = useSession()
   const router = useRouter()
   const [isVisible, setIsVisible] = useState(false)
@@ -18,6 +21,7 @@ export default function DashboardPage() {
   const [plaidData, setPlaidData] = useState<any>(null)
   const [isConnecting, setIsConnecting] = useState(false)
   const [hasExitedDashboard, setHasExitedDashboard] = useState(false)
+  const [balanceVisible, setBalanceVisible] = useState(true)
   const { isDark, toggleDark } = useTheme()
 
   useEffect(() => {
@@ -180,7 +184,7 @@ export default function DashboardPage() {
               <h1 className="text-xl font-semibold text-gray-900 dark:text-foreground truncate">Peerfolio</h1>
             </div>
             <div className="flex items-center space-x-2 md:space-x-4 flex-shrink-0">
-              {/* Only keep one dark mode toggle button here, remove any duplicate at the end */}
+              {/* Dark mode toggle button */}
               <Button
                 variant="outline"
                 size="icon"
@@ -218,8 +222,18 @@ export default function DashboardPage() {
           hasExitedDashboard={hasExitedDashboard}
           plaidData={plaidData}
           isConnecting={isConnecting}
+          balanceVisible={balanceVisible}
+          setBalanceVisible={setBalanceVisible}
         />
       </main>
     </div>
+  )
+}
+
+export default function DashboardPage() {
+  return (
+    <ThemeProvider>
+      <DashboardContent />
+    </ThemeProvider>
   )
 }
