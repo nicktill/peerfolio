@@ -94,7 +94,7 @@ const Card = ({ children, className = "", ...props }: any) => (
 )
 
 const Badge = ({ children, className = "", ...props }: any) => (
-  <div className={`inline-flex items-center rounded-full px-4 py-2 text-xs font-medium ${className}`} {...props}>
+  <div className={`inline-flex items-center rounded-full px-4 py-2 text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200 ${className}`} {...props}>
     {children}
   </div>
 )
@@ -135,7 +135,7 @@ export default function PeerfolioLanding() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen relative overflow-x-hidden">
+    <div className="relative min-h-screen bg-white transition-colors duration-300">
       {/* Clean Global Background with Single Rotated Animated Grid */}
       <div className="fixed inset-0 z-0">
         {/* Base gradient background */}
@@ -162,7 +162,6 @@ export default function PeerfolioLanding() {
       
       {/* Header */}
       <header className="sticky top-0 z-50 w-full border-b border-gray-100/50 bg-white/80 backdrop-blur-md relative">
-        {/* Subtle animated border */}
         <div className="absolute bottom-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-emerald-500/20 to-transparent" />
         <div className="container flex h-16 items-center justify-between px-6 max-w-6xl mx-auto">
           <div 
@@ -279,7 +278,7 @@ export default function PeerfolioLanding() {
                   />
                 </div>
                 <div className="absolute inset-0 bg-gradient-to-r from-emerald-100/30 to-blue-100/30 rounded-3xl blur-3xl group-hover:blur-2xl transition-all duration-700" />
-                <div className="relative bg-white/95 rounded-3xl p-8 shadow-2xl border border-gray-100 backdrop-blur-sm group-hover:shadow-3xl transition-all duration-500">
+                <div className="relative bg-white/95 dark:bg-gray-900 rounded-3xl p-8 shadow-2xl border border-gray-100 backdrop-blur-sm group-hover:shadow-3xl transition-all duration-500">
                   {/* Dashboard Header */}
                   <div className="flex items-center justify-between mb-8 pb-6 border-b border-gray-100">
                     <div>

@@ -2,6 +2,7 @@
 
 import LandingComingSoon from "@web/components/landing-coming-soon"
 import Loading from "@web/components/loading"
+import { useTheme } from "@web/components/theme-provider"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
@@ -10,6 +11,7 @@ export default function HomePage() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const [isVisible, setIsVisible] = useState(false)
+  const { isDark, toggleDark } = useTheme()
 
   useEffect(() => {
     if (session) {
@@ -37,7 +39,7 @@ export default function HomePage() {
 
   return (
     <div 
-      className={`transition-opacity duration-500 ease-in-out ${
+      className={`transition-opacity duration-500 ease-in-out min-h-screen bg-white ${
         isVisible ? 'opacity-100' : 'opacity-0'
       }`}
     >
