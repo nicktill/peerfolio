@@ -150,6 +150,26 @@ export function PortfolioDashboard({
   const [isDemoMode, setIsDemoMode] = useState(false)
   const [connectedPlaidAccounts, setConnectedPlaidAccounts] = useState<ConnectedAccount[]>([])
 
+  // Dark mode toggle logic
+  const [isDark, setIsDark] = useState(false)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const darkPref = localStorage.getItem('theme') === 'dark' || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
+      setIsDark(darkPref)
+      document.documentElement.classList.toggle('dark', darkPref)
+    }
+  }, [])
+  const toggleDarkMode = () => {
+    setIsDark((prev) => {
+      const next = !prev
+      if (typeof window !== 'undefined') {
+        document.documentElement.classList.toggle('dark', next)
+        localStorage.setItem('theme', next ? 'dark' : 'light')
+      }
+      return next
+    })
+  }
+
   // Load connected accounts from localStorage on mount and when hasConnectedAccounts changes
   useEffect(() => {
     const stored = getConnectedAccounts()
@@ -162,7 +182,7 @@ export function PortfolioDashboard({
         // Clear the flag and ensure user sees connected accounts (not demo mode)
         localStorage.removeItem('lastConnectedAccount')
         setIsDemoMode(false) // Ensure we're not in demo mode
-      } 
+      }
     }
   }, [hasConnectedAccounts, hasExitedDashboard]) // Add hasExitedDashboard dependency
 
@@ -243,11 +263,8 @@ export function PortfolioDashboard({
   }
 
   // Transform Plaid data into our dashboard format
-   const getAccountsData = () => {
-    if (isDemoMode) {
-      // Always use demo data when in demo mode
-      return connectedAccounts
-    } else if (connectedPlaidAccounts.length > 0) {
+  const getAccountsData = () => {
+    if (!isDemoMode && connectedPlaidAccounts.length > 0) {
       // Use multiple connected accounts from localStorage
       const allAccounts: any[] = []
       
@@ -270,7 +287,7 @@ export function PortfolioDashboard({
       })
       
       return allAccounts
-    } else if (plaidData && hasConnectedAccounts) {
+    } else if (plaidData && hasConnectedAccounts && !isDemoMode) {
       // Use single Plaid data (legacy support)
       const institutionName = plaidData.item?.institution_name || plaidData.institution?.name || 'Connected Bank'
       
@@ -288,7 +305,7 @@ export function PortfolioDashboard({
         }
       }) || []
     } else {
-      // Use demo data as fallback
+      // Use demo data
       return connectedAccounts
     }
   }
@@ -517,14 +534,14 @@ export function PortfolioDashboard({
     return (
       <div className="space-y-8">
         {/* Hero Section */}
-        <div className="text-center py-16 px-6 bg-gradient-to-br from-emerald-50 via-white to-blue-50 rounded-3xl border border-gray-100">
+        <div className="text-center py-16 px-6 bg-gradient-to-br from-emerald-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 rounded-3xl border border-gray-100 dark:border-gray-700">
           <div className="max-w-2xl mx-auto">
             <div className="mb-8">
               <div className="w-20 h-20 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
                 <PieChart className="w-10 h-10 text-white" />
               </div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-4">Your Portfolio Dashboard Awaits</h2>
-              <p className="text-lg text-gray-600 leading-relaxed">
+              <h2 className="text-3xl font-bold text-gray-900 dark:text-foreground mb-4">Your Portfolio Dashboard Awaits</h2>
+              <p className="text-lg text-gray-600 dark:text-gray-300 leading-relaxed">
                 Connect your investment accounts to see your complete portfolio in one beautiful, secure dashboard.
                 Track performance, analyze allocations, and compare with friends.
               </p>
@@ -535,7 +552,7 @@ export function PortfolioDashboard({
                 { name: "Charles Schwab", logo: "https://logo.clearbit.com/schwab.com" },
                 { name: "E*TRADE", logo: "https://logo.clearbit.com/etrade.com" }
               ].map((broker) => (
-                <div key={broker.name} className="bg-white rounded-lg p-4 text-center shadow-sm border border-gray-100">
+                <div key={broker.name} className="bg-white dark:bg-gray-800 rounded-lg p-4 text-center shadow-sm border border-gray-100 dark:border-gray-600">
                   <div className="w-8 h-8 rounded mx-auto mb-2 flex items-center justify-center overflow-hidden">
                     <img 
                       src={broker.logo} 
@@ -546,22 +563,25 @@ export function PortfolioDashboard({
                         const target = e.target as HTMLImageElement;
                         const parent = target.parentElement;
                         if (parent) {
-                          parent.innerHTML = `<div class="w-6 h-6 rounded bg-gray-300 flex items-center justify-center text-xs font-bold text-gray-600">${broker.name.charAt(0)}</div>`;
+                          parent.innerHTML = `<div class="w-6 h-6 rounded bg-gray-300 dark:bg-gray-600 flex items-center justify-center text-xs font-bold text-gray-600 dark:text-gray-300">${broker.name.charAt(0)}</div>`;
                         }
                       }}
                     />
                   </div>
-                  <span className="text-xs text-gray-500 font-medium">{broker.name}</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">{broker.name}</span>
                 </div>
               ))}
             </div>            <div className="flex flex-col sm:flex-row gap-4 items-center justify-center">
               <Button
                 onClick={() => {
+                  // Ensure clean demo mode state
                   setIsDemoMode(true)
-                  // Call the parent handler to clear exit flag
-                  if (onDemoConnect) {
-                    onDemoConnect()
+                  // Clear any exit flags to ensure user can see the demo
+                  if (typeof window !== 'undefined') {
+                    localStorage.removeItem('hasExitedDashboard')
                   }
+                  // Call demo connect handler if provided
+                  if (onDemoConnect) onDemoConnect()
                 }}
                 size="lg"
                 className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium px-6 py-3 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 rounded-lg flex items-center"
@@ -579,7 +599,12 @@ export function PortfolioDashboard({
                   return (
                     <Button
                       onClick={() => {
-                        // Clear exit flag and show dashboard with existing accounts
+                        // Clear exit flag and ensure real account mode
+                        if (typeof window !== 'undefined') {
+                          localStorage.removeItem('hasExitedDashboard')
+                        }
+                        setIsDemoMode(false)
+                        // Call demo connect handler to trigger parent state update
                         if (onDemoConnect) {
                           onDemoConnect()
                         }
@@ -609,7 +634,7 @@ export function PortfolioDashboard({
 
             {isConnecting && (
               <div className="mt-6 text-center">
-                <div className="inline-flex items-center px-4 py-2 bg-emerald-50 rounded-full text-emerald-600 text-sm font-medium">
+                <div className="inline-flex items-center px-4 py-2 bg-emerald-50 dark:bg-emerald-900/30 rounded-full text-emerald-600 dark:text-emerald-400 text-sm font-medium">
                   <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
                   Connecting your account...
                 </div>
@@ -617,15 +642,15 @@ export function PortfolioDashboard({
             )}
 
             <div className="mt-4 text-center">
-              <p className="text-sm text-gray-500 mb-2">
-                <span className="font-medium text-blue-600">Demo:</span> See how the dashboard works with sample data
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+                <span className="font-medium text-blue-600 dark:text-blue-400">Demo:</span> See how the dashboard works with sample data
               </p>
-              <p className="text-sm text-gray-500">
-                <span className="font-medium text-emerald-600">Real Account:</span> Connect your actual investment accounts
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                <span className="font-medium text-emerald-600 dark:text-emerald-400">Real Account:</span> Connect your actual investment accounts
               </p>
             </div>
 
-            <div className="mt-6 flex items-center justify-center space-x-6 text-sm text-gray-500">
+            <div className="mt-6 flex items-center justify-center space-x-6 text-sm text-gray-500 dark:text-gray-400">
               <div className="flex items-center space-x-2">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                 <span>Bank-level security</span>
@@ -647,15 +672,15 @@ export function PortfolioDashboard({
           <Card className="relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-emerald-600/5"></div>
             <CardHeader className="relative">
-              <CardTitle className="flex items-center gap-2 text-emerald-700">
+              <CardTitle className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
                 <TrendingUp className="w-5 h-5" />
                 Portfolio Growth
               </CardTitle>
-              <CardDescription>Track your investment performance over time</CardDescription>
+              <CardDescription className="dark:text-gray-400">Track your investment performance over time</CardDescription>
             </CardHeader>
             <CardContent className="relative">
-              <div className="h-32 bg-gradient-to-r from-emerald-100 to-emerald-200 rounded-lg flex items-center justify-center">
-                <span className="text-emerald-600 font-medium">Beautiful charts await</span>
+              <div className="h-32 bg-gradient-to-r from-emerald-100 to-emerald-200 dark:from-emerald-900/20 dark:to-emerald-800/20 rounded-lg flex items-center justify-center">
+                <span className="text-emerald-600 dark:text-emerald-400 font-medium">Beautiful charts await</span>
               </div>
             </CardContent>
           </Card>
@@ -663,15 +688,15 @@ export function PortfolioDashboard({
           <Card className="relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-blue-600/5"></div>
             <CardHeader className="relative">
-              <CardTitle className="flex items-center gap-2 text-blue-700">
+              <CardTitle className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
                 <PieChart className="w-5 h-5" />
                 Asset Allocation
               </CardTitle>
-              <CardDescription>Visualize your investment distribution</CardDescription>
+              <CardDescription className="dark:text-gray-400">Visualize your investment distribution</CardDescription>
             </CardHeader>
             <CardContent className="relative">
-              <div className="h-32 bg-gradient-to-r from-blue-100 to-blue-200 rounded-lg flex items-center justify-center">
-                <span className="text-blue-600 font-medium">Interactive breakdowns</span>
+              <div className="h-32 bg-gradient-to-r from-blue-100 to-blue-200 dark:from-blue-900/20 dark:to-blue-800/20 rounded-lg flex items-center justify-center">
+                <span className="text-blue-600 dark:text-blue-400 font-medium">Interactive breakdowns</span>
               </div>
             </CardContent>
           </Card>
@@ -679,15 +704,15 @@ export function PortfolioDashboard({
           <Card className="relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-purple-600/5"></div>
             <CardHeader className="relative">
-              <CardTitle className="flex items-center gap-2 text-purple-700">
+              <CardTitle className="flex items-center gap-2 text-purple-700 dark:text-purple-400">
                 <Building2 className="w-5 h-5" />
                 Account Overview
               </CardTitle>
-              <CardDescription>All your accounts in one place</CardDescription>
+              <CardDescription className="dark:text-gray-400">All your accounts in one place</CardDescription>
             </CardHeader>
             <CardContent className="relative">
-              <div className="h-32 bg-gradient-to-r from-purple-100 to-purple-200 rounded-lg flex items-center justify-center">
-                <span className="text-purple-600 font-medium">Unified dashboard</span>
+              <div className="h-32 bg-gradient-to-r from-purple-100 to-purple-200 dark:from-purple-900/20 dark:to-purple-800/20 rounded-lg flex items-center justify-center">
+                <span className="text-purple-600 dark:text-purple-400 font-medium">Unified dashboard</span>
               </div>
             </CardContent>
           </Card>
@@ -696,24 +721,24 @@ export function PortfolioDashboard({
     )
   }
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 dark:bg-background dark:text-foreground bg-white text-gray-900 min-h-screen transition-colors duration-300">
       {/* Portfolio Overview Header */}
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold text-gray-900">Portfolio Dashboard</h1>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-foreground">Portfolio Dashboard</h1>
             {isDemoMode && (
-              <span className="bg-blue-100 text-blue-800 text-sm font-medium px-3 py-1 rounded-full">
+              <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 text-sm font-medium px-3 py-1 rounded-full">
                 Demo Mode
               </span>
             )}
             {hasConnectedAccounts && !isDemoMode && (
-              <span className="bg-green-100 text-green-800 text-sm font-medium px-3 py-1 rounded-full">
+              <span className="bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 text-sm font-medium px-3 py-1 rounded-full">
                 Connected ({connectedPlaidAccounts.length} account{connectedPlaidAccounts.length !== 1 ? 's' : ''})
               </span>
             )}
           </div>
-          <p className="text-gray-600 mt-1">
+          <p className="text-gray-600 dark:text-gray-400 mt-1">
             {isDemoMode ? "Explore with sample portfolio data" :
              hasConnectedAccounts ? "Real data from your connected accounts" :
              "Connect your accounts to see real portfolio data"}
@@ -780,22 +805,6 @@ export function PortfolioDashboard({
               </Button>
             </div>
           )}
-          
-          {/* Additional Controls */}
-          <div className="flex items-center gap-2 border-l border-gray-200 pl-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setBalanceVisible(!balanceVisible)}
-              className="flex items-center gap-2"
-            >
-              {balanceVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              {balanceVisible ? "Hide" : "Show"}
-            </Button>
-            <PlaidLink onSuccess={onConnectAccount} variant="outline" size="sm">
-              Add Account
-            </PlaidLink>
-          </div>
         </div>
       </div>
 
@@ -804,13 +813,13 @@ export function PortfolioDashboard({
         <Card className="relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-emerald-600/10"></div>
           <CardHeader className="relative pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
+            <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400 flex items-center gap-2">
               <DollarSign className="w-4 h-4" />
               Total Portfolio Value
             </CardTitle>
           </CardHeader>
           <CardContent className="relative">
-            <div className="text-3xl font-bold text-gray-900 mb-1">{formatCurrency(totalBalance)}</div>
+            <div className="text-3xl font-bold text-gray-900 dark:text-foreground mb-1">{formatCurrency(totalBalance)}</div>
             <div className={`flex items-center gap-1 text-sm ${totalGain >= 0 ? "text-emerald-600" : "text-red-600"}`}>
               {totalGain >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
               <span>{formatPercentage(totalGainPercentage)} all time</span>
@@ -820,7 +829,7 @@ export function PortfolioDashboard({
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Today's Change</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">Today's Change</CardTitle>
           </CardHeader>
           <CardContent>
             <div className={`text-2xl font-bold mb-1 ${todaysChange.value >= 0 ? "text-emerald-600" : "text-red-600"}`}>
@@ -835,11 +844,11 @@ export function PortfolioDashboard({
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Connected Accounts</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">Connected Accounts</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-gray-900 mb-1">{accountsWithPercentages.length}</div>
-            <div className="text-sm text-gray-600">
+            <div className="text-2xl font-bold text-gray-900 dark:text-foreground mb-1">{accountsWithPercentages.length}</div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">
               Across {new Set(accountsWithPercentages.map((a: any) => a.institutionName || a.name.split(' - ')[0])).size} {new Set(accountsWithPercentages.map((a: any) => a.institutionName || a.name.split(' - ')[0])).size === 1 ? 'institution' : 'institutions'}
             </div>
           </CardContent>
@@ -847,11 +856,11 @@ export function PortfolioDashboard({
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Last Updated</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">Last Updated</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-gray-900 mb-1">2m ago</div>
-            <div className="flex items-center gap-1 text-sm text-gray-600">
+            <div className="text-2xl font-bold text-gray-900 dark:text-foreground mb-1">2m ago</div>
+            <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
               <RefreshCw className="w-4 h-4" />
               <span>Auto-sync enabled</span>
             </div>
@@ -865,8 +874,8 @@ export function PortfolioDashboard({
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Portfolio Performance</CardTitle>
-                <CardDescription>Your investment growth over time</CardDescription>
+                <CardTitle className="dark:text-foreground">Portfolio Performance</CardTitle>
+                <CardDescription className="dark:text-gray-400">Your investment growth over time</CardDescription>
               </div>
               <div className="flex items-center gap-2">
                 {["1D", "1W", "1M", "3M", "6M", "1Y", "ALL"].map((timeframe) => (
@@ -923,12 +932,12 @@ export function PortfolioDashboard({
         </Card>        {/* Top Holdings */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 dark:text-foreground">
               {/* Dynamic title based on content type */}
               {!isDemoMode && (plaidData || connectedPlaidAccounts.length > 0) && topHoldings.length > 0 && !topHoldings[0].isStock ? (
                 <>
                   Top Accounts
-                  <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded-full">
+                  <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 text-xs font-medium px-2 py-1 rounded-full">
                     By Balance
                   </span>
                 </>
@@ -936,19 +945,19 @@ export function PortfolioDashboard({
                 <>
                   Top Holdings
                   {isDemoMode && (
-                    <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded-full">
+                    <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 text-xs font-medium px-2 py-1 rounded-full">
                       Demo
                     </span>
                   )}
                   {!isDemoMode && (plaidData || connectedPlaidAccounts.length > 0) && (
-                    <span className="bg-green-100 text-green-800 text-xs font-medium px-2 py-1 rounded-full">
+                    <span className="bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 text-xs font-medium px-2 py-1 rounded-full">
                       Live
                     </span>
                   )}
                 </>
               )}
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="dark:text-gray-400">
               {!isDemoMode && (plaidData || connectedPlaidAccounts.length > 0) && topHoldings.length > 0 && !topHoldings[0].isStock
                 ? "Your largest accounts by balance"
                 : isDemoMode
@@ -959,8 +968,8 @@ export function PortfolioDashboard({
           </CardHeader>
           <CardContent>
             {topHoldings.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                <div className="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-3">
                   📊
                 </div>
                 <p className="text-sm">No holdings or accounts to display</p>
@@ -1018,13 +1027,13 @@ export function PortfolioDashboard({
                         )}
                       </div>
                       <div>
-                        <div className="font-semibold text-gray-900 text-base">{holding.symbol}</div>
-                        <div className="text-sm text-gray-600 truncate max-w-[140px]">
+                        <div className="font-semibold text-gray-900 dark:text-foreground text-base">{holding.symbol}</div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400 truncate max-w-[140px]">
                           {holding.isStock ? holding.name : (
                             <div className="flex flex-col">
                               <span>{holding.name}</span>
                               {holding.institutionName && (
-                                <span className="text-xs text-gray-500">from {holding.institutionName}</span>
+                                <span className="text-xs text-gray-500 dark:text-gray-500">from {holding.institutionName}</span>
                               )}
                             </div>
                           )}
@@ -1032,7 +1041,7 @@ export function PortfolioDashboard({
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="font-bold text-gray-900 text-base">{formatCurrency(holding.value)}</div>
+                      <div className="font-bold text-gray-900 dark:text-foreground text-base">{formatCurrency(holding.value)}</div>
                       {holding.isStock && (
                         <div className={`text-sm font-medium flex items-center gap-1 ${
                           holding.change >= 0 ? "text-emerald-600" : "text-red-600"
@@ -1073,8 +1082,8 @@ export function PortfolioDashboard({
         {/* Asset Allocation */}
         <Card>
           <CardHeader>
-            <CardTitle>Asset Allocation</CardTitle>
-            <CardDescription>How your investments are distributed</CardDescription>
+            <CardTitle className="dark:text-foreground">Asset Allocation</CardTitle>
+            <CardDescription className="dark:text-gray-400">How your investments are distributed</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -1105,11 +1114,11 @@ export function PortfolioDashboard({
                   <div key={item.name} className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
-                      <span className="font-medium text-gray-900">{item.name}</span>
+                      <span className="font-medium text-gray-900 dark:text-foreground">{item.name}</span>
                     </div>
                     <div className="text-right">
-                      <div className="font-semibold text-gray-900">{formatCurrency(item.value)}</div>
-                      <div className="text-sm text-gray-600">{item.percentage}%</div>
+                      <div className="font-semibold text-gray-900 dark:text-foreground">{formatCurrency(item.value)}</div>
+                      <div className="text-sm text-gray-600 dark:text-gray-400">{item.percentage}%</div>
                     </div>
                   </div>
                 ))}
@@ -1202,7 +1211,7 @@ export function PortfolioDashboard({
                 <PlaidLink
                   onSuccess={onConnectAccount}
                   variant="outline"
-                  className="w-full border-dashed border-2 border-gray-300 hover:border-gray-400 text-gray-600 hover:text-gray-700 bg-transparent hover:bg-gray-50"
+                  className="w-full border-dashed border-2 border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 bg-transparent hover:bg-gray-50 dark:hover:bg-gray-800"
                 >
                   Add Another Account
                 </PlaidLink>
