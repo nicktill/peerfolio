@@ -321,14 +321,74 @@ export function PortfolioDashboard({
     }
   }
 
+  // Function to determine if an account should be included in portfolio value
+  const shouldIncludeInPortfolio = (accountType: string) => {
+    const type = accountType.toLowerCase()
+    
+    // Assets - include in portfolio value
+    if (type.includes('saving')) return true
+    if (type.includes('checking')) return true
+    if (type.includes('investment') || type.includes('brokerage')) return true
+    if (type.includes('401k') || type.includes('retirement')) return true
+    if (type.includes('hsa')) return true
+    if (type.includes('cash management') || type.includes('money market')) return true
+    if (type.includes('cd') || type.includes('certificate')) return true
+    
+    // Liabilities - exclude from portfolio value
+    if (type.includes('credit')) return false
+    if (type.includes('loan')) return false
+    if (type.includes('mortgage')) return false
+    
+    // Default to include for unknown types (conservative approach)
+    return true
+  }
+
+  // Function to get portfolio vs total balances
+  const getBalanceSummary = (accounts: any[]) => {
+    let portfolioValue = 0
+    let totalAssets = 0
+    let totalLiabilities = 0
+    
+    accounts.forEach(account => {
+      const balance = Math.abs(account.balance) // Use absolute value for calculations
+      
+      if (shouldIncludeInPortfolio(account.type)) {
+        portfolioValue += account.balance // Keep original sign for portfolio
+        totalAssets += balance
+      } else {
+        totalLiabilities += balance
+      }
+    })
+    
+    return {
+      portfolioValue,
+      totalAssets,
+      totalLiabilities,
+      netWorth: totalAssets - totalLiabilities
+    }
+  }
+
   const accountsData = getAccountsData()
-  const totalBalance = accountsData.reduce((sum: number, account: any) => sum + account.balance, 0)
+  const balanceSummary = getBalanceSummary(accountsData)
+  const totalBalance = balanceSummary.portfolioValue // Use portfolio value instead of raw sum
   
-  // Update percentages now that we have total balance
-  const accountsWithPercentages = accountsData.map((account: any) => ({
-    ...account,
-    percentage: totalBalance > 0 ? ((account.balance / totalBalance) * 100) : 0
-  }))  // Get portfolio chart data - use current balance for real data
+  // Update percentages and add portfolio inclusion flag
+  const accountsWithPercentages = accountsData.map((account: any) => {
+    const isIncludedInPortfolio = shouldIncludeInPortfolio(account.type)
+    const percentage = isIncludedInPortfolio && totalBalance > 0 ? 
+      ((account.balance / totalBalance) * 100) : 0
+    
+    return {
+      ...account,
+      percentage,
+      isIncludedInPortfolio,
+      isLiability: !isIncludedInPortfolio && (
+        account.type.toLowerCase().includes('credit') ||
+        account.type.toLowerCase().includes('loan') ||
+        account.type.toLowerCase().includes('mortgage')
+      )
+    }
+  })  // Get portfolio chart data - use current balance for real data
   const getPortfolioData = () => {
     let baseData = portfolioData
     
@@ -824,6 +884,11 @@ export function PortfolioDashboard({
               {totalGain >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
               <span>{formatPercentage(totalGainPercentage)} all time</span>
             </div>
+            {balanceSummary.totalLiabilities > 0 && (
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Net Worth: {formatCurrency(balanceSummary.netWorth)}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -849,7 +914,22 @@ export function PortfolioDashboard({
           <CardContent>
             <div className="text-2xl font-bold text-gray-900 dark:text-foreground mb-1">{accountsWithPercentages.length}</div>
             <div className="text-sm text-gray-600 dark:text-gray-400">
-              Across {new Set(accountsWithPercentages.map((a: any) => a.institutionName || a.name.split(' - ')[0])).size} {new Set(accountsWithPercentages.map((a: any) => a.institutionName || a.name.split(' - ')[0])).size === 1 ? 'institution' : 'institutions'}
+              {(() => {
+                const portfolioAccounts = accountsWithPercentages.filter((a: any) => a.isIncludedInPortfolio).length
+                const liabilityAccounts = accountsWithPercentages.filter((a: any) => a.isLiability).length
+                const institutionCount = new Set(accountsWithPercentages.map((a: any) => a.institutionName || a.name.split(' - ')[0])).size
+                
+                return (
+                  <div className="space-y-1">
+                    <div>Across {institutionCount} {institutionCount === 1 ? 'institution' : 'institutions'}</div>
+                    {liabilityAccounts > 0 && (
+                      <div className="text-xs">
+                        {portfolioAccounts} assets • {liabilityAccounts} liabilities
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
             </div>
           </CardContent>
         </Card>
@@ -1136,9 +1216,29 @@ export function PortfolioDashboard({
                 {accountsWithPercentages.length} {accountsWithPercentages.length === 1 ? 'account' : 'accounts'}
               </span>
             </CardTitle>
-            <CardDescription>Your linked investment accounts</CardDescription>
+            <CardDescription>Your linked financial accounts</CardDescription>
           </CardHeader>
           <CardContent>
+            {/* Balance Summary */}
+            {balanceSummary.totalLiabilities > 0 && (
+              <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-700">
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  <div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Total Assets</div>
+                    <div className="font-semibold text-green-600">{formatCurrency(balanceSummary.totalAssets)}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Total Liabilities</div>
+                    <div className="font-semibold text-red-600">{formatCurrency(balanceSummary.totalLiabilities)}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Net Worth</div>
+                    <div className="font-semibold text-gray-900 dark:text-foreground">{formatCurrency(balanceSummary.netWorth)}</div>
+                  </div>
+                </div>
+              </div>
+            )}
+            
             <div className="space-y-3">
               {accountsWithPercentages.map((account: any) => (
                 <div
@@ -1189,7 +1289,15 @@ export function PortfolioDashboard({
                   <div className="flex items-center gap-3">
                     <div className="text-right">
                       <div className="font-bold text-gray-900 text-base">{formatCurrency(account.balance)}</div>
-                      <div className="text-sm text-gray-500 font-medium">{account.percentage.toFixed(1)}% of total</div>
+                      <div className="text-sm text-gray-500 font-medium">
+                        {account.isIncludedInPortfolio ? (
+                          `${account.percentage.toFixed(1)}% of portfolio`
+                        ) : account.isLiability ? (
+                          <span className="text-red-600">Liability</span>
+                        ) : (
+                          <span className="text-gray-400">Not in portfolio</span>
+                        )}
+                      </div>
                     </div>
                     {account.accountId && !isDemoMode && (
                       <Button
