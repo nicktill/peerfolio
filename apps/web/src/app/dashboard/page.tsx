@@ -9,7 +9,6 @@ import { PortfolioDashboard } from "@web/components/portfolio-dashboard"
 import { Button } from "@web/components/ui/button"
 import { addConnectedAccount, getConnectedAccounts, type ConnectedAccount } from "@web/lib/account-storage"
 import { useTheme } from "@web/components/theme-provider"
-import { User } from "lucide-react"
 
 export default function DashboardPage() {  
   const { data: session, status } = useSession()
@@ -196,7 +195,6 @@ export default function DashboardPage() {
                 )}
               </Button>
               <div className="flex items-center space-x-3">
-                <User className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                 {session.user?.image && (
                   <img src={session.user.image || "/placeholder.svg"} alt="Profile" className="h-8 w-8 rounded-full" />
                 )}

@@ -781,7 +781,7 @@ export function PortfolioDashboard({
     )
   }
   return (
-    <div className="space-y-8 dark:bg-background dark:text-foreground bg-white text-gray-900 min-h-screen transition-colors duration-300">
+    <div className="space-y-8 dark:text-foreground text-gray-900 transition-colors duration-300">
       {/* Portfolio Overview Header */}
       <div className="flex items-center justify-between">
         <div>
