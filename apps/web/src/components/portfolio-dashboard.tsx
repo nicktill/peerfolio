@@ -137,13 +137,30 @@ export function PortfolioDashboard({ hasConnectedAccounts, onConnectAccount }: P
                 Connect your investment accounts to see your complete portfolio in one beautiful, secure dashboard.
                 Track performance, analyze allocations, and compare with friends.
               </p>
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 opacity-60">
-              {["Robinhood", "Fidelity", "Charles Schwab", "E*TRADE"].map((broker) => (
-                <div key={broker} className="bg-white rounded-lg p-4 text-center shadow-sm border border-gray-100">
-                  <div className="w-8 h-8 bg-gray-200 rounded mx-auto mb-2"></div>
-                  <span className="text-xs text-gray-500 font-medium">{broker}</span>
+            </div>            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 opacity-60">
+              {[
+                { name: "Robinhood", logo: "https://logo.clearbit.com/robinhood.com" },
+                { name: "Fidelity", logo: "https://logo.clearbit.com/fidelity.com" },
+                { name: "Charles Schwab", logo: "https://logo.clearbit.com/schwab.com" },
+                { name: "E*TRADE", logo: "https://logo.clearbit.com/etrade.com" }
+              ].map((broker) => (
+                <div key={broker.name} className="bg-white rounded-lg p-4 text-center shadow-sm border border-gray-100">
+                  <div className="w-8 h-8 rounded mx-auto mb-2 flex items-center justify-center overflow-hidden">
+                    <img 
+                      src={broker.logo} 
+                      alt={`${broker.name} logo`}
+                      className="w-6 h-6 object-contain"
+                      onError={(e) => {
+                        // Fallback to colored initials if logo fails
+                        const target = e.target as HTMLImageElement;
+                        const parent = target.parentElement;
+                        if (parent) {
+                          parent.innerHTML = `<div class="w-6 h-6 rounded bg-gray-300 flex items-center justify-center text-xs font-bold text-gray-600">${broker.name.charAt(0)}</div>`;
+                        }
+                      }}
+                    />
+                  </div>
+                  <span className="text-xs text-gray-500 font-medium">{broker.name}</span>
                 </div>
               ))}
             </div>

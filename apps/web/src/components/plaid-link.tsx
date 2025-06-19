@@ -1,11 +1,10 @@
 "use client"
 
 import type React from "react"
-
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { usePlaidLink } from "react-plaid-link"
 import { Button } from "@web/components/ui/button"
-import { Loader2, Plus, Building2 } from "lucide-react"
+import { Loader2, Plus, Building2, AlertCircle } from "lucide-react"
 
 interface PlaidLinkProps {
   onSuccess: (publicToken: string, metadata: any) => void
@@ -25,11 +24,47 @@ export function PlaidLink({
   children,
 }: PlaidLinkProps) {
   const [loading, setLoading] = useState(false)
+  const [linkToken, setLinkToken] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  // Fetch link token from your backend
+  useEffect(() => {
+    const fetchLinkToken = async () => {
+      try {
+        setError(null)
+        console.log("🔄 Fetching Plaid link token...")
+        const response = await fetch("/api/plaid/create-link-token", {
+          method: "POST",
+        })
+
+        const data = await response.json()
+
+        if (!response.ok) {
+          console.error("❌ Failed to create link token:", data)
+          throw new Error(data.error || "Failed to create link token")
+        }
+
+        if (data.link_token) {
+          setLinkToken(data.link_token)
+          console.log("✅ Link token created successfully")
+        } else {
+          throw new Error("No link token received")
+        }
+      } catch (error) {
+        console.error("Error fetching link token:", error)
+        const errorMessage = error instanceof Error ? error.message : "Failed to initialize Plaid"
+        setError(errorMessage)
+        console.error("❌ Plaid Link initialization failed:", errorMessage)
+      }
+    }
+
+    fetchLinkToken()
+  }, [])
 
   const config = {
-    token: process.env.NEXT_PUBLIC_PLAID_LINK_TOKEN || "link-sandbox-token", // In production, get this from your backend
+    token: linkToken,
     onSuccess: useCallback(
       (public_token: string, metadata: any) => {
+        console.log("🎉 Plaid Link Success!", { public_token: public_token.substring(0, 20) + "...", metadata })
         setLoading(false)
         onSuccess(public_token, metadata)
       },
@@ -37,13 +72,16 @@ export function PlaidLink({
     ),
     onExit: useCallback(
       (err: any, metadata: any) => {
+        console.log("Plaid Link Exit:", { err, metadata })
         setLoading(false)
+        if (err) {
+          setError(err.error_message || "Connection cancelled")
+        }
         onExit?.(err, metadata)
       },
       [onExit],
     ),
     onEvent: useCallback((eventName: string, metadata: any) => {
-      // Handle Plaid Link events
       console.log("Plaid Link Event:", eventName, metadata)
     }, []),
   }
@@ -51,18 +89,42 @@ export function PlaidLink({
   const { open, ready } = usePlaidLink(config)
 
   const handleClick = useCallback(() => {
+    if (!ready || !linkToken) {
+      console.warn("Plaid Link not ready yet")
+      return
+    }
+
     setLoading(true)
-    // For demo mode, just call onSuccess immediately
-    setTimeout(() => {
-      setLoading(false)
-      onSuccess("demo-token", { demo: true })
-    }, 1000) // Add a small delay to show loading state
-  }, [onSuccess])
+    setError(null)
+    console.log("🚀 Opening Plaid Link...")
+    open()
+  }, [open, ready, linkToken])
+
+  if (error) {
+    return (
+      <Button variant="outline" size={size} className={className} disabled>
+        <AlertCircle className="w-4 h-4 mr-2 text-red-500" />
+        Connection Error
+      </Button>
+    )
+  }
 
   return (
-    <Button onClick={handleClick} disabled={!ready || loading} variant={variant} size={size} className={className}>
-      {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
-      {children || "Connect Account"}
+    <Button
+      onClick={handleClick}
+      disabled={!ready || loading || !linkToken}
+      variant={variant}
+      size={size}
+      className={className}
+    >
+      {loading ? (
+        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+      ) : ready && linkToken ? (
+        <Plus className="w-4 h-4 mr-2" />
+      ) : (
+        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+      )}
+      {children || (ready && linkToken ? "Connect Account" : "Loading...")}
     </Button>
   )
 }
@@ -78,16 +140,24 @@ export function PlaidConnectHero({ onSuccess }: { onSuccess: (publicToken: strin
           </div>
           <h2 className="text-3xl font-bold text-gray-900 mb-4">Connect Your Investment Accounts</h2>
           <p className="text-lg text-gray-600 leading-relaxed">
-            Securely link your brokerage accounts to see your complete portfolio in one beautiful dashboard. We support
-            12,000+ financial institutions.
+            Securely link your brokerage accounts to see your complete portfolio in one beautiful dashboard. We're using
+            Plaid's secure sandbox environment for testing.
           </p>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 opacity-60">
-          {["Robinhood", "Fidelity", "Charles Schwab", "E*TRADE"].map((broker) => (
-            <div key={broker} className="bg-gray-50 rounded-lg p-3 text-center">
-              <div className="w-8 h-8 bg-gray-200 rounded mx-auto mb-2"></div>
-              <span className="text-xs text-gray-500 font-medium">{broker}</span>
+          {[
+            { name: "First Platypus Bank", desc: "Test Bank" },
+            { name: "Tartan Bank", desc: "Investment" },
+            { name: "Houndstooth Bank", desc: "Checking" },
+            { name: "Sandbox Bank", desc: "All Types" },
+          ].map((bank) => (
+            <div key={bank.name} className="bg-gray-50 rounded-lg p-3 text-center">
+              <div className="w-8 h-8 bg-gray-200 rounded mx-auto mb-2 flex items-center justify-center">
+                <Building2 className="w-4 h-4 text-gray-400" />
+              </div>
+              <span className="text-xs text-gray-500 font-medium block">{bank.name}</span>
+              <span className="text-xs text-gray-400">{bank.desc}</span>
             </div>
           ))}
         </div>
@@ -103,15 +173,29 @@ export function PlaidConnectHero({ onSuccess }: { onSuccess: (publicToken: strin
         <div className="mt-6 flex items-center justify-center space-x-6 text-sm text-gray-500">
           <div className="flex items-center space-x-2">
             <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-            <span>Bank-level security</span>
+            <span>Sandbox Environment</span>
           </div>
           <div className="flex items-center space-x-2">
             <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-            <span>Read-only access</span>
+            <span>Test Data Only</span>
           </div>
           <div className="flex items-center space-x-2">
             <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-            <span>Encrypted data</span>
+            <span>Secure Testing</span>
+          </div>
+        </div>
+
+        {/* Test Credentials Info */}
+        <div className="mt-8 p-4 bg-blue-50 rounded-lg border border-blue-200">
+          <h3 className="font-semibold text-blue-900 mb-2">🧪 Test Credentials</h3>
+          <div className="text-sm text-blue-800 space-y-1">
+            <p>
+              <strong>Username:</strong> user_good
+            </p>
+            <p>
+              <strong>Password:</strong> pass_good
+            </p>
+            <p className="text-xs text-blue-600 mt-2">Select any test bank and use these credentials to connect</p>
           </div>
         </div>
       </div>
