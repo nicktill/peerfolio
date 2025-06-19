@@ -278,7 +278,7 @@ export default function PeerfolioLanding() {
                   />
                 </div>
                 <div className="absolute inset-0 bg-gradient-to-r from-emerald-100/30 to-blue-100/30 rounded-3xl blur-3xl group-hover:blur-2xl transition-all duration-700" />
-                <div className="relative bg-white/95 dark:bg-gray-900 rounded-3xl p-8 shadow-2xl border border-gray-100 backdrop-blur-sm group-hover:shadow-3xl transition-all duration-500">
+                <div className="relative bg-white/95 rounded-3xl p-8 shadow-2xl border border-gray-100 backdrop-blur-sm group-hover:shadow-3xl transition-all duration-500">
                   {/* Dashboard Header */}
                   <div className="flex items-center justify-between mb-8 pb-6 border-b border-gray-100">
                     <div>
