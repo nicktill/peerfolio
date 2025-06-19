@@ -238,13 +238,19 @@ export function PortfolioDashboard({
     }
   }, [])
 
-  // Dark mode toggle logic
+  // Dark mode toggle logic - default to light mode for dashboard
   const [isDark, setIsDark] = useState(false)
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const darkPref = localStorage.getItem('theme') === 'dark' || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
+      // Only use dark mode if explicitly set in localStorage, ignore system preference for dashboard
+      const darkPref = localStorage.getItem('theme') === 'dark'
       setIsDark(darkPref)
       document.documentElement.classList.toggle('dark', darkPref)
+      
+      // Set light mode as default if no theme preference is stored
+      if (!localStorage.getItem('theme')) {
+        localStorage.setItem('theme', 'light')
+      }
     }
   }, [])
   const toggleDarkMode = () => {
@@ -683,8 +689,40 @@ export function PortfolioDashboard({
   if (!showDashboard) {
     return (
       <div className="space-y-8">
+        {/* Plaid Sandbox Banner */}
+        <div className="bg-gradient-to-r from-amber-50 via-orange-50 to-yellow-50 dark:from-amber-950/40 dark:via-orange-950/30 dark:to-yellow-950/40 border border-amber-200 dark:border-amber-800/50 rounded-xl p-5 backdrop-blur-sm shadow-lg dark:shadow-amber-900/10 hover:shadow-xl transition-all duration-300">
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0">
+              <div className="w-8 h-8 bg-amber-100 dark:bg-amber-900/50 rounded-full flex items-center justify-center">
+                <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+              </div>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-base font-semibold text-amber-900 dark:text-amber-100 mb-2">
+                🚧 MVP Phase - Sandbox Environment Active
+              </h3>
+              <p className="text-sm text-amber-700 dark:text-amber-300 leading-relaxed mb-3">
+                Peerfolio is currently in its MVP phase using Plaid's sandbox environment with mock data. 
+                We're awaiting approval to connect with real financial institutions. 
+                For now, explore the full interface and features with sample portfolio data to see how everything will work once we go live.
+              </p>
+              <div className="flex flex-wrap gap-2 text-xs">
+                <span className="inline-flex items-center gap-1 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 px-2 py-1 rounded-full font-medium">
+                  🚧 MVP Testing
+                </span>
+                <span className="inline-flex items-center gap-1 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 px-2 py-1 rounded-full font-medium">
+                  🏦 Awaiting Approval
+                </span>
+                <span className="inline-flex items-center gap-1 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 px-2 py-1 rounded-full font-medium">
+                  📊 Sample Data
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Hero Section */}
-        <div className="text-center py-16 px-6 bg-gradient-to-br from-emerald-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 rounded-3xl border border-gray-100 dark:border-gray-700">
+        <div className="text-center py-16 px-6 bg-gradient-to-br from-emerald-50 via-white to-blue-50 dark:from-gray-900/80 dark:via-gray-800/90 dark:to-gray-900/80 rounded-3xl border border-gray-100 dark:border-gray-700/60 backdrop-blur-sm shadow-xl dark:shadow-gray-900/20">
           <div className="max-w-2xl mx-auto">
             <div className="mb-8">
               <div className="w-20 h-20 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
@@ -702,8 +740,8 @@ export function PortfolioDashboard({
                 { name: "Charles Schwab", logo: "https://logo.clearbit.com/schwab.com" },
                 { name: "E*TRADE", logo: "https://logo.clearbit.com/etrade.com" }
               ].map((broker) => (
-                <div key={broker.name} className="bg-white dark:bg-gray-800 rounded-lg p-4 text-center shadow-sm border border-gray-100 dark:border-gray-600">
-                  <div className="w-8 h-8 rounded mx-auto mb-2 flex items-center justify-center overflow-hidden">
+                <div key={broker.name} className="flex flex-col items-center space-y-2">
+                  <div className="flex items-center justify-center">
                     <img 
                       src={broker.logo} 
                       alt={`${broker.name} logo`}
@@ -819,49 +857,49 @@ export function PortfolioDashboard({
 
         {/* Preview Cards */}
         <div className="grid gap-6 md:grid-cols-3">
-          <Card className="relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-emerald-600/5"></div>
+          <Card className="relative overflow-hidden border border-gray-200 dark:border-gray-700/50 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm shadow-lg dark:shadow-gray-900/20 hover:shadow-xl dark:hover:shadow-gray-900/30 transition-all duration-300">
+            <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-emerald-600/5 dark:from-emerald-500/10 dark:to-emerald-600/10"></div>
             <CardHeader className="relative">
               <CardTitle className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
                 <TrendingUp className="w-5 h-5" />
                 Portfolio Growth
               </CardTitle>
-              <CardDescription className="dark:text-gray-400">Track your investment performance over time</CardDescription>
+              <CardDescription className="text-gray-600 dark:text-gray-400">Track your investment performance over time</CardDescription>
             </CardHeader>
             <CardContent className="relative">
-              <div className="h-32 bg-gradient-to-r from-emerald-100 to-emerald-200 dark:from-emerald-900/20 dark:to-emerald-800/20 rounded-lg flex items-center justify-center">
+              <div className="h-32 bg-gradient-to-r from-emerald-100 to-emerald-200 dark:from-emerald-900/30 dark:to-emerald-800/30 rounded-lg flex items-center justify-center shadow-inner">
                 <span className="text-emerald-600 dark:text-emerald-400 font-medium">Beautiful charts await</span>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-blue-600/5"></div>
+          <Card className="relative overflow-hidden border border-gray-200 dark:border-gray-700/50 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm shadow-lg dark:shadow-gray-900/20 hover:shadow-xl dark:hover:shadow-gray-900/30 transition-all duration-300">
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-blue-600/5 dark:from-blue-500/10 dark:to-blue-600/10"></div>
             <CardHeader className="relative">
               <CardTitle className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
                 <PieChart className="w-5 h-5" />
                 Asset Allocation
               </CardTitle>
-              <CardDescription className="dark:text-gray-400">Visualize your investment distribution</CardDescription>
+              <CardDescription className="text-gray-600 dark:text-gray-400">Visualize your investment distribution</CardDescription>
             </CardHeader>
             <CardContent className="relative">
-              <div className="h-32 bg-gradient-to-r from-blue-100 to-blue-200 dark:from-blue-900/20 dark:to-blue-800/20 rounded-lg flex items-center justify-center">
+              <div className="h-32 bg-gradient-to-r from-blue-100 to-blue-200 dark:from-blue-900/30 dark:to-blue-800/30 rounded-lg flex items-center justify-center shadow-inner">
                 <span className="text-blue-600 dark:text-blue-400 font-medium">Interactive breakdowns</span>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-purple-600/5"></div>
+          <Card className="relative overflow-hidden border border-gray-200 dark:border-gray-700/50 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm shadow-lg dark:shadow-gray-900/20 hover:shadow-xl dark:hover:shadow-gray-900/30 transition-all duration-300">
+            <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-purple-600/5 dark:from-purple-500/10 dark:to-purple-600/10"></div>
             <CardHeader className="relative">
               <CardTitle className="flex items-center gap-2 text-purple-700 dark:text-purple-400">
                 <Building2 className="w-5 h-5" />
                 Account Overview
               </CardTitle>
-              <CardDescription className="dark:text-gray-400">All your accounts in one place</CardDescription>
+              <CardDescription className="text-gray-600 dark:text-gray-400">All your accounts in one place</CardDescription>
             </CardHeader>
             <CardContent className="relative">
-              <div className="h-32 bg-gradient-to-r from-purple-100 to-purple-200 dark:from-purple-900/20 dark:to-purple-800/20 rounded-lg flex items-center justify-center">
+              <div className="h-32 bg-gradient-to-r from-purple-100 to-purple-200 dark:from-purple-900/30 dark:to-purple-800/30 rounded-lg flex items-center justify-center shadow-inner">
                 <span className="text-purple-600 dark:text-purple-400 font-medium">Unified dashboard</span>
               </div>
             </CardContent>
@@ -878,7 +916,7 @@ export function PortfolioDashboard({
           <div className="flex items-start gap-3">
             <div className="flex-shrink-0">
               <svg className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zm-2 5a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
               </svg>
             </div>
             <div className="flex-1">
@@ -903,12 +941,12 @@ export function PortfolioDashboard({
             </div>
             <div className="flex-1">
               <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-1">
-                Sandbox Mode Active
+                🚧 MVP Phase - Live Sandbox Connection Active
               </h3>
               <p className="text-sm text-amber-700 dark:text-amber-300">
-                Note: You’re currently viewing data from Plaid’s sandbox environment, which uses mock financial information for testing purposes. This is not your actual account data.
-                We’ll update this once our app is approved for production access to real financial institutions.
-
+                Peerfolio is currently in its MVP phase using Plaid's sandbox environment with mock data. 
+                We're awaiting approval to connect with real financial institutions. 
+                The platform demonstrates full functionality with sample data until we go live with real accounts.
               </p>
             </div>
           </div>
@@ -1254,7 +1292,7 @@ export function PortfolioDashboard({
                             />
                             {/* Account Type Badge */}
                             {holding.accountTypeInfo && (
-                              <div className={`absolute -bottom-1 -right-1 w-5 h-5 ${holding.accountTypeInfo.bgColor} rounded-full flex items-center justify-center border border-white shadow-sm`}>
+                              <div className={`absolute -bottom-1 -right-1 w-5 h-5 ${holding.accountTypeInfo.bgColor} rounded-full flex items-center justify-center border border-white shadow-md`}>
                                 <span className="text-xs">{holding.accountTypeInfo.icon}</span>
                               </div>
                             )}
