@@ -8,11 +8,12 @@ import Image from "next/image"
 import { PortfolioDashboard } from "@web/components/portfolio-dashboard"
 import { Button } from "@web/components/ui/button"
 
-export default function DashboardPage() {
-  const { data: session, status } = useSession()
+export default function DashboardPage() {  const { data: session, status } = useSession()
   const router = useRouter()
   const [isVisible, setIsVisible] = useState(false)
   const [hasConnectedAccounts, setHasConnectedAccounts] = useState(false)
+  const [plaidData, setPlaidData] = useState<any>(null)
+  const [isConnecting, setIsConnecting] = useState(false)
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -30,10 +31,53 @@ export default function DashboardPage() {
     }
   }, [status, session])
 
-  const handleConnectAccount = (publicToken?: string, metadata?: any) => {
-    console.log("Demo connection:", { publicToken, metadata })
-    // For demo purposes, just show the connected dashboard
-    setHasConnectedAccounts(true)
+  const handleConnectAccount = async (publicToken: string, metadata: any) => {
+    console.log("🔄 Starting Plaid account connection:", { publicToken, metadata })
+    setIsConnecting(true)
+    
+    try {
+      // Step 1: Exchange public token for access token
+      console.log("🔄 Exchanging public token...")
+      const exchangeResponse = await fetch("/api/plaid/exchange-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ public_token: publicToken, metadata }),
+      })
+
+      const exchangeData = await exchangeResponse.json()
+      
+      if (!exchangeResponse.ok) {
+        throw new Error(exchangeData.error || "Failed to exchange token")
+      }
+
+      console.log("✅ Token exchange successful:", exchangeData.item_id)
+
+      // Step 2: Fetch account data
+      console.log("🔄 Fetching account data...")
+      const accountsResponse = await fetch("/api/plaid/accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ access_token: exchangeData.access_token }),
+      })
+
+      const accountsData = await accountsResponse.json()
+      
+      if (!accountsResponse.ok) {
+        throw new Error(accountsData.error || "Failed to fetch accounts")
+      }
+
+      console.log("✅ Account data fetched successfully:", accountsData)
+
+      // Step 3: Update state with real data
+      setPlaidData(accountsData)
+      setHasConnectedAccounts(true)
+      
+    } catch (error) {
+      console.error("❌ Connection failed:", error)
+      alert("Failed to connect account: " + (error instanceof Error ? error.message : "Unknown error"))
+    } finally {
+      setIsConnecting(false)
+    }
   }
 
   const handleDemoConnect = () => {
@@ -77,11 +121,14 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
-      </header>
-
-      {/* Main Content */}
+      </header>      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <PortfolioDashboard hasConnectedAccounts={hasConnectedAccounts} onConnectAccount={handleConnectAccount} />
+        <PortfolioDashboard 
+          hasConnectedAccounts={hasConnectedAccounts} 
+          onConnectAccount={handleConnectAccount}
+          plaidData={plaidData}
+          isConnecting={isConnecting}
+        />
       </main>
     </div>
   )
