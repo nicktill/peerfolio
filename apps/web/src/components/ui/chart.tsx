@@ -161,7 +161,7 @@ const ChartTooltipContent = React.forwardRef<
                   </div>
                   {item.value && (
                     <span className="font-mono font-medium tabular-nums text-foreground">
-                      {formatter ? formatter(item.value, item.name, item, index, item.payload) : item.value}
+                      {formatter ? formatter(item.value, item.name || "", item, index, item.payload) : item.value}
                     </span>
                   )}
                 </div>
@@ -196,7 +196,7 @@ const ChartLegendContent = React.forwardRef<
     >
       {payload.map((item) => {
         const key = `${nameKey || item.dataKey || "value"}`
-        const itemConfig = item.payload?.chartConfig?.[key] || {}
+        const itemConfig = (item.payload as any)?.chartConfig?.[key] || {}
 
         return (
           <div
