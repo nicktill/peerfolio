@@ -18,20 +18,41 @@ import {
   Pie,
 } from "recharts"
 
-// Demo data for portfolio performance
+// Demo data for portfolio performance - expanded with more data points
 const portfolioData = [
-  { date: "2024-01", value: 45000, month: "Jan" },
-  { date: "2024-02", value: 47200, month: "Feb" },
-  { date: "2024-03", value: 44800, month: "Mar" },
-  { date: "2024-04", value: 49100, month: "Apr" },
-  { date: "2024-05", value: 52300, month: "May" },
-  { date: "2024-06", value: 51800, month: "Jun" },
-  { date: "2024-07", value: 54600, month: "Jul" },
-  { date: "2024-08", value: 53200, month: "Aug" },
-  { date: "2024-09", value: 56800, month: "Sep" },
-  { date: "2024-10", value: 59200, month: "Oct" },
-  { date: "2024-11", value: 61500, month: "Nov" },
-  { date: "2024-12", value: 64200, month: "Dec" },
+  // 2 years ago
+  { date: "2023-01", value: 38000, month: "Jan '23" },
+  { date: "2023-02", value: 39200, month: "Feb '23" },
+  { date: "2023-03", value: 37800, month: "Mar '23" },
+  { date: "2023-04", value: 40100, month: "Apr '23" },
+  { date: "2023-05", value: 41300, month: "May '23" },
+  { date: "2023-06", value: 40800, month: "Jun '23" },
+  { date: "2023-07", value: 42600, month: "Jul '23" },
+  { date: "2023-08", value: 41200, month: "Aug '23" },
+  { date: "2023-09", value: 43800, month: "Sep '23" },
+  { date: "2023-10", value: 44200, month: "Oct '23" },
+  { date: "2023-11", value: 45500, month: "Nov '23" },
+  { date: "2023-12", value: 46200, month: "Dec '23" },
+  // Last year (2024)
+  { date: "2024-01", value: 45000, month: "Jan '24" },
+  { date: "2024-02", value: 47200, month: "Feb '24" },
+  { date: "2024-03", value: 44800, month: "Mar '24" },
+  { date: "2024-04", value: 49100, month: "Apr '24" },
+  { date: "2024-05", value: 52300, month: "May '24" },
+  { date: "2024-06", value: 51800, month: "Jun '24" },
+  { date: "2024-07", value: 54600, month: "Jul '24" },
+  { date: "2024-08", value: 53200, month: "Aug '24" },
+  { date: "2024-09", value: 56800, month: "Sep '24" },
+  { date: "2024-10", value: 59200, month: "Oct '24" },
+  { date: "2024-11", value: 61500, month: "Nov '24" },
+  { date: "2024-12", value: 64200, month: "Dec '24" },
+  // This year (2025)
+  { date: "2025-01", value: 63800, month: "Jan" },
+  { date: "2025-02", value: 65200, month: "Feb" },
+  { date: "2025-03", value: 67100, month: "Mar" },
+  { date: "2025-04", value: 66800, month: "Apr" },
+  { date: "2025-05", value: 69200, month: "May" },
+  { date: "2025-06", value: 72500, month: "Jun" },
 ]
 
 // Demo connected accounts
@@ -112,20 +133,51 @@ export function PortfolioDashboard({
   const [isDemoMode, setIsDemoMode] = useState(false)
   // Show dashboard if user has connected accounts OR is in demo mode
   const showDashboard = hasConnectedAccounts || isDemoMode
+  // Get institution logo based on institution name or ID
+  const getInstitutionLogo = (institutionName: string, institutionId?: string) => {
+    const name = institutionName.toLowerCase()
+    
+    // Map common institutions to their logos
+    if (name.includes('chase') || name.includes('jpmorgan')) return "https://logo.clearbit.com/chase.com"
+    if (name.includes('bank of america') || name.includes('bofa')) return "https://logo.clearbit.com/bankofamerica.com"
+    if (name.includes('wells fargo')) return "https://logo.clearbit.com/wellsfargo.com"
+    if (name.includes('citibank') || name.includes('citi')) return "https://logo.clearbit.com/citibank.com"
+    if (name.includes('capital one')) return "https://logo.clearbit.com/capitalone.com"
+    if (name.includes('american express') || name.includes('amex')) return "https://logo.clearbit.com/americanexpress.com"
+    if (name.includes('discover')) return "https://logo.clearbit.com/discover.com"
+    if (name.includes('schwab')) return "https://logo.clearbit.com/schwab.com"
+    if (name.includes('fidelity')) return "https://logo.clearbit.com/fidelity.com"
+    if (name.includes('vanguard')) return "https://logo.clearbit.com/vanguard.com"
+    if (name.includes('td ameritrade')) return "https://logo.clearbit.com/tdameritrade.com"
+    if (name.includes('etrade') || name.includes('e*trade')) return "https://logo.clearbit.com/etrade.com"
+    if (name.includes('robinhood')) return "https://logo.clearbit.com/robinhood.com"
+    if (name.includes('ally')) return "https://logo.clearbit.com/ally.com"
+    if (name.includes('usaa')) return "https://logo.clearbit.com/usaa.com"
+    if (name.includes('navy federal')) return "https://logo.clearbit.com/navyfederal.org"
+    if (name.includes('pnc')) return "https://logo.clearbit.com/pnc.com"
+    if (name.includes('regions')) return "https://logo.clearbit.com/regions.com"
+    if (name.includes('suntrust') || name.includes('truist')) return "https://logo.clearbit.com/truist.com"
+    if (name.includes('first platypus') || name.includes('plaid')) return "https://logo.clearbit.com/plaid.com"
+    
+    // Default fallback
+    return "https://logo.clearbit.com/bank.com"
+  }
 
   // Transform Plaid data into our dashboard format
   const getAccountsData = () => {
     if (plaidData && hasConnectedAccounts && !isDemoMode) {
       // Use real Plaid data
+      const institutionName = plaidData.item?.institution_name || plaidData.institution?.name || 'Connected Bank'
+      
       return plaidData.accounts?.map((account: any, index: number) => {
         const balance = account.balances?.current || account.balances?.available || 0
         return {
           id: account.account_id,
-          name: `${plaidData.institution?.name || 'Connected Account'} - ${account.name}`,
+          name: `${institutionName} - ${account.name}`,
           type: account.subtype || account.type || 'Investment',
           balance: balance,
           percentage: 0, // We'll calculate this after we have all balances
-          logo: "https://logo.clearbit.com/plaid.com", // Default for now
+          logo: getInstitutionLogo(institutionName, plaidData.item?.institution_id),
           lastSync: "Just now",
           holdings: account.holdings || [], // Will be populated if we have investment holdings
         }
@@ -143,15 +195,15 @@ export function PortfolioDashboard({
   const accountsWithPercentages = accountsData.map((account: any) => ({
     ...account,
     percentage: totalBalance > 0 ? ((account.balance / totalBalance) * 100) : 0
-  }))
-  // Get portfolio chart data - use current balance for real data
+  }))  // Get portfolio chart data - use current balance for real data
   const getPortfolioData = () => {
+    let baseData = portfolioData
+    
     if (plaidData && hasConnectedAccounts && !isDemoMode && totalBalance > 0) {
-      // For real data, create a simple chart showing current value
-      // In a real app, you'd track historical data
+      // For real data, append current value to the end of the demo data
       const currentValue = totalBalance
-      return [
-        ...portfolioData.slice(0, -1), // Keep historical demo data for context
+      baseData = [
+        ...portfolioData,
         { 
           date: new Date().toISOString().slice(0, 7), 
           value: currentValue, 
@@ -159,8 +211,115 @@ export function PortfolioDashboard({
         }
       ]
     }
-    return portfolioData
+
+    // Filter data based on selected timeframe
+    const now = new Date()
+    const filterData = (months: number) => {
+      if (months === 0) return baseData // ALL
+      
+      // Get the last N data points instead of filtering by date for better chart display
+      if (months === 1) return baseData.slice(-2) // Last 2 points for 1M
+      if (months === 3) return baseData.slice(-4) // Last 4 points for 3M
+      if (months === 6) return baseData.slice(-7) // Last 7 points for 6M
+      if (months === 12) return baseData.slice(-13) // Last 13 points for 1Y
+      
+      return baseData
+    }
+
+    switch (selectedTimeframe) {
+      case "1M":
+        return filterData(1)
+      case "3M":
+        return filterData(3)
+      case "6M":
+        return filterData(6)
+      case "1Y":
+        return filterData(12)
+      case "ALL":
+      default:
+        return baseData
+    }
+  }// Get top holdings - use stocks if available, otherwise show top accounts
+  const getTopHoldings = () => {
+    if (plaidData && hasConnectedAccounts && !isDemoMode) {
+      // Check if we have actual stock holdings with real values
+      const validHoldings = plaidData.holdings?.filter((holding: any) => 
+        (holding.market_value || 0) > 0
+      ) || []
+      
+      if (validHoldings.length > 0) {
+        // Use real stock holdings with actual values
+        return validHoldings
+          .slice(0, 5)
+          .map((holding: any) => {
+            const security = plaidData.securities?.find((s: any) => s.security_id === holding.security_id)
+            return {
+              symbol: security?.ticker_symbol || 'STOCK',
+              name: security?.name || 'Investment Position',
+              value: holding.market_value || 0,
+              change: 0, // Would need historical data for real change
+              logo: getStockIcon(security?.ticker_symbol || 'STOCK'),
+              isStock: true
+            }
+          })
+      } else {
+        // No valid stock holdings, show top accounts by balance
+        return accountsWithPercentages
+          .filter((account: any) => account.balance > 0)
+          .sort((a: any, b: any) => b.balance - a.balance)
+          .slice(0, 5)
+          .map((account: any) => ({
+            symbol: account.type?.toUpperCase().substring(0, 4) || 'ACCT',
+            name: account.name.split(' - ')[1] || account.name, // Just the account name part
+            value: account.balance,
+            change: 0,
+            logo: getAccountTypeIcon(account.type, account.subtype),
+            isStock: false
+          }))
+      }
+    } else {      // Demo data
+      return [
+        { symbol: "AAPL", name: "Apple Inc.", value: 8500, change: 2.4, logo: getStockIcon("AAPL"), isStock: true },
+        { symbol: "SPY", name: "SPDR S&P 500 ETF", value: 9000, change: 1.8, logo: getStockIcon("SPY"), isStock: true },
+        { symbol: "VTI", name: "Vanguard Total Stock Market", value: 12400, change: 1.2, logo: getStockIcon("VTI"), isStock: true },
+        { symbol: "TSLA", name: "Tesla Inc.", value: 6200, change: -0.8, logo: getStockIcon("TSLA"), isStock: true },
+        { symbol: "AMZN", name: "Amazon.com Inc.", value: 6000, change: 3.1, logo: getStockIcon("AMZN"), isStock: true },
+      ]
+    }
   }
+
+  // Get better icons for account types
+  const getAccountTypeIcon = (type: string, subtype: string) => {
+    const accountType = (subtype || type || '').toLowerCase()
+    if (accountType.includes('credit')) return "💳"
+    if (accountType.includes('saving')) return "💰"
+    if (accountType.includes('checking')) return "🏦"
+    if (accountType.includes('investment') || accountType.includes('brokerage')) return "�"
+    if (accountType.includes('401k') || accountType.includes('retirement')) return "🏛️"
+    if (accountType.includes('hsa')) return "🏥"
+    if (accountType.includes('cash management')) return "💵"
+    if (accountType.includes('depository')) return "🏛️"
+    return "💼"
+  }
+
+  // Get stock icons based on symbol
+  const getStockIcon = (symbol: string) => {
+    const sym = symbol.toUpperCase()
+    if (sym.includes('AAPL')) return "🍎"
+    if (sym.includes('TSLA')) return "🚗"
+    if (sym.includes('NVDA')) return "🖥️"
+    if (sym.includes('GOOGL') || sym.includes('GOOG')) return "🔍"
+    if (sym.includes('AMZN')) return "📦"
+    if (sym.includes('MSFT')) return "🖼️"
+    if (sym.includes('META') || sym.includes('FB')) return "📘"
+    if (sym.includes('SPY') || sym.includes('VOO') || sym.includes('VTI')) return "📊"
+    if (sym.includes('QQQ')) return "🚀"
+    if (sym.includes('BTC') || sym.includes('BITCOIN')) return "₿"
+    if (sym.includes('ETH') || sym.includes('ETHEREUM')) return "Ξ"
+    return "📈"
+  }
+
+  const topHoldings = getTopHoldings()
 
   const chartData = getPortfolioData()
   const totalGain = totalBalance - chartData[0].value
@@ -222,20 +381,23 @@ export function PortfolioDashboard({
                   <span className="text-xs text-gray-500 font-medium">{broker.name}</span>
                 </div>
               ))}
-            </div>            <div className="flex flex-col sm:flex-row gap-4 items-center justify-center">              <button
+            </div>            <div className="flex flex-col sm:flex-row gap-4 items-center justify-center">
+              <Button
                 onClick={() => setIsDemoMode(true)}
-                className="bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600 hover:from-blue-600 hover:via-blue-700 hover:to-indigo-700 text-white font-semibold px-8 py-4 text-lg shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 rounded-full flex items-center"
+                size="lg"
+                className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium px-6 py-3 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 rounded-lg flex items-center"
               >
-                <PieChart className="w-5 h-5 mr-2" />
+                <PieChart className="w-4 h-4 mr-2" />
                 View Demo Portfolio
-              </button>
+              </Button>
               
               <PlaidLink
                 onSuccess={onConnectAccount}
                 size="lg"
-                className="bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-700 text-white font-semibold px-8 py-4 text-lg shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 rounded-full flex items-center"
+                className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-medium px-6 py-3 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 rounded-lg flex items-center"
               >
-                <Building2 className="w-5 h-5 mr-2" />                Connect Real Account
+                <Building2 className="w-4 h-4 mr-2" />
+                Connect Real Account
               </PlaidLink>
             </div>
 
@@ -497,51 +659,79 @@ export function PortfolioDashboard({
               </AreaChart>
             </ChartContainer>
           </CardContent>
-        </Card>
-
-        {/* Top Holdings */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Top Holdings</CardTitle>
-            <CardDescription>Your largest positions</CardDescription>
+        </Card>        {/* Top Holdings */}
+        <Card>          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              Top Holdings
+              {plaidData && hasConnectedAccounts && !isDemoMode && topHoldings.length > 0 && !topHoldings[0].isStock && (
+                <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded-full">
+                  Accounts
+                </span>
+              )}
+            </CardTitle>
+            <CardDescription>
+              {plaidData && hasConnectedAccounts && !isDemoMode && topHoldings.length > 0 && !topHoldings[0].isStock
+                ? "Your largest accounts by balance"
+                : "Your largest positions"
+              }
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {[
-                { symbol: "AAPL", name: "Apple Inc.", value: 8500, change: 2.4, logo: "🍎" },
-                { symbol: "SPY", name: "SPDR S&P 500 ETF", value: 9000, change: 1.8, logo: "📈" },
-                { symbol: "VTI", name: "Vanguard Total Stock Market", value: 12400, change: 1.2, logo: "🏛️" },
-                { symbol: "TSLA", name: "Tesla Inc.", value: 6200, change: -0.8, logo: "🚗" },
-                { symbol: "AMZN", name: "Amazon.com Inc.", value: 6000, change: 3.1, logo: "📦" },
-              ].map((holding, index) => (
-                <div
-                  key={holding.symbol}
-                  className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center text-lg">
-                      {holding.logo}
-                    </div>
-                    <div>
-                      <div className="font-semibold text-gray-900 text-sm">{holding.symbol}</div>
-                      <div className="text-xs text-gray-600 truncate max-w-[120px]">{holding.name}</div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-semibold text-gray-900 text-sm">{formatCurrency(holding.value)}</div>
-                    <div className={`text-xs ${holding.change >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-                      {holding.change >= 0 ? "+" : ""}
-                      {holding.change}%
-                    </div>
-                  </div>
+            {topHoldings.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  📊
                 </div>
-              ))}
-              <div className="pt-2 border-t border-gray-100">
-                <Button variant="ghost" size="sm" className="w-full text-gray-600 hover:text-gray-900">
-                  View All Holdings
-                </Button>
+                <p className="text-sm">No holdings or accounts to display</p>
               </div>
-            </div>
+            ) : (              <div className="space-y-3">
+                {topHoldings.map((holding: any, index: number) => (
+                  <div
+                    key={`${holding.symbol}-${index}`}
+                    className="flex items-center justify-between p-4 rounded-xl hover:bg-gradient-to-r hover:from-gray-50 hover:to-gray-50/50 transition-all duration-200 border border-gray-100 hover:border-gray-200 hover:shadow-sm group"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl flex items-center justify-center text-xl border border-blue-100 group-hover:from-blue-100 group-hover:to-indigo-100 transition-all duration-200">
+                        {holding.logo}
+                      </div>
+                      <div>
+                        <div className="font-semibold text-gray-900 text-base">{holding.symbol}</div>
+                        <div className="text-sm text-gray-600 truncate max-w-[140px]">{holding.name}</div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-bold text-gray-900 text-base">{formatCurrency(holding.value)}</div>
+                      {holding.isStock && (
+                        <div className={`text-sm font-medium flex items-center gap-1 ${
+                          holding.change >= 0 ? "text-emerald-600" : "text-red-600"
+                        }`}>
+                          {holding.change >= 0 ? (
+                            <TrendingUp className="w-3 h-3" />
+                          ) : (
+                            <TrendingDown className="w-3 h-3" />
+                          )}
+                          {holding.change >= 0 ? "+" : ""}
+                          {holding.change}%
+                        </div>
+                      )}
+                      {!holding.isStock && (
+                        <div className="text-sm text-gray-500 font-medium">
+                          {((holding.value / totalBalance) * 100).toFixed(1)}% of total
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                <div className="pt-3 border-t border-gray-200">
+                  <Button variant="ghost" size="sm" className="w-full text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
+                    {plaidData && hasConnectedAccounts && !isDemoMode && topHoldings.length > 0 && !topHoldings[0].isStock
+                      ? "View All Accounts"
+                      : "View All Holdings"
+                    }
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -602,41 +792,44 @@ export function PortfolioDashboard({
             <CardTitle>Connected Accounts</CardTitle>
             <CardDescription>Your linked investment accounts</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
+          <CardContent>            <div className="space-y-3">
               {accountsWithPercentages.map((account: any) => (
                 <div
                   key={account.id}
-                  className="flex items-center justify-between p-4 border border-gray-100 rounded-lg hover:border-gray-200 transition-colors"
+                  className="flex items-center justify-between p-4 border border-gray-100 rounded-xl hover:border-gray-200 hover:bg-gradient-to-r hover:from-gray-50 hover:to-gray-50/50 transition-all duration-200 hover:shadow-sm group"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
+                    <div className="w-14 h-14 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl flex items-center justify-center overflow-hidden border border-gray-200 group-hover:from-gray-100 group-hover:to-gray-150 transition-all duration-200">
                       <img
                         src={account.logo || "/placeholder.svg"}
                         alt={account.name}
                         className="w-8 h-8 object-contain"
                         onError={(e) => {
                           const target = e.target as HTMLImageElement
-                          target.style.display = "none"
-                          target.nextElementSibling?.classList.remove("hidden")
+                          const parent = target.parentElement
+                          if (parent) {
+                            const accountType = getAccountTypeIcon(account.type, account.subtype || account.type)
+                            parent.innerHTML = `<div class="w-8 h-8 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-lg flex items-center justify-center text-white text-lg shadow-sm">${accountType}</div>`
+                          }
                         }}
                       />
-                      <Building2 className="w-6 h-6 text-gray-400 hidden" />
                     </div>
                     <div>
-                      <div className="font-semibold text-gray-900">{account.name}</div>
-                      <div className="text-sm text-gray-600">
-                        {account.type} • {account.lastSync}
+                      <div className="font-semibold text-gray-900 text-base">{account.name}</div>
+                      <div className="text-sm text-gray-600 flex items-center gap-2">
+                        <span className="capitalize">{account.type}</span>
+                        <span className="text-gray-400">•</span>
+                        <span className="text-emerald-600 font-medium">{account.lastSync}</span>
                       </div>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="font-semibold text-gray-900">{formatCurrency(account.balance)}</div>
-                    <div className="text-sm text-gray-600">{account.percentage}% of total</div>
+                    <div className="font-bold text-gray-900 text-base">{formatCurrency(account.balance)}</div>
+                    <div className="text-sm text-gray-500 font-medium">{account.percentage.toFixed(1)}% of total</div>
                   </div>
                 </div>
               ))}
-            </div>          </CardContent>
+            </div></CardContent>
         </Card>
       </div>
 
