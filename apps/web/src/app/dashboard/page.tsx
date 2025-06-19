@@ -5,17 +5,41 @@ import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import Loading from "@web/components/loading"
 import Image from "next/image"
+import { PortfolioDashboard } from "@web/components/portfolio-dashboard"
+import { Button } from "@web/components/ui/button"
+import { addConnectedAccount, getConnectedAccounts, type ConnectedAccount } from "@web/lib/account-storage"
 
-export default function DashboardPage() {
+export default function DashboardPage() {  
   const { data: session, status } = useSession()
   const router = useRouter()
   const [isVisible, setIsVisible] = useState(false)
+  const [hasConnectedAccounts, setHasConnectedAccounts] = useState(false)
+  const [plaidData, setPlaidData] = useState<any>(null)
+  const [isConnecting, setIsConnecting] = useState(false)
+  const [hasExitedDashboard, setHasExitedDashboard] = useState(false)
 
   useEffect(() => {
     if (status === "unauthenticated") {
       router.push("/")
     }
   }, [status, router])
+
+  // Check for existing connected accounts on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // Check if user has explicitly exited the dashboard
+      const exitedFlag = localStorage.getItem('hasExitedDashboard') === 'true'
+      setHasExitedDashboard(exitedFlag)
+      
+      if (!exitedFlag) {
+        const existingAccounts = getConnectedAccounts()
+        if (existingAccounts.length > 0) {
+          setHasConnectedAccounts(true)
+        }
+      }
+      // If user has exited, keep hasConnectedAccounts as false to show landing screen
+    }
+  }, [])
 
   // Fade in dashboard after loading
   useEffect(() => {
@@ -27,8 +51,110 @@ export default function DashboardPage() {
     }
   }, [status, session])
 
+  const handleConnectAccount = async (publicToken: string, metadata: any) => {
+    console.log("🔄 Starting Plaid account connection:", { publicToken, metadata })
+    setIsConnecting(true)
+    
+    try {
+      // Step 1: Exchange public token for access token
+      console.log("🔄 Exchanging public token...")
+      const exchangeResponse = await fetch("/api/plaid/exchange-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ public_token: publicToken, metadata }),
+      })
+
+      const exchangeData = await exchangeResponse.json()
+      
+      if (!exchangeResponse.ok) {
+        throw new Error(exchangeData.error || "Failed to exchange token")
+      }
+
+      console.log("✅ Token exchange successful:", exchangeData.item_id)
+
+      // Step 2: Fetch account data
+      console.log("🔄 Fetching account data...")
+      const accountsResponse = await fetch("/api/plaid/accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ access_token: exchangeData.access_token }),
+      })
+
+      const accountsData = await accountsResponse.json()
+      
+      if (!accountsResponse.ok) {
+        throw new Error(accountsData.error || "Failed to fetch accounts")
+      }
+
+      console.log("✅ Account data fetched successfully:", accountsData)
+
+      // Step 3: Save to localStorage and update state
+      const newAccount: ConnectedAccount = {
+        id: exchangeData.item_id || `account_${Date.now()}`,
+        accessToken: exchangeData.access_token,
+        institutionName: metadata?.institution?.name || accountsData.institution?.name || 'Unknown Bank',
+        accountsData: accountsData,
+        connectedAt: new Date().toISOString(),
+        metadata: metadata
+      }
+
+      // Add to localStorage
+      addConnectedAccount(newAccount)
+      
+      // Update component state
+      setHasConnectedAccounts(true)
+      
+      // Clear the exit flag since user is now connecting an account
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('hasExitedDashboard')
+        setHasExitedDashboard(false)
+      }
+      
+      // For backwards compatibility, also set plaidData for the first account
+      if (!plaidData) {
+        setPlaidData(accountsData)
+      }
+      
+      console.log("✅ Account successfully saved and connected!")
+      
+    } catch (error) {
+      console.error("❌ Connection failed:", error)
+      alert("Failed to connect account: " + (error instanceof Error ? error.message : "Unknown error"))
+    } finally {
+      setIsConnecting(false)
+    }
+  }
+
+  const handleRemoveAccount = (accountId: string) => {
+    const remainingAccounts = getConnectedAccounts()
+    if (remainingAccounts.length === 0) {
+      setHasConnectedAccounts(false)
+      setPlaidData(null)
+    }
+  }
+
+  const handleDemoConnect = () => {
+    setHasConnectedAccounts(true)
+    // Clear the exit flag since user is now entering demo mode
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('hasExitedDashboard')
+      setHasExitedDashboard(false)
+    }
+  }
+
+  const handleExitDashboard = () => {
+    // Reset dashboard state without signing out
+    setHasConnectedAccounts(false)
+    setPlaidData(null)
+    // Set exited flag but keep connected accounts in localStorage
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('hasExitedDashboard', 'true')
+      setHasExitedDashboard(true)
+    }
+  }
+
   if (status === "loading") {
-    return <Loading variant="pulse" />
+    return <Loading variant="branded" />
   }
 
   if (!session) {
@@ -36,104 +162,46 @@ export default function DashboardPage() {
   }
 
   return (
-    <div 
+    <div
       className={`min-h-screen bg-gray-50 transition-opacity duration-500 ease-in-out ${
-        isVisible ? 'opacity-100' : 'opacity-0'
+        isVisible ? "opacity-100" : "opacity-0"
       }`}
     >
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
+      <header className="bg-white shadow-sm border-b sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-3">
-                <div className="flex items-center space-x-3">
-                <Image
-                    src="/logo.png"
-                    alt="Peerfolio"
-                    width={32}
-                    height={32}
-                    className="rounded-lg"
-                />
-                <h1 className="text-xl font-semibold text-gray-900">Dashboard</h1>
-                </div>            </div>
+              <div className="flex items-center space-x-3">
+                <Image src="/logo.png" alt="Peerfolio" width={32} height={32} className="rounded-lg" />
+                <h1 className="text-xl font-semibold text-gray-900">Peerfolio</h1>
+              </div>
+            </div>
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-3">
                 {session.user?.image && (
-                  <img
-                    src={session.user.image}
-                    alt="Profile"
-                    className="h-8 w-8 rounded-full"
-                  />
+                  <img src={session.user.image || "/placeholder.svg"} alt="Profile" className="h-8 w-8 rounded-full" />
                 )}
-                <span className="text-sm font-medium text-gray-700">
-                  {session.user?.name}
-                </span>
+                <span className="text-sm font-medium text-gray-700">{session.user?.name}</span>
               </div>
-              <button
-                onClick={() => signOut({ callbackUrl: "/" })}
-                className="bg-gray-900 hover:bg-gray-800 text-white px-4 py-2 rounded-full text-sm font-medium transition-colors"
-              >
+              <Button onClick={() => signOut({ callbackUrl: "/" })} variant="outline" size="sm">
                 Sign Out
-              </button>
+              </Button>
             </div>
           </div>
         </div>
-      </header>
-
-      {/* Main Content */}
+      </header>      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Development Status Banner */}
-        <div className="mb-6 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg p-4 shadow-sm">
-          <div className="flex items-center space-x-3">
-            <div className="flex-shrink-0">
-              <div className="h-2 w-2 bg-yellow-300 rounded-full animate-pulse"></div>
-            </div>
-            <div className="flex-1">
-              <p className="text-white font-medium text-sm">
-                🏗️ Plaid Integration In Development
-              </p>
-              <p className="text-blue-100 text-xs mt-1">
-                Portfolio connection features coming soon! We're working hard to bring you seamless brokerage integration.
-              </p>
-            </div>
-            <div className="flex-shrink-0">
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/20 text-white">
-                In Progress
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">
-            Welcome to Peerfolio, {session.user?.name?.split(' ')[0]}! 👋
-          </h2>
-          <p className="text-gray-600 mb-6">
-            You've successfully signed in with Google. This is where you'll build your investment portfolio.
-          </p>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-emerald-50 p-6 rounded-lg border border-emerald-200">
-              <h3 className="font-semibold text-emerald-900 mb-2">Portfolio Overview</h3>
-              <p className="text-emerald-700 text-sm">Track your investments and performance</p>
-            </div>
-            <div className="bg-blue-50 p-6 rounded-lg border border-blue-200">
-              <h3 className="font-semibold text-blue-900 mb-2">Social Features</h3>
-              <p className="text-blue-700 text-sm">Connect with other investors</p>
-            </div>
-            <div className="bg-purple-50 p-6 rounded-lg border border-purple-200">
-              <h3 className="font-semibold text-purple-900 mb-2">Analytics</h3>
-              <p className="text-purple-700 text-sm">Get insights on your trading</p>
-            </div>
-          </div>
-
-          <div className="mt-8 p-4 bg-gray-50 rounded-lg">
-            <h4 className="font-medium text-gray-900 mb-2">Session Information:</h4>
-            <pre className="text-xs text-gray-600 overflow-x-auto">
-              {JSON.stringify(session, null, 2)}
-            </pre>
-          </div>
-        </div>
+        <PortfolioDashboard 
+          hasConnectedAccounts={hasConnectedAccounts} 
+          onConnectAccount={handleConnectAccount}
+          onRemoveAccount={handleRemoveAccount}
+          onExitDashboard={handleExitDashboard}
+          onDemoConnect={handleDemoConnect}
+          hasExitedDashboard={hasExitedDashboard}
+          plaidData={plaidData}
+          isConnecting={isConnecting}
+        />
       </main>
     </div>
   )
