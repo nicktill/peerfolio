@@ -1,6 +1,4 @@
 "use client"
-
-import React from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@web/components/ui/card"
 import { Button } from "@web/components/ui/button"
 import { PlaidLink } from "../plaid-link"
@@ -32,7 +30,7 @@ export function ConnectedAccounts({
   getAccountTypeIcon,
   handleRemoveAccount,
   onConnectAccount,
-  isDemoMode
+  isDemoMode,
 }: ConnectedAccountsProps) {
   return (
     <Card className="overflow-hidden">
@@ -43,7 +41,7 @@ export function ConnectedAccounts({
             <span>Connected Accounts</span>
           </div>
           <span className="text-sm font-normal text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 px-3 py-1 rounded-full border border-gray-200 dark:border-gray-700">
-            {accountsWithPercentages.length} {accountsWithPercentages.length === 1 ? 'account' : 'accounts'}
+            {accountsWithPercentages.length} {accountsWithPercentages.length === 1 ? "account" : "accounts"}
           </span>
         </CardTitle>
         <CardDescription className="text-gray-600 dark:text-gray-300">Your linked financial accounts</CardDescription>
@@ -54,25 +52,37 @@ export function ConnectedAccounts({
           <div className="mb-4 p-4 bg-gradient-to-br from-gray-50 to-gray-100/50 dark:from-gray-800/50 dark:to-gray-900/30 rounded-xl border border-gray-200/50 dark:border-gray-700/50 shadow-sm">
             <div className="grid grid-cols-3 gap-4 text-center">
               <div className="space-y-1">
-                <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Total Assets</div>
-                <div className="text-base font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(balanceSummary.totalAssets)}</div>
+                <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                  Total Assets
+                </div>
+                <div className="text-base font-bold text-emerald-600 dark:text-emerald-400">
+                  {formatCurrency(balanceSummary.totalAssets)}
+                </div>
               </div>
               <div className="space-y-1 border-x border-gray-200 dark:border-gray-700">
-                <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Total Liabilities</div>
-                <div className="text-base font-bold text-red-500 dark:text-red-400">{formatCurrency(balanceSummary.totalLiabilities)}</div>
+                <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                  Total Liabilities
+                </div>
+                <div className="text-base font-bold text-red-500 dark:text-red-400">
+                  {formatCurrency(balanceSummary.totalLiabilities)}
+                </div>
               </div>
               <div className="space-y-1">
-                <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Net Worth</div>
-                <div className="text-base font-bold text-gray-900 dark:text-gray-100">{formatCurrency(balanceSummary.netWorth)}</div>
+                <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                  Net Worth
+                </div>
+                <div className="text-base font-bold text-gray-900 dark:text-gray-100">
+                  {formatCurrency(balanceSummary.netWorth)}
+                </div>
               </div>
             </div>
           </div>
         )}
-        
+
         <div className="space-y-3">
           {accountsWithPercentages.map((account: any) => (
             <div
-              key={account.id}
+              key={`${account.id || account.plaidAccountId || account.name}-${account.balance}-${Date.now()}`}
               className="group relative p-4 bg-white dark:bg-gray-800/30 border border-gray-200/60 dark:border-gray-700/50 rounded-xl hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md dark:hover:shadow-gray-900/20 transition-all duration-300 hover:scale-[1.01]"
             >
               <div className="flex items-center justify-between">
@@ -94,31 +104,41 @@ export function ConnectedAccounts({
                         }}
                       />
                     </div>
-                    
+
                     {/* Account Type Badge */}
                     {(() => {
                       const accountTypeInfo = getAccountTypeIcon(account.type, account.subtype)
                       return (
-                        <div className={`absolute -bottom-1 -right-1 w-6 h-6 ${accountTypeInfo.bgColor} dark:bg-opacity-90 rounded-full flex items-center justify-center border-2 border-white dark:border-gray-800 shadow-md transition-transform duration-300 group-hover:scale-110`}>
+                        <div
+                          className={`absolute -bottom-1 -right-1 w-6 h-6 ${accountTypeInfo.bgColor} dark:bg-opacity-90 rounded-full flex items-center justify-center border-2 border-white dark:border-gray-800 shadow-md transition-transform duration-300 group-hover:scale-110`}
+                        >
                           <span className="text-xs">{accountTypeInfo.icon}</span>
                         </div>
                       )
                     })()}
                   </div>
-                  
+
                   <div className="min-w-0 flex-1">
-                    <div className="font-bold text-gray-900 dark:text-gray-100 text-base mb-1 truncate">{formatAccountName(account.name)}</div>
+                    <div className="font-bold text-gray-900 dark:text-gray-100 text-base mb-1 truncate">
+                      {formatAccountName(account.name)}
+                    </div>
                     <div className="text-sm text-gray-600 dark:text-gray-300 flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-gray-800 dark:text-gray-200 bg-gray-100 dark:bg-gray-700/50 px-2 py-0.5 rounded text-xs">{getInstitutionDisplayName(account.name)}</span>
+                      <span className="font-medium text-gray-800 dark:text-gray-200 bg-gray-100 dark:bg-gray-700/50 px-2 py-0.5 rounded text-xs">
+                        {getInstitutionDisplayName(account.name)}
+                      </span>
                       <span className="text-gray-400 dark:text-gray-500">•</span>
-                      <span className="capitalize text-gray-600 dark:text-gray-300 font-medium text-xs">{account.type}</span>
+                      <span className="capitalize text-gray-600 dark:text-gray-300 font-medium text-xs">
+                        {account.type}
+                      </span>
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="flex items-center gap-3">
                   <div className="text-right min-w-[120px]">
-                    <div className="font-bold text-gray-900 dark:text-gray-100 text-lg mb-1">{formatCurrency(account.balance)}</div>
+                    <div className="font-bold text-gray-900 dark:text-gray-100 text-lg mb-1">
+                      {formatCurrency(account.balance)}
+                    </div>
                     <div className="flex justify-end">
                       {account.isIncludedInPortfolio ? (
                         <span className="inline-flex items-center text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded-full text-xs font-medium border border-blue-200 dark:border-blue-800">
@@ -150,7 +170,7 @@ export function ConnectedAccounts({
               </div>
             </div>
           ))}
-          
+
           {/* Add Account Button */}
           <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
             <PlaidLink
