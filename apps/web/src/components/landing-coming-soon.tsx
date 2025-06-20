@@ -298,15 +298,15 @@ export default function PeerfolioLanding() {
                       </p>
                       <div className="mt-4 sm:hidden">
                         <div className="text-[2rem] font-extrabold text-gray-900 leading-tight">+<NumberTicker value={12.4} decimalPlaces={1} />%</div>
-                        <div className="text-left text-sm font-medium text-emerald-600 mt-1">↗ Outperforming S&P 500</div>
+                        <div className="text-left text-sm font-medium text-emerald-600 mt-1 whitespace-nowrap">↗ Outperforming S&amp;P 500</div>
                       </div>
                     </div>
                     <div className="hidden sm:block text-right">
                       <div className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">
                         +<NumberTicker value={12.4} decimalPlaces={1} />%
                       </div>
-                      <AnimatedShinyText className="text-xs sm:text-sm text-emerald-600 font-medium">
-                        ↗ Outperforming S&P 500
+                      <AnimatedShinyText className="text-xs sm:text-sm text-emerald-600 font-medium whitespace-nowrap">
+                        ↗ Outperforming S&amp;P 500
                       </AnimatedShinyText>
                     </div>
                   </div>
@@ -382,13 +382,14 @@ export default function PeerfolioLanding() {
 
                   {/* Additional insights */}
                   <div className="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-gray-100">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between text-xs sm:text-sm text-gray-600 gap-2 sm:gap-0 w-full">
-                      <span className="flex items-center gap-2 w-full">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between text-xs sm:text-sm text-gray-600 gap-2 sm:gap-0">
+                      <span className="flex items-center gap-2">
                         <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
                         Live data • Updated <NumberTicker value={2} /> mins ago
                       </span>
-                      <span className="flex items-center gap-2 w-full sm:w-auto">
-                        <span className="inline-block">🎯 Goal: Beat market by</span> <span className="font-bold text-gray-900 ml-1"><NumberTicker value={5} />%</span>
+                      <span className="flex items-center gap-2 sm:ml-4">
+                        <span className="inline-block">🎯 Goal: Beat market by</span>
+                        <span className="font-bold text-gray-900 ml-1"><NumberTicker value={5} />%</span>
                       </span>
                     </div>
                   </div>
