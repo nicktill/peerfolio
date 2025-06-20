@@ -180,16 +180,24 @@ export function PortfolioChart({
               key={animationKey} // Force re-render with animation
             >
               <defs>
-                {/* Enhanced gradient for demo mode */}
+                {/* Enhanced gradient for different modes */}
                 <linearGradient id="fillValue" x1="0" y1="0" x2="0" y2="1">
                   <stop
                     offset="5%"
-                    stopColor={isDemoMode ? "#3b82f6" : "#10b981"} // Blue for demo, green for real
+                    stopColor={
+                      isDemoMode ? "#3b82f6" : // Blue for demo
+                      hasRealData ? "#10b981" : // Green for real data
+                      "#6b7280" // Gray for no data
+                    }
                     stopOpacity={chartStyle.gradientOpacityTop}
                   />
                   <stop
                     offset="95%"
-                    stopColor={isDemoMode ? "#3b82f6" : "#10b981"}
+                    stopColor={
+                      isDemoMode ? "#3b82f6" : // Blue for demo
+                      hasRealData ? "#10b981" : // Green for real data
+                      "#6b7280" // Gray for no data
+                    }
                     stopOpacity={0.1}
                   />
                 </linearGradient>
@@ -200,7 +208,11 @@ export function PortfolioChart({
                     dx="0" 
                     dy="2" 
                     stdDeviation="3" 
-                    floodColor={isDemoMode ? "#3b82f6" : hasRealData ? "#10b981" : "#6b7280"}
+                    floodColor={
+                      isDemoMode ? "#3b82f6" : // Blue for demo
+                      hasRealData ? "#10b981" : // Green for real data
+                      "#6b7280" // Gray for no data
+                    }
                     floodOpacity="0.3"
                   />
                 </filter>
@@ -209,7 +221,11 @@ export function PortfolioChart({
               <CartesianGrid 
                 strokeDasharray="3 3" 
                 className={`transition-opacity duration-500 ${chartStyle.gridOpacity}`}
-                stroke={isDemoMode ? "#3b82f6" : hasRealData ? "#10b981" : "#6b7280"}
+                stroke={
+                  isDemoMode ? "#3b82f6" : // Blue for demo
+                  hasRealData ? "#10b981" : // Green for real data
+                  "#6b7280" // Gray for no data
+                }
                 strokeOpacity={0.2}
               />
               
@@ -228,7 +244,9 @@ export function PortfolioChart({
               
               <ChartTooltip
                 cursor={{ 
-                  stroke: isDemoMode ? "#3b82f6" : hasRealData ? "#10b981" : "#6b7280", 
+                  stroke: isDemoMode ? "#3b82f6" : // Blue for demo
+                          hasRealData ? "#10b981" : // Green for real data
+                          "#6b7280", // Gray for no data
                   strokeWidth: 1,
                   strokeOpacity: 0.3
                 }}
@@ -241,13 +259,19 @@ export function PortfolioChart({
               <Area
                 type="monotone"
                 dataKey="value"
-                stroke={isDemoMode ? "#3b82f6" : hasRealData ? "#10b981" : "#6b7280"}
+                stroke={
+                  isDemoMode ? "#3b82f6" : // Blue for demo
+                  hasRealData ? "#10b981" : // Green for real data
+                  "#6b7280" // Gray for no data
+                }
                 strokeWidth={chartStyle.strokeWidth}
                 strokeDasharray={chartStyle.strokeDasharray}
                 fillOpacity={1}
                 fill="url(#fillValue)"
                 dot={chartStyle.showDots ? {
-                  fill: isDemoMode ? "#3b82f6" : hasRealData ? "#10b981" : "#6b7280",
+                  fill: isDemoMode ? "#3b82f6" : // Blue for demo
+                        hasRealData ? "#10b981" : // Green for real data
+                        "#6b7280", // Gray for no data
                   stroke: "#ffffff",
                   strokeWidth: 2,
                   r: chartStyle.dotRadius,
