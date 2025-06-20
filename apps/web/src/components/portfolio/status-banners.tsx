@@ -26,12 +26,11 @@ export function StatusBanners({ isDemoMode, hasConnectedAccounts }: StatusBanner
               <h3 className="text-sm font-semibold text-blue-800 dark:text-blue-200 mb-2 flex items-center gap-2">
                 🎯 Demo Mode Active
                 <span className="bg-blue-100/80 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-medium px-2 py-1 rounded-full">
-                  Sample Data
+                  Demo Data
                 </span>
               </h3>
               <p className="text-sm text-blue-700 dark:text-blue-300 leading-relaxed">
-                This is mock demo data shown to demonstrate Peerfolio's features and interface. 
-                The sample portfolio data illustrates how your real investment accounts would appear once connected.
+                This is a sample portfolio view to illustrate how your real investment accounts would appear while we await for approval from Plaid for real account connections.
               </p>
             </div>
           </div>
@@ -54,10 +53,11 @@ export function StatusBanners({ isDemoMode, hasConnectedAccounts }: StatusBanner
                   Sandbox Data
                 </span>
               </h3>
-              <p className="text-sm text-yellow-700 dark:text-yellow-300 leading-relaxed">
-                Peerfolio is currently in its MVP phase using Plaid's sandbox environment with mock data. 
-                We're awaiting approval to connect with real financial institutions. 
-                The platform demonstrates full functionality with sample data until we go live with real accounts.
+              <p className="text-sm text-yellow-700 dark:text-yellow-300 leading-relaxed hidden xs:block">
+                Peerfolio is currently in its MVP phase using Plaid's sandbox environment. We're awaiting approval to connect with real financial institutions. The platform demonstrates full functionality with sample data until we go live with real accounts.
+              </p>
+              <p className="text-sm text-yellow-700 dark:text-yellow-300 leading-relaxed xs:hidden">
+               Peerfolio is currently in its MVP phase using Plaid's sandbox environment. We're awaiting approval to connect with real financial institutions. The platform demonstrates full functionality with sample data until we go live with real accounts.
               </p>
             </div>
           </div>
