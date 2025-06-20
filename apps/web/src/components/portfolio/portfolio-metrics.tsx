@@ -121,6 +121,38 @@ export function PortfolioMetrics({
   const displayValues = getDisplayValues()
   const displayTitle = showAssetsOnly ? "Total Assets" : "Net Portfolio Value"
 
+  // Get dynamic styling based on value and view mode
+  const getCardStyling = () => {
+    if (showAssetsOnly) {
+      // Total Assets view - always green since assets are positive
+      return {
+        cardClass:
+          "overflow-hidden border-emerald-200/50 dark:border-emerald-800/50 bg-gradient-to-br from-emerald-50/30 to-green-50/20 dark:from-emerald-950/20 dark:to-green-950/10",
+        titleColor: "text-emerald-700 dark:text-emerald-300",
+        dotColor: "bg-emerald-500",
+      }
+    } else {
+      // Net Portfolio Value view - color based on positive/negative
+      if (displayValues.value >= 0) {
+        return {
+          cardClass:
+            "overflow-hidden border-emerald-200/50 dark:border-emerald-800/50 bg-gradient-to-br from-emerald-50/30 to-green-50/20 dark:from-emerald-950/20 dark:to-green-950/10",
+          titleColor: "text-emerald-700 dark:text-emerald-300",
+          dotColor: "bg-emerald-500",
+        }
+      } else {
+        return {
+          cardClass:
+            "overflow-hidden border-red-200/50 dark:border-red-800/50 bg-gradient-to-br from-red-50/30 to-rose-50/20 dark:from-red-950/20 dark:to-rose-950/10",
+          titleColor: "text-red-700 dark:text-red-300",
+          dotColor: "bg-red-500",
+        }
+      }
+    }
+  }
+
+  const cardStyling = getCardStyling()
+
   // Get timeframe label
   const getTimeframeLabel = () => {
     switch (selectedTimeframe) {
@@ -184,11 +216,11 @@ export function PortfolioMetrics({
   return (
     <div className="grid gap-6 md:grid-cols-3">
       {/* Net Portfolio Value / Total Assets Toggle */}
-      <Card className="overflow-hidden border-blue-200/50 dark:border-blue-800/50 bg-gradient-to-br from-blue-50/30 to-indigo-50/20 dark:from-blue-950/20 dark:to-indigo-950/10">
+      <Card className={cardStyling.cardClass}>
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center justify-between text-blue-700 dark:text-blue-300 text-sm font-medium">
+          <CardTitle className={`flex items-center justify-between ${cardStyling.titleColor} text-sm font-medium`}>
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+              <div className={`w-2 h-2 ${cardStyling.dotColor} rounded-full`}></div>
               {displayTitle}
             </div>
             {hasLiabilities && (
@@ -196,7 +228,11 @@ export function PortfolioMetrics({
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowAssetsOnly(!showAssetsOnly)}
-                className="h-6 w-6 p-0 hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                className={`h-6 w-6 p-0 ${
+                  showAssetsOnly || displayValues.value >= 0
+                    ? "hover:bg-emerald-100 dark:hover:bg-emerald-900/50"
+                    : "hover:bg-red-100 dark:hover:bg-red-900/50"
+                }`}
                 title={showAssetsOnly ? "View net worth" : "View only assets"}
               >
                 {showAssetsOnly ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
@@ -238,7 +274,13 @@ export function PortfolioMetrics({
             )}
 
             {/* Assets and Liabilities breakdown */}
-            <div className="grid grid-cols-2 gap-4 pt-2 border-t border-blue-200/30 dark:border-blue-800/30">
+            <div
+              className={`grid grid-cols-2 gap-4 pt-2 border-t ${
+                showAssetsOnly || displayValues.value >= 0
+                  ? "border-emerald-200/30 dark:border-emerald-800/30"
+                  : "border-red-200/30 dark:border-red-800/30"
+              }`}
+            >
               <div>
                 <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">Assets</div>
                 <div className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
