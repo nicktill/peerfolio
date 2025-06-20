@@ -225,7 +225,12 @@ export default function PeerfolioLanding() {
               <h1 className="mb-8 font-bold tracking-tight animate__animated animate__fadeInUp">
                 <div className="text-3xl sm:text-4xl md:text-7xl text-gray-900 leading-none">
                   <span className="block text-center sm:inline-block sm:text-left min-w-[240px] sm:min-w-[280px] md:min-w-[420px] align-baseline text-3xl sm:text-4xl md:text-7xl">
-                    Track your investing
+                    Track your{" "}
+                    <MorphingText
+                      texts={["investing", "budgeting", "finances", "brokerages", "portfolios"]}
+                      className="inline-block align-baseline"
+                      animationType="typewriter"
+                    />
                   </span>
                 </div>
                 <div className="mt-2 text-3xl sm:text-4xl md:text-7xl leading-none">
@@ -301,7 +306,7 @@ export default function PeerfolioLanding() {
                       </AnimatedShinyText>
                     </div>
                   </div>
-                    
+
                   <div className="grid gap-6 md:grid-cols-3">
                     <Card className="bg-gradient-to-r from-emerald-50 to-emerald-100 border-emerald-200 hover:from-emerald-100 hover:to-emerald-200 transition-all duration-500">
                       <div className="p-6">
@@ -401,7 +406,7 @@ export default function PeerfolioLanding() {
             <DotPattern
               className={cn(
                 "absolute inset-0 h-full w-full opacity-[0.15] text-blue-400/60",
-                "[mask-image:radial-gradient(1200px_circle_at_center,white,transparent)]"
+                "[mask-image:radial-gradient(1200px_circle_at_center,white,transparent)]",
               )}
               width={40}
               height={40}
@@ -435,13 +440,15 @@ export default function PeerfolioLanding() {
                     Connect all your accounts
                   </h3>
                   <p className="text-gray-600 leading-relaxed mb-6 max-w-sm mx-auto">
-                    Securely link your brokerage accounts through Plaid. Support for Robinhood, Fidelity, Charles Schwab,
-                    and 12,000+ institutions.
+                    Securely link your brokerage accounts through Plaid. Support for Robinhood, Fidelity, Charles
+                    Schwab, and 12,000+ institutions.
                   </p>
                   <div className="flex items-center justify-center gap-6 text-sm">
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
-                      <AnimatedShinyText className="text-emerald-600 font-medium">Bank-level security</AnimatedShinyText>
+                      <AnimatedShinyText className="text-emerald-600 font-medium">
+                        Bank-level security
+                      </AnimatedShinyText>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
@@ -491,8 +498,8 @@ export default function PeerfolioLanding() {
                     Portfolio growth insights
                   </h3>
                   <p className="text-gray-600 leading-relaxed mb-6 max-w-sm mx-auto">
-                    See how your gains compare over time with beautiful charts and insights. Track your progress and learn
-                    from top performers.
+                    See how your gains compare over time with beautiful charts and insights. Track your progress and
+                    learn from top performers.
                   </p>
                   <div className="flex items-center justify-center gap-6 text-sm text-gray-500">
                     <div className="flex items-center gap-2">
@@ -581,12 +588,13 @@ export default function PeerfolioLanding() {
                 height={32}
                 className="rounded-lg"
                 onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  target.style.display = 'none';
-                  const fallback = document.createElement('div');
-                  fallback.className = 'w-8 h-8 rounded-lg bg-gray-200 flex items-center justify-center text-lg font-bold text-gray-500';
-                  fallback.innerText = 'P';
-                  target.parentElement?.appendChild(fallback);
+                  const target = e.target as HTMLImageElement
+                  target.style.display = "none"
+                  const fallback = document.createElement("div")
+                  fallback.className =
+                    "w-8 h-8 rounded-lg bg-gray-200 flex items-center justify-center text-lg font-bold text-gray-500"
+                  fallback.innerText = "P"
+                  target.parentElement?.appendChild(fallback)
                 }}
               />
               <span className="text-xl font-semibold text-gray-900">Peerfolio</span>
