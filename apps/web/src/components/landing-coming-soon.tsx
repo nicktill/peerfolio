@@ -94,7 +94,7 @@ const Card = ({ children, className = "", ...props }: any) => (
 )
 
 const Badge = ({ children, className = "", ...props }: any) => (
-  <div className={`inline-flex items-center rounded-full px-4 py-2 text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200 ${className}`} {...props}>
+  <div className={`inline-flex items-center rounded-full px-4 py-2 text-xs font-medium ${className}`} {...props}>
     {children}
   </div>
 )
@@ -211,7 +211,7 @@ export default function PeerfolioLanding() {
           
           <div className="container relative px-6 max-w-6xl mx-auto">
             <div className="mx-auto max-w-4xl text-center">
-              <Badge className="mb-8 bg-white/80 backdrop-blur-sm text-gray-700 border border-gray-200/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
+              <Badge className="mb-8 bg-gradient-to-r from-emerald-50 via-emerald-100 to-teal-50 text-emerald-700 border border-emerald-200/60 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 px-4 py-2">
                 <Star className="w-3 h-3 mr-2 text-yellow-500" />
                 Trusted by 2,847+ investors
               </Badge>
@@ -305,7 +305,10 @@ export default function PeerfolioLanding() {
                           <div className="h-12 w-12 rounded-xl bg-emerald-500 flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-110 transition-all duration-300">
                             <TrendingUp className="h-6 w-6 text-white" />
                           </div>
-                          <Badge className="bg-emerald-500 text-white border-0 shadow-sm hover:shadow-md transition-shadow duration-300">🏆 Top 10%</Badge>
+                          <Badge className="bg-emerald-500 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 px-4 py-2 text-xs font-semibold tracking-wide rounded-full">
+                            <span className="mr-1.5 text-sm">🏆</span>
+                            <span className="text-white drop-shadow-sm">Top 10%</span>
+                          </Badge>
                         </div>
                         <div className="space-y-2">
                           <div className="text-sm text-emerald-700 font-semibold">Your Rank</div>
@@ -325,7 +328,10 @@ export default function PeerfolioLanding() {
                           <div className="h-12 w-12 rounded-xl bg-blue-500 flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-110 transition-all duration-300">
                             <BarChart3 className="h-6 w-6 text-white" />
                           </div>
-                          <Badge className="bg-blue-500 text-white border-0 shadow-sm hover:shadow-md transition-shadow duration-300">📈 +8.7%</Badge>
+                          <Badge className="bg-blue-500 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 px-4 py-2 text-xs font-semibold tracking-wide rounded-full">
+                            <span className="mr-1.5 text-sm">📈</span>
+                            <span className="text-white drop-shadow-sm">+8.7%</span>
+                          </Badge>
                         </div>
                         <div className="space-y-2">
                           <div className="text-sm text-blue-700 font-semibold">30-Day Return</div>
@@ -345,7 +351,10 @@ export default function PeerfolioLanding() {
                           <div className="h-12 w-12 rounded-xl bg-purple-500 flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-110 transition-all duration-300">
                             <Users className="h-6 w-6 text-white" />
                           </div>
-                          <Badge className="bg-purple-500 text-white border-0 shadow-sm hover:shadow-md transition-shadow duration-300">🔥 Active</Badge>
+                          <Badge className="bg-purple-500 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 px-4 py-2 text-xs font-semibold tracking-wide rounded-full">
+                            <span className="mr-1.5 text-sm">🔥</span>
+                            <span className="text-white drop-shadow-sm">Active</span>
+                          </Badge>
                         </div>
                         <div className="space-y-2">
                           <div className="text-sm text-purple-700 font-semibold">Group Activity</div>
@@ -423,7 +432,7 @@ export default function PeerfolioLanding() {
                   Securely link your brokerage accounts through Plaid. Support for Robinhood, Fidelity, Charles Schwab,
                   and 12,000+ institutions.
                 </p>
-                <div className="flex items-center justify-center gap-6 text-sm text-gray-500">
+                <div className="flex items-center justify-center gap-6 text-sm">
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
                     <AnimatedShinyText className="text-emerald-600 font-medium">
@@ -432,7 +441,7 @@ export default function PeerfolioLanding() {
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                    <span className="font-medium">Real-time sync</span>
+                    <span className="font-medium text-emerald-600">Real-time sync</span>
                   </div>
                 </div>
               </div>
