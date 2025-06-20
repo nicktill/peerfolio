@@ -165,12 +165,14 @@ function DashboardContent() {
       {/* Animated Grid Background - matching landing page scale */}
       <AnimatedGridPattern
         numSquares={30}
-        maxOpacity={0.1}
+        maxOpacity={0.25}
         duration={3}
         repeatDelay={1}
-        className={`absolute inset-0 h-full w-full skew-y-12 ${
-          isDark ? "fill-emerald-600/20 stroke-emerald-500/20" : "fill-emerald-400/20 stroke-emerald-300/20"
-        }`}
+       className={`absolute inset-0 h-full w-full skew-y-12 transform-gpu ${
+        isDark
+          ? "fill-emerald-600/20 stroke-emerald-500/20 text-emerald-500/30"
+          : "fill-emerald-400/20 stroke-emerald-300/20 text-emerald-400/30"
+      }`}
         width={40}
         height={40}
       />
