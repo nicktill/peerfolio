@@ -2,6 +2,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@web/components/ui/card"
 import { ChartTooltip, ChartTooltipContent } from "@web/components/ui/chart"
 import { ResponsiveContainer, PieChart as RechartsPieChart, Cell, Pie } from "recharts"
+import React from "react"
 
 interface AssetAllocationProps {
   assetAllocation: any[]
@@ -74,13 +75,24 @@ export function AssetAllocation({ assetAllocation, formatCurrency, isDemoMode, h
               <RechartsPieChart>
                 <defs>
                   {assetAllocation.map((entry, index) => (
-                    <linearGradient key={`gradient-${index}`} id={`gradient-${index}`} x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor={entry.color} stopOpacity={0.9} />
-                      <stop offset="100%" stopColor={entry.color} stopOpacity={0.7} />
-                    </linearGradient>
+                    <React.Fragment key={`effects-${index}`}>
+                      <linearGradient id={`gradient-${index}`} x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stopColor={entry.color} stopOpacity={0.9} />
+                        <stop offset="50%" stopColor={entry.color} stopOpacity={0.8} />
+                        <stop offset="100%" stopColor={entry.color} stopOpacity={0.7} />
+                      </linearGradient>
+                      <radialGradient id={`radial-${index}`} cx="50%" cy="50%" r="50%">
+                        <stop offset="0%" stopColor={entry.color} stopOpacity={0.1} />
+                        <stop offset="100%" stopColor={entry.color} stopOpacity={0.3} />
+                      </radialGradient>
+                    </React.Fragment>
                   ))}
-                  <filter id="drop-shadow" x="-50%" y="-50%" width="200%" height="200%">
-                    <feDropShadow dx="0" dy="4" stdDeviation="8" floodOpacity="0.1" />
+                  <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                    <feGaussianBlur stdDeviation="3" result="coloredBlur" />
+                    <feMerge>
+                      <feMergeNode in="coloredBlur" />
+                      <feMergeNode in="SourceGraphic" />
+                    </feMerge>
                   </filter>
                 </defs>
                 <Pie
@@ -119,20 +131,41 @@ export function AssetAllocation({ assetAllocation, formatCurrency, isDemoMode, h
               </RechartsPieChart>
             </ResponsiveContainer>
 
+            {/* Add floating particles effect */}
+            <div className="absolute inset-0 pointer-events-none overflow-hidden">
+              {[...Array(6)].map((_, i) => (
+                <div
+                  key={i}
+                  className={`absolute w-1 h-1 bg-gradient-to-r ${
+                    isDemoMode
+                      ? "from-blue-400 to-indigo-400"
+                      : hasRealData
+                        ? "from-emerald-400 to-green-400"
+                        : "from-gray-400 to-slate-400"
+                  } rounded-full opacity-0 group-hover/chart:opacity-60 transition-all duration-1000 animate-float-${(i % 3) + 1}`}
+                  style={{
+                    left: `${20 + i * 12}%`,
+                    top: `${30 + i * 8}%`,
+                    animationDelay: `${i * 200}ms`,
+                  }}
+                />
+              ))}
+            </div>
+
             {/* Enhanced Center Display */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div
-                className={`text-center bg-white/95 dark:bg-gray-900/95 backdrop-blur-lg rounded-full w-28 h-28 flex flex-col items-center justify-center border-2 shadow-xl group-hover/chart:scale-105 transition-all duration-500 ${
+                className={`text-center backdrop-blur-xl rounded-full w-32 h-32 flex flex-col items-center justify-center border-2 shadow-2xl group-hover/chart:scale-105 transition-all duration-500 ${
                   isDemoMode
-                    ? "border-blue-200/80 dark:border-blue-700/80"
+                    ? "bg-gradient-to-br from-blue-50/90 via-white/95 to-indigo-50/90 dark:from-blue-950/90 dark:via-gray-900/95 dark:to-indigo-950/90 border-blue-200/80 dark:border-blue-700/80"
                     : hasRealData
-                      ? "border-emerald-200/80 dark:border-emerald-700/80"
-                      : "border-gray-200/80 dark:border-gray-700/80"
+                      ? "bg-gradient-to-br from-emerald-50/90 via-white/95 to-green-50/90 dark:from-emerald-950/90 dark:via-gray-900/95 dark:to-green-950/90 border-emerald-200/80 dark:border-emerald-700/80"
+                      : "bg-gradient-to-br from-gray-50/90 via-white/95 to-slate-50/90 dark:from-gray-950/90 dark:via-gray-900/95 dark:to-slate-950/90 border-gray-200/80 dark:border-gray-700/80"
                 }`}
               >
                 <div className="space-y-1">
                   <div
-                    className={`text-xs font-semibold uppercase tracking-wider ${
+                    className={`text-xs font-bold uppercase tracking-wider ${
                       isDemoMode
                         ? "text-blue-600 dark:text-blue-400"
                         : hasRealData
@@ -142,7 +175,7 @@ export function AssetAllocation({ assetAllocation, formatCurrency, isDemoMode, h
                   >
                     Total Value
                   </div>
-                  <div className="text-sm font-bold text-gray-900 dark:text-gray-100 leading-tight">
+                  <div className="text-lg font-bold text-gray-900 dark:text-gray-100 leading-tight">
                     {formatCurrency(totalValue)}
                   </div>
                   <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">

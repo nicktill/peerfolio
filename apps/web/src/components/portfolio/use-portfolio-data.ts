@@ -8,6 +8,7 @@ import { getConnectedAccounts, type ConnectedAccount } from "@web/lib/account-st
 export const usePortfolioData = (isDemoMode: boolean, hasConnectedAccounts: boolean, plaidData: any) => {
   const [connectedPlaidAccounts, setConnectedPlaidAccounts] = useState<ConnectedAccount[]>([])
   const [selectedTimeframe, setSelectedTimeframe] = useState("1Y")
+  const [chartKey, setChartKey] = useState(0)
 
   // Load connected accounts from localStorage
   useEffect(() => {
@@ -15,56 +16,74 @@ export const usePortfolioData = (isDemoMode: boolean, hasConnectedAccounts: bool
     setConnectedPlaidAccounts(stored)
   }, [hasConnectedAccounts])
 
-  // Generate realistic portfolio history based on current balance
-  const generatePortfolioHistory = (currentBalance: number, isRealData = false) => {
-    if (isRealData && currentBalance > 0) {
-      // For real data, create a more realistic growth pattern
-      const months = 24 // 2 years of data
-      const data = []
-      const startValue = currentBalance * 0.7 // Assume 30% growth over 2 years
-      const volatility = 0.15 // 15% volatility
+  // Force chart re-animation when switching modes or timeframes
+  useEffect(() => {
+    setChartKey((prev) => prev + 1)
+  }, [isDemoMode, hasConnectedAccounts, selectedTimeframe])
 
-      for (let i = 0; i < months; i++) {
-        const date = new Date()
-        date.setMonth(date.getMonth() - (months - i - 1))
+  // Generate realistic portfolio history based on actual account balances
+  const generateSandboxPortfolioHistory = (currentValue: number, accounts: any[], useAssetsOnly = false) => {
+    const months = 24
+    const data = []
 
-        // Create a general upward trend with realistic volatility
-        const trendGrowth = (i / months) * (currentBalance - startValue)
-        const randomVariation = (Math.random() - 0.5) * currentBalance * volatility
-        const monthlyValue = Math.max(startValue + trendGrowth + randomVariation, startValue * 0.5)
+    // Calculate realistic starting point based on account types
+    const investmentBalance = accounts
+      .filter((acc) => acc.category === "investments")
+      .reduce((sum, acc) => sum + Math.abs(acc.balance), 0)
 
-        data.push({
-          date: date.toISOString().slice(0, 7),
-          value: Math.round(monthlyValue),
-          month: date.toLocaleDateString("en-US", { month: "short", year: "2-digit" }),
-        })
-      }
+    const assetsBalance = accounts
+      .filter((acc) => acc.category === "assets")
+      .reduce((sum, acc) => sum + Math.abs(acc.balance), 0)
 
-      // Ensure the last value matches current balance
-      data[data.length - 1].value = currentBalance
-      return data
+    // For assets-only view, show realistic growth pattern
+    const startingValue = useAssetsOnly
+      ? currentValue * 0.7 // Assume 30% growth over 2 years for assets
+      : currentValue - investmentBalance * 0.3 // Net worth calculation
+
+    for (let i = 0; i < months; i++) {
+      const date = new Date()
+      date.setMonth(date.getMonth() - (months - i - 1))
+
+      // Progressive growth with realistic volatility
+      const progress = i / (months - 1)
+      const baseValue = startingValue + (currentValue - startingValue) * progress
+
+      // Add market-like volatility (more for investments, less for cash)
+      const investmentRatio = investmentBalance / currentValue
+      const volatilityFactor = useAssetsOnly ? investmentRatio * 0.1 : 0.05
+      const volatility = (Math.random() - 0.5) * currentValue * volatilityFactor
+
+      const monthValue = Math.max(baseValue + volatility, startingValue * 0.6)
+
+      data.push({
+        date: date.toISOString().slice(0, 7),
+        value: Math.round(monthValue),
+        month: date.toLocaleDateString("en-US", { month: "short", year: "2-digit" }),
+      })
     }
 
-    // Use demo data for demo mode
-    return portfolioData
+    // Ensure last value matches current value
+    data[data.length - 1].value = currentValue
+    return data
   }
 
-  // Transform Plaid data into our dashboard format
+  // Transform Plaid data into our dashboard format with better categorization
   const getAccountsData = () => {
     if (!isDemoMode && connectedPlaidAccounts.length > 0) {
-      // Use multiple connected accounts from localStorage
       const allAccounts: any[] = []
 
       connectedPlaidAccounts.forEach((plaidAccount) => {
         plaidAccount.accountsData.accounts?.forEach((account: any) => {
           const balance = account.balances?.current || account.balances?.available || 0
+          const accountType = account.subtype || account.type || "other"
+
           allAccounts.push({
             id: `${plaidAccount.institutionName}-${account.account_id}-${plaidAccount.id}-${Date.now()}`,
             name: `${plaidAccount.institutionName} - ${account.name}`,
-            type: account.subtype || account.type || "Investment",
+            type: accountType,
             subtype: account.subtype,
             balance: balance,
-            percentage: 0, // Will be calculated later
+            percentage: 0,
             logo: getInstitutionLogo(plaidAccount.institutionName),
             lastSync: new Date(plaidAccount.connectedAt).toLocaleString(),
             institutionName: plaidAccount.institutionName,
@@ -73,72 +92,124 @@ export const usePortfolioData = (isDemoMode: boolean, hasConnectedAccounts: bool
             plaidAccountId: account.account_id,
             mask: account.mask,
             officialName: account.official_name,
+            category: getAccountCategory(accountType),
           })
         })
       })
 
       return allAccounts
     } else if (plaidData && hasConnectedAccounts && !isDemoMode) {
-      // Use single Plaid data (legacy support)
       const institutionName = plaidData.item?.institution_name || plaidData.institution?.name || "Connected Bank"
 
       return (
         plaidData.accounts?.map((account: any, index: number) => {
           const balance = account.balances?.current || account.balances?.available || 0
+          const accountType = account.subtype || account.type || "other"
+
           return {
             id: `${account.account_id}-${institutionName}-${index}`,
             name: `${institutionName} - ${account.name}`,
-            type: account.subtype || account.type || "Investment",
+            type: accountType,
             subtype: account.subtype,
             balance: balance,
-            percentage: 0, // We'll calculate this after we have all balances
+            percentage: 0,
             logo: getInstitutionLogo(institutionName, plaidData.item?.institution_id),
             lastSync: "Just now",
-            holdings: account.holdings || [], // Will be populated if we have investment holdings
+            holdings: account.holdings || [],
             mask: account.mask,
             officialName: account.official_name,
             plaidAccountId: account.account_id,
+            category: getAccountCategory(accountType),
           }
         }) || []
       )
     } else {
-      // Use demo data
-      return connectedAccounts
+      return connectedAccounts.map((account) => ({
+        ...account,
+        category: getAccountCategory(account.type),
+      }))
     }
+  }
+
+  // Categorize accounts for better organization
+  const getAccountCategory = (accountType: string) => {
+    const type = accountType.toLowerCase()
+
+    if (
+      type.includes("credit") ||
+      type.includes("loan") ||
+      type.includes("mortgage") ||
+      type.includes("student") ||
+      type.includes("auto") ||
+      type.includes("personal")
+    ) {
+      return "liabilities"
+    }
+
+    if (
+      type.includes("investment") ||
+      type.includes("brokerage") ||
+      type.includes("401k") ||
+      type.includes("retirement") ||
+      type.includes("ira")
+    ) {
+      return "investments"
+    }
+
+    if (
+      type.includes("saving") ||
+      type.includes("checking") ||
+      type.includes("cash") ||
+      type.includes("money market")
+    ) {
+      return "assets"
+    }
+
+    if (type.includes("hsa") || type.includes("cd") || type.includes("certificate")) {
+      return "other"
+    }
+
+    return "other"
   }
 
   // Get asset allocation based on real data or demo
   const getAssetAllocationData = () => {
     if (!isDemoMode && (connectedPlaidAccounts.length > 0 || (plaidData && hasConnectedAccounts))) {
-      // For real Plaid data, create allocation based on actual account types
       const accounts = getAccountsData()
-      const totalBalance = accounts.reduce((sum: number, acc: any) => sum + Math.abs(acc.balance), 0)
+      const totalAssets = accounts
+        .filter((acc: any) => acc.category !== "liabilities")
+        .reduce((sum: number, acc: any) => sum + Math.abs(acc.balance), 0)
 
+      if (totalAssets === 0) return assetAllocation
 
-      if (totalBalance === 0) return assetAllocation // Fallback to demo data
-
-      // Group accounts by type
-      const typeGroups: { [key: string]: { value: number; accounts: any[] } } = {}
+      const categoryGroups: { [key: string]: { value: number; accounts: any[] } } = {}
 
       accounts.forEach((account: any) => {
-        const type = account.subtype || account.type || "Other"
-        const key = type.toLowerCase()
+        if (account.category === "liabilities") return
 
-        if (!typeGroups[key]) {
-          typeGroups[key] = { value: 0, accounts: [] }
+        const category = account.category
+        if (!categoryGroups[category]) {
+          categoryGroups[category] = { value: 0, accounts: [] }
         }
-        typeGroups[key].value += Math.abs(account.balance)
-        typeGroups[key].accounts.push(account)
+        categoryGroups[category].value += Math.abs(account.balance)
+        categoryGroups[category].accounts.push(account)
       })
 
-      // Convert to asset allocation format
-      const colors = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#f97316"]
+      const colors = ["#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#06b6d4", "#f97316"]
+      const categoryNames = {
+        investments: "Investment Accounts",
+        assets: "Cash & Savings",
+        other: "Other Assets",
+      }
+
       let colorIndex = 0
 
-      return Object.entries(typeGroups)
-        .map(([type, data]) => {
-          const percentage = (data.value / totalBalance) * 100
-          const displayName = type.charAt(0).toUpperCase() + type.slice(1).replace("_", " ")
+      return Object.entries(categoryGroups)
+        .map(([category, data]) => {
+          const percentage = (data.value / totalAssets) * 100
+          const displayName =
+            categoryNames[category as keyof typeof categoryNames] ||
+            category.charAt(0).toUpperCase() + category.slice(1)
 
           return {
             name: displayName,
@@ -151,22 +222,25 @@ export const usePortfolioData = (isDemoMode: boolean, hasConnectedAccounts: bool
         .sort((a, b) => b.value - a.value)
     }
 
-    // Use demo data for demo mode
     return assetAllocation
   }
 
-  // Get portfolio chart data - use current balance for real data
-  const getPortfolioData = (totalBalance: number) => {
+  // Get portfolio chart data
+  const getPortfolioData = (netWorth: number, totalAssets: number, accounts: any[]) => {
     const isRealData = !isDemoMode && (connectedPlaidAccounts.length > 0 || (plaidData && hasConnectedAccounts))
-    const baseData = generatePortfolioHistory(totalBalance, isRealData)
 
-    // Generate appropriate short-term data for 1D and 1W
+    // Use assets for chart if net worth is negative
+    const useAssetsOnly = netWorth < 0
+    const chartValue = useAssetsOnly ? totalAssets : netWorth
+
+    // Use different data generation for sandbox vs demo
+    const baseData = isRealData ? generateSandboxPortfolioHistory(chartValue, accounts, useAssetsOnly) : portfolioData
+
     const generateShortTermData = (timeframe: string) => {
-      const currentValue = totalBalance || baseData[baseData.length - 1]?.value || 50000
-      const baseVariation = currentValue * (isRealData ? 0.015 : 0.02) // Less volatility for real data
+      const currentValue = chartValue || baseData[baseData.length - 1]?.value || 50000
+      const baseVariation = currentValue * (isRealData ? 0.008 : 0.02)
 
       if (timeframe === "1D") {
-        // Generate hourly data points for 1 day (24 hours)
         const hourlyData = []
         for (let i = 23; i >= 0; i--) {
           const hour = new Date()
@@ -174,7 +248,7 @@ export const usePortfolioData = (isDemoMode: boolean, hasConnectedAccounts: bool
           const variation = (Math.random() - 0.5) * baseVariation
           hourlyData.push({
             date: hour.toISOString(),
-            value: Math.round(currentValue + variation),
+            value: Math.round(Math.max(currentValue + variation, currentValue * 0.95)),
             month: hour.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
           })
         }
@@ -182,7 +256,6 @@ export const usePortfolioData = (isDemoMode: boolean, hasConnectedAccounts: bool
       }
 
       if (timeframe === "1W") {
-        // Generate daily data points for 1 week (7 days)
         const dailyData = []
         for (let i = 6; i >= 0; i--) {
           const day = new Date()
@@ -190,7 +263,7 @@ export const usePortfolioData = (isDemoMode: boolean, hasConnectedAccounts: bool
           const variation = (Math.random() - 0.5) * baseVariation * 2
           dailyData.push({
             date: day.toISOString().slice(0, 10),
-            value: Math.round(currentValue + variation),
+            value: Math.round(Math.max(currentValue + variation, currentValue * 0.9)),
             month: day.toLocaleDateString("en-US", { weekday: "short" }),
           })
         }
@@ -200,7 +273,6 @@ export const usePortfolioData = (isDemoMode: boolean, hasConnectedAccounts: bool
       return baseData
     }
 
-    // Filter data based on selected timeframe
     const filterData = (timeframe: string) => {
       switch (timeframe) {
         case "1D":
@@ -221,45 +293,39 @@ export const usePortfolioData = (isDemoMode: boolean, hasConnectedAccounts: bool
       }
     }
 
-    return filterData(selectedTimeframe)
+    return {
+      data: filterData(selectedTimeframe),
+      useAssetsOnly,
+      chartValue,
+    }
   }
 
   const accountsData = getAccountsData()
   const balanceSummary = getBalanceSummary(accountsData)
-  const totalBalance = balanceSummary.portfolioValue // Use net portfolio value for display
-  const totalAssetsOnly = balanceSummary.portfolioAssetsValue // Use assets only for percentage calculations
+  const totalBalance = balanceSummary.netWorth
+  const totalAssetsOnly = balanceSummary.totalAssets
 
-  // Update percentages and add portfolio inclusion flag
   const accountsWithPercentages = accountsData.map((account: any) => {
-    const isIncludedInPortfolio = account.type
-      ? account.type.toLowerCase().includes("investment") ||
-        account.type.toLowerCase().includes("saving") ||
-        account.type.toLowerCase().includes("checking") ||
-        account.type.toLowerCase().includes("401k") ||
-        account.type.toLowerCase().includes("retirement") ||
-        account.type.toLowerCase().includes("hsa") ||
-        account.type.toLowerCase().includes("cash management") ||
-        account.type.toLowerCase().includes("money market") ||
-        account.type.toLowerCase().includes("cd") ||
-        account.type.toLowerCase().includes("certificate")
-      : true
-
-    const percentage = isIncludedInPortfolio && totalAssetsOnly > 0 ? (account.balance / totalAssetsOnly) * 100 : 0 // Use assets only for percentages
+    const isLiability = account.category === "liabilities"
+    const isIncludedInPortfolio = !isLiability
+    const percentage =
+      isIncludedInPortfolio && totalAssetsOnly > 0 ? (Math.abs(account.balance) / totalAssetsOnly) * 100 : 0
 
     return {
       ...account,
       percentage,
       isIncludedInPortfolio,
-      isLiability:
-        !isIncludedInPortfolio &&
-        (account.type.toLowerCase().includes("credit") ||
-          account.type.toLowerCase().includes("loan") ||
-          account.type.toLowerCase().includes("mortgage")),
+      isLiability: isLiability,
+      isAsset: !isLiability,
     }
   })
 
-  const chartData = getPortfolioData(totalBalance)
-  const totalGain = totalBalance - chartData[0].value
+  const portfolioChartData = getPortfolioData(totalBalance, totalAssetsOnly, accountsData)
+  const chartData = portfolioChartData.data
+  const useAssetsOnlyForChart = portfolioChartData.useAssetsOnly
+  const chartDisplayValue = portfolioChartData.chartValue
+
+  const totalGain = chartDisplayValue - chartData[0].value
   const totalGainPercentage = chartData[0].value > 0 ? (totalGain / chartData[0].value) * 100 : 0
   const todaysChange = calculateTodaysChange(chartData)
   const topHoldings = getTopHoldings(isDemoMode, plaidData, connectedPlaidAccounts, accountsWithPercentages)
@@ -270,6 +336,7 @@ export const usePortfolioData = (isDemoMode: boolean, hasConnectedAccounts: bool
     balanceSummary,
     totalBalance,
     chartData,
+    chartKey,
     totalGain,
     totalGainPercentage,
     todaysChange,
@@ -279,5 +346,7 @@ export const usePortfolioData = (isDemoMode: boolean, hasConnectedAccounts: bool
     setSelectedTimeframe,
     connectedPlaidAccounts,
     setConnectedPlaidAccounts,
+    useAssetsOnlyForChart,
+    chartDisplayValue,
   }
 }

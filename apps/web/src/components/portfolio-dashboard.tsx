@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import { useState, useEffect } from "react"
 import { removeConnectedAccount, getConnectedAccounts } from "@web/lib/account-storage"
 
 // Import modular components
@@ -16,18 +16,18 @@ import { PlaidDebugPanel } from "./portfolio/plaid-debug-panel"
 
 // Import utilities and data
 import { usePortfolioData } from "./portfolio/use-portfolio-data"
-import { 
-  getAccountTypeIcon, 
-  formatAccountName, 
+import {
+  getAccountTypeIcon,
+  formatAccountName,
   getInstitutionDisplayName,
-  getStockIcon
+  getStockIcon,
 } from "./portfolio/portfolio-utils"
 
 interface PlaidMetadata {
   institution?: {
-    name?: string;
-    institution_id?: string;
-  };
+    name?: string
+    institution_id?: string
+  }
 }
 
 interface PortfolioDashboardProps {
@@ -43,19 +43,18 @@ interface PortfolioDashboardProps {
   setBalanceVisible?: (visible: boolean) => void
 }
 
-export function PortfolioDashboard({ 
-  hasConnectedAccounts, 
-  onConnectAccount, 
-  plaidData, 
+export function PortfolioDashboard({
+  hasConnectedAccounts,
+  onConnectAccount,
+  plaidData,
   isConnecting = false,
   onRemoveAccount,
   onExitDashboard,
   onDemoConnect,
   hasExitedDashboard = false,
   balanceVisible: externalBalanceVisible,
-  setBalanceVisible: externalSetBalanceVisible
+  setBalanceVisible: externalSetBalanceVisible,
 }: PortfolioDashboardProps) {
-  // Removed: const router = useRouter() - wasn't being used
   const [localBalanceVisible, setLocalBalanceVisible] = useState(true)
   const [isDemoMode, setIsDemoMode] = useState(false)
 
@@ -65,8 +64,8 @@ export function PortfolioDashboard({
 
   // Custom CSS animations
   useEffect(() => {
-    if (typeof document !== 'undefined') {
-      const style = document.createElement('style')
+    if (typeof document !== "undefined") {
+      const style = document.createElement("style")
       style.textContent = `
         @keyframes expandWidth {
           from { width: 0%; }
@@ -136,14 +135,12 @@ export function PortfolioDashboard({
         }
       `
       document.head.appendChild(style)
-      
+
       return () => {
         document.head.removeChild(style)
       }
     }
   }, [])
-
-  // Removed: isDark, setIsDark, toggleDarkMode - weren't being used
 
   // Use the portfolio data hook
   const {
@@ -159,20 +156,22 @@ export function PortfolioDashboard({
     selectedTimeframe,
     setSelectedTimeframe,
     connectedPlaidAccounts,
-    setConnectedPlaidAccounts
+    setConnectedPlaidAccounts,
+    chartKey,
+    useAssetsOnlyForChart,
   } = usePortfolioData(isDemoMode, hasConnectedAccounts, plaidData)
 
   // Load connected accounts from localStorage on mount and when hasConnectedAccounts changes
   useEffect(() => {
     const stored = getConnectedAccounts()
     setConnectedPlaidAccounts(stored)
-    
+
     // Check if user just connected an account and should see connected accounts view
-    if (typeof window !== 'undefined') {
-      const justConnected = localStorage.getItem('lastConnectedAccount') === 'true'
+    if (typeof window !== "undefined") {
+      const justConnected = localStorage.getItem("lastConnectedAccount") === "true"
       if (justConnected && stored.length > 0) {
         // Clear the flag and ensure user sees connected accounts (not demo mode)
-        localStorage.removeItem('lastConnectedAccount')
+        localStorage.removeItem("lastConnectedAccount")
         setIsDemoMode(false) // Ensure we're not in demo mode
       }
     }
@@ -185,7 +184,7 @@ export function PortfolioDashboard({
   const handleRemoveAccount = (accountId: string) => {
     removeConnectedAccount(accountId)
     setConnectedPlaidAccounts(getConnectedAccounts())
-    
+
     // Notify parent component if provided
     if (onRemoveAccount) {
       onRemoveAccount(accountId)
@@ -215,8 +214,8 @@ export function PortfolioDashboard({
           // Ensure clean demo mode state
           setIsDemoMode(true)
           // Clear any exit flags to ensure user can see the demo
-          if (typeof window !== 'undefined') {
-            localStorage.removeItem('hasExitedDashboard')
+          if (typeof window !== "undefined") {
+            localStorage.removeItem("hasExitedDashboard")
           }
           // Call demo connect handler if provided
           if (onDemoConnect) onDemoConnect()
@@ -229,10 +228,7 @@ export function PortfolioDashboard({
 
   return (
     <div className="space-y-8 dark:text-foreground text-gray-900 transition-colors duration-300">
-      <StatusBanners 
-        isDemoMode={isDemoMode} 
-        hasConnectedAccounts={hasConnectedAccounts}
-      />
+      <StatusBanners isDemoMode={isDemoMode} hasConnectedAccounts={hasConnectedAccounts} />
 
       <PortfolioHeader
         isDemoMode={isDemoMode}
@@ -246,8 +242,8 @@ export function PortfolioDashboard({
           // Reset demo mode
           setIsDemoMode(false)
           // Clear connected accounts from localStorage to reset dashboard state
-          if (typeof window !== 'undefined') {
-            localStorage.removeItem('connectedAccounts')
+          if (typeof window !== "undefined") {
+            localStorage.removeItem("connectedAccounts")
           }
           // Reset local state
           setConnectedPlaidAccounts([])
@@ -270,17 +266,21 @@ export function PortfolioDashboard({
         isDemoMode={isDemoMode}
         hasRealData={hasConnectedAccounts || connectedPlaidAccounts.length > 0}
         formatPercentage={formatPercentage}
+        selectedTimeframe={selectedTimeframe}
+        chartData={chartData}
       />
 
       {/* Portfolio Performance Chart with Top Holdings */}
       <div className="grid gap-6 lg:grid-cols-3">
         <PortfolioChart
           chartData={chartData}
+          chartKey={chartKey}
           selectedTimeframe={selectedTimeframe}
           setSelectedTimeframe={setSelectedTimeframe}
           formatCurrency={formatCurrency}
           isDemoMode={isDemoMode}
           hasRealData={hasConnectedAccounts || connectedPlaidAccounts.length > 0}
+          useAssetsOnlyForChart={useAssetsOnlyForChart}
         />
 
         <TopHoldings
