@@ -57,6 +57,28 @@ export function PortfolioChart({
 
   const { trend, change, changePercent } = calculateTrend()
 
+  // Calculate dynamic Y-axis domain based on data range
+  const calculateYAxisDomain = () => {
+    if (!chartData || chartData.length === 0) return ["auto", "auto"]
+
+    const values = chartData.map((d) => d.value)
+    const minValue = Math.min(...values)
+    const maxValue = Math.max(...values)
+    const range = maxValue - minValue
+
+    // If range is very small (flat data), add padding to show variation
+    if (range < maxValue * 0.01) {
+      const padding = maxValue * 0.02 // 2% padding
+      return [Math.max(0, minValue - padding), maxValue + padding]
+    }
+
+    // For normal ranges, add 5% padding on each side
+    const padding = range * 0.05
+    return [Math.max(0, minValue - padding), maxValue + padding]
+  }
+
+  const yAxisDomain = calculateYAxisDomain()
+
   // Get timeframe label for display
   const getTimeframeLabel = () => {
     const labels = {
@@ -65,6 +87,7 @@ export function PortfolioChart({
       "1M": "1 month",
       "3M": "3 months",
       "6M": "6 months",
+      "1Y": "1 year",
       ALL: "all time",
     }
     return labels[selectedTimeframe as keyof typeof labels] || "period"
@@ -272,7 +295,16 @@ export function PortfolioChart({
                 tickLine={false}
                 axisLine={false}
                 className="text-xs"
-                tickFormatter={balanceVisible ? (value) => `$${(value / 1000).toFixed(0)}k` : () => ""}
+                domain={yAxisDomain}
+                tickFormatter={
+                  balanceVisible
+                    ? (value) => {
+                        if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`
+                        if (value >= 1000) return `$${(value / 1000).toFixed(0)}k`
+                        return `$${value.toFixed(0)}`
+                      }
+                    : () => ""
+                }
                 ticks={balanceVisible ? undefined : []}
               />
 
