@@ -49,7 +49,6 @@ export function PortfolioMetrics({
   const formatCurrencyWithHide = (value: number, forceHide = false) => {
     // Get the balance visibility from props - if external control is provided, use it
     const shouldHide = externalBalanceVisible !== undefined ? !externalBalanceVisible : forceHide
-
     if (shouldHide) return "••••••"
     return new Intl.NumberFormat("en-US", {
       style: "currency",
@@ -57,6 +56,13 @@ export function PortfolioMetrics({
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(value)
+  }
+
+  // Helper: always show percentage, even if hidden
+  const formatPercentageAlways = (value: number) => {
+    if (typeof value !== "number" || isNaN(value)) return "+0.0%"
+    const sign = value > 0 ? "+" : value < 0 ? "" : ""
+    return `${sign}${value.toFixed(1)}%`
   }
 
   // Calculate percentage using EXACT same logic as the chart component
@@ -254,12 +260,11 @@ export function PortfolioMetrics({
         </CardHeader>
         <CardContent className="pt-0 p-4 sm:p-6">
           <div className="space-y-3">
-            {/* Update the main value display to use the new function */}
+            {/* Update the main value display to use the new function and always show percentage */}
             <div className="text-3xl font-bold text-gray-900 dark:text-gray-100">
               {formatCurrencyWithHide(displayValues.value)}
             </div>
-
-            {/* Show percentage gain/loss */}
+            {/* Show percentage gain/loss - always visible */}
             <div className="flex items-center gap-2">
               {displayValues.percentage >= 0 ? (
                 <TrendingUp className="w-4 h-4 text-emerald-500" />
@@ -273,7 +278,7 @@ export function PortfolioMetrics({
                     : "text-red-600 dark:text-red-400"
                 }`}
               >
-                {formatPercentage(displayValues.percentage)} {getTimeframeLabel()}
+                {formatPercentageAlways(displayValues.percentage)} {getTimeframeLabel()}
               </span>
             </div>
 
@@ -296,14 +301,12 @@ export function PortfolioMetrics({
             >
               <div>
                 <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">Assets</div>
-                {/* Update the Assets and Liabilities breakdown to use the new function */}
                 <div className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
                   {formatCurrencyWithHide(balanceSummary.totalAssets)}
                 </div>
               </div>
               <div>
                 <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">Liabilities</div>
-                {/* Update the Assets and Liabilities breakdown to use the new function */}
                 <div className="text-sm font-semibold text-red-600 dark:text-red-400">
                   {formatCurrencyWithHide(balanceSummary.totalLiabilities)}
                 </div>

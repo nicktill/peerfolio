@@ -178,7 +178,7 @@ function DashboardContent() {
 
       {/* Main Content Container */}
       <div
-        className={`relative z-10 flex flex-col min-h-screen bg-gray-50/80 dark:bg-background/80 backdrop-blur-sm transition-opacity duration-500 ease-in-out ${
+        className={`relative z-10 flex flex-col min-h-screen bg-gray-50/40 dark:bg-background/40 transition-opacity duration-500 ease-in-out ${
           isVisible ? "opacity-100" : "opacity-0"
         }`}
       >

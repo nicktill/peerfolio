@@ -272,7 +272,8 @@ export function PortfolioChart({
                 tickLine={false}
                 axisLine={false}
                 className="text-xs"
-                tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                tickFormatter={balanceVisible ? (value) => `$${(value / 1000).toFixed(0)}k` : () => ""}
+                ticks={balanceVisible ? undefined : []}
               />
 
               {/* Update the ChartTooltip content to respect balance visibility */}
@@ -284,10 +285,11 @@ export function PortfolioChart({
                 }}
                 content={
                   <ChartTooltipContent
-                    formatter={(value) => [
-                      balanceVisible ? formatCurrency(value as number) : "••••••",
-                      useAssetsOnlyForChart ? "Asset Value" : "Portfolio Value",
-                    ]}
+                    formatter={(value) =>
+                      balanceVisible
+                        ? [formatCurrency(value as number), useAssetsOnlyForChart ? "Asset Value" : "Portfolio Value"]
+                        : [null, useAssetsOnlyForChart ? "Asset Value" : "Portfolio Value"]
+                    }
                     className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-lg border border-gray-200/60 dark:border-gray-700/60 shadow-xl rounded-xl"
                   />
                 }
@@ -301,29 +303,21 @@ export function PortfolioChart({
                 strokeDasharray={chartStyle.strokeDasharray}
                 fillOpacity={1}
                 fill="url(#fillValue)"
-                dot={
-                  chartStyle.showDots
-                    ? {
-                        fill: isDemoMode ? "#3b82f6" : hasRealData ? "#10b981" : "#6b7280",
-                        stroke: "#ffffff",
-                        strokeWidth: 2,
-                        r: chartStyle.dotRadius,
-                        filter: "url(#dotShadow)",
-                      }
-                    : false
-                }
-                activeDot={
-                  chartStyle.showDots
-                    ? {
-                        r: chartStyle.dotRadius + 2,
-                        stroke: isDemoMode ? "#3b82f6" : hasRealData ? "#10b981" : "#6b7280",
-                        strokeWidth: 3,
-                        fill: "#ffffff",
-                        filter: "url(#dotShadow)",
-                        className: "transition-all duration-200 hover:scale-110",
-                      }
-                    : false
-                }
+                dot={balanceVisible && chartStyle.showDots ? {
+                  fill: isDemoMode ? "#3b82f6" : hasRealData ? "#10b981" : "#6b7280",
+                  stroke: "#ffffff",
+                  strokeWidth: 2,
+                  r: chartStyle.dotRadius,
+                  filter: "url(#dotShadow)",
+                } : false}
+                activeDot={balanceVisible && chartStyle.showDots ? {
+                  r: chartStyle.dotRadius + 2,
+                  stroke: isDemoMode ? "#3b82f6" : hasRealData ? "#10b981" : "#6b7280",
+                  strokeWidth: 3,
+                  fill: "#ffffff",
+                  filter: "url(#dotShadow)",
+                  className: "transition-all duration-200 hover:scale-110",
+                } : false}
                 animationDuration={chartStyle.animationDuration}
                 animationEasing="ease-out"
                 connectNulls={false}
