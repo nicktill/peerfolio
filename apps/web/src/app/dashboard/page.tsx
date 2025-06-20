@@ -10,8 +10,15 @@ import { Button } from "@web/components/ui/button"
 import { addConnectedAccount, getConnectedAccounts, type ConnectedAccount } from "@web/lib/account-storage"
 import { useTheme } from "@web/components/theme-provider"
 import { ThemeProvider } from "@web/components/theme-provider"
-import { PlaidLink } from "@web/components/plaid-link"
-import { Eye, EyeOff, Plus } from "lucide-react"
+// Removed unused imports: PlaidLink, Eye, EyeOff, Plus
+
+interface PlaidMetadata {
+  institution?: {
+    name?: string;
+    institution_id?: string;
+  };
+  // Add other properties as needed
+}
 
 function DashboardContent() {  
   const { data: session, status } = useSession()
@@ -57,7 +64,7 @@ function DashboardContent() {
     }
   }, [status, session])
 
-  const handleConnectAccount = async (publicToken: string, metadata: any) => {
+  const handleConnectAccount = async (publicToken: string, metadata: PlaidMetadata) => {
     console.log("🔄 Starting Plaid account connection:", { publicToken, metadata })
     setIsConnecting(true)
     
@@ -133,7 +140,7 @@ function DashboardContent() {
     }
   }
 
-  const handleRemoveAccount = (accountId: string) => {
+  const handleRemoveAccount = (_accountId: string) => {
     const remainingAccounts = getConnectedAccounts()
     if (remainingAccounts.length === 0) {
       setHasConnectedAccounts(false)

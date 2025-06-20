@@ -5,6 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@web/
 import { TrendingUp, TrendingDown, DollarSign, RefreshCw } from "lucide-react"
 
 interface PortfolioMetricsProps {
+  isDemoMode?: boolean
+  hasRealData?: boolean
   totalBalance: number
   totalGain: number
   totalGainPercentage: number
@@ -20,6 +22,8 @@ interface PortfolioMetricsProps {
 }
 
 export function PortfolioMetrics({
+  isDemoMode,
+  hasRealData,
   totalBalance,
   totalGain,
   totalGainPercentage,

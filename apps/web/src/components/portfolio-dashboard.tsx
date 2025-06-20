@@ -1,7 +1,6 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
 import { removeConnectedAccount, getConnectedAccounts } from "@web/lib/account-storage"
 
 // Import modular components
@@ -24,9 +23,16 @@ import {
   getStockIcon
 } from "./portfolio/portfolio-utils"
 
+interface PlaidMetadata {
+  institution?: {
+    name?: string;
+    institution_id?: string;
+  };
+}
+
 interface PortfolioDashboardProps {
   hasConnectedAccounts: boolean
-  onConnectAccount: (publicToken: string, metadata: any) => void
+  onConnectAccount: (publicToken: string, metadata: PlaidMetadata) => void
   plaidData?: any
   isConnecting?: boolean
   onRemoveAccount?: (accountId: string) => void
@@ -49,7 +55,7 @@ export function PortfolioDashboard({
   balanceVisible: externalBalanceVisible,
   setBalanceVisible: externalSetBalanceVisible
 }: PortfolioDashboardProps) {
-  const router = useRouter()
+  // Removed: const router = useRouter() - wasn't being used
   const [localBalanceVisible, setLocalBalanceVisible] = useState(true)
   const [isDemoMode, setIsDemoMode] = useState(false)
 
@@ -137,32 +143,7 @@ export function PortfolioDashboard({
     }
   }, [])
 
-  // Dark mode toggle logic - default to light mode for dashboard
-  const [isDark, setIsDark] = useState(false)
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      // Only use dark mode if explicitly set in localStorage, ignore system preference for dashboard
-      const darkPref = localStorage.getItem('theme') === 'dark'
-      setIsDark(darkPref)
-      document.documentElement.classList.toggle('dark', darkPref)
-      
-      // Set light mode as default if no theme preference is stored
-      if (!localStorage.getItem('theme')) {
-        localStorage.setItem('theme', 'light')
-      }
-    }
-  }, [])
-
-  const toggleDarkMode = () => {
-    setIsDark((prev) => {
-      const next = !prev
-      if (typeof window !== 'undefined') {
-        document.documentElement.classList.toggle('dark', next)
-        localStorage.setItem('theme', next ? 'dark' : 'light')
-      }
-      return next
-    })
-  }
+  // Removed: isDark, setIsDark, toggleDarkMode - weren't being used
 
   // Use the portfolio data hook
   const {
@@ -286,8 +267,8 @@ export function PortfolioDashboard({
         accountsCount={accountsWithPercentages.length}
         balanceSummary={balanceSummary}
         formatCurrency={formatCurrency}
-          isDemoMode={isDemoMode}
-          hasRealData={hasConnectedAccounts || connectedPlaidAccounts.length > 0}
+        isDemoMode={isDemoMode}
+        hasRealData={hasConnectedAccounts || connectedPlaidAccounts.length > 0}
         formatPercentage={formatPercentage}
       />
 
@@ -332,7 +313,6 @@ export function PortfolioDashboard({
           getAccountTypeIcon={getAccountTypeIcon}
           handleRemoveAccount={handleRemoveAccount}
           onConnectAccount={onConnectAccount}
-          isDemoMode={isDemoMode}
         />
       </div>
 
