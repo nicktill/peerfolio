@@ -5,16 +5,16 @@ import { portfolioData, connectedAccounts, assetAllocation } from "./demo-data"
 import { getBalanceSummary, calculateTodaysChange, getTopHoldings, getInstitutionLogo } from "./portfolio-utils"
 import { getConnectedAccounts, type ConnectedAccount } from "@web/lib/account-storage"
 
-export const usePortfolioData = (isDemoMode: boolean, hasConnectedAccounts: boolean, plaidData: any) => {
-  const [connectedPlaidAccounts, setConnectedPlaidAccounts] = useState<ConnectedAccount[]>([])
-  const [selectedTimeframe, setSelectedTimeframe] = useState("1Y")
+export const usePortfolioData = (isDemoMode: boolean, hasConnectedAccounts: boolean, plaidData: any, refreshTrigger = 0) => {  const [selectedTimeframe, setSelectedTimeframe] = useState("1Y")
   const [chartKey, setChartKey] = useState(0)
+  const [connectedPlaidAccounts, setConnectedPlaidAccounts] = useState<ConnectedAccount[]>([])
+  
 
   // Load connected accounts from localStorage
   useEffect(() => {
-    const stored = getConnectedAccounts()
-    setConnectedPlaidAccounts(stored)
-  }, [hasConnectedAccounts])
+  const stored = getConnectedAccounts()
+  setConnectedPlaidAccounts(stored)
+}, [hasConnectedAccounts, refreshTrigger])
 
   // Force chart re-animation when switching modes or timeframes
   useEffect(() => {

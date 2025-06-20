@@ -57,6 +57,7 @@ export function PortfolioDashboard({
 }: PortfolioDashboardProps) {
   const [localBalanceVisible, setLocalBalanceVisible] = useState(true)
   const [isDemoMode, setIsDemoMode] = useState(false)
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   // Use external balance visibility state if provided, otherwise use local state
   const balanceVisible = externalBalanceVisible !== undefined ? externalBalanceVisible : localBalanceVisible
@@ -159,7 +160,7 @@ export function PortfolioDashboard({
     setConnectedPlaidAccounts,
     chartKey,
     useAssetsOnlyForChart,
-  } = usePortfolioData(isDemoMode, hasConnectedAccounts, plaidData)
+  } = usePortfolioData(isDemoMode, hasConnectedAccounts, plaidData, refreshTrigger)
 
   // Load connected accounts from localStorage on mount and when hasConnectedAccounts changes
   useEffect(() => {
@@ -175,7 +176,7 @@ export function PortfolioDashboard({
         setIsDemoMode(false) // Ensure we're not in demo mode
       }
     }
-  }, [hasConnectedAccounts, hasExitedDashboard, setConnectedPlaidAccounts])
+  }, [hasConnectedAccounts, hasExitedDashboard, setConnectedPlaidAccounts, refreshTrigger])
 
   // Show dashboard if user has connected accounts OR is in demo mode, BUT NOT if they've explicitly exited
   // AND they must actually have accounts or be in demo mode
@@ -186,11 +187,34 @@ export function PortfolioDashboard({
   const handleRemoveAccount = (accountId: string) => {
     removeConnectedAccount(accountId)
     setConnectedPlaidAccounts(getConnectedAccounts())
+    setRefreshTrigger((prev) => prev + 1)
 
     // Notify parent component if provided
     if (onRemoveAccount) {
       onRemoveAccount(accountId)
     }
+  }
+
+  // Enhanced account connection handler that refreshes data
+  const handleConnectAccount = async (publicToken: string, metadata: PlaidMetadata) => {
+    console.log("🔄 Starting enhanced account connection handler")
+
+    // Call the original connection handler
+    await onConnectAccount(publicToken, metadata)
+
+    // Force refresh of connected accounts data
+    setTimeout(() => {
+      console.log("🔄 Refreshing connected accounts data")
+      const updatedAccounts = getConnectedAccounts()
+      setConnectedPlaidAccounts(updatedAccounts)
+      setRefreshTrigger((prev) => prev + 1)
+
+      // Switch to connected view if we have accounts
+      if (updatedAccounts.length > 0) {
+        console.log("✅ Switching to connected view")
+        setIsDemoMode(false)
+      }
+    }, 1000) // Slightly longer delay to ensure data is saved
   }
 
   const formatCurrency = (value: number) => {
@@ -222,7 +246,7 @@ export function PortfolioDashboard({
           // Call demo connect handler if provided
           if (onDemoConnect) onDemoConnect()
         }}
-        onConnectAccount={onConnectAccount}
+        onConnectAccount={handleConnectAccount}
         getConnectedAccounts={getConnectedAccounts}
       />
     )
@@ -239,7 +263,7 @@ export function PortfolioDashboard({
         balanceVisible={balanceVisible}
         setBalanceVisible={setBalanceVisible}
         setIsDemoMode={setIsDemoMode}
-        onConnectAccount={onConnectAccount}
+        onConnectAccount={handleConnectAccount}
         onExitDashboard={() => {
           // Reset demo mode
           setIsDemoMode(false)
@@ -319,7 +343,7 @@ export function PortfolioDashboard({
           formatAccountName={formatAccountName}
           getAccountTypeIcon={getAccountTypeIcon}
           handleRemoveAccount={handleRemoveAccount}
-          onConnectAccount={onConnectAccount}
+          onConnectAccount={handleConnectAccount}
         />
       </div>
 
