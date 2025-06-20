@@ -349,12 +349,31 @@ export const usePortfolioData = (isDemoMode: boolean, hasConnectedAccounts: bool
   const topHoldings = getTopHoldings(isDemoMode, plaidData, connectedPlaidAccounts, accountsWithPercentages)
   const assetAllocationData = getAssetAllocationData()
 
+  // Add this function to calculate chart trend data
+  const getChartTrendData = (chartData: any[], selectedTimeframe: string, currentValue: number) => {
+    if (!chartData || chartData.length < 2) {
+      return { value: 0, percentage: 0, timeframe: selectedTimeframe }
+    }
+
+    const firstValue = chartData[0].value
+    const lastValue = chartData[chartData.length - 1].value
+    const change = lastValue - firstValue
+    const changePercent = firstValue > 0 ? (change / firstValue) * 100 : 0
+
+    return {
+      value: change,
+      percentage: changePercent,
+      timeframe: selectedTimeframe,
+    }
+  }
+
+  // Update the return statement to include chartTrendData
   return {
     accountsWithPercentages,
     balanceSummary,
     totalBalance,
     chartData,
-    fullHistoricalData, // Add this for all-time calculations
+    fullHistoricalData,
     chartKey,
     totalGain,
     totalGainPercentage,
@@ -367,5 +386,7 @@ export const usePortfolioData = (isDemoMode: boolean, hasConnectedAccounts: bool
     setConnectedPlaidAccounts,
     useAssetsOnlyForChart,
     chartDisplayValue,
+    // Add this new field for consistent calculations
+    chartTrendData: getChartTrendData(chartData, selectedTimeframe, chartDisplayValue),
   }
 }

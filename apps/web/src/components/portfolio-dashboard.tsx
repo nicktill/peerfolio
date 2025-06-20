@@ -268,6 +268,7 @@ export function PortfolioDashboard({
         formatPercentage={formatPercentage}
         selectedTimeframe={selectedTimeframe}
         chartData={chartData}
+        connectedPlaidAccounts={connectedPlaidAccounts}
       />
 
       {/* Portfolio Performance Chart with Top Holdings */}
