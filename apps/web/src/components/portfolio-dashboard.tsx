@@ -689,33 +689,30 @@ export function PortfolioDashboard({
   if (!showDashboard) {
     return (
       <div className="space-y-8">
-        {/* Plaid Sandbox Banner */}
-        <div className="bg-gradient-to-r from-amber-50 via-orange-50 to-yellow-50 dark:from-amber-950/40 dark:via-orange-950/30 dark:to-yellow-950/40 border border-amber-200 dark:border-amber-800/50 rounded-xl p-5 backdrop-blur-sm shadow-lg dark:shadow-amber-900/10 hover:shadow-xl transition-all duration-300">
+        {/* MVP Beta Testing Banner */}
+        <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 dark:from-blue-950/40 dark:via-indigo-950/30 dark:to-purple-950/40 border border-blue-200 dark:border-blue-800/50 rounded-xl p-5 backdrop-blur-sm shadow-lg dark:shadow-blue-900/10 hover:shadow-xl transition-all duration-300">
           <div className="flex items-start gap-4">
             <div className="flex-shrink-0">
-              <div className="w-8 h-8 bg-amber-100 dark:bg-amber-900/50 rounded-full flex items-center justify-center">
-                <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+              <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/50 rounded-full flex items-center justify-center">
+                <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zm-2 5a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
               </div>
             </div>
             <div className="flex-1">
-              <h3 className="text-base font-semibold text-amber-900 dark:text-amber-100 mb-2">
-                🚧 MVP Phase - Sandbox Environment Active
+              <h3 className="text-sm font-semibold text-blue-800 dark:text-blue-200 mb-2 flex items-center gap-2">
+                🚀 Welcome to Peerfolio MVP
+                <span className="bg-blue-100/80 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-medium px-2 py-1 rounded-full">
+                  Beta Testing
+                </span>
               </h3>
-              <p className="text-sm text-amber-700 dark:text-amber-300 leading-relaxed mb-3">
-                Peerfolio is currently in its MVP phase using Plaid's sandbox environment with mock data. 
-                We're awaiting approval to connect with real financial institutions. 
-                For now, explore the full interface and features with sample portfolio data to see how everything will work once we go live.
-              </p>
-              <div className="flex flex-wrap gap-2 text-xs">
-                <span className="inline-flex items-center gap-1 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 px-2 py-1 rounded-full font-medium">
-                  🚧 MVP Testing
-                </span>
-                <span className="inline-flex items-center gap-1 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 px-2 py-1 rounded-full font-medium">
-                  🏦 Awaiting Approval
-                </span>
-                <span className="inline-flex items-center gap-1 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 px-2 py-1 rounded-full font-medium">
-                  📊 Sample Data
-                </span>
+              <div className="space-y-2 text-sm text-blue-700 dark:text-blue-300">
+                <p>
+                  <strong>Demo Mode:</strong> Explore with sample portfolio data to see all features in action
+                </p>
+                <p>
+                  <strong>Connect Account:</strong> Use Plaid's sandbox environment (mock data) while we await production approval
+                </p>
               </div>
             </div>
           </div>
@@ -912,18 +909,23 @@ export function PortfolioDashboard({
     <div className="space-y-8 dark:text-foreground text-gray-900 transition-colors duration-300">
       {/* Demo Mode Banner */}
       {isDemoMode && (
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-lg p-4 mb-6">
-          <div className="flex items-start gap-3">
+        <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-blue-50 dark:from-blue-950/40 dark:via-indigo-950/30 dark:to-blue-950/40 border border-blue-200 dark:border-blue-800/50 rounded-xl p-5 backdrop-blur-sm shadow-lg dark:shadow-blue-900/10 hover:shadow-xl transition-all duration-300">
+          <div className="flex items-start gap-4">
             <div className="flex-shrink-0">
-              <svg className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zm-2 5a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-              </svg>
+              <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/50 rounded-full flex items-center justify-center">
+                <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zm-2 5a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+              </div>
             </div>
             <div className="flex-1">
-              <h3 className="text-sm font-semibold text-blue-800 dark:text-blue-200 mb-1">
-                Demo Mode Active
+              <h3 className="text-sm font-semibold text-blue-800 dark:text-blue-200 mb-2 flex items-center gap-2">
+                🎯 Demo Mode Active
+                <span className="bg-blue-100/80 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-medium px-2 py-1 rounded-full">
+                  Sample Data
+                </span>
               </h3>
-              <p className="text-sm text-blue-700 dark:text-blue-300">
+              <p className="text-sm text-blue-700 dark:text-blue-300 leading-relaxed">
                 This is mock demo data shown to demonstrate Peerfolio's features and interface. 
                 The sample portfolio data illustrates how your real investment accounts would appear once connected.
               </p>
@@ -934,16 +936,21 @@ export function PortfolioDashboard({
 
       {/* Plaid Sandbox Mode Banner */}
       {hasConnectedAccounts && !isDemoMode && (
-        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-lg p-4 mb-6">
-          <div className="flex items-start gap-3">
+        <div className="bg-gradient-to-r from-yellow-50 via-amber-50 to-orange-50 dark:from-yellow-950/40 dark:via-amber-950/30 dark:to-orange-950/40 border border-yellow-200 dark:border-yellow-800/50 rounded-xl p-5 backdrop-blur-sm shadow-lg dark:shadow-yellow-900/10 hover:shadow-xl transition-all duration-300">
+          <div className="flex items-start gap-4">
             <div className="flex-shrink-0">
-              <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5" />
+              <div className="w-10 h-10 bg-yellow-100 dark:bg-yellow-900/50 rounded-full flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+              </div>
             </div>
             <div className="flex-1">
-              <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-1">
-                🚧 MVP Phase - Live Sandbox Connection Active
+              <h3 className="text-sm font-semibold text-yellow-800 dark:text-yellow-200 mb-2 flex items-center gap-2">
+                🚧 MVP Phase - Plaid Sandbox Connection Active
+                <span className="bg-yellow-100/80 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-xs font-medium px-2 py-1 rounded-full">
+                  Sandbox Data
+                </span>
               </h3>
-              <p className="text-sm text-amber-700 dark:text-amber-300">
+              <p className="text-sm text-yellow-700 dark:text-yellow-300 leading-relaxed">
                 Peerfolio is currently in its MVP phase using Plaid's sandbox environment with mock data. 
                 We're awaiting approval to connect with real financial institutions. 
                 The platform demonstrates full functionality with sample data until we go live with real accounts.
