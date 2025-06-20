@@ -9,13 +9,17 @@ interface TopHoldingsProps {
   formatCurrency: (value: number) => string
   formatPercentage: (value: number) => string
   getStockIcon: (symbol: string) => string
+  isDemoMode?: boolean
+  hasRealData?: boolean
 }
 
 export function TopHoldings({
   topHoldings,
   formatCurrency,
   formatPercentage,
-  getStockIcon
+  getStockIcon,
+  isDemoMode,
+  hasRealData
 }: TopHoldingsProps) {
   return (
     <Card>

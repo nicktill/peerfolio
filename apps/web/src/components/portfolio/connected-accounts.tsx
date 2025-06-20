@@ -20,6 +20,7 @@ interface ConnectedAccountsProps {
   handleRemoveAccount: (accountId: string) => void
   onConnectAccount: (publicToken: string, metadata: any) => void
   isDemoMode: boolean
+  hasRealData?: boolean
 }
 
 export function ConnectedAccounts({

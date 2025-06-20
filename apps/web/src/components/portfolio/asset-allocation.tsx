@@ -13,6 +13,8 @@ import {
 interface AssetAllocationProps {
   assetAllocation: any[]
   formatCurrency: (value: number) => string
+  isDemoMode?: boolean;
+  hasRealData?: boolean;
 }
 
 export function AssetAllocation({ assetAllocation, formatCurrency }: AssetAllocationProps) {
