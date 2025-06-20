@@ -178,7 +178,9 @@ export function PortfolioDashboard({
   }, [hasConnectedAccounts, hasExitedDashboard, setConnectedPlaidAccounts])
 
   // Show dashboard if user has connected accounts OR is in demo mode, BUT NOT if they've explicitly exited
-  const showDashboard = !hasExitedDashboard && (hasConnectedAccounts || isDemoMode || connectedPlaidAccounts.length > 0)
+  // AND they must actually have accounts or be in demo mode
+  const hasActualAccounts = connectedPlaidAccounts.length > 0 || (plaidData && hasConnectedAccounts)
+  const showDashboard = !hasExitedDashboard && (hasActualAccounts || isDemoMode)
 
   // Function to remove a connected account
   const handleRemoveAccount = (accountId: string) => {
