@@ -65,6 +65,7 @@ export function PortfolioMetrics({
       return { value: 0, percentage: 0, label: "all time" }
     }
 
+    // Use the SAME logic as the chart component for consistency
     const currentValue = showAssetsOnly ? balanceSummary.totalAssets : totalBalance
     const startValue = chartData[0]?.value || currentValue
     const change = currentValue - startValue
@@ -149,10 +150,12 @@ export function PortfolioMetrics({
             {formatCurrency(displayBalance)}
           </div>
 
-          {/* Only show percentage when in "Total Assets" mode */}
-          {showAssetsOnly && (
+          {/* ALWAYS show percentage for both modes when we have valid data */}
+          {(periodChange.percentage !== 0 || chartData.length > 1) && (
             <div
-              className={`flex items-center gap-1 text-sm ${periodChange.percentage >= 0 ? "text-emerald-600" : "text-red-600"}`}
+              className={`flex items-center gap-1 text-sm ${
+                periodChange.percentage >= 0 ? "text-emerald-600" : "text-red-600"
+              }`}
             >
               {periodChange.percentage >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
               <span>
