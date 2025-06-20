@@ -315,7 +315,7 @@ export default function PeerfolioLanding() {
                     </div>
                   </div>
 
-                  <div className="grid gap-6 sm:grid-cols-4">
+                  <div className="grid gap-6 md:grid-cols-3 w-full max-w-4xl mx-auto">
                     <Card className="bg-gradient-to-r from-emerald-50 to-emerald-100 border-emerald-200 hover:from-emerald-100 hover:to-emerald-200 transition-all duration-500">
                       <div className="p-6">
                         <div className="flex items-center justify-between mb-4">
@@ -408,22 +408,21 @@ export default function PeerfolioLanding() {
         </div>
 
         {/* Features Section */}
-        <section className="py-16 sm:py-24 md:py-32 bg-gradient-to-b from-white/80 to-gray-50/80 backdrop-blur-sm relative overflow-hidden">
+        <section className="py-24 md:py-32 bg-gradient-to-b from-white/80 to-gray-50/80 backdrop-blur-sm relative overflow-hidden">
           {/* Subtle background pattern for features */}
           <div className="absolute inset-0 opacity-20">
             <DotPattern
               className={cn(
                 "absolute inset-0 h-full w-full opacity-[0.15] text-blue-400/60",
-                "[mask-image:radial-gradient(1200px_circle_at_center,white,transparent)]",
+                "[mask-image:radial-gradient(1200px_circle_at_center,white,transparent)]"
               )}
               width={40}
               height={40}
             />
           </div>
-
-          <div className="container px-4 sm:px-6 max-w-6xl mx-auto relative">
+          <div className="container px-6 max-w-6xl mx-auto relative">
             <div className="mx-auto max-w-4xl text-center mb-20">
-              <h2 className="mb-6 text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-gray-900 sm:text-5xl animate__animated animate__fadeInUp">
+              <h2 className="mb-6 text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl animate__animated animate__fadeInUp">
                 Investing, but make it{" "}
                 <span className="bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 bg-clip-text text-transparent">
                   social
@@ -433,88 +432,90 @@ export default function PeerfolioLanding() {
                 Connect your accounts, compare with friends, and grow your wealth together in a secure environment.
               </p>
             </div>
+            {/* Center the features grid on all screens */}
+            <div className="flex justify-center w-full">
+              <div className="grid w-full max-w-5xl text-center gap-8 lg:gap-12 md:grid-cols-3 sm:grid-cols-2 grid-cols-1">
+                <div className="group text-center animate__animated animate__fadeIn animate__delay-1s">
+                  <div className="relative mb-8">
+                    {/* Gradient background glow */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-emerald-400/20 to-teal-400/20 rounded-3xl blur-xl group-hover:blur-2xl transition-all duration-300"></div>
+                    {/* Icon container */}
+                    <div className="relative mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-xl mx-auto group-hover:shadow-2xl group-hover:scale-105 transition-all duration-300">
+                      <Link2 className="h-10 w-10 text-white" />
+                    </div>
+                  </div>
+                  <h3 className="mb-4 text-xl font-bold text-gray-900 group-hover:text-emerald-600 transition-colors duration-300">
+                    Connect all your accounts
+                  </h3>
+                  <p className="text-gray-600 leading-relaxed mb-6 max-w-sm mx-auto">
+                    Securely link your brokerage accounts through Plaid. Support for Robinhood, Fidelity, Charles Schwab,
+                    and 12,000+ institutions.
+                  </p>
+                  <div className="flex items-center justify-center gap-6 text-sm">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
+                      <AnimatedShinyText className="text-emerald-600 font-medium">Bank-level security</AnimatedShinyText>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                      <span className="font-medium text-emerald-600">Real-time sync</span>
+                    </div>
+                  </div>
+                </div>
 
-            <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3 lg:gap-12">
-              <div className="group text-center animate__animated animate__fadeIn animate__delay-1s">
-                <div className="relative mb-8">
-                  {/* Gradient background glow */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-emerald-400/20 to-teal-400/20 rounded-3xl blur-xl group-hover:blur-2xl transition-all duration-300"></div>
-                  {/* Icon container */}
-                  <div className="relative mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-xl mx-auto group-hover:shadow-2xl group-hover:scale-105 transition-all duration-300">
-                    <Link2 className="h-10 w-10 text-white" />
+                <div className="group text-center animate__animated animate__fadeIn animate__delay-2s">
+                  <div className="relative mb-8">
+                    {/* Gradient background glow */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-blue-400/20 to-purple-400/20 rounded-3xl blur-xl group-hover:blur-2xl transition-all duration-300"></div>
+                    {/* Icon container */}
+                    <div className="relative mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-blue-500 to-blue-600 shadow-xl mx-auto group-hover:shadow-2xl group-hover:scale-105 transition-all duration-300">
+                      <Users className="h-10 w-10 text-white" />
+                    </div>
+                  </div>
+                  <h3 className="mb-4 text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors duration-300">
+                    Group investing
+                  </h3>
+                  <p className="text-gray-600 leading-relaxed mb-6 max-w-sm mx-auto">
+                    Create groups with friends or join curated communities. Compare performance side-by-side and stay
+                    motivated with friendly competition.
+                  </p>
+                  <div className="flex items-center justify-center gap-6 text-sm text-gray-500">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                      <span className="font-medium">University groups</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                      <span className="font-medium">Anonymous rankings</span>
+                    </div>
                   </div>
                 </div>
-                <h3 className="mb-4 text-xl font-bold text-gray-900 group-hover:text-emerald-600 transition-colors duration-300">
-                  Connect all your accounts
-                </h3>
-                <p className="text-gray-600 leading-relaxed mb-6 max-w-sm mx-auto">
-                  Securely link your brokerage accounts through Plaid. Support for Robinhood, Fidelity, Charles Schwab,
-                  and 12,000+ institutions.
-                </p>
-                <div className="flex items-center justify-center gap-6 text-sm">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
-                    <AnimatedShinyText className="text-emerald-600 font-medium">Bank-level security</AnimatedShinyText>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                    <span className="font-medium text-emerald-600">Real-time sync</span>
-                  </div>
-                </div>
-              </div>
 
-              <div className="group text-center animate__animated animate__fadeIn animate__delay-2s">
-                <div className="relative mb-8">
-                  {/* Gradient background glow */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-blue-400/20 to-purple-400/20 rounded-3xl blur-xl group-hover:blur-2xl transition-all duration-300"></div>
-                  {/* Icon container */}
-                  <div className="relative mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-blue-500 to-blue-600 shadow-xl mx-auto group-hover:shadow-2xl group-hover:scale-105 transition-all duration-300">
-                    <Users className="h-10 w-10 text-white" />
+                <div className="group text-center animate__animated animate__fadeIn animate__delay-3s">
+                  <div className="relative mb-8">
+                    {/* Gradient background glow */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-purple-400/20 to-pink-400/20 rounded-3xl blur-xl group-hover:blur-2xl transition-all duration-300"></div>
+                    {/* Icon container */}
+                    <div className="relative mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-purple-500 to-purple-600 shadow-xl mx-auto group-hover:shadow-2xl group-hover:scale-105 transition-all duration-300">
+                      <BarChart3 className="h-10 w-10 text-white" />
+                    </div>
                   </div>
-                </div>
-                <h3 className="mb-4 text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors duration-300">
-                  Group investing
-                </h3>
-                <p className="text-gray-600 leading-relaxed mb-6 max-w-sm mx-auto">
-                  Create groups with friends or join curated communities. Compare performance side-by-side and stay
-                  motivated with friendly competition.
-                </p>
-                <div className="flex items-center justify-center gap-6 text-sm text-gray-500">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                    <span className="font-medium">University groups</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                    <span className="font-medium">Anonymous rankings</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="group text-center animate__animated animate__fadeIn animate__delay-3s">
-                <div className="relative mb-8">
-                  {/* Gradient background glow */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-purple-400/20 to-pink-400/20 rounded-3xl blur-xl group-hover:blur-2xl transition-all duration-300"></div>
-                  {/* Icon container */}
-                  <div className="relative mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-purple-500 to-purple-600 shadow-xl mx-auto group-hover:shadow-2xl group-hover:scale-105 transition-all duration-300">
-                    <BarChart3 className="h-10 w-10 text-white" />
-                  </div>
-                </div>
-                <h3 className="mb-4 text-xl font-bold text-gray-900 group-hover:text-purple-600 transition-colors duration-300">
-                  Portfolio growth insights
-                </h3>
-                <p className="text-gray-600 leading-relaxed mb-6 max-w-sm mx-auto">
-                  See how your gains compare over time with beautiful charts and insights. Track your progress and learn
-                  from top performers.
-                </p>
-                <div className="flex items-center justify-center gap-6 text-sm text-gray-500">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                    <span className="font-medium">Performance analytics</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-pink-500 rounded-full"></div>
-                    <span className="font-medium">Growth tracking</span>
+                  <h3 className="mb-4 text-xl font-bold text-gray-900 group-hover:text-purple-600 transition-colors duration-300">
+                    Portfolio growth insights
+                  </h3>
+                  <p className="text-gray-600 leading-relaxed mb-6 max-w-sm mx-auto">
+                    See how your gains compare over time with beautiful charts and insights. Track your progress and learn
+                    from top performers.
+                  </p>
+                  <div className="flex items-center justify-center gap-6 text-sm text-gray-500">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                      <span className="font-medium">Performance analytics</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-pink-500 rounded-full"></div>
+                      <span className="font-medium">Growth tracking</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -586,7 +587,21 @@ export default function PeerfolioLanding() {
         <div className="container px-6 max-w-6xl mx-auto">
           <div className="flex flex-col md:flex-row items-center justify-between">
             <div className="flex items-center space-x-3 mb-4 md:mb-0">
-              <Image src="/logo.png" alt="Peerfolio Logo" width={32} height={32} className="rounded-lg" />
+              <Image
+                src="/logo.png"
+                alt="Peerfolio Logo"
+                width={32}
+                height={32}
+                className="rounded-lg"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = 'none';
+                  const fallback = document.createElement('div');
+                  fallback.className = 'w-8 h-8 rounded-lg bg-gray-200 flex items-center justify-center text-lg font-bold text-gray-500';
+                  fallback.innerText = 'P';
+                  target.parentElement?.appendChild(fallback);
+                }}
+              />
               <span className="text-xl font-semibold text-gray-900">Peerfolio</span>
             </div>
 
