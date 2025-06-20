@@ -229,8 +229,8 @@ export function PortfolioChart({
         </div>
       </CardHeader>
 
-      <CardContent className="relative z-10 pt-0">
-        <ChartContainer config={chartConfig} className="h-[300px] sm:h-[400px]">
+      <CardContent className="relative z-10 pt-0 px-2 sm:px-6">
+        <ChartContainer config={chartConfig} className="h-[300px] sm:h-[400px] w-full -mx-2 px-2 sm:mx-0 sm:px-0">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData} key={animationKey}>
               <defs>
@@ -303,21 +303,29 @@ export function PortfolioChart({
                 strokeDasharray={chartStyle.strokeDasharray}
                 fillOpacity={1}
                 fill="url(#fillValue)"
-                dot={balanceVisible && chartStyle.showDots ? {
-                  fill: isDemoMode ? "#3b82f6" : hasRealData ? "#10b981" : "#6b7280",
-                  stroke: "#ffffff",
-                  strokeWidth: 2,
-                  r: chartStyle.dotRadius,
-                  filter: "url(#dotShadow)",
-                } : false}
-                activeDot={balanceVisible && chartStyle.showDots ? {
-                  r: chartStyle.dotRadius + 2,
-                  stroke: isDemoMode ? "#3b82f6" : hasRealData ? "#10b981" : "#6b7280",
-                  strokeWidth: 3,
-                  fill: "#ffffff",
-                  filter: "url(#dotShadow)",
-                  className: "transition-all duration-200 hover:scale-110",
-                } : false}
+                dot={
+                  balanceVisible && chartStyle.showDots
+                    ? {
+                        fill: isDemoMode ? "#3b82f6" : hasRealData ? "#10b981" : "#6b7280",
+                        stroke: "#ffffff",
+                        strokeWidth: 2,
+                        r: chartStyle.dotRadius,
+                        filter: "url(#dotShadow)",
+                      }
+                    : false
+                }
+                activeDot={
+                  balanceVisible && chartStyle.showDots
+                    ? {
+                        r: chartStyle.dotRadius + 2,
+                        stroke: isDemoMode ? "#3b82f6" : hasRealData ? "#10b981" : "#6b7280",
+                        strokeWidth: 3,
+                        fill: "#ffffff",
+                        filter: "url(#dotShadow)",
+                        className: "transition-all duration-200 hover:scale-110",
+                      }
+                    : false
+                }
                 animationDuration={chartStyle.animationDuration}
                 animationEasing="ease-out"
                 connectNulls={false}
