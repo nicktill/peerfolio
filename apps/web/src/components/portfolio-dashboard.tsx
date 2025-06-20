@@ -211,7 +211,6 @@ export function PortfolioDashboard({
     }
   }
 
-  // Formatting functions
   const formatCurrency = (value: number) => {
     if (!balanceVisible) return "••••••"
     return new Intl.NumberFormat("en-US", {
@@ -227,13 +226,18 @@ export function PortfolioDashboard({
     return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`
   }
 
-  // If not showing dashboard, show landing screen
   if (!showDashboard) {
     return (
       <LandingScreen
         isConnecting={isConnecting}
         onDemoConnect={() => {
+          // Ensure clean demo mode state
           setIsDemoMode(true)
+          // Clear any exit flags to ensure user can see the demo
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('hasExitedDashboard')
+          }
+          // Call demo connect handler if provided
           if (onDemoConnect) onDemoConnect()
         }}
         onConnectAccount={onConnectAccount}
@@ -242,16 +246,13 @@ export function PortfolioDashboard({
     )
   }
 
-  // Main dashboard render
   return (
     <div className="space-y-8 dark:text-foreground text-gray-900 transition-colors duration-300">
-      {/* Status Banners */}
       <StatusBanners 
-        isDemoMode={isDemoMode}
+        isDemoMode={isDemoMode} 
         hasConnectedAccounts={hasConnectedAccounts}
       />
 
-      {/* Portfolio Overview Header */}
       <PortfolioHeader
         isDemoMode={isDemoMode}
         hasConnectedAccounts={hasConnectedAccounts}
@@ -273,10 +274,10 @@ export function PortfolioDashboard({
           if (onExitDashboard) {
             onExitDashboard()
           }
+          // This will cause showDashboard to be false and show the landing screen
         }}
       />
 
-      {/* Key Metrics */}
       <PortfolioMetrics
         totalBalance={totalBalance}
         totalGain={totalGain}
@@ -285,6 +286,8 @@ export function PortfolioDashboard({
         accountsCount={accountsWithPercentages.length}
         balanceSummary={balanceSummary}
         formatCurrency={formatCurrency}
+          isDemoMode={isDemoMode}
+          hasRealData={hasConnectedAccounts || connectedPlaidAccounts.length > 0}
         formatPercentage={formatPercentage}
       />
 
@@ -296,12 +299,14 @@ export function PortfolioDashboard({
           setSelectedTimeframe={setSelectedTimeframe}
           formatCurrency={formatCurrency}
           isDemoMode={isDemoMode}
-          hasRealData={plaidData && plaidData.accounts && plaidData.accounts.length > 0}
+          hasRealData={hasConnectedAccounts || connectedPlaidAccounts.length > 0}
         />
 
         <TopHoldings
           topHoldings={topHoldings}
           formatCurrency={formatCurrency}
+          isDemoMode={isDemoMode}
+          hasRealData={hasConnectedAccounts || connectedPlaidAccounts.length > 0}
           formatPercentage={formatPercentage}
           getStockIcon={getStockIcon}
         />
@@ -312,12 +317,16 @@ export function PortfolioDashboard({
         <AssetAllocation
           assetAllocation={assetAllocation}
           formatCurrency={formatCurrency}
+          isDemoMode={isDemoMode}
+          hasRealData={hasConnectedAccounts || connectedPlaidAccounts.length > 0}
         />
 
         <ConnectedAccounts
           accountsWithPercentages={accountsWithPercentages}
           balanceSummary={balanceSummary}
           formatCurrency={formatCurrency}
+          isDemoMode={isDemoMode}
+          hasRealData={hasConnectedAccounts || connectedPlaidAccounts.length > 0}
           getInstitutionDisplayName={getInstitutionDisplayName}
           formatAccountName={formatAccountName}
           getAccountTypeIcon={getAccountTypeIcon}
@@ -327,7 +336,6 @@ export function PortfolioDashboard({
         />
       </div>
 
-      {/* Debug Section - Show Real Plaid Data (for testing) */}
       <PlaidDebugPanel plaidData={plaidData} />
     </div>
   )
