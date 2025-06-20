@@ -307,8 +307,6 @@ export default function PeerfolioLanding() {
                       </div>
                       <AnimatedShinyText className="text-xs sm:text-sm text-emerald-600 font-medium whitespace-nowrap">
                         ↗ Outperforming S&amp;P 500
-                      <AnimatedShinyText className="text-xs sm:text-sm text-emerald-600 font-medium">
-                        ↗ Outperforming S&P 500
                       </AnimatedShinyText>
                     </div>
                   </div>
