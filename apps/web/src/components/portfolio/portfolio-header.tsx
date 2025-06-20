@@ -2,6 +2,8 @@
 import { Button } from "@web/components/ui/button"
 import { PlaidLink } from "../plaid-link"
 import { PieChart, Building2, Eye, EyeOff, X } from "lucide-react"
+import { Toast } from "@web/components/ui/toast"
+import React, { useState } from "react"
 
 interface PortfolioHeaderProps {
   isDemoMode: boolean
@@ -24,6 +26,31 @@ export function PortfolioHeader({
   onConnectAccount,
   onExitDashboard,
 }: PortfolioHeaderProps) {
+  // Toast state
+  const [showToast, setShowToast] = useState(false)
+  const [toastMessage, setToastMessage] = useState("")
+  const [toastEmoji, setToastEmoji] = useState("")
+
+  // Toast timeout ref
+  const toastTimeoutRef = React.useRef<NodeJS.Timeout | null>(null)
+
+  // Handler for toggling balance visibility with toast
+  const handleToggleBalanceVisible = () => {
+    setBalanceVisible(!balanceVisible)
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current)
+    }
+    if (balanceVisible) {
+      setToastMessage("Sensitive values are now hidden")
+      setToastEmoji("🙈")
+    } else {
+      setToastMessage("Sensitive values are now visible")
+      setToastEmoji("👁️")
+    }
+    setShowToast(true)
+    toastTimeoutRef.current = setTimeout(() => setShowToast(false), 2500)
+  }
+
   return (
     <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 lg:gap-0">
       <div>
@@ -107,12 +134,18 @@ export function PortfolioHeader({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setBalanceVisible(!balanceVisible)}
-            className="flex items-center gap-2 flex-1 sm:flex-none justify-center"
+            onClick={handleToggleBalanceVisible}
+            className="flex items-center gap-2 flex-1 sm:flex-none justify-center min-w-[90px]"
             aria-label={balanceVisible ? "Hide values" : "Show values"}
           >
-            {balanceVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            <span className="hidden sm:inline">{balanceVisible ? "Hide" : "Show"}</span>
+            <span className={balanceVisible ? "flex items-center gap-2" : "hidden items-center gap-2"}>
+              <EyeOff className="w-4 h-4" />
+              <span className="hidden sm:inline">Hide</span>
+            </span>
+            <span className={!balanceVisible ? "flex items-center gap-2" : "hidden items-center gap-2"}>
+              <Eye className="w-4 h-4" />
+              <span className="hidden sm:inline">Show</span>
+            </span>
           </Button>
 
           <PlaidLink
@@ -182,8 +215,8 @@ export function PortfolioHeader({
                     <Eye className="w-3 h-3 mr-1" />
                     Show
                   </>
-                )}
-              </Button>
+                )}             
+                 </Button>
 
               <PlaidLink onSuccess={onConnectAccount} size="sm" className="flex-1 text-xs px-3 py-2 h-auto rounded-full shadow-sm">
                 Add
@@ -199,6 +232,8 @@ export function PortfolioHeader({
           </PlaidLink>
         )}
       </div>
+      {/* Toast notification */}
+      <Toast show={showToast} onClose={() => setShowToast(false)} message={toastMessage} emoji={toastEmoji} />
     </div>
   )
 }
