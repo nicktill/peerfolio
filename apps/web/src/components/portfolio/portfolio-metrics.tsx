@@ -24,6 +24,7 @@ interface PortfolioMetricsProps {
   selectedTimeframe: string
   chartData: any[]
   connectedPlaidAccounts: any[]
+  externalBalanceVisible?: boolean // Added prop
 }
 
 export function PortfolioMetrics({
@@ -40,8 +41,23 @@ export function PortfolioMetrics({
   selectedTimeframe,
   chartData,
   connectedPlaidAccounts,
+  externalBalanceVisible, // Destructured prop
 }: PortfolioMetricsProps) {
   const [showAssetsOnly, setShowAssetsOnly] = useState(false)
+
+  // Add this new function at the top of the component
+  const formatCurrencyWithHide = (value: number, forceHide = false) => {
+    // Get the balance visibility from props - if external control is provided, use it
+    const shouldHide = externalBalanceVisible !== undefined ? !externalBalanceVisible : forceHide
+
+    if (shouldHide) return "••••••"
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value)
+  }
 
   // Calculate percentage using EXACT same logic as the chart component
   const getChartBasedPercentage = () => {
@@ -238,8 +254,9 @@ export function PortfolioMetrics({
         </CardHeader>
         <CardContent className="pt-0 p-4 sm:p-6">
           <div className="space-y-3">
+            {/* Update the main value display to use the new function */}
             <div className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-              {formatCurrency(displayValues.value)}
+              {formatCurrencyWithHide(displayValues.value)}
             </div>
 
             {/* Show percentage gain/loss */}
@@ -279,14 +296,16 @@ export function PortfolioMetrics({
             >
               <div>
                 <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">Assets</div>
+                {/* Update the Assets and Liabilities breakdown to use the new function */}
                 <div className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
-                  {formatCurrency(balanceSummary.totalAssets)}
+                  {formatCurrencyWithHide(balanceSummary.totalAssets)}
                 </div>
               </div>
               <div>
                 <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">Liabilities</div>
+                {/* Update the Assets and Liabilities breakdown to use the new function */}
                 <div className="text-sm font-semibold text-red-600 dark:text-red-400">
-                  {formatCurrency(balanceSummary.totalLiabilities)}
+                  {formatCurrencyWithHide(balanceSummary.totalLiabilities)}
                 </div>
               </div>
             </div>

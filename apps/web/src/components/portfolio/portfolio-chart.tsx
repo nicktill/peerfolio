@@ -22,6 +22,7 @@ interface PortfolioChartProps {
   isDemoMode?: boolean
   hasRealData?: boolean
   useAssetsOnlyForChart?: boolean
+  balanceVisible: boolean
 }
 
 export function PortfolioChart({
@@ -33,6 +34,7 @@ export function PortfolioChart({
   isDemoMode = false,
   hasRealData = false,
   useAssetsOnlyForChart = false,
+  balanceVisible,
 }: PortfolioChartProps) {
   const timeframes = ["1D", "1W", "1M", "3M", "6M", "1Y", "ALL"]
   const [animationKey, setAnimationKey] = useState(0)
@@ -63,7 +65,6 @@ export function PortfolioChart({
       "1M": "1 month",
       "3M": "3 months",
       "6M": "6 months",
-      "1Y": "1 year",
       ALL: "all time",
     }
     return labels[selectedTimeframe as keyof typeof labels] || "period"
@@ -274,6 +275,7 @@ export function PortfolioChart({
                 tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
               />
 
+              {/* Update the ChartTooltip content to respect balance visibility */}
               <ChartTooltip
                 cursor={{
                   stroke: isDemoMode ? "#3b82f6" : hasRealData ? "#10b981" : "#6b7280",
@@ -283,7 +285,7 @@ export function PortfolioChart({
                 content={
                   <ChartTooltipContent
                     formatter={(value) => [
-                      formatCurrency(value as number),
+                      balanceVisible ? formatCurrency(value as number) : "••••••",
                       useAssetsOnlyForChart ? "Asset Value" : "Portfolio Value",
                     ]}
                     className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-lg border border-gray-200/60 dark:border-gray-700/60 shadow-xl rounded-xl"

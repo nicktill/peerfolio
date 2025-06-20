@@ -45,48 +45,6 @@
   animation: enhanced-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-/* Custom Loading Animations */
-@keyframes progress {
-  0% {
-    transform: translateX(-100%);
-  }
-  50% {
-    transform: translateX(0%);
-  }
-  100% {
-    transform: translateX(100%);
-  }
-}
-
-.animate-progress {
-  animation: progress 2s ease-in-out infinite;
-}
-
-.animation-delay-75 {
-  animation-delay: 75ms;
-}
-
-.animation-delay-150 {
-  animation-delay: 150ms;
-}
-
-/* Enhanced pulse animation */
-@keyframes enhanced-pulse {
-  0%,
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.5;
-    transform: scale(1.05);
-  }
-}
-
-.animate-enhanced-pulse {
-  animation: enhanced-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-
 @layer base {
   html {
     font-family: "Inter", system-ui, sans-serif;
@@ -188,7 +146,7 @@ body {
   backface-visibility: hidden;
 }
 
-/* Mobile-specific optimizations */
+/* Mobile-specific optimizations - Cleaned up */
 @media (max-width: 640px) {
   /* Improve touch targets */
   button,
@@ -216,12 +174,6 @@ body {
   textarea,
   select {
     font-size: 16px; /* Prevents zoom on iOS */
-  }
-
-  /* Better spacing for mobile cards */
-  .card-mobile {
-    margin: 0.5rem;
-    padding: 1rem;
   }
 
   /* Mobile-friendly animations */
@@ -262,16 +214,6 @@ body {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
-  }
-}
-
-/* Dark mode mobile optimizations */
-@media (max-width: 640px) and (prefers-color-scheme: dark) {
-  /* Ensure better contrast on mobile dark mode */
-  .card,
-  .bg-card {
-    background-color: rgba(0, 0, 0, 0.8);
-    border-color: rgba(255, 255, 255, 0.1);
   }
 }
 

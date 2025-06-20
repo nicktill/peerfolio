@@ -282,6 +282,7 @@ export function PortfolioDashboard({
           isDemoMode={isDemoMode}
           hasRealData={hasConnectedAccounts || connectedPlaidAccounts.length > 0}
           useAssetsOnlyForChart={useAssetsOnlyForChart}
+          balanceVisible={balanceVisible}
         />
 
         <TopHoldings
@@ -291,6 +292,7 @@ export function PortfolioDashboard({
           hasRealData={hasConnectedAccounts || connectedPlaidAccounts.length > 0}
           formatPercentage={formatPercentage}
           getStockIcon={getStockIcon}
+          balanceVisible={balanceVisible}
         />
       </div>
 
@@ -301,6 +303,7 @@ export function PortfolioDashboard({
           formatCurrency={formatCurrency}
           isDemoMode={isDemoMode}
           hasRealData={hasConnectedAccounts || connectedPlaidAccounts.length > 0}
+          balanceVisible={balanceVisible}
         />
 
         <ConnectedAccounts

@@ -1,7 +1,7 @@
 "use client"
 import { Button } from "@web/components/ui/button"
 import { PlaidLink } from "../plaid-link"
-import { PieChart, Building2, Eye, EyeOff } from "lucide-react"
+import { PieChart, Building2, Eye, EyeOff, X } from "lucide-react"
 
 interface PortfolioHeaderProps {
   isDemoMode: boolean
@@ -49,8 +49,8 @@ export function PortfolioHeader({
         </p>
       </div>
 
-      {/* Navigation and Controls */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
+      {/* Desktop Navigation and Controls - Original Layout */}
+      <div className="hidden lg:flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
         {/* Navigation Buttons - First Section */}
         {(hasConnectedAccounts || connectedPlaidAccounts.length > 0 || isDemoMode) && (
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
@@ -89,8 +89,20 @@ export function PortfolioHeader({
           </div>
         )}
 
-        {/* Hide and Add Account buttons - Second Section */}
+        {/* Exit Dashboard, Hide and Add Account buttons - Second Section */}
         <div className="flex items-center gap-2">
+          {/* Exit Dashboard Button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onExitDashboard}
+            className="flex items-center gap-2 flex-1 sm:flex-none justify-center"
+          >
+            <X className="w-4 h-4" />
+            <span className="hidden sm:inline">Exit Dashboard</span>
+            <span className="sm:hidden">Exit</span>
+          </Button>
+
           <Button
             variant="outline"
             size="sm"
@@ -111,6 +123,82 @@ export function PortfolioHeader({
             <span className="sm:hidden">Add</span>
           </PlaidLink>
         </div>
+      </div>
+
+      {/* Mobile Navigation and Controls - Improved Layout */}
+      <div className="flex lg:hidden flex-col gap-3 w-full">
+        {(hasConnectedAccounts || connectedPlaidAccounts.length > 0 || isDemoMode) && (
+          <>
+            {/* Demo/Connected Toggle - Mobile */}
+            <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+              <Button
+                variant={isDemoMode ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setIsDemoMode(true)}
+                className="flex-1 text-xs px-3 py-2 h-auto"
+              >
+                <PieChart className="w-3 h-3 mr-1.5" />
+                Demo
+              </Button>
+              <Button
+                variant={!isDemoMode ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setIsDemoMode(false)}
+                className="flex-1 text-xs px-3 py-2 h-auto"
+              >
+                <Building2 className="w-3 h-3 mr-1.5" />
+                Connected
+              </Button>
+            </div>
+
+            {/* Action Buttons Row - Mobile */}
+            <div className="grid grid-cols-3 gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onExitDashboard}
+                className="text-xs px-2 py-2 h-auto bg-white/80 dark:bg-background/80 backdrop-blur-sm"
+              >
+                <X className="w-3 h-3 mr-1" />
+                Exit
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setBalanceVisible(!balanceVisible)}
+                className="text-xs px-2 py-2 h-auto bg-white/80 dark:bg-background/80 backdrop-blur-sm"
+              >
+                {balanceVisible ? (
+                  <>
+                    <EyeOff className="w-3 h-3 mr-1" />
+                    Hide
+                  </>
+                ) : (
+                  <>
+                    <Eye className="w-3 h-3 mr-1" />
+                    Show
+                  </>
+                )}
+              </Button>
+
+              <PlaidLink onSuccess={onConnectAccount}>
+                <Button size="sm" className="text-xs px-2 py-2 h-auto w-full">
+                  Add
+                </Button>
+              </PlaidLink>
+            </div>
+          </>
+        )}
+
+        {/* If no accounts connected, show only Add Account button */}
+        {!isDemoMode && !hasConnectedAccounts && connectedPlaidAccounts.length === 0 && (
+          <PlaidLink onSuccess={onConnectAccount}>
+            <Button size="sm" className="w-full text-sm px-4 py-2">
+              Add Account
+            </Button>
+          </PlaidLink>
+        )}
       </div>
     </div>
   )
