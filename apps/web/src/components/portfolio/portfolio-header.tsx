@@ -1,9 +1,10 @@
 "use client"
 import { Button } from "@web/components/ui/button"
-import { PlaidLink } from "../plaid-link"
+import { PlaidLink, type PlaidLinkRef } from "../plaid-link"
 import { PieChart, Building2, Eye, EyeOff, X } from "lucide-react"
 import { Toast } from "@web/components/ui/toast"
-import React, { useState } from "react"
+import React, { useState, useRef } from "react"
+import { getConnectedAccounts } from "@web/lib/account-storage"
 
 interface PortfolioHeaderProps {
   isDemoMode: boolean
@@ -31,6 +32,9 @@ export function PortfolioHeader({
   const [toastMessage, setToastMessage] = useState("")
   const [toastEmoji, setToastEmoji] = useState("")
 
+  // Ref to trigger PlaidLink programmatically
+  const plaidTriggerRef = useRef<PlaidLinkRef>(null)
+
   // Toast timeout ref
   const toastTimeoutRef = React.useRef<NodeJS.Timeout | null>(null)
 
@@ -51,11 +55,44 @@ export function PortfolioHeader({
     toastTimeoutRef.current = setTimeout(() => setShowToast(false), 2500)
   }
 
+  // Handler for connecting accounts - triggers Plaid if no accounts exist
+  const handleConnectOrView = () => {
+    const existingAccounts = getConnectedAccounts()
+    console.log("Checking existing accounts:", existingAccounts.length)
+
+    if (existingAccounts.length > 0) {
+      // Has accounts, switch to connected view
+      console.log("Has accounts, switching to connected view")
+      setIsDemoMode(false)
+    } else {
+      // No accounts exist, trigger Plaid connection directly
+      console.log("No accounts found, triggering Plaid connection")
+      if (plaidTriggerRef.current) {
+        plaidTriggerRef.current.open()
+      } else {
+        console.error("PlaidLink ref not available")
+      }
+    }
+  }
+
+  // Enhanced onConnectAccount handler that auto-switches to connected view
+  const handleAccountConnection = (publicToken: string, metadata: any) => {
+    console.log("Account connected successfully, switching to connected view")
+    // Call the original onConnectAccount handler
+    onConnectAccount(publicToken, metadata)
+    // Automatically switch to connected accounts view after successful connection
+    setTimeout(() => {
+      setIsDemoMode(false)
+    }, 500) // Small delay to ensure the account is saved
+  }
+
   return (
     <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 lg:gap-0">
       <div>
         <div className="flex items-center gap-3 flex-wrap">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-foreground whitespace-nowrap">Portfolio Dashboard</h1>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-foreground whitespace-nowrap">
+            Portfolio Dashboard
+          </h1>
           {isDemoMode && (
             <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 text-sm font-medium px-3 py-1 rounded-full whitespace-nowrap">
               Demo Mode
@@ -64,7 +101,9 @@ export function PortfolioHeader({
           {hasConnectedAccounts && !isDemoMode && (
             <span className="bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 text-sm font-medium px-3 py-1 rounded-full whitespace-nowrap flex items-center gap-1">
               Connected
-              <span className="hidden xs:inline">({connectedPlaidAccounts.length} account{connectedPlaidAccounts.length !== 1 ? "s" : ""})</span>
+              <span className="hidden xs:inline">
+                ({connectedPlaidAccounts.length} account{connectedPlaidAccounts.length !== 1 ? "s" : ""})
+              </span>
             </span>
           )}
         </div>
@@ -95,15 +134,7 @@ export function PortfolioHeader({
             {(hasConnectedAccounts || connectedPlaidAccounts.length > 0) && (
               <Button
                 variant={!isDemoMode ? "default" : "outline"}
-                onClick={() => {
-                  if (connectedPlaidAccounts.length > 0) {
-                    setIsDemoMode(false)
-                  } else {
-                    if (onExitDashboard) {
-                      onExitDashboard()
-                    }
-                  }
-                }}
+                onClick={handleConnectOrView}
                 className="flex items-center gap-2 justify-center text-sm"
                 size="sm"
               >
@@ -149,7 +180,8 @@ export function PortfolioHeader({
           </Button>
 
           <PlaidLink
-            onSuccess={onConnectAccount}
+            ref={plaidTriggerRef}
+            onSuccess={handleAccountConnection}
             variant="outline"
             size="sm"
             className="flex items-center gap-2 flex-1 sm:flex-none justify-center"
@@ -178,7 +210,7 @@ export function PortfolioHeader({
               <Button
                 variant={!isDemoMode ? "default" : "ghost"}
                 size="sm"
-                onClick={() => setIsDemoMode(false)}
+                onClick={handleConnectOrView}
                 className="flex-1 text-xs px-3 py-2 h-auto rounded-full shadow-sm"
               >
                 <Building2 className="w-3 h-3 mr-1.5" />
@@ -215,10 +247,14 @@ export function PortfolioHeader({
                     <Eye className="w-3 h-3 mr-1" />
                     Show
                   </>
-                )}             
-                 </Button>
+                )}
+              </Button>
 
-              <PlaidLink onSuccess={onConnectAccount} size="sm" className="flex-1 text-xs px-3 py-2 h-auto rounded-full shadow-sm">
+              <PlaidLink
+                onSuccess={handleAccountConnection}
+                size="sm"
+                className="flex-1 text-xs px-3 py-2 h-auto rounded-full shadow-sm"
+              >
                 Add
               </PlaidLink>
             </div>
@@ -227,7 +263,11 @@ export function PortfolioHeader({
 
         {/* If no accounts connected, show only Add Account button */}
         {!isDemoMode && !hasConnectedAccounts && connectedPlaidAccounts.length === 0 && (
-          <PlaidLink onSuccess={onConnectAccount} size="sm" className="w-full text-sm px-4 py-2 rounded-full shadow-sm">
+          <PlaidLink
+            onSuccess={handleAccountConnection}
+            size="sm"
+            className="w-full text-sm px-4 py-2 rounded-full shadow-sm"
+          >
             Add Account
           </PlaidLink>
         )}

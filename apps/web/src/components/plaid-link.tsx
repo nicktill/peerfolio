@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, forwardRef, useImperativeHandle } from "react"
 import { usePlaidLink } from "react-plaid-link"
 import { Button } from "@web/components/ui/button"
 import { Loader2, Plus, Building2, AlertCircle } from "lucide-react"
@@ -15,119 +15,139 @@ interface PlaidLinkProps {
   children?: React.ReactNode
 }
 
-export function PlaidLink({
-  onSuccess,
-  onExit,
-  className,
-  variant = "default",
-  size = "default",
-  children,
-}: PlaidLinkProps) {
-  const [loading, setLoading] = useState(false)
-  const [linkToken, setLinkToken] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  // Fetch link token from your backend
-  useEffect(() => {
-    const fetchLinkToken = async () => {
-      try {
-        setError(null)
-        console.log("🔄 Fetching Plaid link token...")
-        const response = await fetch("/api/plaid/create-link-token", {
-          method: "POST",
-        })
+export interface PlaidLinkRef {
+  open: () => void
+}
 
-        const data = await response.json()
+export const PlaidLink = forwardRef<PlaidLinkRef, PlaidLinkProps>(
+  ({ onSuccess, onExit, className, variant = "default", size = "default", children }, ref) => {
+    const [loading, setLoading] = useState(false)
+    const [linkToken, setLinkToken] = useState<string | null>(null)
+    const [error, setError] = useState<string | null>(null)
 
-        if (!response.ok) {
-          console.error("❌ Failed to create link token:", data)
-          throw new Error(data.error || "Failed to create link token")
+    // Fetch link token from your backend
+    useEffect(() => {
+      const fetchLinkToken = async () => {
+        try {
+          setError(null)
+          console.log("🔄 Fetching Plaid link token...")
+          const response = await fetch("/api/plaid/create-link-token", {
+            method: "POST",
+          })
+
+          const data = await response.json()
+
+          if (!response.ok) {
+            console.error("❌ Failed to create link token:", data)
+            throw new Error(data.error || "Failed to create link token")
+          }
+
+          if (data.link_token) {
+            setLinkToken(data.link_token)
+            console.log("✅ Link token created successfully")
+          } else {
+            throw new Error("No link token received")
+          }
+        } catch (error) {
+          console.error("Error fetching link token:", error)
+          const errorMessage = error instanceof Error ? error.message : "Failed to initialize Plaid"
+          setError(errorMessage)
+          console.error("❌ Plaid Link initialization failed:", errorMessage)
         }
-
-        if (data.link_token) {
-          setLinkToken(data.link_token)
-          console.log("✅ Link token created successfully")
-        } else {
-          throw new Error("No link token received")
-        }
-      } catch (error) {
-        console.error("Error fetching link token:", error)
-        const errorMessage = error instanceof Error ? error.message : "Failed to initialize Plaid"
-        setError(errorMessage)
-        console.error("❌ Plaid Link initialization failed:", errorMessage)
       }
+
+      fetchLinkToken()
+    }, [])
+
+    const config = {
+      token: linkToken,
+      onSuccess: useCallback(
+        (public_token: string, metadata: any) => {
+          console.log("🎉 Plaid Link Success!", { public_token: public_token.substring(0, 20) + "...", metadata })
+          setLoading(false)
+          onSuccess(public_token, metadata)
+        },
+        [onSuccess],
+      ),
+      onExit: useCallback(
+        (err: any, metadata: any) => {
+          console.log("Plaid Link Exit:", { err, metadata })
+          setLoading(false)
+          if (err) {
+            setError(err.error_message || "Connection cancelled")
+          }
+          onExit?.(err, metadata)
+        },
+        [onExit],
+      ),
+      onEvent: useCallback((eventName: string, metadata: any) => {
+        console.log("Plaid Link Event:", eventName, metadata)
+      }, []),
     }
 
-    fetchLinkToken()
-  }, [])
+    const { open, ready } = usePlaidLink(config)
 
-  const config = {
-    token: linkToken,
-    onSuccess: useCallback(
-      (public_token: string, metadata: any) => {
-        console.log("🎉 Plaid Link Success!", { public_token: public_token.substring(0, 20) + "...", metadata })
-        setLoading(false)
-        onSuccess(public_token, metadata)
-      },
-      [onSuccess],
-    ),
-    onExit: useCallback(
-      (err: any, metadata: any) => {
-        console.log("Plaid Link Exit:", { err, metadata })
-        setLoading(false)
-        if (err) {
-          setError(err.error_message || "Connection cancelled")
-        }
-        onExit?.(err, metadata)
-      },
-      [onExit],
-    ),
-    onEvent: useCallback((eventName: string, metadata: any) => {
-      console.log("Plaid Link Event:", eventName, metadata)
-    }, []),
-  }
+    // Expose the open function through the ref
+    useImperativeHandle(
+      ref,
+      () => ({
+        open: () => {
+          if (ready && linkToken && !loading) {
+            console.log("🚀 Opening Plaid Link programmatically...")
+            setLoading(true)
+            setError(null)
+            open()
+          } else {
+            console.warn("Plaid Link not ready for programmatic opening", { ready, linkToken, loading })
+          }
+        },
+      }),
+      [open, ready, linkToken, loading],
+    )
 
-  const { open, ready } = usePlaidLink(config)
+    const handleClick = useCallback(() => {
+      if (!ready || !linkToken) {
+        console.warn("Plaid Link not ready yet")
+        return
+      }
 
-  const handleClick = useCallback(() => {
-    if (!ready || !linkToken) {
-      console.warn("Plaid Link not ready yet")
-      return
+      setLoading(true)
+      setError(null)
+      console.log("🚀 Opening Plaid Link...")
+      open()
+    }, [open, ready, linkToken])
+
+    if (error) {
+      return (
+        <Button variant="outline" size={size} className={className} disabled>
+          <AlertCircle className="w-4 h-4 mr-2 text-red-500" />
+          Connection Error
+        </Button>
+      )
     }
 
-    setLoading(true)
-    setError(null)
-    console.log("🚀 Opening Plaid Link...")
-    open()
-  }, [open, ready, linkToken])
-
-  if (error) {
     return (
-      <Button variant="outline" size={size} className={className} disabled>
-        <AlertCircle className="w-4 h-4 mr-2 text-red-500" />
-        Connection Error
+      <Button
+        onClick={handleClick}
+        disabled={!ready || loading || !linkToken}
+        variant={variant}
+        size={size}
+        className={className}
+      >
+        {loading ? (
+          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+        ) : ready && linkToken ? (
+          <Plus className="w-4 h-4 mr-2" />
+        ) : (
+          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+        )}
+        {children || (ready && linkToken ? "Connect Account" : "Loading...")}
       </Button>
     )
-  }
+  },
+)
 
-  return (
-    <Button
-      onClick={handleClick}
-      disabled={!ready || loading || !linkToken}
-      variant={variant}
-      size={size}
-      className={className}
-    >
-      {loading ? (
-        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-      ) : ready && linkToken ? (
-        <Plus className="w-4 h-4 mr-2" />
-      ) : (
-        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-      )}
-      {children || (ready && linkToken ? "Connect Account" : "Loading...")}
-    </Button>
-  )
-}
+PlaidLink.displayName = "PlaidLink"
 
 // Hero component for connecting first account
 export function PlaidConnectHero({ onSuccess }: { onSuccess: (publicToken: string, metadata: any) => void }) {
