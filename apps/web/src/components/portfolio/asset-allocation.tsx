@@ -9,10 +9,17 @@ interface AssetAllocationProps {
   formatCurrency: (value: number) => string
   isDemoMode?: boolean
   hasRealData?: boolean
+  balanceVisible?: boolean // <-- add this line
 }
 
-export function AssetAllocation({ assetAllocation, formatCurrency, isDemoMode, hasRealData }: AssetAllocationProps) {
+export function AssetAllocation({ assetAllocation, formatCurrency, isDemoMode, hasRealData, balanceVisible = true }: AssetAllocationProps) {
   const totalValue = assetAllocation.reduce((sum, item) => sum + item.value, 0)
+
+  // Helper to hide value numbers
+  const formatCurrencyWithHide = (value: number) => {
+    if (!balanceVisible) return "••••••"
+    return formatCurrency(value)
+  }
 
   return (
     <Card className="relative group/chart overflow-hidden">
@@ -176,7 +183,7 @@ export function AssetAllocation({ assetAllocation, formatCurrency, isDemoMode, h
                     Total Value
                   </div>
                   <div className="text-sm sm:text-lg font-bold text-gray-900 dark:text-gray-100 leading-tight">
-                    {formatCurrency(totalValue)}
+                    {formatCurrencyWithHide(totalValue)}
                   </div>
                   <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">
                     {assetAllocation.length} {assetAllocation.length === 1 ? "class" : "classes"}
@@ -267,7 +274,7 @@ export function AssetAllocation({ assetAllocation, formatCurrency, isDemoMode, h
                     <div className="text-right space-y-3 min-w-[160px]">
                       <div className="space-y-1">
                         <div className="font-bold text-gray-900 dark:text-gray-100 text-lg transition-colors duration-300">
-                          {formatCurrency(item.value)}
+                          {formatCurrencyWithHide(item.value)}
                         </div>
                         <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">Asset Value</div>
                       </div>

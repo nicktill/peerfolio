@@ -9,6 +9,7 @@ interface TopHoldingsProps {
   getStockIcon: (symbol: string) => string
   isDemoMode?: boolean
   hasRealData?: boolean
+  balanceVisible?: boolean // <-- add this line
 }
 
 export function TopHoldings({
@@ -18,7 +19,14 @@ export function TopHoldings({
   getStockIcon,
   isDemoMode,
   hasRealData,
+  balanceVisible = true,
 }: TopHoldingsProps) {
+  // Helper to hide value numbers
+  const formatCurrencyWithHide = (value: number) => {
+    if (!balanceVisible) return "••••••"
+    return formatCurrency(value)
+  }
+
   return (
     <Card className="relative overflow-hidden">
       {/* Animated background based on mode */}
@@ -179,7 +187,7 @@ export function TopHoldings({
                 <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto sm:text-right sm:flex-shrink-0 sm:ml-3">
                   <div className="sm:text-right">
                     <div className="font-bold text-gray-900 dark:text-gray-100 text-sm mb-0.5">
-                      {formatCurrency(holding.value)}
+                      {formatCurrencyWithHide(holding.value)}
                     </div>
                     {holding.change !== undefined && (
                       <div

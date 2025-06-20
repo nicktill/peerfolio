@@ -54,10 +54,11 @@ export function StatusBanners({ isDemoMode, hasConnectedAccounts }: StatusBanner
                   Sandbox Data
                 </span>
               </h3>
-              <p className="text-sm text-yellow-700 dark:text-yellow-300 leading-relaxed">
-                Peerfolio is currently in its MVP phase using Plaid's sandbox environment with mock data. 
-                We're awaiting approval to connect with real financial institutions. 
-                The platform demonstrates full functionality with sample data until we go live with real accounts.
+              <p className="text-sm text-yellow-700 dark:text-yellow-300 leading-relaxed hidden xs:block">
+                Peerfolio is currently in its MVP phase using Plaid's sandbox environment with mock data. We're awaiting approval to connect with real financial institutions. The platform demonstrates full functionality with sample data until we go live with real accounts.
+              </p>
+              <p className="text-sm text-yellow-700 dark:text-yellow-300 leading-relaxed xs:hidden">
+                Plaid sandbox is active. This is a test environment with mock data. Real account support coming soon!
               </p>
             </div>
           </div>

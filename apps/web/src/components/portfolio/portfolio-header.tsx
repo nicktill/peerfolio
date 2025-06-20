@@ -27,16 +27,17 @@ export function PortfolioHeader({
   return (
     <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 lg:gap-0">
       <div>
-        <div className="flex items-center gap-3">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-foreground">Portfolio Dashboard</h1>
+        <div className="flex items-center gap-3 flex-wrap">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-foreground whitespace-nowrap">Portfolio Dashboard</h1>
           {isDemoMode && (
-            <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 text-sm font-medium px-3 py-1 rounded-full">
+            <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 text-sm font-medium px-3 py-1 rounded-full whitespace-nowrap">
               Demo Mode
             </span>
           )}
           {hasConnectedAccounts && !isDemoMode && (
-            <span className="bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 text-sm font-medium px-3 py-1 rounded-full">
-              Connected ({connectedPlaidAccounts.length} account{connectedPlaidAccounts.length !== 1 ? "s" : ""})
+            <span className="bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 text-sm font-medium px-3 py-1 rounded-full whitespace-nowrap flex items-center gap-1">
+              Connected
+              <span className="hidden xs:inline">({connectedPlaidAccounts.length} account{connectedPlaidAccounts.length !== 1 ? "s" : ""})</span>
             </span>
           )}
         </div>
@@ -108,9 +109,10 @@ export function PortfolioHeader({
             size="sm"
             onClick={() => setBalanceVisible(!balanceVisible)}
             className="flex items-center gap-2 flex-1 sm:flex-none justify-center"
+            aria-label={balanceVisible ? "Hide values" : "Show values"}
           >
             {balanceVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            <span className="hidden sm:inline">Hide</span>
+            <span className="hidden sm:inline">{balanceVisible ? "Hide" : "Show"}</span>
           </Button>
 
           <PlaidLink
@@ -126,16 +128,16 @@ export function PortfolioHeader({
       </div>
 
       {/* Mobile Navigation and Controls - Improved Layout */}
-      <div className="flex lg:hidden flex-col gap-3 w-full">
+      <div className="flex lg:hidden flex-col gap-4 w-full mt-4">
         {(hasConnectedAccounts || connectedPlaidAccounts.length > 0 || isDemoMode) && (
           <>
             {/* Demo/Connected Toggle - Mobile */}
-            <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+            <div className="flex items-center justify-center gap-2 mb-2">
               <Button
                 variant={isDemoMode ? "default" : "ghost"}
                 size="sm"
                 onClick={() => setIsDemoMode(true)}
-                className="flex-1 text-xs px-3 py-2 h-auto"
+                className="flex-1 text-xs px-3 py-2 h-auto rounded-full shadow-sm"
               >
                 <PieChart className="w-3 h-3 mr-1.5" />
                 Demo
@@ -144,7 +146,7 @@ export function PortfolioHeader({
                 variant={!isDemoMode ? "default" : "ghost"}
                 size="sm"
                 onClick={() => setIsDemoMode(false)}
-                className="flex-1 text-xs px-3 py-2 h-auto"
+                className="flex-1 text-xs px-3 py-2 h-auto rounded-full shadow-sm"
               >
                 <Building2 className="w-3 h-3 mr-1.5" />
                 Connected
@@ -152,12 +154,12 @@ export function PortfolioHeader({
             </div>
 
             {/* Action Buttons Row - Mobile */}
-            <div className="grid grid-cols-3 gap-2">
+            <div className="flex items-center justify-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={onExitDashboard}
-                className="text-xs px-2 py-2 h-auto bg-white/80 dark:bg-background/80 backdrop-blur-sm"
+                className="flex-1 text-xs px-3 py-2 h-auto rounded-full shadow-sm"
               >
                 <X className="w-3 h-3 mr-1" />
                 Exit
@@ -167,7 +169,8 @@ export function PortfolioHeader({
                 variant="outline"
                 size="sm"
                 onClick={() => setBalanceVisible(!balanceVisible)}
-                className="text-xs px-2 py-2 h-auto bg-white/80 dark:bg-background/80 backdrop-blur-sm"
+                className="flex-1 text-xs px-3 py-2 h-auto rounded-full shadow-sm"
+                aria-label={balanceVisible ? "Hide values" : "Show values"}
               >
                 {balanceVisible ? (
                   <>
@@ -182,10 +185,8 @@ export function PortfolioHeader({
                 )}
               </Button>
 
-              <PlaidLink onSuccess={onConnectAccount}>
-                <Button size="sm" className="text-xs px-2 py-2 h-auto w-full">
-                  Add
-                </Button>
+              <PlaidLink onSuccess={onConnectAccount} size="sm" className="flex-1 text-xs px-3 py-2 h-auto rounded-full shadow-sm">
+                Add
               </PlaidLink>
             </div>
           </>
@@ -193,10 +194,8 @@ export function PortfolioHeader({
 
         {/* If no accounts connected, show only Add Account button */}
         {!isDemoMode && !hasConnectedAccounts && connectedPlaidAccounts.length === 0 && (
-          <PlaidLink onSuccess={onConnectAccount}>
-            <Button size="sm" className="w-full text-sm px-4 py-2">
-              Add Account
-            </Button>
+          <PlaidLink onSuccess={onConnectAccount} size="sm" className="w-full text-sm px-4 py-2 rounded-full shadow-sm">
+            Add Account
           </PlaidLink>
         )}
       </div>

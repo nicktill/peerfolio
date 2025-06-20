@@ -224,21 +224,8 @@ export default function PeerfolioLanding() {
 
               <h1 className="mb-8 font-bold tracking-tight animate__animated animate__fadeInUp">
                 <div className="text-3xl sm:text-4xl md:text-7xl text-gray-900 leading-none">
-                  Track your{" "}
-                  <span className="inline-block min-w-[240px] sm:min-w-[280px] md:min-w-[420px] text-left align-baseline">
-                    <MorphingText
-                      texts={[
-                        "investments",
-                        "budgeting",
-                        "retirement",
-                        "allocations",
-                        "dividends",
-                        "brokerages",
-                        "finances",
-                      ]}
-                      className="inline-block align-baseline text-3xl sm:text-4xl md:text-7xl"
-                      animationType="typewriter"
-                    />
+                  <span className="block text-center sm:inline-block sm:text-left min-w-[240px] sm:min-w-[280px] md:min-w-[420px] align-baseline text-3xl sm:text-4xl md:text-7xl">
+                    Track your investing
                   </span>
                 </div>
                 <div className="mt-2 text-3xl sm:text-4xl md:text-7xl leading-none">
@@ -314,8 +301,8 @@ export default function PeerfolioLanding() {
                       </AnimatedShinyText>
                     </div>
                   </div>
-
-                  <div className="grid gap-6 md:grid-cols-3 w-full max-w-4xl mx-auto">
+                    
+                  <div className="grid gap-6 md:grid-cols-3">
                     <Card className="bg-gradient-to-r from-emerald-50 to-emerald-100 border-emerald-200 hover:from-emerald-100 hover:to-emerald-200 transition-all duration-500">
                       <div className="p-6">
                         <div className="flex items-center justify-between mb-4">
