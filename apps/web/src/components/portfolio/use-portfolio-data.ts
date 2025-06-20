@@ -112,14 +112,15 @@ export const usePortfolioData = (isDemoMode: boolean, hasConnectedAccounts: bool
     if (!isDemoMode && (connectedPlaidAccounts.length > 0 || (plaidData && hasConnectedAccounts))) {
       // For real Plaid data, create allocation based on actual account types
       const accounts = getAccountsData()
-      const totalBalance = accounts.reduce((sum, acc) => sum + Math.abs(acc.balance), 0)
+      const totalBalance = accounts.reduce((sum: number, acc: any) => sum + Math.abs(acc.balance), 0)
+
 
       if (totalBalance === 0) return assetAllocation // Fallback to demo data
 
       // Group accounts by type
       const typeGroups: { [key: string]: { value: number; accounts: any[] } } = {}
 
-      accounts.forEach((account) => {
+      accounts.forEach((account: any) => {
         const type = account.subtype || account.type || "Other"
         const key = type.toLowerCase()
 
