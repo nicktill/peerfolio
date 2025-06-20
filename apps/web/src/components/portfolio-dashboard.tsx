@@ -159,6 +159,7 @@ export function PortfolioDashboard({
     setConnectedPlaidAccounts,
     chartKey,
     useAssetsOnlyForChart,
+    chartTrendData, // Add this
   } = usePortfolioData(isDemoMode, hasConnectedAccounts, plaidData)
 
   // Load connected accounts from localStorage on mount and when hasConnectedAccounts changes
@@ -268,6 +269,7 @@ export function PortfolioDashboard({
         formatPercentage={formatPercentage}
         selectedTimeframe={selectedTimeframe}
         chartData={chartData}
+        chartTrendData={chartTrendData} // Add this prop
       />
 
       {/* Portfolio Performance Chart with Top Holdings */}
