@@ -36,7 +36,6 @@ function DashboardContent() {
     }
   }, [status, router])
 
-  // Check for existing connected accounts on mount
   useEffect(() => {
     if (typeof window !== "undefined") {
       const exitedFlag = localStorage.getItem("hasExitedDashboard") === "true"
@@ -51,7 +50,6 @@ function DashboardContent() {
     }
   }, [])
 
-  // Fade in dashboard after loading
   useEffect(() => {
     if (status === "authenticated" && session) {
       const timer = setTimeout(() => {
@@ -164,17 +162,17 @@ function DashboardContent() {
         isVisible ? "opacity-100" : "opacity-0"
       }`}
     >
-      {/* Animated Grid Background - rotated and with green animated squares */}
+      {/* Animated Grid Background - matching landing page scale */}
       <AnimatedGridPattern
-        numSquares={25}
-        maxOpacity={0.05}
-        duration={4}
-        repeatDelay={1.5}
-        className={`absolute inset-0 h-full w-full rotate-45 ${
-          isDark ? "fill-emerald-600/10 stroke-emerald-500/10" : "fill-emerald-400/10 stroke-emerald-300/10"
+        numSquares={30}
+        maxOpacity={0.1}
+        duration={3}
+        repeatDelay={1}
+        className={`absolute inset-0 h-full w-full skew-y-12 ${
+          isDark ? "fill-emerald-600/20 stroke-emerald-500/20" : "fill-emerald-400/20 stroke-emerald-300/20"
         }`}
-        width={60}
-        height={60}
+        width={40}
+        height={40}
       />
 
       {/* Header */}

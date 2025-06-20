@@ -21,39 +21,55 @@ export const usePortfolioData = (isDemoMode: boolean, hasConnectedAccounts: bool
     setChartKey((prev) => prev + 1)
   }, [isDemoMode, hasConnectedAccounts, selectedTimeframe])
 
-  // Generate realistic portfolio history based on actual account balances
+  // Generate realistic sandbox portfolio history based on actual account balances and types
   const generateSandboxPortfolioHistory = (currentValue: number, accounts: any[], useAssetsOnly = false) => {
     const months = 24
     const data = []
 
-    // Calculate realistic starting point based on account types
-    const investmentBalance = accounts
-      .filter((acc) => acc.category === "investments")
-      .reduce((sum, acc) => sum + Math.abs(acc.balance), 0)
+    // Analyze account composition for realistic patterns
+    const investmentAccounts = accounts.filter((acc) => acc.category === "investments")
+    const assetAccounts = accounts.filter((acc) => acc.category === "assets")
+    const liabilityAccounts = accounts.filter((acc) => acc.category === "liabilities")
 
-    const assetsBalance = accounts
-      .filter((acc) => acc.category === "assets")
-      .reduce((sum, acc) => sum + Math.abs(acc.balance), 0)
+    const investmentBalance = investmentAccounts.reduce((sum, acc) => sum + Math.abs(acc.balance), 0)
+    const assetBalance = assetAccounts.reduce((sum, acc) => sum + Math.abs(acc.balance), 0)
+    const liabilityBalance = liabilityAccounts.reduce((sum, acc) => sum + Math.abs(acc.balance), 0)
 
-    // For assets-only view, show realistic growth pattern
-    const startingValue = useAssetsOnly
-      ? currentValue * 0.7 // Assume 30% growth over 2 years for assets
-      : currentValue - investmentBalance * 0.3 // Net worth calculation
+    // Create different growth patterns based on actual account composition
+    const hasSignificantInvestments = investmentBalance > assetBalance * 0.5
+    const hasHighLiabilities = liabilityBalance > assetBalance
+
+    // Starting value calculation
+    let startingValue
+    if (useAssetsOnly) {
+      // For assets-only view, show steady growth
+      startingValue = currentValue * 0.75 // 25% growth over 2 years
+    } else {
+      // For net worth, factor in liability changes
+      startingValue = hasHighLiabilities ? currentValue * 1.2 : currentValue * 0.8
+    }
 
     for (let i = 0; i < months; i++) {
       const date = new Date()
       date.setMonth(date.getMonth() - (months - i - 1))
-
-      // Progressive growth with realistic volatility
       const progress = i / (months - 1)
-      const baseValue = startingValue + (currentValue - startingValue) * progress
 
-      // Add market-like volatility (more for investments, less for cash)
-      const investmentRatio = investmentBalance / currentValue
-      const volatilityFactor = useAssetsOnly ? investmentRatio * 0.1 : 0.05
-      const volatility = (Math.random() - 0.5) * currentValue * volatilityFactor
+      let monthValue
+      if (useAssetsOnly) {
+        // Assets show steady upward growth with some volatility
+        const baseGrowth = startingValue + (currentValue - startingValue) * progress
+        const volatility = hasSignificantInvestments
+          ? (Math.sin(i * 0.3) + Math.random() - 0.5) * currentValue * 0.08 // Higher volatility for investments
+          : (Math.random() - 0.5) * currentValue * 0.03 // Lower volatility for cash/savings
 
-      const monthValue = Math.max(baseValue + volatility, startingValue * 0.6)
+        monthValue = Math.max(baseGrowth + volatility, startingValue * 0.7)
+      } else {
+        // Net worth can be more volatile due to liability changes
+        const baseGrowth = startingValue + (currentValue - startingValue) * progress
+        const volatility = (Math.random() - 0.5) * Math.abs(currentValue) * 0.1
+
+        monthValue = baseGrowth + volatility
+      }
 
       data.push({
         date: date.toISOString().slice(0, 7),
@@ -248,7 +264,7 @@ export const usePortfolioData = (isDemoMode: boolean, hasConnectedAccounts: bool
           const variation = (Math.random() - 0.5) * baseVariation
           hourlyData.push({
             date: hour.toISOString(),
-            value: Math.round(Math.max(currentValue + variation, currentValue * 0.95)),
+            value: Math.round(Math.max(currentValue + variation, currentValue * 0.98)),
             month: hour.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
           })
         }
@@ -263,7 +279,7 @@ export const usePortfolioData = (isDemoMode: boolean, hasConnectedAccounts: bool
           const variation = (Math.random() - 0.5) * baseVariation * 2
           dailyData.push({
             date: day.toISOString().slice(0, 10),
-            value: Math.round(Math.max(currentValue + variation, currentValue * 0.9)),
+            value: Math.round(Math.max(currentValue + variation, currentValue * 0.95)),
             month: day.toLocaleDateString("en-US", { weekday: "short" }),
           })
         }
@@ -295,6 +311,7 @@ export const usePortfolioData = (isDemoMode: boolean, hasConnectedAccounts: bool
 
     return {
       data: filterData(selectedTimeframe),
+      fullHistoricalData: baseData, // Keep full data for all-time calculations
       useAssetsOnly,
       chartValue,
     }
@@ -322,12 +339,13 @@ export const usePortfolioData = (isDemoMode: boolean, hasConnectedAccounts: bool
 
   const portfolioChartData = getPortfolioData(totalBalance, totalAssetsOnly, accountsData)
   const chartData = portfolioChartData.data
+  const fullHistoricalData = portfolioChartData.fullHistoricalData
   const useAssetsOnlyForChart = portfolioChartData.useAssetsOnly
   const chartDisplayValue = portfolioChartData.chartValue
 
-  const totalGain = chartDisplayValue - chartData[0].value
-  const totalGainPercentage = chartData[0].value > 0 ? (totalGain / chartData[0].value) * 100 : 0
-  const todaysChange = calculateTodaysChange(chartData)
+  const totalGain = chartDisplayValue - fullHistoricalData[0].value // Use full historical data for all-time
+  const totalGainPercentage = fullHistoricalData[0].value > 0 ? (totalGain / fullHistoricalData[0].value) * 100 : 0
+  const todaysChange = calculateTodaysChange(fullHistoricalData) // Use full data for today's change
   const topHoldings = getTopHoldings(isDemoMode, plaidData, connectedPlaidAccounts, accountsWithPercentages)
   const assetAllocationData = getAssetAllocationData()
 
@@ -336,6 +354,7 @@ export const usePortfolioData = (isDemoMode: boolean, hasConnectedAccounts: bool
     balanceSummary,
     totalBalance,
     chartData,
+    fullHistoricalData, // Add this for all-time calculations
     chartKey,
     totalGain,
     totalGainPercentage,
