@@ -5,6 +5,7 @@ import { Button } from "@web/components/ui/button"
 import { signOut } from "next-auth/react"
 import { getConnectedAccounts } from "@web/lib/account-storage"
 
+
 interface MobileNavProps {
   className?: string
 }
