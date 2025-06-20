@@ -188,10 +188,10 @@ export function ConnectedAccounts({
                   {accounts.map((account: any) => (
                     <div
                       key={`${account.id || account.plaidAccountId || account.name}-${account.balance}-${Date.now()}`}
-                      className="group relative p-3 bg-white dark:bg-gray-800/30 border border-gray-200/60 dark:border-gray-700/50 rounded-lg hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md dark:hover:shadow-gray-900/20 transition-all duration-300 hover:scale-[1.01]"
+                      className="group relative p-3 sm:p-4 bg-white dark:bg-gray-800/30 border border-gray-200/60 dark:border-gray-700/50 rounded-lg hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md dark:hover:shadow-gray-900/20 transition-all duration-300"
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
+                        <div className="flex items-center gap-3 flex-1 min-w-0 w-full sm:w-auto">
                           <div className="relative">
                             {/* Institution Logo */}
                             <div className="w-10 h-10 bg-gradient-to-br from-white to-gray-50 dark:from-gray-700 dark:to-gray-800 rounded-lg flex items-center justify-center overflow-hidden border-2 border-gray-200/70 dark:border-gray-600/50 group-hover:border-gray-300 dark:group-hover:border-gray-500 transition-all duration-300 shadow-sm">
@@ -227,17 +227,17 @@ export function ConnectedAccounts({
                             <div className="font-semibold text-gray-900 dark:text-gray-100 text-sm mb-1 truncate">
                               {formatAccountName(account.name)}
                             </div>
-                            <div className="text-xs text-gray-600 dark:text-gray-300 flex items-center gap-2 flex-wrap">
-                              <span className="font-medium text-gray-800 dark:text-gray-200 bg-gray-100 dark:bg-gray-700/50 px-2 py-0.5 rounded text-xs">
+                            <div className="text-xs text-gray-600 dark:text-gray-300 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                              <span className="font-medium text-gray-800 dark:text-gray-200 bg-gray-100 dark:bg-gray-700/50 px-2 py-0.5 rounded text-xs inline-block w-fit">
                                 {getInstitutionDisplayName(account.name)}
                               </span>
-                              <span className="text-gray-400 dark:text-gray-500">•</span>
+                              <span className="text-gray-400 dark:text-gray-500 hidden sm:inline">•</span>
                               <span className="capitalize text-gray-600 dark:text-gray-300 font-medium text-xs">
                                 {account.type}
                               </span>
                               {account.mask && (
                                 <>
-                                  <span className="text-gray-400 dark:text-gray-500">•</span>
+                                  <span className="text-gray-400 dark:text-gray-500 hidden sm:inline">•</span>
                                   <span className="text-gray-500 dark:text-gray-400 text-xs">••••{account.mask}</span>
                                 </>
                               )}
@@ -245,8 +245,8 @@ export function ConnectedAccounts({
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-3">
-                          <div className="text-right min-w-[100px]">
+                        <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
+                          <div className="text-left sm:text-right">
                             <div
                               className={`font-bold text-sm mb-1 ${
                                 account.isLiability
@@ -257,7 +257,7 @@ export function ConnectedAccounts({
                               {account.isLiability ? "-" : ""}
                               {formatCurrency(Math.abs(account.balance))}
                             </div>
-                            <div className="flex justify-end">
+                            <div className="flex justify-start sm:justify-end">
                               {account.isIncludedInPortfolio ? (
                                 <span className="inline-flex items-center text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded-full text-xs font-medium border border-blue-200 dark:border-blue-800">
                                   {account.percentage.toFixed(1)}% of assets
@@ -278,7 +278,7 @@ export function ConnectedAccounts({
                               variant="ghost"
                               size="sm"
                               onClick={() => handleRemoveAccount(account.accountId)}
-                              className="opacity-0 group-hover:opacity-100 transition-all duration-300 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-lg hover:scale-110 flex-shrink-0"
+                              className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-300 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-lg hover:scale-110 flex-shrink-0 touch-manipulation"
                               title="Remove account"
                             >
                               <X className="w-4 h-4" />

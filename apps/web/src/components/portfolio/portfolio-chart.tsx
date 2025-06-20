@@ -134,8 +134,8 @@ export function PortfolioChart({
       />
 
       <CardHeader className="relative z-10 pb-4">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1 min-w-0">
+        <div className="flex flex-col sm:flex-row items-start sm:items-start justify-between gap-4">
+          <div className="flex-1 min-w-0 w-full sm:w-auto">
             {/* Title Row */}
             <div className="flex items-center gap-3 mb-2">
               <CardTitle className="text-gray-900 dark:text-foreground text-xl font-semibold">
@@ -212,14 +212,14 @@ export function PortfolioChart({
           </div>
 
           {/* Timeframe Buttons */}
-          <div className="flex items-center gap-1 flex-shrink-0">
+          <div className="flex items-center gap-1 flex-wrap sm:flex-nowrap w-full sm:w-auto justify-start sm:justify-end">
             {timeframes.map((timeframe) => (
               <Button
                 key={timeframe}
                 variant={selectedTimeframe === timeframe ? "default" : "outline"}
                 size="sm"
                 onClick={() => setSelectedTimeframe(timeframe)}
-                className="h-8 px-3 text-xs transition-all duration-200"
+                className="h-8 px-2 sm:px-3 text-xs transition-all duration-200 flex-1 sm:flex-none min-w-0"
               >
                 {timeframe}
               </Button>
@@ -229,7 +229,7 @@ export function PortfolioChart({
       </CardHeader>
 
       <CardContent className="relative z-10 pt-0">
-        <ChartContainer config={chartConfig} className="h-[400px]">
+        <ChartContainer config={chartConfig} className="h-[300px] sm:h-[400px]">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData} key={animationKey}>
               <defs>
@@ -331,7 +331,7 @@ export function PortfolioChart({
         </ChartContainer>
 
         {/* Data source indicator */}
-        <div className="mt-4 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+        <div className="mt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs text-gray-500 dark:text-gray-400">
           <div className="flex items-center gap-2">
             <div
               className={`w-2 h-2 rounded-full ${

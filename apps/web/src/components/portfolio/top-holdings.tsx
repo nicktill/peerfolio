@@ -77,7 +77,7 @@ export function TopHoldings({
             {topHoldings.map((holding, index) => (
               <div
                 key={`${holding.symbol || holding.id || holding.name || "holding"}-${index}-${holding.value || 0}`}
-                className={`group flex items-center justify-between p-4 rounded-xl border transition-all duration-300 hover:scale-[1.01] cursor-pointer ${
+                className={`group flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 p-4 rounded-xl border transition-all duration-300 hover:scale-[1.01] cursor-pointer ${
                   isDemoMode
                     ? "bg-gradient-to-r from-blue-50/80 to-indigo-50/50 dark:from-blue-950/30 dark:to-indigo-950/20 border-blue-200/50 dark:border-blue-800/40 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-lg hover:shadow-blue-500/10"
                     : hasRealData
@@ -85,7 +85,7 @@ export function TopHoldings({
                       : "bg-gradient-to-r from-white/80 to-gray-50/50 dark:from-gray-800/50 dark:to-gray-900/30 border-gray-200/50 dark:border-gray-700/40 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md dark:hover:shadow-gray-900/20"
                 }`}
               >
-                <div className="flex items-center gap-4 flex-1 min-w-0">
+                <div className="flex items-center gap-4 flex-1 min-w-0 w-full sm:w-auto">
                   <div className="relative flex-shrink-0">
                     <div
                       className={`w-12 h-12 rounded-xl flex items-center justify-center overflow-hidden border-2 transition-all duration-300 shadow-sm group-hover:shadow-md ${
@@ -176,20 +176,26 @@ export function TopHoldings({
                   </div>
                 </div>
 
-                <div className="text-right flex-shrink-0 ml-3">
-                  <div className="font-bold text-gray-900 dark:text-gray-100 text-sm mb-0.5">
-                    {formatCurrency(holding.value)}
-                  </div>
-                  {holding.change !== undefined && (
-                    <div
-                      className={`flex items-center justify-end gap-1 text-xs ${
-                        holding.change >= 0 ? "text-emerald-600" : "text-red-600"
-                      }`}
-                    >
-                      {holding.change >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                      <span>{formatPercentage(holding.change)}</span>
+                <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto sm:text-right sm:flex-shrink-0 sm:ml-3">
+                  <div className="sm:text-right">
+                    <div className="font-bold text-gray-900 dark:text-gray-100 text-sm mb-0.5">
+                      {formatCurrency(holding.value)}
                     </div>
-                  )}
+                    {holding.change !== undefined && (
+                      <div
+                        className={`flex items-center gap-1 text-xs ${
+                          holding.change >= 0 ? "text-emerald-600" : "text-red-600"
+                        }`}
+                      >
+                        {holding.change >= 0 ? (
+                          <TrendingUp className="w-3 h-3" />
+                        ) : (
+                          <TrendingDown className="w-3 h-3" />
+                        )}
+                        <span>{formatPercentage(holding.change)}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}

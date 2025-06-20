@@ -70,7 +70,7 @@ export function AssetAllocation({ assetAllocation, formatCurrency, isDemoMode, h
       <CardContent className="relative z-10 p-6">
         <div className="space-y-8">
           {/* Enhanced Pie Chart */}
-          <div className="relative h-64 group/chart">
+          <div className="relative h-48 sm:h-64 group/chart">
             <ResponsiveContainer width="100%" height="100%">
               <RechartsPieChart>
                 <defs>
@@ -155,7 +155,7 @@ export function AssetAllocation({ assetAllocation, formatCurrency, isDemoMode, h
             {/* Enhanced Center Display */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div
-                className={`text-center backdrop-blur-xl rounded-full w-32 h-32 flex flex-col items-center justify-center border-2 shadow-2xl group-hover/chart:scale-105 transition-all duration-500 ${
+                className={`text-center backdrop-blur-xl rounded-full w-24 h-24 sm:w-32 sm:h-32 flex flex-col items-center justify-center border-2 shadow-2xl group-hover/chart:scale-105 transition-all duration-500 ${
                   isDemoMode
                     ? "bg-gradient-to-br from-blue-50/90 via-white/95 to-indigo-50/90 dark:from-blue-950/90 dark:via-gray-900/95 dark:to-indigo-950/90 border-blue-200/80 dark:border-blue-700/80"
                     : hasRealData
@@ -175,7 +175,7 @@ export function AssetAllocation({ assetAllocation, formatCurrency, isDemoMode, h
                   >
                     Total Value
                   </div>
-                  <div className="text-lg font-bold text-gray-900 dark:text-gray-100 leading-tight">
+                  <div className="text-sm sm:text-lg font-bold text-gray-900 dark:text-gray-100 leading-tight">
                     {formatCurrency(totalValue)}
                   </div>
                   <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">
@@ -211,7 +211,7 @@ export function AssetAllocation({ assetAllocation, formatCurrency, isDemoMode, h
               return (
                 <div
                   key={`${item.name}-${index}-${item.value}`}
-                  className="group/item relative p-5 bg-gradient-to-r from-white/80 via-white/60 to-white/40 dark:from-gray-800/60 dark:via-gray-800/40 dark:to-gray-800/20 backdrop-blur-sm rounded-xl border border-gray-200/60 dark:border-gray-700/40 hover:shadow-lg dark:hover:shadow-gray-900/20 transition-all duration-300 hover:scale-[1.02] cursor-pointer overflow-hidden"
+                  className="group/item relative p-4 sm:p-5 bg-gradient-to-r from-white/80 via-white/60 to-white/40 dark:from-gray-800/60 dark:via-gray-800/40 dark:to-gray-800/20 backdrop-blur-sm rounded-xl border border-gray-200/60 dark:border-gray-700/40 hover:shadow-lg dark:hover:shadow-gray-900/20 transition-all duration-300 hover:scale-[1.02] cursor-pointer overflow-hidden"
                   style={{
                     borderColor: `${item.color}20`,
                   }}
@@ -224,7 +224,7 @@ export function AssetAllocation({ assetAllocation, formatCurrency, isDemoMode, h
                     }}
                   />
 
-                  <div className="relative flex items-center justify-between">
+                  <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
                     <div className="flex items-center gap-4">
                       {/* Enhanced color indicator */}
                       <div className="relative">
@@ -299,7 +299,7 @@ export function AssetAllocation({ assetAllocation, formatCurrency, isDemoMode, h
           </div>
 
           {/* Enhanced Summary Stats */}
-          <div className="grid grid-cols-3 gap-6 pt-6 border-t border-gradient-to-r from-transparent via-gray-200/50 to-transparent dark:via-gray-700/50">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 pt-6 border-t border-gradient-to-r from-transparent via-gray-200/50 to-transparent dark:via-gray-700/50">
             {[
               {
                 label: hasRealData ? "Account Types" : "Asset Classes",

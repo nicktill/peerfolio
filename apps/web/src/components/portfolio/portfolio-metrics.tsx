@@ -214,7 +214,7 @@ export function PortfolioMetrics({
   const hasLiabilities = balanceSummary.totalLiabilities > 0
 
   return (
-    <div className="grid gap-6 md:grid-cols-3">
+    <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
       {/* Net Portfolio Value / Total Assets Toggle */}
       <Card className={cardStyling.cardClass}>
         <CardHeader className="pb-3">
@@ -228,11 +228,7 @@ export function PortfolioMetrics({
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowAssetsOnly(!showAssetsOnly)}
-                className={`h-6 w-6 p-0 ${
-                  showAssetsOnly || displayValues.value >= 0
-                    ? "hover:bg-emerald-100 dark:hover:bg-emerald-900/50"
-                    : "hover:bg-red-100 dark:hover:bg-red-900/50"
-                }`}
+                className="h-8 w-8 p-0 touch-manipulation"
                 title={showAssetsOnly ? "View net worth" : "View only assets"}
               >
                 {showAssetsOnly ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
@@ -240,7 +236,7 @@ export function PortfolioMetrics({
             )}
           </CardTitle>
         </CardHeader>
-        <CardContent className="pt-0">
+        <CardContent className="pt-0 p-4 sm:p-6">
           <div className="space-y-3">
             <div className="text-3xl font-bold text-gray-900 dark:text-gray-100">
               {formatCurrency(displayValues.value)}
@@ -275,7 +271,7 @@ export function PortfolioMetrics({
 
             {/* Assets and Liabilities breakdown */}
             <div
-              className={`grid grid-cols-2 gap-4 pt-2 border-t ${
+              className={`grid grid-cols-2 gap-2 sm:gap-4 pt-2 border-t ${
                 showAssetsOnly || displayValues.value >= 0
                   ? "border-emerald-200/30 dark:border-emerald-800/30"
                   : "border-red-200/30 dark:border-red-800/30"

@@ -11,6 +11,7 @@ import { addConnectedAccount, getConnectedAccounts, type ConnectedAccount } from
 import { useTheme } from "@web/components/theme-provider"
 import { ThemeProvider } from "@web/components/theme-provider"
 import { AnimatedGridPattern } from "@web/components/magicui/animated-grid-pattern"
+import { MobileNav } from "@web/components/mobile-nav"
 
 interface PlaidMetadata {
   institution?: {
@@ -158,7 +159,7 @@ function DashboardContent() {
 
   return (
     <div
-      className={`min-h-screen bg-gray-50 dark:bg-background dark:text-foreground transition-opacity duration-500 ease-in-out relative ${
+      className={`flex flex-col min-h-screen bg-gray-50 dark:bg-background dark:text-foreground transition-opacity duration-500 ease-in-out relative ${
         isVisible ? "opacity-100" : "opacity-0"
       }`}
     >
@@ -168,11 +169,11 @@ function DashboardContent() {
         maxOpacity={0.25}
         duration={3}
         repeatDelay={1}
-       className={`absolute inset-0 h-full w-full skew-y-12 transform-gpu ${
-        isDark
-          ? "fill-emerald-600/20 stroke-emerald-500/20 text-emerald-500/30"
-          : "fill-emerald-400/20 stroke-emerald-300/20 text-emerald-400/30"
-      }`}
+        className={`absolute inset-0 h-full w-full skew-y-12 transform-gpu ${
+          isDark
+            ? "fill-emerald-600/20 stroke-emerald-500/20 text-emerald-500/30"
+            : "fill-emerald-400/20 stroke-emerald-300/20 text-emerald-400/30"
+        }`}
         width={40}
         height={40}
       />
@@ -180,12 +181,14 @@ function DashboardContent() {
       {/* Header */}
       <header className="bg-white/80 dark:bg-background/80 backdrop-blur-sm shadow-sm border-b border-gray-200 dark:border-gray-800 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-wrap justify-between items-center h-16 gap-2 md:gap-0">
+          <div className="flex items-center justify-between h-16 gap-2">
             <div className="flex items-center space-x-3 min-w-0">
               <Image src="/logo.png" alt="Peerfolio" width={32} height={32} className="rounded-lg" />
               <h1 className="text-xl font-semibold text-gray-900 dark:text-foreground truncate">Peerfolio</h1>
             </div>
-            <div className="flex items-center space-x-2 md:space-x-4 flex-shrink-0">
+
+            {/* Desktop navigation */}
+            <div className="hidden md:flex items-center space-x-4 flex-shrink-0">
               <Button
                 variant="outline"
                 size="icon"
@@ -230,12 +233,46 @@ function DashboardContent() {
                 Sign Out
               </Button>
             </div>
+
+            {/* Mobile navigation */}
+            <div className="flex md:hidden items-center space-x-2">
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label="Toggle dark mode"
+                onClick={toggleDark}
+                className="flex items-center justify-center border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-background/80 backdrop-blur-sm hover:bg-gray-50 dark:hover:bg-gray-800"
+              >
+                {isDark ? (
+                  <svg width="18" height="18" fill="none" viewBox="0 0 24 24">
+                    <path
+                      d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                ) : (
+                  <svg width="18" height="18" fill="none" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="2" />
+                    <path
+                      d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                )}
+              </Button>
+              <MobileNav />
+            </div>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
+      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
         <PortfolioDashboard
           hasConnectedAccounts={hasConnectedAccounts}
           onConnectAccount={handleConnectAccount}

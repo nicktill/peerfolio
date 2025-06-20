@@ -1,9 +1,7 @@
 "use client"
-
-import React from "react"
 import { Button } from "@web/components/ui/button"
 import { PlaidLink } from "../plaid-link"
-import { PieChart, Building2, Eye, EyeOff, X } from "lucide-react"
+import { PieChart, Building2, Eye, EyeOff } from "lucide-react"
 
 interface PortfolioHeaderProps {
   isDemoMode: boolean
@@ -24,10 +22,10 @@ export function PortfolioHeader({
   setBalanceVisible,
   setIsDemoMode,
   onConnectAccount,
-  onExitDashboard
+  onExitDashboard,
 }: PortfolioHeaderProps) {
   return (
-    <div className="flex items-center justify-between">
+    <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 lg:gap-0">
       <div>
         <div className="flex items-center gap-3">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-foreground">Portfolio Dashboard</h1>
@@ -38,95 +36,79 @@ export function PortfolioHeader({
           )}
           {hasConnectedAccounts && !isDemoMode && (
             <span className="bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 text-sm font-medium px-3 py-1 rounded-full">
-              Connected ({connectedPlaidAccounts.length} account{connectedPlaidAccounts.length !== 1 ? 's' : ''})
+              Connected ({connectedPlaidAccounts.length} account{connectedPlaidAccounts.length !== 1 ? "s" : ""})
             </span>
           )}
         </div>
         <p className="text-gray-600 dark:text-gray-400 mt-1">
-          {isDemoMode ? "Explore with sample portfolio data" :
-           hasConnectedAccounts ? "Real data from your connected accounts" :
-           "Connect your accounts to see real portfolio data"}
+          {isDemoMode
+            ? "Explore with sample portfolio data"
+            : hasConnectedAccounts
+              ? "Real data from your connected accounts"
+              : "Connect your accounts to see real portfolio data"}
         </p>
       </div>
-      
+
       {/* Navigation and Controls */}
-      <div className="flex items-center gap-3">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
         {/* Navigation Buttons - First Section */}
         {(hasConnectedAccounts || connectedPlaidAccounts.length > 0 || isDemoMode) && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
             <Button
               variant={isDemoMode ? "default" : "outline"}
               onClick={() => setIsDemoMode(true)}
-              className="flex items-center gap-2 min-w-[120px] justify-center"
+              className="flex items-center gap-2 justify-center text-sm"
               size="sm"
             >
               <PieChart className="w-4 h-4" />
-              View Demo
+              <span className="hidden sm:inline">View Demo</span>
+              <span className="sm:hidden">Demo</span>
             </Button>
             {(hasConnectedAccounts || connectedPlaidAccounts.length > 0) && (
               <Button
                 variant={!isDemoMode ? "default" : "outline"}
                 onClick={() => {
-                  // Only show connected accounts view if there are actually accounts
                   if (connectedPlaidAccounts.length > 0) {
                     setIsDemoMode(false)
                   } else {
-                    // If no accounts exist, exit to landing screen to let user connect
                     if (onExitDashboard) {
                       onExitDashboard()
                     }
                   }
                 }}
-                className="flex items-center gap-2 min-w-[180px] justify-center"
+                className="flex items-center gap-2 justify-center text-sm"
                 size="sm"
               >
                 <Building2 className="w-4 h-4" />
-                {connectedPlaidAccounts.length > 0 ? "View Connected Accounts" : "Connect Real Account"}
+                <span className="hidden sm:inline">
+                  {connectedPlaidAccounts.length > 0 ? "View Connected Accounts" : "Connect Real Account"}
+                </span>
+                <span className="sm:hidden">{connectedPlaidAccounts.length > 0 ? "Connected" : "Connect"}</span>
               </Button>
             )}
-            <Button
-              variant="ghost"
-              onClick={() => {
-                // Reset demo mode
-                setIsDemoMode(false)
-                // Clear connected accounts from localStorage to reset dashboard state
-                if (typeof window !== 'undefined') {
-                  localStorage.removeItem('connectedAccounts')
-                }
-                // Call the exit function if provided to reset parent state
-                if (onExitDashboard) {
-                  onExitDashboard()
-                }
-                // This will cause showDashboard to be false and show the landing screen
-              }}
-              className="flex items-center gap-2 text-gray-600 hover:text-gray-900 min-w-[120px] justify-center"
-              size="sm"
-            >
-              <X className="w-4 h-4" />
-              Exit Dashboard
-            </Button>
           </div>
         )}
-        
+
         {/* Hide and Add Account buttons - Second Section */}
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
             size="sm"
             onClick={() => setBalanceVisible(!balanceVisible)}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 flex-1 sm:flex-none justify-center"
           >
             {balanceVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            Hide
+            <span className="hidden sm:inline">Hide</span>
           </Button>
-          
-          <PlaidLink 
-            onSuccess={onConnectAccount} 
-            variant="outline" 
+
+          <PlaidLink
+            onSuccess={onConnectAccount}
+            variant="outline"
             size="sm"
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 flex-1 sm:flex-none justify-center"
           >
-            Add Account
+            <span className="hidden sm:inline">Add Account</span>
+            <span className="sm:hidden">Add</span>
           </PlaidLink>
         </div>
       </div>

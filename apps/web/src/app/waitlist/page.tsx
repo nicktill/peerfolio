@@ -1,11 +1,12 @@
-"use client";
+"use client"
+
+import type React from "react"
 
 import { useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { ArrowLeft, Sparkles, CheckCircle, Star, Mail, User, MessageSquare } from "lucide-react"
 import { AnimatedGridPattern } from "@web/components/magicui/animated-grid-pattern"
-import { AnimatedShinyText } from "@web/components/magicui/animated-shiny-text"
 import { cn } from "@web/lib/utils"
 
 // Toast component for success notifications
@@ -27,13 +28,14 @@ const Toast = ({ show, onClose, message }: ToastProps) => {
         <div className="flex-1">
           <p className="text-xs font-medium text-gray-900 leading-tight">{message}</p>
         </div>
-        <button
-          onClick={onClose}
-          className="flex-shrink-0 text-gray-400 hover:text-gray-600 transition-colors"
-        >
+        <button onClick={onClose} className="flex-shrink-0 text-gray-400 hover:text-gray-600 transition-colors">
           <span className="sr-only">Close</span>
           <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+            <path
+              fillRule="evenodd"
+              d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+              clipRule="evenodd"
+            />
           </svg>
         </button>
       </div>
@@ -52,11 +54,19 @@ interface ButtonProps {
   [key: string]: any
 }
 
-const Button = ({ children, variant = "default", size = "default", className = "", disabled = false, ...props }: ButtonProps) => {
+const Button = ({
+  children,
+  variant = "default",
+  size = "default",
+  className = "",
+  disabled = false,
+  ...props
+}: ButtonProps) => {
   const baseClasses =
     "inline-flex items-center justify-center font-medium transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
   const variants = {
-    default: "bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg hover:shadow-xl focus:ring-emerald-500 rounded-full",
+    default:
+      "bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg hover:shadow-xl focus:ring-emerald-500 rounded-full",
     secondary:
       "bg-white hover:bg-gray-50 text-gray-900 border border-gray-200 hover:border-gray-300 shadow-sm hover:shadow-md focus:ring-gray-500 rounded-full",
     ghost: "text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full",
@@ -67,8 +77,8 @@ const Button = ({ children, variant = "default", size = "default", className = "
   }
 
   return (
-    <button 
-      className={`${baseClasses} ${variants[variant]} ${sizes[size]} ${className}`} 
+    <button
+      className={`${baseClasses} ${variants[variant]} ${sizes[size]} ${className}`}
       disabled={disabled}
       {...props}
     >
@@ -101,16 +111,16 @@ export default function WaitlistPage() {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
-    note: ""
+    note: "",
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showToast, setShowToast] = useState(false)
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }))
   }
 
@@ -119,11 +129,11 @@ export default function WaitlistPage() {
     setIsSubmitting(true)
 
     // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+
     // Show success toast
     setShowToast(true)
-    
+
     // Reset form
     setFormData({ name: "", email: "", note: "" })
     setIsSubmitting(false)
@@ -137,7 +147,7 @@ export default function WaitlistPage() {
       {/* Background matching landing page */}
       <div className="fixed inset-0 z-0">
         <div className="absolute inset-0 bg-gradient-to-br from-gray-50 via-white to-emerald-50/20" />
-        
+
         <div className="absolute -inset-[10%] w-[120%] h-[120%] transform rotate-12 origin-center">
           <AnimatedGridPattern
             numSquares={80}
@@ -146,19 +156,22 @@ export default function WaitlistPage() {
             repeatDelay={0.5}
             className={cn(
               "absolute inset-0 h-full w-full text-emerald-500/70",
-              "[mask-image:radial-gradient(2000px_circle_at_center,white,transparent)]"
+              "[mask-image:radial-gradient(2000px_circle_at_center,white,transparent)]",
             )}
           />
         </div>
-        
+
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-gradient-to-r from-emerald-200/10 to-teal-200/10 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-gradient-to-r from-blue-200/10 to-purple-200/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }} />
+        <div
+          className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-gradient-to-r from-blue-200/10 to-purple-200/10 rounded-full blur-3xl animate-pulse"
+          style={{ animationDelay: "2s" }}
+        />
       </div>
 
       {/* Header */}
       <header className="sticky top-0 z-50 w-full border-b border-gray-100/50 bg-white/80 backdrop-blur-md relative animate__animated animate__fadeIn animate__faster">
         <div className="absolute bottom-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-emerald-500/20 to-transparent" />
-        <div className="container flex h-16 items-center justify-between px-6 max-w-6xl mx-auto">
+        <div className="container flex h-16 items-center justify-between px-4 sm:px-6 max-w-6xl mx-auto">
           <div className="flex items-center space-x-3">
             <Link href="/" className="flex items-center space-x-3 group cursor-pointer">
               <div className="relative">
@@ -171,7 +184,9 @@ export default function WaitlistPage() {
                 />
                 <div className="absolute inset-0 rounded-lg bg-emerald-500/20 blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
               </div>
-              <span className="text-xl font-semibold text-gray-900 group-hover:text-emerald-600 transition-colors duration-300">Peerfolio</span>
+              <span className="text-xl font-semibold text-gray-900 group-hover:text-emerald-600 transition-colors duration-300">
+                Peerfolio
+              </span>
             </Link>
           </div>
 
@@ -190,8 +205,8 @@ export default function WaitlistPage() {
           <div className="absolute top-20 left-10 w-20 h-20 bg-emerald-400/10 rounded-full blur-xl" />
           <div className="absolute top-40 right-20 w-16 h-16 bg-blue-400/10 rounded-full blur-xl" />
           <div className="absolute bottom-20 left-1/4 w-24 h-24 bg-purple-400/10 rounded-full blur-xl" />
-          
-          <div className="container relative px-6 max-w-2xl mx-auto">
+
+          <div className="container relative px-4 sm:px-6 max-w-2xl mx-auto">
             <div className="text-center mb-12">
               <Badge className="mb-6 bg-white/80 backdrop-blur-sm text-gray-700 border border-gray-200/50 shadow-lg animate__animated animate__fadeIn animate__faster">
                 <Star className="w-3 h-3 mr-2 text-yellow-500" />
@@ -206,15 +221,16 @@ export default function WaitlistPage() {
               </h1>
 
               <p className="text-xl text-gray-600 leading-relaxed max-w-xl mx-auto animate__animated animate__fadeIn animate__faster animate__delay-500ms">
-                Be the first to know when Peerfolio launches. Get early access and exclusive updates on the future of social investing.
+                Be the first to know when Peerfolio launches. Get early access and exclusive updates on the future of
+                social investing.
               </p>
             </div>
 
             {/* Waitlist Form */}
             <div className="relative animate__animated animate__fadeIn animate__faster animate__delay-700ms">
               <div className="absolute inset-0 bg-gradient-to-r from-emerald-100/30 to-blue-100/30 rounded-3xl blur-3xl" />
-              <div className="relative bg-white/95 rounded-3xl p-8 shadow-2xl border border-gray-100 backdrop-blur-sm">
-                <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="relative bg-white/95 rounded-3xl p-6 sm:p-8 shadow-2xl border border-gray-100 backdrop-blur-sm">
+                <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
                   <div className="space-y-4">
                     <div className="relative">
                       <User className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -282,7 +298,7 @@ export default function WaitlistPage() {
             </div>
 
             {/* Benefits Section */}
-            <div className="mt-16 grid gap-6 md:grid-cols-3">
+            <div className="mt-16 grid gap-6 grid-cols-1 sm:grid-cols-3">
               <div className="text-center p-6 rounded-2xl bg-white/60 backdrop-blur-sm border border-gray-100 hover:bg-white/80 transition-all duration-300">
                 <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center mx-auto mb-4">
                   <Sparkles className="w-6 h-6 text-emerald-600" />
