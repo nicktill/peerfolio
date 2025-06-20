@@ -1,6 +1,15 @@
 # Peerfolio
-<img width="1728" alt="Screenshot 2025-06-18 at 7 15 52 PM" src="https://github.com/user-attachments/assets/ebc50594-1be2-4a02-9429-92797f52e946" />
+<img width="1727" alt="Screenshot 2025-06-20 at 11 58 45 AM" src="https://github.com/user-attachments/assets/0e1ca293-afce-4f64-828a-008dce7a15b1" />
 Peerfolio is a social investing platform that lets users track their portfolios, compare performance with friends, and grow wealth together. Connect accounts, join groups, and invest transparently in a community-driven way.
+
+# Dashboard View
+<img width="1723" alt="Screenshot 2025-06-20 at 12 01 47 PM" src="https://github.com/user-attachments/assets/aba0d3b2-5aab-417b-81e2-15bc177bf61c" />
+<img width="1049" alt="Screenshot 2025-06-20 at 12 02 37 PM" src="https://github.com/user-attachments/assets/5da76ab3-d3cc-44c5-84d4-65f5cc2af67d" />
+
+## Dark Mode
+<img width="1728" alt="Screenshot 2025-06-20 at 12 02 56 PM" src="https://github.com/user-attachments/assets/a60be7e2-cf2e-4b1b-bff8-0741cb4d86ff" />
+<img width="1728" alt="Screenshot 2025-06-20 at 12 03 05 PM" src="https://github.com/user-attachments/assets/6254a182-d807-488e-b0bf-d6cf373583d2" />
+
 
 
 # Turborepo starter
