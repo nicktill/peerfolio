@@ -24,6 +24,7 @@ interface PortfolioMetricsProps {
   selectedTimeframe: string
   chartData: any[]
   connectedPlaidAccounts: any[]
+  externalBalanceVisible?: boolean // Added prop
 }
 
 export function PortfolioMetrics({
@@ -40,8 +41,29 @@ export function PortfolioMetrics({
   selectedTimeframe,
   chartData,
   connectedPlaidAccounts,
+  externalBalanceVisible, // Destructured prop
 }: PortfolioMetricsProps) {
   const [showAssetsOnly, setShowAssetsOnly] = useState(false)
+
+  // Add this new function at the top of the component
+  const formatCurrencyWithHide = (value: number, forceHide = false) => {
+    // Get the balance visibility from props - if external control is provided, use it
+    const shouldHide = externalBalanceVisible !== undefined ? !externalBalanceVisible : forceHide
+    if (shouldHide) return "••••••"
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value)
+  }
+
+  // Helper: always show percentage, even if hidden
+  const formatPercentageAlways = (value: number) => {
+    if (typeof value !== "number" || isNaN(value)) return "+0.0%"
+    const sign = value > 0 ? "+" : value < 0 ? "" : ""
+    return `${sign}${value.toFixed(1)}%`
+  }
 
   // Calculate percentage using EXACT same logic as the chart component
   const getChartBasedPercentage = () => {
@@ -214,7 +236,7 @@ export function PortfolioMetrics({
   const hasLiabilities = balanceSummary.totalLiabilities > 0
 
   return (
-    <div className="grid gap-6 md:grid-cols-3">
+    <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
       {/* Net Portfolio Value / Total Assets Toggle */}
       <Card className={cardStyling.cardClass}>
         <CardHeader className="pb-3">
@@ -228,11 +250,7 @@ export function PortfolioMetrics({
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowAssetsOnly(!showAssetsOnly)}
-                className={`h-6 w-6 p-0 ${
-                  showAssetsOnly || displayValues.value >= 0
-                    ? "hover:bg-emerald-100 dark:hover:bg-emerald-900/50"
-                    : "hover:bg-red-100 dark:hover:bg-red-900/50"
-                }`}
+                className="h-8 w-8 p-0 touch-manipulation"
                 title={showAssetsOnly ? "View net worth" : "View only assets"}
               >
                 {showAssetsOnly ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
@@ -240,13 +258,13 @@ export function PortfolioMetrics({
             )}
           </CardTitle>
         </CardHeader>
-        <CardContent className="pt-0">
+        <CardContent className="pt-0 p-4 sm:p-6">
           <div className="space-y-3">
+            {/* Update the main value display to use the new function and always show percentage */}
             <div className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-              {formatCurrency(displayValues.value)}
+              {formatCurrencyWithHide(displayValues.value)}
             </div>
-
-            {/* Show percentage gain/loss */}
+            {/* Show percentage gain/loss - always visible */}
             <div className="flex items-center gap-2">
               {displayValues.percentage >= 0 ? (
                 <TrendingUp className="w-4 h-4 text-emerald-500" />
@@ -260,7 +278,7 @@ export function PortfolioMetrics({
                     : "text-red-600 dark:text-red-400"
                 }`}
               >
-                {formatPercentage(displayValues.percentage)} {getTimeframeLabel()}
+                {formatPercentageAlways(displayValues.percentage)} {getTimeframeLabel()}
               </span>
             </div>
 
@@ -275,7 +293,7 @@ export function PortfolioMetrics({
 
             {/* Assets and Liabilities breakdown */}
             <div
-              className={`grid grid-cols-2 gap-4 pt-2 border-t ${
+              className={`grid grid-cols-2 gap-2 sm:gap-4 pt-2 border-t ${
                 showAssetsOnly || displayValues.value >= 0
                   ? "border-emerald-200/30 dark:border-emerald-800/30"
                   : "border-red-200/30 dark:border-red-800/30"
@@ -284,13 +302,13 @@ export function PortfolioMetrics({
               <div>
                 <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">Assets</div>
                 <div className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
-                  {formatCurrency(balanceSummary.totalAssets)}
+                  {formatCurrencyWithHide(balanceSummary.totalAssets)}
                 </div>
               </div>
               <div>
                 <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">Liabilities</div>
                 <div className="text-sm font-semibold text-red-600 dark:text-red-400">
-                  {formatCurrency(balanceSummary.totalLiabilities)}
+                  {formatCurrencyWithHide(balanceSummary.totalLiabilities)}
                 </div>
               </div>
             </div>

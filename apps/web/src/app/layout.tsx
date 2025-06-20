@@ -1,29 +1,31 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
-import AuthProvider from "@web/components/auth-provider";
+import type React from "react"
+import type { Metadata } from "next"
+import { Geist, Geist_Mono } from "next/font/google"
+import "./globals.css"
+import AuthProvider from "@web/components/auth-provider"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
-});
+})
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
-});
+})
 
 export const metadata: Metadata = {
   metadataBase: new URL(
-    process.env.NODE_ENV === 'production' 
-      ? 'https://peerfolio.com' // Replace with your actual domain
-      : 'http://localhost:3000'
+    process.env.NODE_ENV === "production"
+      ? "https://peerfolio.com" // Replace with your actual domain
+      : "http://localhost:3000",
   ),
   title: {
     default: "Peerfolio",
-    template: "%s | Peerfolio"
+    template: "%s | Peerfolio",
   },
-  description: "The social investment platform built for your generation. Compare portfolios, stay accountable, and grow wealth together.",
+  description:
+    "The social investment platform built for your generation. Compare portfolios, stay accountable, and grow wealth together.",
   keywords: ["investment", "portfolio", "social", "finance", "trading", "stocks"],
   authors: [{ name: "Peerfolio Team" }],
   creator: "Peerfolio",
@@ -32,59 +34,52 @@ export const metadata: Metadata = {
     locale: "en_US",
     url: "/",
     title: "Peerfolio",
-    description: "The social investment platform built for your generation. Compare portfolios, stay accountable, and grow wealth together.",
+    description:
+      "The social investment platform built for your generation. Compare portfolios, stay accountable, and grow wealth together.",
     siteName: "Peerfolio",
     images: [
       {
         url: "/preview.png",
         width: 1200,
         height: 630,
-        alt: "Peerfolio - Social Investment Platform"
-      }
-    ]
+        alt: "Peerfolio - Social Investment Platform",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Peerfolio",
-    description: "The social investment platform built for your generation. Compare portfolios, stay accountable, and grow wealth together.",
+    description:
+      "The social investment platform built for your generation. Compare portfolios, stay accountable, and grow wealth together.",
     images: ["/preview.png"],
-    creator: "@peerfolio" // Replace with your actual Twitter handle
+    creator: "@peerfolio", // Replace with your actual Twitter handle
   },
   icons: {
     icon: "/favicon.png",
     shortcut: "/favicon.png",
-    apple: "/favicon.png"
+    apple: "/favicon.png",
   },
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: {
-      index: true,
-      follow: true,
-      'max-video-preview': -1,
-      'max-image-preview': 'large',
-      'max-snippet': -1,
-    },
-  },
-};
+}
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+}
 
 export default function RootLayout({
   children,
 }: Readonly<{
-  children: React.ReactNode;
+  children: React.ReactNode
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="icon" href="/favicon.png" />
       </head>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <AuthProvider>
-          {children}
-        </AuthProvider>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
-  );
+  )
 }

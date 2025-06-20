@@ -22,6 +22,7 @@ interface PortfolioChartProps {
   isDemoMode?: boolean
   hasRealData?: boolean
   useAssetsOnlyForChart?: boolean
+  balanceVisible: boolean
 }
 
 export function PortfolioChart({
@@ -33,6 +34,7 @@ export function PortfolioChart({
   isDemoMode = false,
   hasRealData = false,
   useAssetsOnlyForChart = false,
+  balanceVisible,
 }: PortfolioChartProps) {
   const timeframes = ["1D", "1W", "1M", "3M", "6M", "1Y", "ALL"]
   const [animationKey, setAnimationKey] = useState(0)
@@ -63,7 +65,6 @@ export function PortfolioChart({
       "1M": "1 month",
       "3M": "3 months",
       "6M": "6 months",
-      "1Y": "1 year",
       ALL: "all time",
     }
     return labels[selectedTimeframe as keyof typeof labels] || "period"
@@ -134,8 +135,8 @@ export function PortfolioChart({
       />
 
       <CardHeader className="relative z-10 pb-4">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1 min-w-0">
+        <div className="flex flex-col sm:flex-row items-start sm:items-start justify-between gap-4">
+          <div className="flex-1 min-w-0 w-full sm:w-auto">
             {/* Title Row */}
             <div className="flex items-center gap-3 mb-2">
               <CardTitle className="text-gray-900 dark:text-foreground text-xl font-semibold">
@@ -212,14 +213,14 @@ export function PortfolioChart({
           </div>
 
           {/* Timeframe Buttons */}
-          <div className="flex items-center gap-1 flex-shrink-0">
+          <div className="flex items-center gap-1 flex-wrap sm:flex-nowrap w-full sm:w-auto justify-start sm:justify-end">
             {timeframes.map((timeframe) => (
               <Button
                 key={timeframe}
                 variant={selectedTimeframe === timeframe ? "default" : "outline"}
                 size="sm"
                 onClick={() => setSelectedTimeframe(timeframe)}
-                className="h-8 px-3 text-xs transition-all duration-200"
+                className="h-8 px-2 sm:px-3 text-xs transition-all duration-200 flex-1 sm:flex-none min-w-0"
               >
                 {timeframe}
               </Button>
@@ -228,8 +229,8 @@ export function PortfolioChart({
         </div>
       </CardHeader>
 
-      <CardContent className="relative z-10 pt-0">
-        <ChartContainer config={chartConfig} className="h-[400px]">
+      <CardContent className="relative z-10 pt-0 px-2 sm:px-6">
+        <ChartContainer config={chartConfig} className="h-[300px] sm:h-[400px] w-full -mx-2 px-2 sm:mx-0 sm:px-0">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData} key={animationKey}>
               <defs>
@@ -271,9 +272,11 @@ export function PortfolioChart({
                 tickLine={false}
                 axisLine={false}
                 className="text-xs"
-                tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                tickFormatter={balanceVisible ? (value) => `$${(value / 1000).toFixed(0)}k` : () => ""}
+                ticks={balanceVisible ? undefined : []}
               />
 
+              {/* Update the ChartTooltip content to respect balance visibility */}
               <ChartTooltip
                 cursor={{
                   stroke: isDemoMode ? "#3b82f6" : hasRealData ? "#10b981" : "#6b7280",
@@ -282,10 +285,11 @@ export function PortfolioChart({
                 }}
                 content={
                   <ChartTooltipContent
-                    formatter={(value) => [
-                      formatCurrency(value as number),
-                      useAssetsOnlyForChart ? "Asset Value" : "Portfolio Value",
-                    ]}
+                    formatter={(value) =>
+                      balanceVisible
+                        ? [formatCurrency(value as number), useAssetsOnlyForChart ? "Asset Value" : "Portfolio Value"]
+                        : [null, useAssetsOnlyForChart ? "Asset Value" : "Portfolio Value"]
+                    }
                     className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-lg border border-gray-200/60 dark:border-gray-700/60 shadow-xl rounded-xl"
                   />
                 }
@@ -300,7 +304,7 @@ export function PortfolioChart({
                 fillOpacity={1}
                 fill="url(#fillValue)"
                 dot={
-                  chartStyle.showDots
+                  balanceVisible && chartStyle.showDots
                     ? {
                         fill: isDemoMode ? "#3b82f6" : hasRealData ? "#10b981" : "#6b7280",
                         stroke: "#ffffff",
@@ -311,7 +315,7 @@ export function PortfolioChart({
                     : false
                 }
                 activeDot={
-                  chartStyle.showDots
+                  balanceVisible && chartStyle.showDots
                     ? {
                         r: chartStyle.dotRadius + 2,
                         stroke: isDemoMode ? "#3b82f6" : hasRealData ? "#10b981" : "#6b7280",
@@ -331,7 +335,7 @@ export function PortfolioChart({
         </ChartContainer>
 
         {/* Data source indicator */}
-        <div className="mt-4 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+        <div className="mt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs text-gray-500 dark:text-gray-400">
           <div className="flex items-center gap-2">
             <div
               className={`w-2 h-2 rounded-full ${

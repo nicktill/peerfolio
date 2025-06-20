@@ -1,6 +1,4 @@
 "use client"
-
-import React from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@web/components/ui/card"
 import { Button } from "@web/components/ui/button"
 import { PlaidLink } from "../plaid-link"
@@ -17,7 +15,7 @@ export function LandingScreen({
   isConnecting,
   onDemoConnect,
   onConnectAccount,
-  getConnectedAccounts
+  getConnectedAccounts,
 }: LandingScreenProps) {
   return (
     <div className="space-y-8">
@@ -27,7 +25,11 @@ export function LandingScreen({
           <div className="flex-shrink-0">
             <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/50 rounded-full flex items-center justify-center">
               <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zm-2 5a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                <path
+                  fillRule="evenodd"
+                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zm-2 5a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                  clipRule="evenodd"
+                />
               </svg>
             </div>
           </div>
@@ -43,7 +45,8 @@ export function LandingScreen({
                 <strong>Demo Mode:</strong> Explore with sample portfolio data to see all features in action
               </p>
               <p>
-                <strong>Connect Account:</strong> Use Plaid's sandbox environment (mock data) while we await production approval
+                <strong>Connect Account:</strong> Use Plaid's sandbox environment (mock data) while we await production
+                approval
               </p>
             </div>
           </div>
@@ -51,38 +54,40 @@ export function LandingScreen({
       </div>
 
       {/* Hero Section */}
-      <div className="text-center py-16 px-6 bg-gradient-to-br from-emerald-50 via-white to-blue-50 dark:from-gray-900/80 dark:via-gray-800/90 dark:to-gray-900/80 rounded-3xl border border-gray-100 dark:border-gray-700/60 backdrop-blur-sm shadow-xl dark:shadow-gray-900/20">
+      <div className="text-center py-12 sm:py-16 px-4 sm:px-6 bg-gradient-to-br from-emerald-50 via-white to-blue-50 dark:from-gray-900/80 dark:via-gray-800/90 dark:to-gray-900/80 rounded-3xl border border-gray-100 dark:border-gray-700/60 backdrop-blur-sm shadow-xl dark:shadow-gray-900/20">
         <div className="max-w-2xl mx-auto">
           <div className="mb-8">
             <div className="w-20 h-20 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
               <PieChart className="w-10 h-10 text-white" />
             </div>
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-foreground mb-4">Your Portfolio Dashboard Awaits</h2>
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-foreground mb-4">
+              Your Portfolio Dashboard Awaits
+            </h2>
             <p className="text-lg text-gray-600 dark:text-gray-300 leading-relaxed">
-              Connect your investment accounts to see your complete portfolio in one beautiful, secure dashboard.
-              Track performance, analyze allocations, and compare with friends.
+              Connect your investment accounts to see your complete portfolio in one beautiful, secure dashboard. Track
+              performance, analyze allocations, and compare with friends.
             </p>
-          </div>            
-          
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 opacity-60">
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8 opacity-60">
             {[
               { name: "Robinhood", logo: "https://logo.clearbit.com/robinhood.com" },
               { name: "Fidelity", logo: "https://logo.clearbit.com/fidelity.com" },
               { name: "Charles Schwab", logo: "https://logo.clearbit.com/schwab.com" },
-              { name: "E*TRADE", logo: "https://logo.clearbit.com/etrade.com" }
+              { name: "E*TRADE", logo: "https://logo.clearbit.com/etrade.com" },
             ].map((broker) => (
               <div key={broker.name} className="flex flex-col items-center space-y-2">
                 <div className="flex items-center justify-center">
-                  <img 
-                    src={broker.logo} 
+                  <img
+                    src={broker.logo || "/placeholder.svg"}
                     alt={`${broker.name} logo`}
                     className="w-6 h-6 object-contain"
                     onError={(e) => {
                       // Fallback to colored initials if logo fails
-                      const target = e.target as HTMLImageElement;
-                      const parent = target.parentElement;
+                      const target = e.target as HTMLImageElement
+                      const parent = target.parentElement
                       if (parent) {
-                        parent.innerHTML = `<div class="w-6 h-6 rounded bg-gray-300 dark:bg-gray-600 flex items-center justify-center text-xs font-bold text-gray-600 dark:text-gray-300">${broker.name.charAt(0)}</div>`;
+                        parent.innerHTML = `<div class="w-6 h-6 rounded bg-gray-300 dark:bg-gray-600 flex items-center justify-center text-xs font-bold text-gray-600 dark:text-gray-300">${broker.name.charAt(0)}</div>`
                       }
                     }}
                   />
@@ -91,15 +96,15 @@ export function LandingScreen({
               </div>
             ))}
           </div>
-          
+
           <div className="flex flex-col sm:flex-row gap-4 items-center justify-center">
             <Button
               onClick={() => {
                 // Ensure clean demo mode state
                 if (onDemoConnect) onDemoConnect()
                 // Clear any exit flags to ensure user can see the demo
-                if (typeof window !== 'undefined') {
-                  localStorage.removeItem('hasExitedDashboard')
+                if (typeof window !== "undefined") {
+                  localStorage.removeItem("hasExitedDashboard")
                 }
               }}
               size="lg"
@@ -108,19 +113,19 @@ export function LandingScreen({
               <PieChart className="w-4 h-4 mr-2" />
               View Demo Portfolio
             </Button>
-            
+
             {(() => {
               // Check if there are existing accounts in localStorage
               const existingAccounts = getConnectedAccounts()
-              
+
               if (existingAccounts.length > 0) {
                 // If accounts exist, show button that takes user to dashboard
                 return (
                   <Button
                     onClick={() => {
                       // Clear exit flag and ensure real account mode
-                      if (typeof window !== 'undefined') {
-                        localStorage.removeItem('hasExitedDashboard')
+                      if (typeof window !== "undefined") {
+                        localStorage.removeItem("hasExitedDashboard")
                       }
                       // Call demo connect handler to trigger parent state update
                       if (onDemoConnect) {
@@ -161,10 +166,12 @@ export function LandingScreen({
 
           <div className="mt-4 text-center">
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-              <span className="font-medium text-blue-600 dark:text-blue-400">Demo:</span> See how the dashboard works with sample data
+              <span className="font-medium text-blue-600 dark:text-blue-400">Demo:</span> See how the dashboard works
+              with sample data
             </p>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              <span className="font-medium text-emerald-600 dark:text-emerald-400">Real Account:</span> Connect your actual investment accounts
+              <span className="font-medium text-emerald-600 dark:text-emerald-400">Real Account:</span> Connect your
+              actual investment accounts
             </p>
           </div>
 
@@ -186,7 +193,7 @@ export function LandingScreen({
       </div>
 
       {/* Preview Cards */}
-      <div className="grid gap-6 md:grid-cols-3">
+      <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
         <Card className="relative overflow-hidden border border-gray-200 dark:border-gray-700/50 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm shadow-lg dark:shadow-gray-900/20 hover:shadow-xl dark:hover:shadow-gray-900/30 transition-all duration-300">
           <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-emerald-600/5 dark:from-emerald-500/10 dark:to-emerald-600/10"></div>
           <CardHeader className="relative">
@@ -194,7 +201,9 @@ export function LandingScreen({
               <TrendingUp className="w-5 h-5" />
               Portfolio Growth
             </CardTitle>
-            <CardDescription className="text-gray-600 dark:text-gray-400">Track your investment performance over time</CardDescription>
+            <CardDescription className="text-gray-600 dark:text-gray-400">
+              Track your investment performance over time
+            </CardDescription>
           </CardHeader>
           <CardContent className="relative">
             <div className="h-32 bg-gradient-to-r from-emerald-100 to-emerald-200 dark:from-emerald-900/30 dark:to-emerald-800/30 rounded-lg flex items-center justify-center shadow-inner">
@@ -210,7 +219,9 @@ export function LandingScreen({
               <PieChart className="w-5 h-5" />
               Asset Allocation
             </CardTitle>
-            <CardDescription className="text-gray-600 dark:text-gray-400">Visualize your investment distribution</CardDescription>
+            <CardDescription className="text-gray-600 dark:text-gray-400">
+              Visualize your investment distribution
+            </CardDescription>
           </CardHeader>
           <CardContent className="relative">
             <div className="h-32 bg-gradient-to-r from-blue-100 to-blue-200 dark:from-blue-900/30 dark:to-blue-800/30 rounded-lg flex items-center justify-center shadow-inner">
@@ -226,7 +237,9 @@ export function LandingScreen({
               <Building2 className="w-5 h-5" />
               Account Overview
             </CardTitle>
-            <CardDescription className="text-gray-600 dark:text-gray-400">All your accounts in one place</CardDescription>
+            <CardDescription className="text-gray-600 dark:text-gray-400">
+              All your accounts in one place
+            </CardDescription>
           </CardHeader>
           <CardContent className="relative">
             <div className="h-32 bg-gradient-to-r from-purple-100 to-purple-200 dark:from-purple-900/30 dark:to-purple-800/30 rounded-lg flex items-center justify-center shadow-inner">
