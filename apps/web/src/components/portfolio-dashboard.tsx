@@ -269,6 +269,7 @@ export function PortfolioDashboard({
         selectedTimeframe={selectedTimeframe}
         chartData={chartData}
         connectedPlaidAccounts={connectedPlaidAccounts}
+        externalBalanceVisible={balanceVisible}
       />
 
       {/* Portfolio Performance Chart with Top Holdings */}

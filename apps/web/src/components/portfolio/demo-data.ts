@@ -46,10 +46,10 @@ export const connectedAccounts = [
     logo: "https://logo.clearbit.com/robinhood.com",
     lastSync: "2 minutes ago",
     holdings: [
-      { symbol: "AAPL", name: "Apple Inc.", value: 8500, shares: 45 },
-      { symbol: "TSLA", name: "Tesla Inc.", value: 6200, shares: 25 },
-      { symbol: "NVDA", name: "NVIDIA Corp.", value: 4800, shares: 12 },
-      { symbol: "SPY", name: "SPDR S&P 500 ETF", value: 9000, shares: 20 },
+      { symbol: "AAPL", name: "Apple Inc.", value: 8500, shares: 45, change: 2.4 },
+      { symbol: "TSLA", name: "Tesla Inc.", value: 6200, shares: 25, change: -5.2 },
+      { symbol: "NVDA", name: "NVIDIA Corp.", value: 4800, shares: 12, change: 8.7 },
+      { symbol: "SPY", name: "SPDR S&P 500 ETF", value: 9000, shares: 20, change: 1.8 },
     ],
   },
   {
@@ -61,9 +61,9 @@ export const connectedAccounts = [
     logo: "https://logo.clearbit.com/fidelity.com",
     lastSync: "5 minutes ago",
     holdings: [
-      { symbol: "VTI", name: "Vanguard Total Stock Market ETF", value: 12400, shares: 50 },
-      { symbol: "AMZN", name: "Amazon.com Inc.", value: 6000, shares: 35 },
-      { symbol: "GOOGL", name: "Alphabet Inc.", value: 4000, shares: 25 },
+      { symbol: "VTI", name: "Vanguard Total Stock Market ETF", value: 12400, shares: 50, change: 3.2 },
+      { symbol: "AMZN", name: "Amazon.com Inc.", value: 6000, shares: 35, change: -1.9 },
+      { symbol: "GOOGL", name: "Alphabet Inc.", value: 4000, shares: 25, change: 4.6 },
     ],
   },
   {

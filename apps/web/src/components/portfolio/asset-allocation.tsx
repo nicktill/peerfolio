@@ -128,7 +128,7 @@ export function AssetAllocation({ assetAllocation, formatCurrency, isDemoMode, h
                   content={
                     <ChartTooltipContent
                       formatter={(value, name) => [
-                        `${formatCurrency(value as number)} (${(((value as number) / totalValue) * 100).toFixed(1)}%)`,
+                        `${formatCurrency(value as number)} (${(((value as number) / totalValue) * 10).toFixed(1)}%)`,
                         name,
                       ]}
                       className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-lg border border-gray-200/60 dark:border-gray-700/60 shadow-xl rounded-xl"

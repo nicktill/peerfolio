@@ -201,7 +201,10 @@ export function TopHoldings({
                           <TrendingDown className="w-3 h-3" />
                         )}
                         {/* Always show percentage return, even if value is hidden */}
-                        <span>{formatPercentage(holding.change)}</span>
+                        <span>
+                          {holding.change >= 0 ? "+" : ""}
+                          {(holding.change * 10).toFixed(1)}%
+                        </span>
                       </div>
                     )}
                   </div>

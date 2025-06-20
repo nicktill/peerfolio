@@ -49,6 +49,9 @@ export const usePortfolioData = (isDemoMode: boolean, hasConnectedAccounts: bool
       startingValue = hasHighLiabilities ? currentValue * 1.2 : currentValue * 0.8
     }
 
+    // Use deterministic seed based on currentValue to ensure consistent results
+    const seed = Math.abs(currentValue) % 1000
+
     for (let i = 0; i < months; i++) {
       const date = new Date()
       date.setMonth(date.getMonth() - (months - i - 1))
@@ -58,15 +61,19 @@ export const usePortfolioData = (isDemoMode: boolean, hasConnectedAccounts: bool
       if (useAssetsOnly) {
         // Assets show steady upward growth with some volatility
         const baseGrowth = startingValue + (currentValue - startingValue) * progress
+        // Use deterministic "random" values based on seed and index
+        const pseudoRandom1 = ((seed + i * 17) % 100) / 100 - 0.5
+        const pseudoRandom2 = Math.sin(i * 0.3 + seed * 0.01)
         const volatility = hasSignificantInvestments
-          ? (Math.sin(i * 0.3) + Math.random() - 0.5) * currentValue * 0.08 // Higher volatility for investments
-          : (Math.random() - 0.5) * currentValue * 0.03 // Lower volatility for cash/savings
+          ? (pseudoRandom2 + pseudoRandom1) * currentValue * 0.08 // Higher volatility for investments
+          : pseudoRandom1 * currentValue * 0.03 // Lower volatility for cash/savings
 
         monthValue = Math.max(baseGrowth + volatility, startingValue * 0.7)
       } else {
         // Net worth can be more volatile due to liability changes
         const baseGrowth = startingValue + (currentValue - startingValue) * progress
-        const volatility = (Math.random() - 0.5) * Math.abs(currentValue) * 0.1
+        const pseudoRandom = ((seed + i * 23) % 100) / 100 - 0.5
+        const volatility = pseudoRandom * Math.abs(currentValue) * 0.1
 
         monthValue = baseGrowth + volatility
       }
@@ -256,12 +263,17 @@ export const usePortfolioData = (isDemoMode: boolean, hasConnectedAccounts: bool
       const currentValue = chartValue || baseData[baseData.length - 1]?.value || 50000
       const baseVariation = currentValue * (isRealData ? 0.008 : 0.02)
 
+      // Use deterministic seed for consistent results
+      const seed = Math.abs(currentValue) % 1000
+
       if (timeframe === "1D") {
         const hourlyData = []
         for (let i = 23; i >= 0; i--) {
           const hour = new Date()
           hour.setHours(hour.getHours() - i)
-          const variation = (Math.random() - 0.5) * baseVariation
+          // Use deterministic variation instead of Math.random()
+          const pseudoRandom = ((seed + i * 7) % 100) / 100 - 0.5
+          const variation = pseudoRandom * baseVariation
           hourlyData.push({
             date: hour.toISOString(),
             value: Math.round(Math.max(currentValue + variation, currentValue * 0.98)),
@@ -276,7 +288,9 @@ export const usePortfolioData = (isDemoMode: boolean, hasConnectedAccounts: bool
         for (let i = 6; i >= 0; i--) {
           const day = new Date()
           day.setDate(day.getDate() - i)
-          const variation = (Math.random() - 0.5) * baseVariation * 2
+          // Use deterministic variation instead of Math.random()
+          const pseudoRandom = ((seed + i * 11) % 100) / 100 - 0.5
+          const variation = pseudoRandom * baseVariation * 2
           dailyData.push({
             date: day.toISOString().slice(0, 10),
             value: Math.round(Math.max(currentValue + variation, currentValue * 0.95)),
