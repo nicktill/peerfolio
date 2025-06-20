@@ -347,7 +347,7 @@ export function PortfolioDashboard({
         />
       </div>
 
-      <PlaidDebugPanel plaidData={plaidData} />
+      {/* <PlaidDebugPanel plaidData={plaidData} /> */}
     </div>
   )
 }
