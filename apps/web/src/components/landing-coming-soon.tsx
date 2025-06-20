@@ -209,22 +209,22 @@ export default function PeerfolioLanding() {
 
       <main className="flex-1 relative z-10">
         {/* Hero Section */}
-        <section className="relative py-16 sm:py-24 md:py-32 bg-gradient-to-b from-transparent via-white/30 to-white/60 overflow-hidden">
+        <section className="relative py-10 sm:py-24 md:py-32 bg-gradient-to-b from-transparent via-white/30 to-white/60 overflow-hidden">
           {/* Static floating elements for visual interest */}
-          <div className="absolute top-20 left-10 w-20 h-20 bg-emerald-400/10 rounded-full blur-xl" />
-          <div className="absolute top-40 right-20 w-16 h-16 bg-blue-400/10 rounded-full blur-xl" />
-          <div className="absolute bottom-20 left-1/4 w-24 h-24 bg-purple-400/10 rounded-full blur-xl" />
+          <div className="absolute top-10 left-4 w-14 h-14 sm:top-20 sm:left-10 sm:w-20 sm:h-20 bg-emerald-400/10 rounded-full blur-xl" />
+          <div className="absolute top-28 right-6 w-10 h-10 sm:top-40 sm:right-20 sm:w-16 sm:h-16 bg-blue-400/10 rounded-full blur-xl" />
+          <div className="absolute bottom-10 left-1/4 w-16 h-16 sm:bottom-20 sm:w-24 sm:h-24 bg-purple-400/10 rounded-full blur-xl" />
 
-          <div className="container relative px-4 sm:px-6 max-w-6xl mx-auto">
+          <div className="container relative px-2 sm:px-4 max-w-6xl mx-auto">
             <div className="mx-auto max-w-4xl text-center">
-              <Badge className="mb-8 bg-gradient-to-r from-emerald-50 via-emerald-100 to-teal-50 text-emerald-700 border border-emerald-200/60 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 px-4 py-2">
+              <Badge className="mb-6 sm:mb-8 bg-gradient-to-r from-emerald-50 via-emerald-100 to-teal-50 text-emerald-700 border border-emerald-200/60 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm">
                 <Star className="w-3 h-3 mr-2 text-yellow-500" />
                 Trusted by 2,847+ investors
               </Badge>
 
-              <h1 className="mb-8 font-bold tracking-tight animate__animated animate__fadeInUp">
-                <div className="text-3xl sm:text-4xl md:text-7xl text-gray-900 leading-none">
-                  <span className="block text-center sm:inline-block sm:text-left min-w-[240px] sm:min-w-[280px] md:min-w-[420px] align-baseline text-3xl sm:text-4xl md:text-7xl">
+              <h1 className="mb-6 sm:mb-8 font-bold tracking-tight animate__animated animate__fadeInUp">
+                <div className="text-2xl sm:text-4xl md:text-7xl text-gray-900 leading-none">
+                  <span className="block text-center sm:inline-block sm:text-left min-w-[180px] sm:min-w-[280px] md:min-w-[420px] align-baseline text-2xl sm:text-4xl md:text-7xl">
                     Track your{" "}
                     <MorphingText
                       texts={["investing", "budgeting", "finances", "brokerages", "portfolios"]}
@@ -233,48 +233,48 @@ export default function PeerfolioLanding() {
                     />
                   </span>
                 </div>
-                <div className="mt-2 text-3xl sm:text-4xl md:text-7xl leading-none">
+                <div className="mt-1 sm:mt-2 text-2xl sm:text-4xl md:text-7xl leading-none">
                   <span className="bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 bg-clip-text text-transparent">
                     with friends
                   </span>
                 </div>
               </h1>
 
-              <p className="mx-auto mb-12 max-w-2xl text-xl text-gray-600 leading-relaxed animate__animated animate__fadeInUp animate__delay-1s">
+              <p className="mx-auto mb-8 sm:mb-12 max-w-xs sm:max-w-2xl text-base sm:text-xl text-gray-600 leading-relaxed animate__animated animate__fadeInUp animate__delay-1s">
                 Peerfolio lets you compare portfolios, stay accountable, and grow wealth together. The social investment
                 platform built for your generation.
               </p>
 
-              <div className="mx-auto max-w-lg animate__animated animate__fadeInUp animate__delay-2s">
+              <div className="mx-auto max-w-xs sm:max-w-lg animate__animated animate__fadeInUp animate__delay-2s">
                 <form
                   onSubmit={handleHeroEmailSubmit}
-                  className="flex gap-3 p-2 bg-white/90 backdrop-blur-sm rounded-full shadow-xl border border-gray-100/50 hover:shadow-2xl transition-all duration-300 group"
+                  className="flex gap-2 sm:gap-3 p-1.5 sm:p-2 bg-white/90 backdrop-blur-sm rounded-full shadow-xl border border-gray-100/50 hover:shadow-2xl transition-all duration-300 group"
                 >
                   <Input
                     type="email"
                     placeholder="Enter your email"
                     value={heroEmail}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setHeroEmail(e.target.value)}
-                    className="flex-1 border-0 bg-transparent focus:ring-0 shadow-none group-hover:bg-white/50 transition-colors duration-300"
+                    className="flex-1 border-0 bg-transparent focus:ring-0 shadow-none group-hover:bg-white/50 transition-colors duration-300 text-sm sm:text-base"
                     required
                   />
                   <Button
                     type="submit"
-                    className="bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-700 text-white hover:text-white font-medium"
+                    className="bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-700 text-white hover:text-white font-medium text-sm sm:text-base px-3 sm:px-5 py-2"
                   >
                     Join Waitlist
                     <Sparkles className="w-4 h-4 ml-2" />
                   </Button>
                 </form>
-                <p className="mt-4 text-sm text-gray-500">Free forever • No credit card required</p>
+                <p className="mt-3 sm:mt-4 text-xs sm:text-sm text-gray-500">Free forever • No credit card required</p>
               </div>
             </div>
 
             {/* Hero Visual - Portfolio Dashboard */}
-            <div className="mx-auto max-w-6xl mt-20 animate__animated animate__fadeInUp animate__delay-3s">
+            <div className="mx-auto max-w-full sm:max-w-6xl mt-10 sm:mt-20 animate__animated animate__fadeInUp animate__delay-3s px-1 sm:px-0">
               <div className="relative group">
                 {/* Enhanced animated grid pattern for hero dashboard */}
-                <div className="absolute inset-0 rounded-3xl overflow-hidden">
+                <div className="absolute inset-0 rounded-2xl sm:rounded-3xl overflow-hidden">
                   <AnimatedGridPattern
                     numSquares={25}
                     maxOpacity={0.15}
@@ -282,46 +282,50 @@ export default function PeerfolioLanding() {
                     repeatDelay={0.5}
                     className={cn(
                       "absolute inset-0 h-full w-full text-emerald-400/80",
-                      "[mask-image:radial-gradient(600px_circle_at_center,white,transparent)]",
+                      "[mask-image:radial-gradient(400px_circle_at_center,white,transparent)] sm:[mask-image:radial-gradient(600px_circle_at_center,white,transparent)]",
                     )}
                   />
                 </div>
-                <div className="absolute inset-0 bg-gradient-to-r from-emerald-100/30 to-blue-100/30 rounded-3xl blur-3xl group-hover:blur-2xl transition-all duration-700" />
-                <div className="relative bg-white/95 rounded-3xl p-8 shadow-2xl border border-gray-100 backdrop-blur-sm group-hover:shadow-3xl transition-all duration-500">
+                <div className="absolute inset-0 bg-gradient-to-r from-emerald-100/30 to-blue-100/30 rounded-2xl sm:rounded-3xl blur-2xl sm:blur-3xl group-hover:blur-xl transition-all duration-700" />
+                <div className="relative bg-white/95 rounded-2xl sm:rounded-3xl p-3 sm:p-8 shadow-2xl border border-gray-100 backdrop-blur-sm group-hover:shadow-3xl transition-all duration-500">
                   {/* Dashboard Header */}
-                  <div className="flex items-center justify-between mb-8 pb-6 border-b border-gray-100">
-                    <div>
-                      <h3 className="text-xl font-bold text-gray-900">Portfolio Performance</h3>
-                      <p className="text-sm text-gray-500 flex items-center gap-2">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 sm:mb-8 pb-4 sm:pb-6 border-b border-gray-100 gap-2 sm:gap-0">
+                    <div className="w-full">
+                      <h3 className="text-base sm:text-xl font-bold text-gray-900 leading-tight">Portfolio Performance</h3>
+                      <p className="text-xs sm:text-sm text-gray-500 flex items-center gap-2 mt-1">
                         <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
                         Stanford CS Group • <NumberTicker value={24} /> members online
                       </p>
+                      <div className="mt-4 sm:hidden">
+                        <div className="text-[2rem] font-extrabold text-gray-900 leading-tight">+<NumberTicker value={12.4} decimalPlaces={1} />%</div>
+                        <div className="text-left text-sm font-medium text-emerald-600 mt-1">↗ Outperforming S&P 500</div>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-3xl font-bold text-gray-900 mb-1">
+                    <div className="hidden sm:block text-right">
+                      <div className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">
                         +<NumberTicker value={12.4} decimalPlaces={1} />%
                       </div>
-                      <AnimatedShinyText className="text-sm text-emerald-600 font-medium">
+                      <AnimatedShinyText className="text-xs sm:text-sm text-emerald-600 font-medium">
                         ↗ Outperforming S&P 500
                       </AnimatedShinyText>
                     </div>
                   </div>
 
-                  <div className="grid gap-6 md:grid-cols-3">
+                  <div className="grid gap-3 sm:gap-6 grid-cols-1 md:grid-cols-3">
                     <Card className="bg-gradient-to-r from-emerald-50 to-emerald-100 border-emerald-200 hover:from-emerald-100 hover:to-emerald-200 transition-all duration-500">
-                      <div className="p-6">
-                        <div className="flex items-center justify-between mb-4">
-                          <div className="h-12 w-12 rounded-xl bg-emerald-500 flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-110 transition-all duration-300">
-                            <TrendingUp className="h-6 w-6 text-white" />
+                      <div className="p-4 sm:p-6">
+                        <div className="flex items-center justify-between mb-3 sm:mb-4">
+                          <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-xl bg-emerald-500 flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-110 transition-all duration-300">
+                            <TrendingUp className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                           </div>
-                          <Badge className="bg-emerald-500 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 px-4 py-2 text-xs font-semibold tracking-wide rounded-full">
+                          <Badge className="bg-emerald-500 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 px-3 sm:px-4 py-1.5 sm:py-2 text-xs font-semibold tracking-wide rounded-full">
                             <span className="mr-1.5 text-sm">🏆</span>
                             <span className="text-white drop-shadow-sm">Top 10%</span>
                           </Badge>
                         </div>
-                        <div className="space-y-2">
-                          <div className="text-sm text-emerald-700 font-semibold">Your Rank</div>
-                          <div className="text-3xl font-bold text-gray-900">
+                        <div className="space-y-1 sm:space-y-2">
+                          <div className="text-xs sm:text-sm text-emerald-700 font-semibold">Your Rank</div>
+                          <div className="text-2xl sm:text-3xl font-bold text-gray-900">
                             #<NumberTicker value={3} /> of <NumberTicker value={24} />
                           </div>
                           <div className="text-xs text-gray-600">
@@ -331,20 +335,20 @@ export default function PeerfolioLanding() {
                       </div>
                     </Card>
 
-                    <Card className="bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200 ring-2 ring-blue-200 hover:ring-blue-300 hover:from-blue-100 hover:to-blue-200 transition-all duration-500">
-                      <div className="p-6">
-                        <div className="flex items-center justify-between mb-4">
-                          <div className="h-12 w-12 rounded-xl bg-blue-500 flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-110 transition-all duration-300">
-                            <BarChart3 className="h-6 w-6 text-white" />
+                    <Card className="bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200 ring-1 sm:ring-2 ring-blue-200 hover:ring-blue-300 hover:from-blue-100 hover:to-blue-200 transition-all duration-500">
+                      <div className="p-4 sm:p-6">
+                        <div className="flex items-center justify-between mb-3 sm:mb-4">
+                          <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-xl bg-blue-500 flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-110 transition-all duration-300">
+                            <BarChart3 className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                           </div>
-                          <Badge className="bg-blue-500 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 px-4 py-2 text-xs font-semibold tracking-wide rounded-full">
+                          <Badge className="bg-blue-500 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 px-3 sm:px-4 py-1.5 sm:py-2 text-xs font-semibold tracking-wide rounded-full">
                             <span className="mr-1.5 text-sm">📈</span>
                             <span className="text-white drop-shadow-sm">+8.7%</span>
                           </Badge>
                         </div>
-                        <div className="space-y-2">
-                          <div className="text-sm text-blue-700 font-semibold">30-Day Return</div>
-                          <div className="text-3xl font-bold text-gray-900">
+                        <div className="space-y-1 sm:space-y-2">
+                          <div className="text-xs sm:text-sm text-blue-700 font-semibold">30-Day Return</div>
+                          <div className="text-2xl sm:text-3xl font-bold text-gray-900">
                             $<NumberTicker value={1520} />
                           </div>
                           <div className="text-xs text-gray-600">
@@ -355,19 +359,19 @@ export default function PeerfolioLanding() {
                     </Card>
 
                     <Card className="bg-gradient-to-r from-purple-50 to-purple-100 border-purple-200 hover:from-purple-100 hover:to-purple-200 transition-all duration-500">
-                      <div className="p-6">
-                        <div className="flex items-center justify-between mb-4">
-                          <div className="h-12 w-12 rounded-xl bg-purple-500 flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-110 transition-all duration-300">
-                            <Users className="h-6 w-6 text-white" />
+                      <div className="p-4 sm:p-6">
+                        <div className="flex items-center justify-between mb-3 sm:mb-4">
+                          <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-xl bg-purple-500 flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-110 transition-all duration-300">
+                            <Users className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                           </div>
-                          <Badge className="bg-purple-500 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 px-4 py-2 text-xs font-semibold tracking-wide rounded-full">
+                          <Badge className="bg-purple-500 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 px-3 sm:px-4 py-1.5 sm:py-2 text-xs font-semibold tracking-wide rounded-full">
                             <span className="mr-1.5 text-sm">🔥</span>
                             <span className="text-white drop-shadow-sm">Active</span>
                           </Badge>
                         </div>
-                        <div className="space-y-2">
-                          <div className="text-sm text-purple-700 font-semibold">Group Activity</div>
-                          <div className="text-3xl font-bold text-gray-900">
+                        <div className="space-y-1 sm:space-y-2">
+                          <div className="text-xs sm:text-sm text-purple-700 font-semibold">Group Activity</div>
+                          <div className="text-2xl sm:text-3xl font-bold text-gray-900">
                             <NumberTicker value={47} /> trades
                           </div>
                           <div className="text-xs text-gray-600">this week</div>
@@ -377,14 +381,14 @@ export default function PeerfolioLanding() {
                   </div>
 
                   {/* Additional insights */}
-                  <div className="mt-6 pt-6 border-t border-gray-100">
-                    <div className="flex items-center justify-between text-sm text-gray-600">
-                      <span className="flex items-center gap-2">
+                  <div className="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-gray-100">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between text-xs sm:text-sm text-gray-600 gap-2 sm:gap-0 w-full">
+                      <span className="flex items-center gap-2 w-full">
                         <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
                         Live data • Updated <NumberTicker value={2} /> mins ago
                       </span>
-                      <span className="flex items-center gap-2">
-                        🎯 Goal: Beat market by <NumberTicker value={5} />%
+                      <span className="flex items-center gap-2 w-full sm:w-auto">
+                        <span className="inline-block">🎯 Goal: Beat market by</span> <span className="font-bold text-gray-900 ml-1"><NumberTicker value={5} />%</span>
                       </span>
                     </div>
                   </div>
