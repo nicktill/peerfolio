@@ -217,10 +217,10 @@ export default function PeerfolioLanding() {
 
           <div className="container relative px-2 sm:px-4 max-w-6xl mx-auto">
             <div className="mx-auto max-w-4xl text-center">
-              <Badge className="mb-6 sm:mb-8 bg-gradient-to-r from-emerald-50 via-emerald-100 to-teal-50 text-emerald-700 border border-emerald-200/60 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm">
+              {/* <Badge className="mb-6 sm:mb-8 bg-gradient-to-r from-emerald-50 via-emerald-100 to-teal-50 text-emerald-700 border border-emerald-200/60 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm">
                 <Star className="w-3 h-3 mr-2 text-yellow-500" />
                 Trusted by 2,847+ investors
-              </Badge>
+              </Badge> */}
 
               <h1 className="mb-6 sm:mb-8 font-bold tracking-tight animate__animated animate__fadeInUp">
                 <div className="text-2xl sm:text-4xl md:text-7xl text-gray-900 leading-none">
