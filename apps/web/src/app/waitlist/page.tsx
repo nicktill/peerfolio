@@ -208,10 +208,10 @@ export default function WaitlistPage() {
 
           <div className="container relative px-4 sm:px-6 max-w-2xl mx-auto">
             <div className="text-center mb-12">
-              <Badge className="mb-6 bg-white/80 backdrop-blur-sm text-gray-700 border border-gray-200/50 shadow-lg animate__animated animate__fadeIn animate__faster">
+              {/* <Badge className="mb-6 bg-white/80 backdrop-blur-sm text-gray-700 border border-gray-200/50 shadow-lg animate__animated animate__fadeIn animate__faster">
                 <Star className="w-3 h-3 mr-2 text-yellow-500" />
                 Join 2,847+ early investors
-              </Badge>
+              </Badge> */}
 
               <h1 className="mb-6 text-4xl md:text-5xl font-bold text-gray-900 leading-tight animate__animated animate__fadeIn animate__faster animate__delay-300ms">
                 Join the{" "}
