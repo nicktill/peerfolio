@@ -1,98 +1,100 @@
 # Peerfolio
-<img width="1727" alt="Screenshot 2025-06-20 at 11 58 45 AM" src="https://github.com/user-attachments/assets/0e1ca293-afce-4f64-828a-008dce7a15b1" />
-Peerfolio is a social investing platform that lets users track their portfolios, compare performance with friends, and grow wealth together. Connect accounts, join groups, and invest transparently in a community-driven way.
 
-# Dashboard View
-<img width="1723" alt="Screenshot 2025-06-20 at 12 01 47 PM" src="https://github.com/user-attachments/assets/aba0d3b2-5aab-417b-81e2-15bc177bf61c" />
-<img width="1049" alt="Screenshot 2025-06-20 at 12 02 37 PM" src="https://github.com/user-attachments/assets/5da76ab3-d3cc-44c5-84d4-65f5cc2af67d" />
+Social investing built around one rule: **percentages are public, dollars never are.**
 
-## Dark Mode
-<img width="1728" alt="Screenshot 2025-06-20 at 12 02 56 PM" src="https://github.com/user-attachments/assets/a60be7e2-cf2e-4b1b-bff8-0741cb4d86ff" />
-<img width="1728" alt="Screenshot 2025-06-20 at 12 03 05 PM" src="https://github.com/user-attachments/assets/6254a182-d807-488e-b0bf-d6cf373583d2" />
+Blossom, AfterHour and Robinhood Social are public feeds with follower counts and
+dollar amounts. Peerfolio is two surfaces on one engine:
 
+- **Leagues** — small private groups of actual friends, ranked on return.
+- **The Board** — a public leaderboard of top investors, where every return is
+  pulled from a connected brokerage rather than typed in.
 
+Returns are **time-weighted**, so deposits don't count as performance. Whoever
+adds the most cash doesn't win; that's what makes a ranking worth reading.
 
-# Turborepo starter
+## What's shared, and what isn't
 
-This Turborepo starter is maintained by the Turborepo core team.
+| Shared | Never shared |
+|---|---|
+| Percentage return, time-weighted | Account balances or net worth |
+| Top tickers as a share of your own portfolio (opt-in) | Position sizes in dollars |
+| Handle, avatar, bio | Email address |
 
-## Using this example
+Public profiles are opt-in and off by default.
 
-Run the following command:
+## Verified vs. manual
+
+Accounts carry a **source**. Plaid-connected accounts are `plaid`; typed-in ones
+are `manual`.
+
+Manual accounts exist so people can start building history before their
+brokerage is connectable — snapshot history only grows forward and can't be
+backfilled, so the cost of waiting is permanent. Manual portfolios play in
+private leagues. **Only Plaid-verified portfolios can rank on the public board**,
+so nothing self-reported is ever presented as verified.
+
+## Setup
 
 ```sh
-npx create-turbo@latest
+npm install
+cp apps/web/.env.example apps/web/.env.local   # then fill it in
+npm run db:generate --workspace=@repo/web       # only after schema changes
+npm run db:migrate  --workspace=@repo/web
+npm run dev
 ```
 
-## What's inside?
+You need a Postgres database (Neon or Supabase both work), Google OAuth
+credentials, and Plaid sandbox keys. `apps/web/.env.example` documents every
+variable, including how to generate `ENCRYPTION_KEY` and `CRON_SECRET`.
 
-This Turborepo includes the following packages/apps:
+### Daily snapshots
 
-### Apps and Packages
+`/api/cron/snapshot` is the job that makes performance history exist. It's wired
+in `apps/web/vercel.json` to run on weekday evenings and is guarded by
+`CRON_SECRET`. Without it, nobody accumulates a track record.
 
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
+### Plaid webhooks
 
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
+Point `PLAID_WEBHOOK_URL` at `https://<your-domain>/api/plaid/webhook`. Requests
+are signature-verified. Without a reachable webhook, connections that fall out of
+auth go stale silently instead of prompting a reconnect.
 
-### Utilities
-
-This Turborepo has some additional tools already setup for you:
-
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
-
-### Build
-
-To build all apps and packages, run the following command:
+## Architecture
 
 ```
-cd my-turborepo
-pnpm build
+apps/web/src
+├── app/(app)/        Signed-in surfaces: dashboard, leagues, board, settings
+├── app/u/[handle]/   Public trader profiles
+├── app/api/          Route handlers (all Plaid routes are session-guarded)
+├── components/       UI primitives, hand-rolled SVG charts, feature components
+├── db/               Drizzle schema and client (server-only)
+└── lib/              Plaid client + sync, returns math, crypto, formatting
 ```
 
-### Develop
+**Security notes.** Plaid access tokens are encrypted with AES-256-GCM and never
+leave the server — no route returns one, and nothing is kept in `localStorage`.
+`src/db/index.ts` imports `server-only` so a client component that reaches for
+the database fails the build rather than shipping the driver to the browser.
 
-To develop all apps and packages, run the following command:
+## Scripts
 
-```
-cd my-turborepo
-pnpm dev
-```
+| Command | What it does |
+|---|---|
+| `npm run dev` | Dev server on :3000 |
+| `npm run build` | Build all workspaces |
+| `npm run lint` | ESLint, zero warnings tolerated |
+| `npm run check-types` | `tsc --noEmit` |
+| `npm run db:generate --workspace=@repo/web` | Write a migration from schema changes |
+| `npm run db:migrate --workspace=@repo/web` | Apply migrations |
+| `npm run db:studio --workspace=@repo/web` | Drizzle Studio |
 
-### Remote Caching
+## Charts
 
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
+Charts are hand-rolled SVG rather than a charting library — it's what let the
+dashboard bundle drop from 303 kB to 128 kB of first-load JS.
 
-Turborepo can use a technique known as [Remote Caching](https://turborepo.com/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
-
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
-
-```
-cd my-turborepo
-npx turbo login
-```
-
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
-
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
-
-```
-npx turbo link
-```
-
-## Useful Links
-
-Learn more about the power of Turborepo:
-
-- [Tasks](https://turborepo.com/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.com/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.com/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.com/docs/reference/configuration)
-- [CLI Usage](https://turborepo.com/docs/reference/command-line-reference)
+The palette is validated for colour-vision deficiency; the slot **ordering** in
+`globals.css` is the accessibility mechanism, not decoration. Re-run the
+validator before reshuffling it. Gain/loss always ships an arrow and a sign
+alongside the colour, because that red/green pair sits in the CVD warn band and
+colour alone would not be readable for everyone.

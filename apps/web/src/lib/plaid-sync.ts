@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray } from "drizzle-orm"
+import { and, desc, eq, gte, inArray, sql } from "drizzle-orm"
 import type { AccountBase, Holding as PlaidHolding, Security as PlaidSecurity } from "plaid"
 import { db, holdings, accounts, plaidItems, portfolioSnapshots, securities } from "@web/db"
 import { decrypt } from "@web/lib/crypto"
@@ -221,8 +221,6 @@ async function upsertSecurities(list: PlaidSecurity[]) {
 
 /** `excluded.<column>` reference for use inside onConflictDoUpdate. */
 function sqlExcluded(column: string) {
-  // Imported lazily to keep the helper co-located with its only callers.
-  const { sql } = require("drizzle-orm") as typeof import("drizzle-orm")
   return sql.raw(`excluded.${column}`)
 }
 

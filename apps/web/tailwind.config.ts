@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss"
+import tailwindcssAnimate from "tailwindcss-animate"
 
 const config = {
     darkMode: ["class"],
@@ -8,16 +9,6 @@ const config = {
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/**/*.{js,ts,jsx,tsx,mdx}",
     "*.{js,ts,jsx,tsx,mdx}",
-  ],
-  safelist: [
-    // Ensure marquee animations are never purged
-    'animate-marquee',
-    'animate-marquee-vertical',
-    '[animation-direction:reverse]',
-    'group-hover:[animation-play-state:paused]',
-    '[--duration:20s]',
-    '[--duration:40s]',
-    '[--gap:1rem]',
   ],
   theme: {
   	extend: {
@@ -68,12 +59,15 @@ const config = {
   				DEFAULT: 'hsl(var(--card))',
   				foreground: 'hsl(var(--card-foreground))'
   			},
-  			chart: {
-  				'1': 'hsl(var(--chart-1))',
-  				'2': 'hsl(var(--chart-2))',
-  				'3': 'hsl(var(--chart-3))',
-  				'4': 'hsl(var(--chart-4))',
-  				'5': 'hsl(var(--chart-5))'
+  			gain: 'var(--gain)',
+  			loss: 'var(--loss)',
+  			series: {
+  				'1': 'var(--series-1)',
+  				'2': 'var(--series-2)',
+  				'3': 'var(--series-3)',
+  				'4': 'var(--series-4)',
+  				'5': 'var(--series-5)',
+  				'6': 'var(--series-6)'
   			}
   		},
   		borderRadius: {
@@ -123,7 +117,7 @@ const config = {
   		}
   	}
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [tailwindcssAnimate],
 } satisfies Config
 
 export default config

@@ -56,7 +56,10 @@ function ReviewCard({ img, name }: { img: string; name: string }) {
     <figure className="relative w-36 cursor-pointer overflow-hidden rounded-lg border p-3 border-gray-200 bg-white hover:bg-gray-50 hover:border-gray-300 transition-all duration-300 shadow-sm hover:shadow-md mx-2">
       <div className="flex flex-col items-center gap-2">
         <div className="w-8 h-8 rounded-md bg-gray-50 flex items-center justify-center flex-shrink-0 overflow-hidden">
-          <img 
+          {/* Brokerage logos come from third-party CDNs, so there is no fixed
+              host list for next/image to optimise against. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
             className="w-6 h-6 object-contain" 
             alt={`${name} logo`} 
             src={img}
