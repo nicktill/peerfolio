@@ -131,7 +131,7 @@ export default function ProfilePage({ params }: { params: Promise<{ handle: stri
             </div>
 
             {/* Returns across every window, so one good month can't stand in for a track record. */}
-            <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
+            <div className="grid grid-cols-3 gap-3 [&>*]:min-w-0 sm:grid-cols-6">
               {RANGES.map((r) => (
                 <div key={r} className="rounded-lg border bg-card p-3 text-center">
                   <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{r}</p>

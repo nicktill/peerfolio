@@ -93,7 +93,7 @@ export function AllocationBar({
             <span className="numeric shrink-0 text-muted-foreground">
               {hidden ? "••" : `${slice.percent.toFixed(1)}%`}
             </span>
-            <span className="numeric w-20 shrink-0 text-right font-medium">
+            <span className="numeric shrink-0 text-right font-medium sm:w-20">
               {formatCurrency(slice.value, { hidden, compact: true })}
             </span>
           </li>

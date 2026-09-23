@@ -58,7 +58,7 @@ export default function DashboardPage() {
     return (
       <div className="space-y-6">
         <Skeleton className="h-12 w-56" />
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 [&>*]:min-w-0 sm:grid-cols-2 lg:grid-cols-4">
           {Array.from({ length: 4 }, (_, i) => (
             <SkeletonStat key={i} />
           ))}
@@ -139,7 +139,7 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 [&>*]:min-w-0 sm:grid-cols-2 lg:grid-cols-4">
         <StatTile
           label="Investing return"
           value={data.hasHistory ? formatPercent(data.performance.percent) : "—"}
@@ -185,7 +185,7 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 [&>*]:min-w-0 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Allocation</CardTitle>
