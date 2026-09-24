@@ -97,3 +97,11 @@ export function timeWeightedReturn(
     endValue: last[basis],
   }
 }
+
+/** Downsamples an indexed series to at most `max` points, always keeping the ends. */
+export function sparkline(series: ReturnSeriesPoint[], max = 24): number[] {
+  if (series.length <= max) return series.map((p) => p.indexed)
+
+  const step = (series.length - 1) / (max - 1)
+  return Array.from({ length: max }, (_, i) => series[Math.round(i * step)]!.indexed)
+}
