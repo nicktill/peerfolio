@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState } from "react"
-import { TrendingUp, Users, Link2, BarChart3, CheckCircle, Sparkles, Star, ArrowRight } from "lucide-react"
+import { TrendingUp, Users, Link2, BarChart3, CheckCircle, Sparkles, ArrowRight } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 import { signIn } from "next-auth/react"
@@ -50,12 +50,10 @@ const Toast = ({ show, onClose, message }: ToastProps) => {
 }
 
 // Simple inline components with more professional styling
-interface ButtonProps {
+interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children: React.ReactNode
   variant?: "default" | "secondary" | "ghost" | "dark"
   size?: "default" | "lg"
-  className?: string
-  [key: string]: any
 }
 
 const Button = ({ children, variant = "default", size = "default", className = "", ...props }: ButtonProps) => {
@@ -81,14 +79,14 @@ const Button = ({ children, variant = "default", size = "default", className = "
   )
 }
 
-const Input = ({ className = "", ...props }: any) => (
+const Input = ({ className = "", ...props }: React.InputHTMLAttributes<HTMLInputElement>) => (
   <input
     className={`flex h-12 w-full rounded-full border border-gray-200 bg-white px-4 py-3 text-base placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all duration-200 ${className}`}
     {...props}
   />
 )
 
-const Card = ({ children, className = "", ...props }: any) => (
+const Card = ({ children, className = "", ...props }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={`rounded-2xl border border-gray-100 bg-white shadow-sm hover:shadow-lg hover:border-gray-200 transition-all duration-300 cursor-pointer transform hover:scale-[1.02] hover:-translate-y-1 ${className}`}
     {...props}
@@ -97,7 +95,7 @@ const Card = ({ children, className = "", ...props }: any) => (
   </div>
 )
 
-const Badge = ({ children, className = "", ...props }: any) => (
+const Badge = ({ children, className = "", ...props }: React.HTMLAttributes<HTMLDivElement>) => (
   <div className={`inline-flex items-center rounded-full px-4 py-2 text-xs font-medium ${className}`} {...props}>
     {children}
   </div>
@@ -108,34 +106,37 @@ export default function PeerfolioLanding() {
   const [showToast, setShowToast] = useState(false)
   const [toastMessage, setToastMessage] = useState("")
 
-  const handleHeroEmailSubmit = (e: React.FormEvent) => {
+  const handleHeroEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-    if (!heroEmail.trim()) {
-      setToastMessage("Please enter your email address to join the waitlist!")
+    const announce = (message: string) => {
+      setToastMessage(message)
       setShowToast(true)
-      // Auto hide toast after 5 seconds
       setTimeout(() => setShowToast(false), 5000)
-      return
     }
 
-    if (!emailRegex.test(heroEmail)) {
-      setToastMessage("Please enter a valid email address!")
-      setShowToast(true)
-      // Auto hide toast after 5 seconds
-      setTimeout(() => setShowToast(false), 5000)
-      return
-    }
+    if (!heroEmail.trim()) return announce("Please enter your email address to join the waitlist!")
+    if (!emailRegex.test(heroEmail)) return announce("Please enter a valid email address!")
 
-    // Success - simulate adding to waitlist
-    setToastMessage(`Thanks for joining our waitlist! We'll send you early access and updates soon! 🚀`)
-    setShowToast(true)
-    setHeroEmail("") // Clear the input
-    // Auto hide toast after 5 seconds
-    setTimeout(() => setShowToast(false), 5000)
+    try {
+      const response = await fetch("/api/waitlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: heroEmail, source: "hero" }),
+      })
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}))
+        return announce(body?.error ?? "Something went wrong — try again in a moment.")
+      }
+
+      setHeroEmail("")
+      announce("You're on the list. We'll be in touch with early access. 🚀")
+    } catch {
+      announce("Couldn't reach the server — check your connection and try again.")
+    }
   }
 
   return (

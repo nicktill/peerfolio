@@ -44,14 +44,10 @@ const Toast = ({ show, onClose, message }: ToastProps) => {
 }
 
 // Button component matching the landing page style
-interface ButtonProps {
+interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children: React.ReactNode
   variant?: "default" | "secondary" | "ghost"
   size?: "default" | "lg"
-  className?: string
-  disabled?: boolean
-  type?: "button" | "submit"
-  [key: string]: any
 }
 
 const Button = ({
@@ -87,25 +83,20 @@ const Button = ({
   )
 }
 
-const Input = ({ className = "", ...props }: any) => (
+const Input = ({ className = "", ...props }: React.InputHTMLAttributes<HTMLInputElement>) => (
   <input
     className={`flex h-12 w-full rounded-full border border-gray-200 bg-white px-4 py-3 text-base placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 ${className}`}
     {...props}
   />
 )
 
-const Textarea = ({ className = "", ...props }: any) => (
+const Textarea = ({ className = "", ...props }: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => (
   <textarea
     className={`flex min-h-[100px] w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-base placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 resize-none ${className}`}
     {...props}
   />
 )
 
-const Badge = ({ children, className = "", ...props }: any) => (
-  <div className={`inline-flex items-center rounded-full px-4 py-2 text-xs font-medium ${className}`} {...props}>
-    {children}
-  </div>
-)
 
 export default function WaitlistPage() {
   const [formData, setFormData] = useState({
@@ -124,22 +115,34 @@ export default function WaitlistPage() {
     }))
   }
 
+  const [error, setError] = useState<string | null>(null)
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
+    setError(null)
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+    try {
+      const response = await fetch("/api/waitlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...formData, source: "waitlist_page" }),
+      })
 
-    // Show success toast
-    setShowToast(true)
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}))
+        setError(body?.error ?? "Something went wrong — try again in a moment.")
+        return
+      }
 
-    // Reset form
-    setFormData({ name: "", email: "", note: "" })
-    setIsSubmitting(false)
-
-    // Auto hide toast after 5 seconds
-    setTimeout(() => setShowToast(false), 5000)
+      setShowToast(true)
+      setFormData({ name: "", email: "", note: "" })
+      setTimeout(() => setShowToast(false), 5000)
+    } catch {
+      setError("Couldn't reach the server — check your connection and try again.")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -270,6 +273,12 @@ export default function WaitlistPage() {
                       />
                     </div>
                   </div>
+
+                  {error ? (
+                    <p role="alert" className="text-sm text-red-600">
+                      {error}
+                    </p>
+                  ) : null}
 
                   <Button
                     type="submit"

@@ -1,126 +1,115 @@
-@import "animate.css";
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Custom Loading Animations */
-@keyframes progress {
-  0% {
-    transform: translateX(-100%);
-  }
-  50% {
-    transform: translateX(0%);
-  }
-  100% {
-    transform: translateX(100%);
-  }
-}
+/* ==========================================================================
+   Design tokens
 
-.animate-progress {
-  animation: progress 2s ease-in-out infinite;
-}
-
-.animation-delay-75 {
-  animation-delay: 75ms;
-}
-
-.animation-delay-150 {
-  animation-delay: 150ms;
-}
-
-/* Enhanced pulse animation */
-@keyframes enhanced-pulse {
-  0%,
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.5;
-    transform: scale(1.05);
-  }
-}
-
-.animate-enhanced-pulse {
-  animation: enhanced-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
+   Surfaces and ink are neutral so the one saturated colour on screen carries
+   meaning. Series slots come from a CVD-validated categorical order — the
+   ordering itself is the accessibility mechanism, so don't reshuffle it
+   without re-running the palette validator.
+   ========================================================================== */
 
 @layer base {
-  html {
-    font-family: "Inter", system-ui, sans-serif;
-  }
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
+    --background: 40 12% 98%;
+    --foreground: 0 0% 4%;
+
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
+    --card-foreground: 0 0% 4%;
+
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
-    --radius: 0.5rem;
+    --popover-foreground: 0 0% 4%;
+
+    --primary: 162 84% 24%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 40 8% 95%;
+    --secondary-foreground: 0 0% 12%;
+
+    --muted: 40 8% 95%;
+    --muted-foreground: 40 4% 42%;
+
+    --accent: 162 60% 95%;
+    --accent-foreground: 162 84% 20%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 40 8% 89%;
+    --input: 40 8% 89%;
+    --ring: 162 84% 32%;
+
+    --radius: 0.75rem;
+
+    /* Chart surface, for the palette validator and chart backdrops. */
+    --viz-surface: #fcfcfb;
+
+    /* Direction of money. Always shipped with a sign and an arrow — the
+       red/green pair sits in the CVD warn band, so colour is never alone. */
+    --gain: #1baf7a;
+    --loss: #e34948;
+
+    /* Categorical slots, assigned in order and never cycled. */
+    --series-1: #2a78d6;
+    --series-2: #eb6834;
+    --series-3: #1baf7a;
+    --series-4: #eda100;
+    --series-5: #e87ba4;
+    --series-6: #008300;
+
+    /* Podium metals for league standings. */
+    --rank-1: #d4a017;
+    --rank-2: #8e9099;
+    --rank-3: #b0714a;
   }
+
   .dark {
-    --background: 0 0% 3.9%;
+    --background: 60 2% 7%;
     --foreground: 0 0% 98%;
-    --card: 0 0% 3.9%;
+
+    --card: 60 2% 10%;
     --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3.9%;
+
+    --popover: 60 2% 10%;
     --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 14.9%;
+
+    --primary: 162 64% 46%;
+    --primary-foreground: 60 2% 7%;
+
+    --secondary: 60 2% 16%;
     --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
-  }
-}
 
-body {
-  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", sans-serif;
-  -webkit-font-smoothing: antialiased;
-}
+    --muted: 60 2% 16%;
+    --muted-foreground: 45 5% 65%;
 
-@layer utilities {
-  .animate__delay-1s {
-    animation-delay: 0.2s;
-  }
-  .animate__delay-2s {
-    animation-delay: 0.4s;
-  }
-  .animate__delay-3s {
-    animation-delay: 0.6s;
-  }
-  .animate__slower {
-    animation-duration: 3s;
+    --accent: 162 40% 18%;
+    --accent-foreground: 162 64% 72%;
+
+    --destructive: 0 72% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 60 2% 19%;
+    --input: 60 2% 19%;
+    --ring: 162 64% 46%;
+
+    --viz-surface: #1a1a19;
+
+    /* Re-stepped for the dark surface, not an automatic flip of the light set. */
+    --gain: #199e70;
+    --loss: #e66767;
+
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+    --series-5: #d55181;
+    --series-6: #008300;
+
+    --rank-1: #e0b544;
+    --rank-2: #a7a9b2;
+    --rank-3: #c68a63;
   }
 }
 
@@ -128,110 +117,102 @@ body {
   * {
     @apply border-border;
   }
-  body {
-    @apply bg-background text-foreground;
-  }
-}
 
-/* Marquee Animations - Production optimized */
-.animate-marquee {
-  will-change: transform;
-  transform: translateZ(0);
-  backface-visibility: hidden;
-}
-
-.animate-marquee-vertical {
-  will-change: transform;
-  transform: translateZ(0);
-  backface-visibility: hidden;
-}
-
-/* Mobile-specific optimizations - Cleaned up */
-@media (max-width: 640px) {
-  /* Improve touch targets */
-  button,
-  .btn,
-  [role="button"] {
-    min-height: 44px;
-    min-width: 44px;
-  }
-
-  /* Better text readability on mobile */
-  body {
+  html {
     -webkit-text-size-adjust: 100%;
-    text-size-adjust: 100%;
   }
 
-  /* Prevent horizontal scroll */
-  html,
   body {
-    overflow-x: hidden;
-    width: 100%;
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv11", "ss01";
   }
 
-  /* Improve form inputs on mobile */
+  /* Money and percentages must not reflow as digits change. */
+  .numeric {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+
+  /* Visible focus for keyboard users without a permanent ring on click. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+}
+
+@layer components {
+  /* Shimmer used by every loading skeleton. */
+  .skeleton {
+    @apply relative overflow-hidden bg-muted;
+  }
+
+  .skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background-image: linear-gradient(
+      90deg,
+      transparent,
+      hsl(var(--foreground) / 0.06),
+      transparent
+    );
+    animation: skeleton-sweep 1.6s ease-in-out infinite;
+  }
+}
+
+@keyframes skeleton-sweep {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@layer utilities {
+  .animate-rise-in {
+    animation: rise-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Below 16px iOS zooms the viewport on focus. */
   input,
   textarea,
   select {
-    font-size: 16px; /* Prevents zoom on iOS */
+    font-size: 16px;
   }
 
-  /* Mobile-friendly animations */
-  .animate-marquee,
-  .animate-marquee-vertical {
-    animation-duration: 15s; /* Slower on mobile for better readability */
-  }
-}
-
-/* Tablet optimizations */
-@media (min-width: 641px) and (max-width: 1024px) {
-  /* Optimize for tablet landscape/portrait */
-  .grid-responsive {
-    grid-template-columns: repeat(2, 1fr);
+  html,
+  body {
+    overflow-x: hidden;
   }
 }
 
-/* High DPI displays */
-@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
-  /* Ensure crisp rendering on retina displays */
-  .logo,
-  .icon {
-    image-rendering: -webkit-optimize-contrast;
-    image-rendering: crisp-edges;
-  }
-}
-
-/* Reduce motion for accessibility */
-@media (prefers-reduced-motion: reduce) {
-  .animate-marquee,
-  .animate-marquee-vertical,
-  .animate-pulse,
-  .animate-spin {
-    animation: none;
-  }
-
-  * {
-    transition-duration: 0.01ms !important;
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-  }
-}
-
-/* Safe area handling for notched devices */
 @supports (padding: max(0px)) {
-  .safe-area-top {
-    padding-top: max(1rem, env(safe-area-inset-top));
-  }
-
-  .safe-area-bottom {
+  .safe-bottom {
     padding-bottom: max(1rem, env(safe-area-inset-bottom));
   }
+}
 
-  .safe-area-left {
-    padding-left: max(1rem, env(safe-area-inset-left));
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 
-  .safe-area-right {
-    padding-right: max(1rem, env(safe-area-inset-right));
+  .skeleton::after {
+    animation: none;
   }
 }
