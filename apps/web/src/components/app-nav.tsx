@@ -6,16 +6,12 @@ import { usePathname } from "next/navigation"
 import { signOut, useSession } from "next-auth/react"
 import { useTheme } from "next-themes"
 import { useEffect, useState } from "react"
-import { LayoutDashboard, LogOut, Moon, Settings, Sun, Trophy, Users } from "lucide-react"
+import { LayoutDashboard, LogOut, Moon, Sun } from "lucide-react"
 import { cn } from "@web/lib/utils"
 import { Avatar } from "@web/components/ui/avatar"
 import { Button } from "@web/components/ui/button"
 
-const LINKS = [
-  { href: "/dashboard", label: "Portfolio", icon: LayoutDashboard },
-  { href: "/leagues", label: "Leagues", icon: Users },
-  { href: "/board", label: "Board", icon: Trophy },
-]
+const LINKS = [{ href: "/dashboard", label: "Portfolio", icon: LayoutDashboard }]
 
 export function AppNav() {
   const pathname = usePathname()
@@ -38,16 +34,6 @@ export function AppNav() {
 
           <div className="ml-auto flex items-center gap-1.5">
             <ThemeToggle />
-            <Link
-              href="/settings"
-              className={cn(
-                "inline-flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-secondary",
-                pathname === "/settings" && "bg-secondary",
-              )}
-            >
-              <Settings className="h-4 w-4" aria-hidden />
-              <span className="sr-only">Settings</span>
-            </Link>
             <Avatar src={session?.user?.image} name={session?.user?.name} size="sm" className="ml-0.5" />
             <Button
               variant="ghost"
@@ -96,7 +82,7 @@ function NavLink({
 }: {
   href: string
   label: string
-  icon: typeof Users
+  icon: typeof LayoutDashboard
   active: boolean
 }) {
   return (
