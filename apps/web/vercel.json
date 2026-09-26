@@ -1,8 +1,0 @@
-{
-  "crons": [
-    {
-      "path": "/api/cron/snapshot",
-      "schedule": "0 23 * * 1-5"
-    }
-  ]
-}

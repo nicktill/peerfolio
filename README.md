@@ -35,8 +35,22 @@ documents every variable, including how to generate `ENCRYPTION_KEY` and
 
 `/api/cron/snapshot` is what makes performance history exist at all. Plaid
 exposes no historical portfolio value, so the series only grows forward from
-the day someone connects and can never be backfilled. It's wired in
-`apps/web/vercel.json` to run on weekday evenings, guarded by `CRON_SECRET`.
+the day someone connects and can never be backfilled. Miss a day and that day
+is gone for everyone.
+
+It needs to be called once a day by something. Deliberately not committed as a
+`vercel.json` cron: cron availability and allowed schedules differ by Vercel
+plan, and an unsupported entry fails the whole deployment rather than just the
+cron. Set it up in whichever way suits your plan:
+
+- **Vercel dashboard** — Settings → Cron Jobs, path `/api/cron/snapshot`.
+- **Any external scheduler** (cron-job.org, GitHub Actions, your own box):
+
+  ```sh
+  curl -H "Authorization: Bearer $CRON_SECRET" https://<your-domain>/api/cron/snapshot
+  ```
+
+The endpoint refuses without a matching `CRON_SECRET`, so it is safe to expose.
 
 ### Plaid webhooks
 
