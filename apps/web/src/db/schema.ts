@@ -2,6 +2,7 @@ import {
   boolean,
   date,
   index,
+  integer,
   numeric,
   pgEnum,
   pgTable,
@@ -10,7 +11,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core"
-import { relations } from "drizzle-orm"
+import { relations, sql } from "drizzle-orm"
 
 /* ------------------------------------------------------------------ *
  * Enums
@@ -35,6 +36,8 @@ export const accountCategory = pgEnum("account_category", ["investment", "cash",
  */
 export const accountSource = pgEnum("account_source", ["plaid", "manual"])
 
+export const memberRole = pgEnum("member_role", ["owner", "member"])
+
 /* ------------------------------------------------------------------ *
  * Identity
  * ------------------------------------------------------------------ */
@@ -46,12 +49,23 @@ export const users = pgTable(
     email: text("email").notNull(),
     name: text("name"),
     image: text("image"),
-    /** Stable public identifier. Never the email. */
+    /** Public identifier inside leagues and on the board. Never the email. */
     handle: text("handle"),
+    bio: text("bio"),
+    /**
+     * Opt in to the public board. Off by default — a verified return is only
+     * publishable because the person deliberately published it.
+     */
+    isPublic: boolean("is_public").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("users_email_idx").on(t.email), uniqueIndex("users_handle_idx").on(t.handle)],
+  (t) => [
+    uniqueIndex("users_email_idx").on(t.email),
+    uniqueIndex("users_handle_idx").on(t.handle),
+    // Public profiles are a small minority of rows; partial keeps it tiny.
+    index("users_public_idx").on(t.id).where(sql`${t.isPublic}`),
+  ],
 )
 
 export const waitlistSignups = pgTable(
@@ -204,7 +218,100 @@ export const portfolioSnapshots = pgTable(
     isVerified: boolean("is_verified").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("snapshots_user_date_idx").on(t.userId, t.date), index("snapshots_date_idx").on(t.date)],
+  (t) => [
+    uniqueIndex("snapshots_user_date_idx").on(t.userId, t.date),
+    index("snapshots_date_idx").on(t.date),
+  ],
+)
+
+/* ------------------------------------------------------------------ *
+ * Leagues — the social layer
+ * ------------------------------------------------------------------ */
+
+export const leagues = pgTable(
+  "leagues",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    description: text("description"),
+    emoji: text("emoji").notNull().default("🏆"),
+    /** Token from the accent list in the league UI, not a raw hex value. */
+    accent: text("accent").notNull().default("emerald"),
+    ownerId: uuid("owner_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    inviteCode: text("invite_code").notNull(),
+    memberLimit: integer("member_limit").notNull().default(25),
+    isArchived: boolean("is_archived").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("leagues_invite_code_idx").on(t.inviteCode), index("leagues_owner_idx").on(t.ownerId)],
+)
+
+export const leagueMembers = pgTable(
+  "league_members",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    leagueId: uuid("league_id")
+      .notNull()
+      .references(() => leagues.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    role: memberRole("role").notNull().default("member"),
+    /** Opt in to showing top tickers to this league. Values are never shared. */
+    shareHoldings: boolean("share_holdings").notNull().default(true),
+    joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("league_members_unique_idx").on(t.leagueId, t.userId),
+    index("league_members_user_idx").on(t.userId),
+  ],
+)
+
+/** Lightweight cheering on a member's standing. One emoji per pair per league. */
+export const reactions = pgTable(
+  "reactions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    leagueId: uuid("league_id")
+      .notNull()
+      .references(() => leagues.id, { onDelete: "cascade" }),
+    fromUserId: uuid("from_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    toUserId: uuid("to_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    emoji: text("emoji").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("reactions_unique_idx").on(t.leagueId, t.fromUserId, t.toUserId, t.emoji),
+    index("reactions_league_target_idx").on(t.leagueId, t.toUserId),
+  ],
+)
+
+/**
+ * Following someone on the public board. Asymmetric by design: this is
+ * discovery, not friendship — mutual consent lives in leagues instead.
+ */
+export const follows = pgTable(
+  "follows",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    followerId: uuid("follower_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    followingId: uuid("following_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("follows_unique_idx").on(t.followerId, t.followingId),
+    index("follows_following_idx").on(t.followingId),
+  ],
 )
 
 /* ------------------------------------------------------------------ *
@@ -215,6 +322,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   items: many(plaidItems),
   accounts: many(accounts),
   snapshots: many(portfolioSnapshots),
+  memberships: many(leagueMembers),
+  followers: many(follows),
 }))
 
 export const plaidItemsRelations = relations(plaidItems, ({ one, many }) => ({
@@ -238,4 +347,17 @@ export type PlaidItem = typeof plaidItems.$inferSelect
 export type Account = typeof accounts.$inferSelect
 export type Holding = typeof holdings.$inferSelect
 export type Security = typeof securities.$inferSelect
+export const leaguesRelations = relations(leagues, ({ one, many }) => ({
+  owner: one(users, { fields: [leagues.ownerId], references: [users.id] }),
+  members: many(leagueMembers),
+}))
+
+export const leagueMembersRelations = relations(leagueMembers, ({ one }) => ({
+  league: one(leagues, { fields: [leagueMembers.leagueId], references: [leagues.id] }),
+  user: one(users, { fields: [leagueMembers.userId], references: [users.id] }),
+}))
+
 export type PortfolioSnapshot = typeof portfolioSnapshots.$inferSelect
+export type League = typeof leagues.$inferSelect
+export type LeagueMember = typeof leagueMembers.$inferSelect
+export type Follow = typeof follows.$inferSelect
