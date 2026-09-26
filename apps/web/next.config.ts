@@ -5,23 +5,9 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true, // This will stop warnings from blocking deployment
   },
-  images: {
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'logo.clearbit.com',
-        port: '',
-        pathname: '/**',
-      },
-    ],
-  },
-  // Ensure CSS animations work properly in production
-  experimental: {
-    optimizeCss: false, // Disable aggressive CSS optimization that might break animations
-  },
-  // Enable proper handling of CSS custom properties
-  compiler: {
-    styledComponents: false,
+  // The pre-launch waitlist is gone; old links land on the homepage instead.
+  async redirects() {
+    return [{ source: "/waitlist", destination: "/", permanent: true }];
   },
 };
 

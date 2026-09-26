@@ -15,34 +15,27 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  metadataBase: new URL(
-    process.env.NODE_ENV === "production"
-      ? "https://peerfolio.com" // Replace with your actual domain
-      : "http://localhost:3000",
-  ),
+  metadataBase: new URL(process.env.NEXTAUTH_URL ?? "https://www.peerfolio.org"),
   title: {
     default: "Peerfolio",
     template: "%s | Peerfolio",
   },
   description:
-    "The social investment platform built for your generation. Compare portfolios, stay accountable, and grow wealth together.",
-  keywords: ["investment", "portfolio", "social", "finance", "trading", "stocks"],
-  authors: [{ name: "Peerfolio Team" }],
-  creator: "Peerfolio",
+    "Compete with friends on investment returns without sharing dollar amounts.",
   openGraph: {
     type: "website",
     locale: "en_US",
     url: "/",
     title: "Peerfolio",
     description:
-      "The social investment platform built for your generation. Compare portfolios, stay accountable, and grow wealth together.",
+      "Compete with friends on investment returns without sharing dollar amounts.",
     siteName: "Peerfolio",
     images: [
       {
         url: "/preview.png",
         width: 1200,
         height: 630,
-        alt: "Peerfolio - Social Investment Platform",
+        alt: "Peerfolio",
       },
     ],
   },
@@ -50,9 +43,8 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Peerfolio",
     description:
-      "The social investment platform built for your generation. Compare portfolios, stay accountable, and grow wealth together.",
+      "Compete with friends on investment returns without sharing dollar amounts.",
     images: ["/preview.png"],
-    creator: "@peerfolio", // Replace with your actual Twitter handle
   },
   icons: {
     icon: "/favicon.png",
