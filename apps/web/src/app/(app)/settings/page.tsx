@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { ExternalLink, Globe, Lock, ShieldCheck } from "lucide-react"
+import { signOut } from "next-auth/react"
+import { ExternalLink, Globe, Lock, ShieldCheck, Trash2 } from "lucide-react"
 import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card"
@@ -22,6 +23,7 @@ export default function SettingsPage() {
   const [handle, setHandle] = useState("")
   const [bio, setBio] = useState("")
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     if (data?.user) {
@@ -40,6 +42,22 @@ export default function SettingsPage() {
       toast(error instanceof Error ? error.message : "Couldn't save.", "error")
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function deleteAccount() {
+    const confirmed = window.confirm(
+      "Delete your account? This disconnects every linked institution and permanently deletes your history, leagues you're alone in, and profile. It can't be undone.",
+    )
+    if (!confirmed) return
+
+    setDeleting(true)
+    try {
+      await mutate("/api/me", { method: "DELETE" })
+      await signOut({ callbackUrl: "/" })
+    } catch (error) {
+      toast(error instanceof Error ? error.message : "Couldn't delete your account.", "error")
+      setDeleting(false)
     }
   }
 
@@ -182,6 +200,29 @@ export default function SettingsPage() {
             <Rule>Account balances, net worth or position sizes — never shown to anyone</Rule>
             <Rule>Your email address — never shown to anyone</Rule>
           </ul>
+          <p className="mt-4 text-xs text-muted-foreground">
+            The details are in our{" "}
+            <Link href="/privacy" className="underline underline-offset-2 hover:text-foreground">
+              privacy policy
+            </Link>
+            .
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Delete account</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Disconnects every linked institution through Plaid and deletes your profile, accounts, holdings and
+            history. Leagues you created pass to the longest-standing member.
+          </p>
+          <Button variant="destructive" size="sm" loading={deleting} onClick={() => void deleteAccount()}>
+            {!deleting ? <Trash2 aria-hidden /> : null}
+            Delete account
+          </Button>
         </CardContent>
       </Card>
     </div>
