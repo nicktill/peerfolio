@@ -28,6 +28,7 @@ type ProfileResponse = {
     followers: number
     isFollowing: boolean
     isYou: boolean
+    isVerified: boolean
   }
   performance: {
     percent: number
@@ -109,10 +110,14 @@ export default function ProfilePage({ params }: { params: Promise<{ handle: stri
                   <h1 className="text-2xl font-semibold tracking-tight">
                     {data.profile.name ?? `@${data.profile.handle}`}
                   </h1>
-                  <Badge variant="verified">
-                    <ShieldCheck aria-hidden />
-                    Verified
-                  </Badge>
+                  {data.profile.isVerified ? (
+                    <Badge variant="verified">
+                      <ShieldCheck aria-hidden />
+                      Verified
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline">Self-reported</Badge>
+                  )}
                 </div>
                 <p className="text-sm text-muted-foreground">@{data.profile.handle}</p>
                 {data.profile.bio ? <p className="mt-2 text-sm">{data.profile.bio}</p> : null}

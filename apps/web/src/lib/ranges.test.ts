@@ -7,6 +7,7 @@ const point = (date: string, investableAssets: number, netFlows = 0) => ({
   investableAssets,
   netWorth: investableAssets,
   netFlows,
+  isVerified: true,
 })
 
 const close = (actual: number, expected: number, tolerance = 1e-6) =>

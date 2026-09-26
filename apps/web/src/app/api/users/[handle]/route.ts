@@ -50,6 +50,12 @@ export const GET = withPublic<Ctx>(async (request, { params }) => {
       followers: followerRows[0]?.count ?? 0,
       isFollowing: !!isFollowing,
       isYou: viewerId === user.id,
+      /**
+       * Verified means every snapshot behind these numbers came from a linked
+       * institution. Anything less must not wear the badge — the badge is the
+       * only reason a stranger's return is worth reading.
+       */
+      isVerified: allPoints.length > 0 && allPoints.every((p) => p.isVerified),
     },
     range,
     performance: {

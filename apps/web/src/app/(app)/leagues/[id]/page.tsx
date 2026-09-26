@@ -30,6 +30,7 @@ type Standing = {
   spark: number[]
   hasHistory: boolean
   shareHoldings: boolean
+  isVerified: boolean
   holdings: { ticker: string; name: string | null; weight: number }[]
   reactions: Record<string, number>
   isYou: boolean
@@ -60,7 +61,9 @@ export default function LeaguePage({ params }: { params: Promise<{ id: string }>
 
   async function copyInvite(code: string) {
     try {
-      await navigator.clipboard.writeText(code)
+      // A link, not a code. Asking someone to retype eight characters into a
+      // form they have to find first is where the invite loop died.
+      await navigator.clipboard.writeText(`${window.location.origin}/join/${code}`)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
@@ -133,7 +136,7 @@ export default function LeaguePage({ params }: { params: Promise<{ id: string }>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={() => void copyInvite(data.league.inviteCode)}>
               {copied ? <Check aria-hidden /> : <Share2 aria-hidden />}
-              <span className="numeric tracking-widest">{data.league.inviteCode}</span>
+              {copied ? "Invite link copied" : "Copy invite link"}
             </Button>
             <Button variant="ghost" size="sm" onClick={() => void leave()}>
               <LogOut aria-hidden />
@@ -245,8 +248,11 @@ function StandingRow({
           <p className="truncate text-sm font-medium">
             {standing.isYou ? "You" : (standing.name ?? standing.handle ?? "Member")}
           </p>
-          <p className="truncate text-xs text-muted-foreground">
+          <p className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
             {standing.handle ? `@${standing.handle}` : `${standing.days} days`}
+            {!standing.isVerified ? (
+              <span className="rounded bg-secondary px-1 py-px text-[10px] font-medium">self-reported</span>
+            ) : null}
           </p>
         </div>
 

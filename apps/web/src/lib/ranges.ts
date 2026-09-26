@@ -26,6 +26,8 @@ export type SnapshotPoint = {
   netWorth: number
   investableAssets: number
   netFlows: number
+  /** True when every account behind this day was institution-linked. */
+  isVerified: boolean
 }
 
 export type ReturnSeriesPoint = { date: string; value: number; indexed: number }

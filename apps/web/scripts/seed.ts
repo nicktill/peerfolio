@@ -146,7 +146,9 @@ async function main() {
         userId,
         securityId,
         quantity: (value / 100).toFixed(4),
-        costBasis: (value * 0.82).toFixed(4),
+        // Vary the basis per position, otherwise every row shows an identical
+        // unrealised gain and the column reads as broken.
+        costBasis: (value * (0.6 + random() * 0.45)).toFixed(4),
         institutionValue: value.toFixed(4),
       })),
     )

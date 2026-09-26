@@ -29,6 +29,7 @@ export async function loadSnapshots(userIds: string[], range: Range): Promise<Ma
       netWorth: n(row.netWorth),
       investableAssets: n(row.investableAssets),
       netFlows: n(row.netFlows),
+      isVerified: row.isVerified,
     })
     byUser.set(row.userId, list)
   }
@@ -55,6 +56,8 @@ export type Standing = StandingInput & {
   spark: number[]
   /** False until there are at least two snapshot days to compare. */
   hasHistory: boolean
+  /** Every day behind this number came from a linked institution. */
+  isVerified: boolean
 }
 
 /**
@@ -68,7 +71,8 @@ export async function buildStandings(members: StandingInput[], range: Range): Pr
   )
 
   const scored = members.map((member) => {
-    const summary = timeWeightedReturn(byUser.get(member.userId) ?? [])
+    const points = byUser.get(member.userId) ?? []
+    const summary = timeWeightedReturn(points)
     return {
       ...member,
       rank: 0,
@@ -76,6 +80,7 @@ export async function buildStandings(members: StandingInput[], range: Range): Pr
       days: summary.days,
       spark: sparkline(summary.series),
       hasHistory: summary.days >= 2,
+      isVerified: points.length > 0 && points.every((p) => p.isVerified),
     }
   })
 
