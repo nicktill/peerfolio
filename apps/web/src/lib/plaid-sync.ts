@@ -213,7 +213,34 @@ const today = () => new Date().toISOString().slice(0, 10)
  * Re-running the same day is safe and idempotent — it updates the existing row
  * rather than adding a second point to the series.
  */
-export async function writeDailySnapshot(userId: string, netFlows = 0, when: string = today()) {
+/**
+ * Investable balance right now, across every active account.
+ *
+ * Bracket any structural change with this — link an item, add, edit or delete
+ * an account — and the difference is an external flow by definition, because
+ * no market movement happens in between. That keeps the arithmetic in one
+ * place instead of asking eight call sites to get it right.
+ */
+export async function investableTotal(userId: string): Promise<number> {
+  const rows = await db
+    .select({ category: accounts.category, balance: accounts.currentBalance })
+    .from(accounts)
+    .where(and(eq(accounts.userId, userId), eq(accounts.isActive, true)))
+
+  return rows
+    .filter((r) => INVESTABLE.includes(r.category as AccountCategory))
+    .reduce((sum, r) => sum + Math.abs(num(r.balance)), 0)
+}
+
+/**
+ * Writes today's snapshot.
+ *
+ * `externalFlow` is money that entered or left the portfolio without being
+ * performance — a deposit, or a newly linked account's balance appearing.
+ * Getting this wrong is not cosmetic: it lands directly in league standings
+ * and Board rank, so linking a 401(k) would otherwise read as a 100% gain.
+ */
+export async function writeDailySnapshot(userId: string, externalFlow = 0, when: string = today()) {
   const rows = await db
     .select()
     .from(accounts)
@@ -250,7 +277,7 @@ export async function writeDailySnapshot(userId: string, netFlows = 0, when: str
       totalLiabilities: totalLiabilities.toFixed(4),
       netWorth: (totalAssets - totalLiabilities).toFixed(4),
       investableAssets: investableAssets.toFixed(4),
-      netFlows: netFlows.toFixed(4),
+      netFlows: externalFlow.toFixed(4),
       isVerified,
     })
     .onConflictDoUpdate({
@@ -260,7 +287,7 @@ export async function writeDailySnapshot(userId: string, netFlows = 0, when: str
         totalLiabilities: sqlExcluded("total_liabilities"),
         netWorth: sqlExcluded("net_worth"),
         investableAssets: sqlExcluded("investable_assets"),
-        netFlows: sqlExcluded("net_flows"),
+        netFlows: sql`${portfolioSnapshots.netFlows} + excluded.net_flows`,
         isVerified: sqlExcluded("is_verified"),
       },
     })

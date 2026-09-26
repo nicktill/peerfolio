@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { and, eq } from "drizzle-orm"
 import { z } from "zod"
 import { accounts, db } from "@web/db"
-import { writeDailySnapshot } from "@web/lib/plaid-sync"
+import { investableTotal, writeDailySnapshot } from "@web/lib/plaid-sync"
 import { ApiError, readJson, withUser } from "@web/lib/api"
 
 type Ctx = { params: Promise<{ id: string }> }
@@ -28,6 +28,7 @@ export const PATCH = withUser<Ctx>(async (userId, request, { params }) => {
   const { id } = await params
   await requireManualAccount(userId, id)
 
+  const before = await investableTotal(userId)
   const parsed = UpdateAccount.safeParse(await readJson(request))
   if (!parsed.success) throw new ApiError(parsed.error.issues[0]?.message ?? "Invalid update")
 
@@ -42,8 +43,9 @@ export const PATCH = withUser<Ctx>(async (userId, request, { params }) => {
     })
     .where(eq(accounts.id, id))
 
-  // Re-stamp today so an updated balance is reflected in the series immediately.
-  await writeDailySnapshot(userId)
+  // Re-stamp today so an updated balance shows immediately. The delta counts
+  // as a flow: a typed-in number can't be distinguished from a correction.
+  await writeDailySnapshot(userId, (await investableTotal(userId)) - before)
 
   return NextResponse.json({ ok: true })
 })
@@ -52,8 +54,9 @@ export const DELETE = withUser<Ctx>(async (userId, _request, { params }) => {
   const { id } = await params
   await requireManualAccount(userId, id)
 
+  const beforeDelete = await investableTotal(userId)
   await db.delete(accounts).where(eq(accounts.id, id))
-  await writeDailySnapshot(userId)
+  await writeDailySnapshot(userId, (await investableTotal(userId)) - beforeDelete)
 
   return NextResponse.json({ ok: true })
 })
