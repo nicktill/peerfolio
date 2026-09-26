@@ -27,10 +27,12 @@ export const GET = withPublic<unknown>(async (request) => {
 
   const viewerId = await getCurrentUserId()
 
-  // Opted in, Plaid-verified, and with enough history *inside the window being
-  // ranked* — a year-old account that stopped syncing shouldn't rank on a 1M
-  // board. Bounding by date also keeps this off a full scan of a table that
-  // grows by one row per user per day.
+  // Opted in, Plaid-verified on every day, and with enough history *inside the
+  // window being ranked* — a year-old account that stopped syncing shouldn't
+  // rank on a 1M board. Every day, not most: the ranking reads every snapshot
+  // in the window, so a single day that included a manual account would let
+  // self-reported numbers into a public rank. Bounding by date also keeps this
+  // off a full scan of a table that grows by one row per user per day.
   const eligibleFrom = rangeStart(range)
 
   const eligible = await db
@@ -47,12 +49,13 @@ export const GET = withPublic<unknown>(async (request) => {
     .where(
       and(
         eq(users.isPublic, true),
-        eq(portfolioSnapshots.isVerified, true),
         ...(eligibleFrom ? [gte(portfolioSnapshots.date, eligibleFrom)] : []),
       ),
     )
     .groupBy(users.id)
-    .having(sql`count(${portfolioSnapshots.id}) >= ${MIN_HISTORY_DAYS}`)
+    .having(
+      and(sql`count(${portfolioSnapshots.id}) >= ${MIN_HISTORY_DAYS}`, sql`bool_and(${portfolioSnapshots.isVerified})`),
+    )
 
   let candidates = eligible
   let followingIds = new Set<string>()

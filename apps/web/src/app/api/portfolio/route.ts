@@ -36,6 +36,7 @@ export const GET = withUser<unknown>(async (userId, request) => {
     db.select().from(plaidItems).where(eq(plaidItems.userId, userId)),
     db
       .select({
+        id: holdings.id,
         quantity: holdings.quantity,
         costBasis: holdings.costBasis,
         institutionValue: holdings.institutionValue,
@@ -45,6 +46,7 @@ export const GET = withUser<unknown>(async (userId, request) => {
         securityName: securities.name,
         securityType: securities.type,
         closePrice: securities.closePrice,
+        closePriceAsOf: securities.closePriceAsOf,
       })
       .from(holdings)
       .innerJoin(securities, eq(holdings.securityId, securities.id))
@@ -93,6 +95,19 @@ export const GET = withUser<unknown>(async (userId, request) => {
       institutionName: item?.institutionName ?? account.institutionLabel ?? "Manual account",
       institutionLogo: item?.institutionLogo ?? null,
       itemId: account.itemId,
+      positions:
+        account.source === "manual"
+          ? holdingRows
+              .filter((h) => h.accountId === account.id)
+              .map((h) => ({
+                id: h.id,
+                ticker: h.ticker,
+                quantity: n(h.quantity),
+                value: n(h.institutionValue),
+                priceAsOf: h.closePriceAsOf,
+              }))
+              .sort((a, b) => b.value - a.value)
+          : [],
     }
   })
 

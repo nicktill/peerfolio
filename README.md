@@ -73,6 +73,10 @@ cron. Set it up in whichever way suits your plan:
 
 The endpoint refuses without a matching `CRON_SECRET`, so it is safe to expose.
 
+Before writing snapshots it reprices manual positions from the previous
+session's closes (`MASSIVE_API_KEY`). That's two market data calls a night, one
+for US stocks and ETFs and one for crypto, however many positions exist.
+
 ### Plaid webhooks
 
 Point `PLAID_WEBHOOK_URL` at `https://<your-domain>/api/plaid/webhook`.

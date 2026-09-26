@@ -1,0 +1,1 @@
+ALTER TABLE "securities" ADD COLUMN "market_ticker" text;
