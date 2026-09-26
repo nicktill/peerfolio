@@ -10,6 +10,7 @@ const compat = new FlatCompat({
 });
 
 const eslintConfig = [
+  { ignores: [".next/**", "out/**", "build/**", "drizzle/**", "next-env.d.ts"] },
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
     rules: {
@@ -19,6 +20,16 @@ const eslintConfig = [
       "@next/next/no-img-element": "warn",
       "react-hooks/exhaustive-deps": "warn",
       "prefer-const": "warn",
+    },
+  },
+  {
+    // Vendored from magicui; kept close to upstream so it can be re-synced.
+    files: ["src/components/magicui/**"],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-unused-vars": "off",
+      "react-hooks/exhaustive-deps": "off",
+      "prefer-const": "off",
     },
   },
 ];

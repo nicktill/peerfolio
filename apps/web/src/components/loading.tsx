@@ -119,7 +119,7 @@ export default function Loading({ variant = "branded", className, isExiting = fa
           </div>
           <div className="space-y-2">
             <h3 className="text-lg font-semibold text-gray-900">Getting things ready</h3>
-            <p className="text-sm text-gray-500">This won't take long...</p>
+            <p className="text-sm text-gray-500">This won&apos;t take long...</p>
           </div>
         </div>
       </div>
