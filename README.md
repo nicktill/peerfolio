@@ -6,18 +6,30 @@ Returns are **time-weighted**, so deposits don't count as performance. Adding
 cash doesn't make you look like a better investor — which matters a great deal
 once portfolios start getting compared to each other.
 
-## Setup
+## Quickstart
+
+No hosted database, OAuth app or Plaid keys needed to see the app running:
 
 ```sh
+docker compose up -d                            # Postgres on :5433
 npm install
-cp apps/web/.env.example apps/web/.env.local   # then fill it in
+cp apps/web/.env.example apps/web/.env.local    # generate the two secrets it names
 npm run db:migrate --workspace=@repo/web
+npm run db:seed --workspace=@repo/web           # five demo portfolios, 120 days each
 npm run dev
 ```
 
-You need a Postgres database (Neon and Supabase both work), Google OAuth
-credentials, and Plaid sandbox keys. `apps/web/.env.example` documents every
-variable, including how to generate `ENCRYPTION_KEY` and `CRON_SECRET`.
+Then open **http://localhost:3000/dev-login** and sign in as any seeded user.
+
+The developer login exists behind two independent locks — a non-production
+build *and* `ENABLE_DEV_LOGIN=true` — because a provider that accepts an email
+with no password is a full account takeover if it ever ships. In a production
+build the route 404s and the provider isn't registered at all.
+
+For the real thing you need a Postgres URL (Neon and Supabase both work),
+Google OAuth credentials and Plaid sandbox keys. `apps/web/.env.example`
+documents every variable, including how to generate `ENCRYPTION_KEY` and
+`CRON_SECRET`.
 
 ### Daily snapshots
 

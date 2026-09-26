@@ -12,7 +12,9 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "test": "node --test --experimental-strip-types \"src/**/*.test.ts\""
+    "test": "node --test --experimental-strip-types \"src/**/*.test.ts\"",
+    "db:seed": "node --experimental-strip-types scripts/seed.ts",
+    "db:reset": "drizzle-kit migrate && npm run db:seed"
   },
   "dependencies": {
     "@next/eslint-plugin-next": "^15.1.3",
