@@ -2,7 +2,7 @@ import type React from "react"
 import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import "./globals.css"
-import AuthProvider from "@web/components/auth-provider"
+import { Providers } from "@web/components/providers"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -64,7 +64,6 @@ export const metadata: Metadata = {
 export const viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
 }
 
 export default function RootLayout({
@@ -77,8 +76,8 @@ export default function RootLayout({
       <head>
         <link rel="icon" href="/favicon.png" />
       </head>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <AuthProvider>{children}</AuthProvider>
+      <body className={`${geistSans.variable} ${geistMono.variable}`}>
+        <Providers>{children}</Providers>
       </body>
     </html>
   )

@@ -1,0 +1,152 @@
+"use client"
+
+import { useMemo, useState } from "react"
+import { cn } from "@web/lib/utils"
+import { useMeasure } from "@web/lib/use-measure"
+import { formatCurrency, formatDate } from "@web/lib/format"
+
+export type PerformancePoint = { date: string; value: number }
+
+const PAD = { top: 12, right: 0, bottom: 22, left: 0 }
+
+/**
+ * Single-series trend over time.
+ *
+ * One series, so there's no legend — the card title names it. Direction is
+ * coloured but the value is always printed, so colour is never the only cue.
+ */
+export function PerformanceChart({
+  points,
+  height = 240,
+  valueFormatter = (v: number) => formatCurrency(v, { compact: true }),
+  className,
+  ariaLabel,
+}: {
+  points: PerformancePoint[]
+  height?: number
+  valueFormatter?: (value: number) => string
+  className?: string
+  ariaLabel: string
+}) {
+  const { ref, width } = useMeasure<HTMLDivElement>()
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null)
+
+  const geometry = useMemo(() => {
+    if (width <= 0 || points.length < 2) return null
+
+    const innerW = width - PAD.left - PAD.right
+    const innerH = height - PAD.top - PAD.bottom
+
+    const values = points.map((p) => p.value)
+    const min = Math.min(...values)
+    const max = Math.max(...values)
+    // Pad the domain so a nearly-flat series doesn't hug the top and bottom edges.
+    const span = max - min || Math.abs(max) * 0.1 || 1
+    const lo = min - span * 0.12
+    const hi = max + span * 0.12
+
+    const x = (i: number) => PAD.left + (i / (points.length - 1)) * innerW
+    const y = (v: number) => PAD.top + innerH - ((v - lo) / (hi - lo)) * innerH
+
+    const coords = points.map((p, i) => [x(i), y(p.value)] as const)
+    const line = coords.map(([cx, cy], i) => `${i === 0 ? "M" : "L"}${cx.toFixed(2)},${cy.toFixed(2)}`).join(" ")
+    const area = `${line} L${coords[coords.length - 1]![0].toFixed(2)},${(height - PAD.bottom).toFixed(2)} L${coords[0]![0].toFixed(2)},${(height - PAD.bottom).toFixed(2)} Z`
+
+    return { coords, line, area, innerH }
+  }, [points, width, height])
+
+  const rising = points.length >= 2 && points[points.length - 1]!.value >= points[0]!.value
+  const stroke = rising ? "var(--gain)" : "var(--loss)"
+  const active = hoverIndex != null ? points[hoverIndex] : null
+
+  function handlePointer(event: React.PointerEvent<SVGSVGElement>) {
+    if (!geometry || points.length < 2) return
+    const rect = event.currentTarget.getBoundingClientRect()
+    const ratio = (event.clientX - rect.left - PAD.left) / (rect.width - PAD.left - PAD.right)
+    const index = Math.round(ratio * (points.length - 1))
+    setHoverIndex(Math.max(0, Math.min(points.length - 1, index)))
+  }
+
+  return (
+    <div ref={ref} className={cn("relative w-full", className)}>
+      <svg
+        width={width || "100%"}
+        height={height}
+        role="img"
+        aria-label={ariaLabel}
+        className="touch-none select-none"
+        onPointerMove={handlePointer}
+        onPointerDown={handlePointer}
+        onPointerLeave={() => setHoverIndex(null)}
+      >
+        <defs>
+          <linearGradient id="perf-fill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={stroke} stopOpacity={0.18} />
+            <stop offset="100%" stopColor={stroke} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+
+        {geometry ? (
+          <>
+            {/* Baseline only — a full grid competes with a single trend line. */}
+            <line
+              x1={0}
+              y1={height - PAD.bottom}
+              x2={width}
+              y2={height - PAD.bottom}
+              className="stroke-border"
+              strokeWidth={1}
+            />
+
+            <path d={geometry.area} fill="url(#perf-fill)" />
+            <path
+              d={geometry.line}
+              fill="none"
+              stroke={stroke}
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+
+            {hoverIndex != null && geometry.coords[hoverIndex] ? (
+              <g>
+                <line
+                  x1={geometry.coords[hoverIndex]![0]}
+                  y1={PAD.top}
+                  x2={geometry.coords[hoverIndex]![0]}
+                  y2={height - PAD.bottom}
+                  className="stroke-border"
+                  strokeWidth={1}
+                />
+                {/* Surface ring keeps the marker legible over the filled area. */}
+                <circle
+                  cx={geometry.coords[hoverIndex]![0]}
+                  cy={geometry.coords[hoverIndex]![1]}
+                  r={5}
+                  fill={stroke}
+                  stroke="hsl(var(--card))"
+                  strokeWidth={2}
+                />
+              </g>
+            ) : null}
+          </>
+        ) : null}
+      </svg>
+
+      {/* Endpoint labels instead of a full axis. */}
+      {points.length >= 2 ? (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-between text-xs text-muted-foreground">
+          <span>{formatDate(points[0]!.date, "short")}</span>
+          <span>{formatDate(points[points.length - 1]!.date, "short")}</span>
+        </div>
+      ) : null}
+
+      {active ? (
+        <div className="pointer-events-none absolute left-0 top-0 rounded-lg border bg-popover px-2.5 py-1.5 text-xs shadow-md">
+          <div className="text-muted-foreground">{formatDate(active.date)}</div>
+          <div className="numeric mt-0.5 font-semibold">{valueFormatter(active.value)}</div>
+        </div>
+      ) : null}
+    </div>
+  )
+}

@@ -1,0 +1,22 @@
+# Local Postgres for development, so running the app needs no hosted database.
+#   docker compose up -d
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: peerfolio-postgres
+    environment:
+      POSTGRES_USER: peerfolio
+      POSTGRES_PASSWORD: peerfolio
+      POSTGRES_DB: peerfolio
+    ports:
+      - "5433:5432"
+    volumes:
+      - peerfolio-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U peerfolio"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  peerfolio-pgdata:
