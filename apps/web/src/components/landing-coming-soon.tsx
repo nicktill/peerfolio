@@ -607,13 +607,13 @@ export default function PeerfolioLanding() {
             </div>
 
             <div className="flex items-center space-x-8 text-sm text-gray-600">
-              <a href="#" className="hover:text-gray-900 transition-colors">
+              <a href="/privacy" className="hover:text-gray-900 transition-colors">
                 Privacy
               </a>
-              <a href="#" className="hover:text-gray-900 transition-colors">
+              <a href="/terms" className="hover:text-gray-900 transition-colors">
                 Terms
               </a>
-              <a href="#" className="hover:text-gray-900 transition-colors">
+              <a href="mailto:privacy@peerfolio.org" className="hover:text-gray-900 transition-colors">
                 Contact
               </a>
               <span>© 2025 Peerfolio</span>
