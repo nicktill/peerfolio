@@ -11,7 +11,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core"
-import { relations } from "drizzle-orm"
+import { relations, sql } from "drizzle-orm"
 
 /* ------------------------------------------------------------------ *
  * Enums
@@ -60,7 +60,12 @@ export const users = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("users_email_idx").on(t.email), uniqueIndex("users_handle_idx").on(t.handle)],
+  (t) => [
+    uniqueIndex("users_email_idx").on(t.email),
+    uniqueIndex("users_handle_idx").on(t.handle),
+    // Public profiles are a small minority of rows; partial keeps it tiny.
+    index("users_public_idx").on(t.id).where(sql`${t.isPublic}`),
+  ],
 )
 
 export const waitlistSignups = pgTable(
@@ -213,7 +218,10 @@ export const portfolioSnapshots = pgTable(
     isVerified: boolean("is_verified").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("snapshots_user_date_idx").on(t.userId, t.date), index("snapshots_date_idx").on(t.date)],
+  (t) => [
+    uniqueIndex("snapshots_user_date_idx").on(t.userId, t.date),
+    index("snapshots_date_idx").on(t.date),
+  ],
 )
 
 /* ------------------------------------------------------------------ *

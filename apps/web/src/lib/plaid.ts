@@ -1,17 +1,14 @@
 import { Configuration, PlaidApi, PlaidEnvironments } from "plaid"
 
-export type PlaidEnvName = "sandbox" | "production"
-
 /**
  * Plaid retired the `development` environment; sandbox and production are the
  * only targets. Defaults to sandbox so a misconfigured deploy can never
  * accidentally touch real financial institutions.
  */
-export function getPlaidEnv(): PlaidEnvName {
+function getPlaidEnv(): "sandbox" | "production" {
   return process.env.PLAID_ENV === "production" ? "production" : "sandbox"
 }
 
-export const isSandbox = () => getPlaidEnv() === "sandbox"
 
 let cached: PlaidApi | null = null
 

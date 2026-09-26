@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server"
-import { and, eq, sql } from "drizzle-orm"
+import { and, eq, gte, sql } from "drizzle-orm"
 import { db, follows, portfolioSnapshots, users } from "@web/db"
 import { withPublic } from "@web/lib/api"
 import { getCurrentUserId } from "@web/lib/auth"
-import { buildStandings, isRange, type Range } from "@web/lib/returns"
+import { buildStandings, isRange, rangeStart, type Range } from "@web/lib/returns"
 import { loadSharedHoldings } from "@web/lib/social"
 
 /**
@@ -27,8 +27,12 @@ export const GET = withPublic<unknown>(async (request) => {
 
   const viewerId = await getCurrentUserId()
 
-  // Opted in, enough history to be rankable, and Plaid-verified throughout.
-  // Self-reported numbers never appear here — that is the board's whole claim.
+  // Opted in, Plaid-verified, and with enough history *inside the window being
+  // ranked* — a year-old account that stopped syncing shouldn't rank on a 1M
+  // board. Bounding by date also keeps this off a full scan of a table that
+  // grows by one row per user per day.
+  const eligibleFrom = rangeStart(range)
+
   const eligible = await db
     .select({
       userId: users.id,
@@ -40,7 +44,13 @@ export const GET = withPublic<unknown>(async (request) => {
     })
     .from(users)
     .innerJoin(portfolioSnapshots, eq(portfolioSnapshots.userId, users.id))
-    .where(and(eq(users.isPublic, true), eq(portfolioSnapshots.isVerified, true)))
+    .where(
+      and(
+        eq(users.isPublic, true),
+        eq(portfolioSnapshots.isVerified, true),
+        ...(eligibleFrom ? [gte(portfolioSnapshots.date, eligibleFrom)] : []),
+      ),
+    )
     .groupBy(users.id)
     .having(sql`count(${portfolioSnapshots.id}) >= ${MIN_HISTORY_DAYS}`)
 

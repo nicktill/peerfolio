@@ -98,10 +98,31 @@ export function timeWeightedReturn(
   }
 }
 
+const round2 = (n: number) => Math.round(n * 100) / 100
+
 /** Downsamples an indexed series to at most `max` points, always keeping the ends. */
 export function sparkline(series: ReturnSeriesPoint[], max = 24): number[] {
-  if (series.length <= max) return series.map((p) => p.indexed)
+  if (series.length <= max) return series.map((p) => round2(p.indexed))
 
   const step = (series.length - 1) / (max - 1)
-  return Array.from({ length: max }, (_, i) => series[Math.round(i * step)]!.indexed)
+  return Array.from({ length: max }, (_, i) => round2(series[Math.round(i * step)]!.indexed))
 }
+
+/**
+ * Time-weighted return for every range, from a single already-loaded series.
+ *
+ * Callers that need more than one window should load snapshots once and use
+ * this, rather than querying per range — the windows all read the same rows.
+ */
+export function returnsByRange(points: SnapshotPoint[]): Record<Range, number> {
+  const out = {} as Record<Range, number>
+
+  for (const range of RANGES) {
+    const start = rangeStart(range)
+    const scoped = start ? points.filter((p) => p.date >= start) : points
+    out[range] = timeWeightedReturn(scoped).percent
+  }
+
+  return out
+}
+

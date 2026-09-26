@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, sql } from "drizzle-orm"
+import { and, desc, eq, inArray, sql } from "drizzle-orm"
 import type { AccountBase, Holding as PlaidHolding, Security as PlaidSecurity } from "plaid"
 import { db, holdings, accounts, plaidItems, portfolioSnapshots, securities } from "@web/db"
 import { decrypt } from "@web/lib/crypto"
@@ -340,5 +340,3 @@ export async function listSyncableUserIds(): Promise<string[]> {
 
   return rows.map((r) => r.userId)
 }
-
-export { gte }

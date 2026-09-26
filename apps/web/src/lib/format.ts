@@ -17,9 +17,6 @@ export function formatPercent(value: number, digits = 2): string {
   return `${sign}${Math.abs(value).toFixed(digits)}%`
 }
 
-export function formatCompactNumber(value: number): string {
-  return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(value)
-}
 
 export function formatDate(date: string | Date, style: "short" | "medium" = "medium"): string {
   const d = typeof date === "string" ? new Date(date) : date
@@ -43,5 +40,3 @@ export function formatRelativeTime(date: string | Date | null): string {
   return formatDate(d)
 }
 
-/** Possessive that reads correctly for names already ending in s. */
-export const possessive = (name: string) => (name.endsWith("s") ? `${name}'` : `${name}'s`)
