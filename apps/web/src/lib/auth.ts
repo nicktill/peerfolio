@@ -5,10 +5,18 @@ import { getServerSession } from "next-auth"
 import { eq } from "drizzle-orm"
 import { db, users } from "@web/db"
 
-/** Derives a stable, readable handle from an email local part. */
-function handleFromEmail(email: string): string {
-  const base = email.split("@")[0]!.toLowerCase().replace(/[^a-z0-9]/g, "")
-  return (base || "investor").slice(0, 20)
+/**
+ * Seeds a handle from the display name, never the email.
+ *
+ * The name is already shown publicly; an email local part is not, and
+ * publishing it would contradict what Settings promises. This is only a
+ * starting point — people can change it, and the suffix keeps it unguessable
+ * enough that a collision doesn't hand someone else's identity away.
+ */
+function seedHandle(name: string | null | undefined): string {
+  const base = (name ?? "").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 12)
+  const suffix = Math.floor(1000 + Math.random() * 9000)
+  return `${base || "investor"}${suffix}`
 }
 
 async function upsertUser(profile: { email: string; name?: string | null; image?: string | null }) {
@@ -22,10 +30,11 @@ async function upsertUser(profile: { email: string; name?: string | null; image?
     return existing.id
   }
 
-  // Handles are unique; fall back to a suffixed variant on collision.
-  const desired = handleFromEmail(profile.email)
-  const taken = await db.query.users.findFirst({ where: eq(users.handle, desired) })
-  const handle = taken ? `${desired.slice(0, 15)}${Math.floor(1000 + Math.random() * 9000)}` : desired
+  // Handles are unique; retry on the (unlikely) collision.
+  let handle = seedHandle(profile.name)
+  while (await db.query.users.findFirst({ where: eq(users.handle, handle) })) {
+    handle = seedHandle(profile.name)
+  }
 
   const [created] = await db
     .insert(users)
