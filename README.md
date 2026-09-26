@@ -38,6 +38,10 @@ npm run dev
 
 Then open **http://localhost:3000/dev-login** and sign in as any seeded user.
 
+Port 3000 taken? `PORT=3200 npm run dev --workspace=@repo/web`. Set
+`NEXTAUTH_URL` to the same port in `.env.local` — if it disagrees, sign-in
+hangs instead of failing loudly.
+
 The developer login exists behind two independent locks — a non-production
 build *and* `ENABLE_DEV_LOGIN=true` — because a provider that accepts an email
 with no password is a full account takeover if it ever ships. In a production
