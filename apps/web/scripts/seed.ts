@@ -8,6 +8,7 @@
  *   npm run db:seed --workspace=@repo/web
  */
 import { config } from "dotenv"
+import { eq } from "drizzle-orm"
 import { drizzle } from "drizzle-orm/postgres-js"
 import postgres from "postgres"
 import * as schema from "../src/db/schema.ts"
@@ -59,9 +60,11 @@ const DAYS = 120
 
 async function main() {
   console.log("Clearing existing data…")
-  await sql`TRUNCATE ${sql(["users", "plaid_items", "accounts", "securities", "holdings", "portfolio_snapshots", "waitlist_signups"])} RESTART IDENTITY CASCADE`
+  await sql`TRUNCATE ${sql(["users", "plaid_items", "accounts", "securities", "holdings", "portfolio_snapshots", "waitlist_signups", "leagues", "league_members", "reactions", "follows"])} RESTART IDENTITY CASCADE`
 
   await db.insert(schema.securities).values(SECURITIES.map((s) => ({ ...s, closePrice: "100" })))
+
+  const ids: Record<string, string> = {}
 
   for (const [index, person] of DEMO_PEOPLE.entries()) {
     const random = makeRandom(index * 977 + 42)
@@ -76,6 +79,7 @@ async function main() {
       .returning({ id: schema.users.id })
 
     const userId = user!.id
+    ids[person.handle] = userId
     let invested = 18000 + random() * 40000
     const cash = 4200 + random() * 3000
     const liabilities = 2100
@@ -150,8 +154,53 @@ async function main() {
     console.log(`  ${person.name} — ${DAYS + 1} days of history`)
   }
 
+  await seedSocial(ids)
+
   console.log("\nDone. Sign in with the developer login as any of:")
   for (const person of DEMO_PEOPLE) console.log(`  ${person.handle}@example.com`)
+}
+
+/** A league everyone is in, plus follows, so the social surfaces aren't empty. */
+async function seedSocial(ids: Record<string, string>) {
+  for (const person of DEMO_PEOPLE) {
+    await db
+      .update(schema.users)
+      .set({ isPublic: true, bio: person.bio })
+      .where(eq(schema.users.id, ids[person.handle]!))
+  }
+
+  const [league] = await db
+    .insert(schema.leagues)
+    .values({
+      name: "The Group Chat",
+      description: "Bragging rights only",
+      emoji: "🏆",
+      accent: "emerald",
+      ownerId: ids.nick!,
+      inviteCode: "BCDF2345",
+    })
+    .returning({ id: schema.leagues.id })
+
+  await db.insert(schema.leagueMembers).values(
+    DEMO_PEOPLE.map((person) => ({
+      leagueId: league!.id,
+      userId: ids[person.handle]!,
+      role: person.handle === "nick" ? ("owner" as const) : ("member" as const),
+    })),
+  )
+
+  await db.insert(schema.reactions).values([
+    { leagueId: league!.id, fromUserId: ids.maya!, toUserId: ids.nick!, emoji: "🔥" },
+    { leagueId: league!.id, fromUserId: ids.deshawn!, toUserId: ids.nick!, emoji: "👏" },
+    { leagueId: league!.id, fromUserId: ids.nick!, toUserId: ids.priya!, emoji: "😤" },
+  ])
+
+  await db.insert(schema.follows).values([
+    { followerId: ids.nick!, followingId: ids.maya! },
+    { followerId: ids.nick!, followingId: ids.priya! },
+  ])
+
+  console.log("  League 'The Group Chat' — invite code BCDF2345")
 }
 
 main()
