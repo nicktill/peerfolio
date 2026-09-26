@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { PencilLine } from "lucide-react"
 import { Button } from "@web/components/ui/button"
+import { Segmented } from "@web/components/ui/segmented"
 import { useToast } from "@web/components/ui/toast"
 import { mutate } from "@web/lib/use-api"
 
@@ -11,6 +12,11 @@ const CATEGORIES = [
   { value: "cash", label: "Cash & savings" },
   { value: "credit", label: "Credit card" },
   { value: "loan", label: "Loan" },
+] as const
+
+const VALUE_BY = [
+  { value: "positions", label: "Positions" },
+  { value: "balance", label: "Balance" },
 ] as const
 
 /**
@@ -25,10 +31,14 @@ export function ManualAccountForm({ onCreated }: { onCreated: () => void }) {
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({ name: "", institutionLabel: "", category: "investment", balance: "" })
+  const [valueBy, setValueBy] = useState<"positions" | "balance">("positions")
+
+  // Positions only exist in investment accounts; everything else is a balance.
+  const byPositions = form.category === "investment" && valueBy === "positions"
 
   async function submit(event: React.FormEvent) {
     event.preventDefault()
-    const balance = Number(form.balance)
+    const balance = byPositions ? 0 : Number(form.balance)
 
     if (!form.name.trim()) return toast("Give the account a name.", "error")
     if (!Number.isFinite(balance) || balance < 0) return toast("Enter a valid balance.", "error")
@@ -43,7 +53,7 @@ export function ManualAccountForm({ onCreated }: { onCreated: () => void }) {
           balance,
         },
       })
-      toast("Account added.", "success")
+      toast(byPositions ? "Account added. Now add its positions." : "Account added.", "success")
       setForm({ name: "", institutionLabel: "", category: "investment", balance: "" })
       setOpen(false)
       onCreated()
@@ -96,16 +106,37 @@ export function ManualAccountForm({ onCreated }: { onCreated: () => void }) {
             ))}
           </select>
         </Field>
-        <Field label="Current value">
-          <input
-            value={form.balance}
-            onChange={(e) => setForm({ ...form, balance: e.target.value })}
-            inputMode="decimal"
-            placeholder="12500"
-            className="numeric h-10 w-full rounded-lg border bg-background px-3 text-sm"
-          />
-        </Field>
+        {form.category === "investment" ? (
+          // Not a <label>: it would forward clicks on its text to the first option.
+          <div className="space-y-1.5">
+            <span className="text-xs font-medium text-muted-foreground">Value by</span>
+            <Segmented<"positions" | "balance">
+              options={VALUE_BY}
+              value={valueBy}
+              onChange={setValueBy}
+              label="Value by"
+              className="flex h-10 w-full [&>button]:flex-1"
+            />
+          </div>
+        ) : null}
+        {!byPositions ? (
+          <Field label="Current value">
+            <input
+              value={form.balance}
+              onChange={(e) => setForm({ ...form, balance: e.target.value })}
+              inputMode="decimal"
+              placeholder="12500"
+              className="numeric h-10 w-full rounded-lg border bg-background px-3 text-sm"
+            />
+          </Field>
+        ) : null}
       </div>
+
+      {byPositions ? (
+        <p className="text-xs text-muted-foreground">
+          Add tickers and quantities next. They&apos;re priced at each day&apos;s close, so your return updates on its own.
+        </p>
+      ) : null}
 
       <p className="text-xs text-muted-foreground">
         Manual accounts count in private leagues but not on the public board, which only ranks connected portfolios.

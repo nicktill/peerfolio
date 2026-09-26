@@ -17,7 +17,8 @@ const ManualAccount = z.object({
   name: z.string().trim().min(1, "Give the account a name").max(60),
   institutionLabel: z.string().trim().max(60).optional(),
   category: z.enum(["investment", "cash", "credit", "loan", "other"]).default("investment"),
-  balance: z.number().finite().nonnegative("Balance can't be negative"),
+  /** Omitted for an account that will be valued from its positions. */
+  balance: z.number().finite().nonnegative("Balance can't be negative").default(0),
 })
 
 export const GET = withUser<unknown>(async (userId) => {

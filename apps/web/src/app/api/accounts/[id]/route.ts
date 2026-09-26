@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server"
-import { and, eq } from "drizzle-orm"
+import { eq } from "drizzle-orm"
 import { z } from "zod"
 import { accounts, db } from "@web/db"
 import { investableTotal, writeDailySnapshot } from "@web/lib/plaid-sync"
 import { ApiError, readJson, withUser } from "@web/lib/api"
+import { accountHasPositions, requireManualAccount } from "@web/lib/positions"
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -14,16 +15,6 @@ const UpdateAccount = z.object({
   balance: z.number().finite().nonnegative().optional(),
 })
 
-/** Only manual accounts are editable — Plaid balances come from the institution. */
-async function requireManualAccount(userId: string, id: string) {
-  const account = await db.query.accounts.findFirst({
-    where: and(eq(accounts.id, id), eq(accounts.userId, userId)),
-  })
-  if (!account) throw new ApiError("Account not found", 404)
-  if (account.source !== "manual") throw new ApiError("Connected accounts are updated from your institution", 409)
-  return account
-}
-
 export const PATCH = withUser<Ctx>(async (userId, request, { params }) => {
   const { id } = await params
   await requireManualAccount(userId, id)
@@ -33,6 +24,11 @@ export const PATCH = withUser<Ctx>(async (userId, request, { params }) => {
   if (!parsed.success) throw new ApiError(parsed.error.issues[0]?.message ?? "Invalid update")
 
   const { balance, ...rest } = parsed.data
+  // A positions account's value comes from market prices, and positions only
+  // make sense in an investment account.
+  if ((balance !== undefined || rest.category !== undefined) && (await accountHasPositions(id))) {
+    throw new ApiError("This account is valued from its positions", 409)
+  }
 
   await db
     .update(accounts)

@@ -148,7 +148,7 @@ export const accounts = pgTable(
 )
 
 export const securities = pgTable("securities", {
-  /** Plaid `security_id`. */
+  /** Plaid `security_id`, or `mkt:<marketTicker>` for positions entered by hand. */
   id: text("id").primaryKey(),
   tickerSymbol: text("ticker_symbol"),
   name: text("name"),
@@ -156,6 +156,12 @@ export const securities = pgTable("securities", {
   closePrice: numeric("close_price", { precision: 20, scale: 6 }),
   closePriceAsOf: date("close_price_as_of"),
   isoCurrencyCode: text("iso_currency_code").default("USD"),
+  /**
+   * Symbol at our market data provider, e.g. `AAPL` or `X:BTCUSD`. Set means
+   * we price this security ourselves each night; Plaid securities leave it
+   * null because the institution already reports their value.
+   */
+  marketTicker: text("market_ticker"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 })
 
