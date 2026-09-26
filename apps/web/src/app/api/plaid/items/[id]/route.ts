@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm"
 import { db, accounts, plaidItems } from "@web/db"
 import { decrypt } from "@web/lib/crypto"
 import { getPlaidClient } from "@web/lib/plaid"
-import { syncItem, writeDailySnapshot } from "@web/lib/plaid-sync"
+import { investableTotal, syncItem, writeDailySnapshot } from "@web/lib/plaid-sync"
 import { ApiError, withUser } from "@web/lib/api"
 
 type Ctx = { params: Promise<{ id: string }> }
@@ -21,6 +21,7 @@ export const POST = withUser<Ctx>(async (userId, _request, { params }) => {
   const { id } = await params
   await requireOwnedItem(userId, id)
 
+  // A re-sync is not a structural change, so any movement is performance.
   const result = await syncItem(id)
   await writeDailySnapshot(userId)
 
@@ -44,9 +45,10 @@ export const DELETE = withUser<Ctx>(async (userId, _request, { params }) => {
     console.error("[plaid] item/remove failed; removing locally anyway", error)
   }
 
+  const before = await investableTotal(userId)
   await db.delete(accounts).where(eq(accounts.itemId, item.id))
   await db.delete(plaidItems).where(eq(plaidItems.id, item.id))
-  await writeDailySnapshot(userId)
+  await writeDailySnapshot(userId, (await investableTotal(userId)) - before)
 
   return NextResponse.json({ ok: true })
 })

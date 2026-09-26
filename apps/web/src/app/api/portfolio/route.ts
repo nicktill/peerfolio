@@ -145,6 +145,7 @@ export const GET = withUser<unknown>(async (userId, request) => {
     netWorth: n(row.netWorth),
     investableAssets: n(row.investableAssets),
     netFlows: n(row.netFlows),
+    isVerified: row.isVerified,
   }))
 
   const performance = timeWeightedReturn(points, "investableAssets")
@@ -165,7 +166,14 @@ export const GET = withUser<unknown>(async (userId, request) => {
     allocation,
     topHoldings,
     history: points.map((p) => ({ date: p.date, netWorth: p.netWorth, investableAssets: p.investableAssets })),
-    performance: { percent: performance.percent, days: performance.days, range },
+    performance: {
+      percent: performance.percent,
+      days: performance.days,
+      range,
+      // Indexed to 100 at the window's start, net of deposits — the same
+      // measure as `percent`. The dollar series lives in `history`.
+      series: performance.series.map((p) => ({ date: p.date, indexed: Math.round(p.indexed * 100) / 100 })),
+    },
     /** Two snapshots is the minimum for any return to exist. */
     hasHistory: points.length >= 2,
     /** Plaid-backed portfolios are the only ones eligible for the public board. */

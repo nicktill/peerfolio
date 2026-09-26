@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { and, eq } from "drizzle-orm"
 import { z } from "zod"
 import { accounts, db } from "@web/db"
-import { writeDailySnapshot } from "@web/lib/plaid-sync"
+import { investableTotal, writeDailySnapshot } from "@web/lib/plaid-sync"
 import { ApiError, readJson, withUser } from "@web/lib/api"
 
 /**
@@ -44,6 +44,8 @@ export const POST = withUser<unknown>(async (userId, request) => {
 
   const { balance, ...rest } = parsed.data
 
+  const before = await investableTotal(userId)
+
   const [account] = await db
     .insert(accounts)
     .values({
@@ -57,7 +59,7 @@ export const POST = withUser<unknown>(async (userId, request) => {
     })
     .returning()
 
-  await writeDailySnapshot(userId)
+  await writeDailySnapshot(userId, (await investableTotal(userId)) - before)
 
   return NextResponse.json({ account: { id: account!.id } }, { status: 201 })
 })
