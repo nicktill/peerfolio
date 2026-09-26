@@ -123,8 +123,7 @@
   }
 
   body {
-    @apply bg-background text-foreground antialiased;
-    font-feature-settings: "cv11", "ss01";
+    @apply bg-background text-foreground font-sans antialiased;
   }
 
   /* Money and percentages must not reflow as digits change. */

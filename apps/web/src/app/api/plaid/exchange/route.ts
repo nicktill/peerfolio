@@ -4,8 +4,7 @@ import { eq } from "drizzle-orm"
 import { db, plaidItems } from "@web/db"
 import { encrypt } from "@web/lib/crypto"
 import { getPlaidClient, plaidErrorMessage } from "@web/lib/plaid"
-import { syncItem } from "@web/lib/plaid-sync"
-import { writeDailySnapshot } from "@web/lib/plaid-sync"
+import { investableTotal, syncItem, writeDailySnapshot } from "@web/lib/plaid-sync"
 import { ApiError, readJson, withUser } from "@web/lib/api"
 
 type Body = {
@@ -86,8 +85,9 @@ export const POST = withUser<unknown>(async (userId, request) => {
         })
         .returning()
 
+  const before = await investableTotal(userId)
   const result = await syncItem(row!.id)
-  await writeDailySnapshot(userId)
+  await writeDailySnapshot(userId, (await investableTotal(userId)) - before)
 
   return NextResponse.json({
     item: {

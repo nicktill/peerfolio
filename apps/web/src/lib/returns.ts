@@ -1,7 +1,7 @@
 import { and, asc, gte, inArray } from "drizzle-orm"
 import "server-only"
 import { db, portfolioSnapshots } from "@web/db"
-import { rangeStart, timeWeightedReturn, type Range, type ReturnSummary, type SnapshotPoint } from "@web/lib/ranges"
+import { rangeStart, sparkline, timeWeightedReturn, type Range, type ReturnSummary, type SnapshotPoint } from "@web/lib/ranges"
 
 export * from "@web/lib/ranges"
 
@@ -29,6 +29,7 @@ export async function loadSnapshots(userIds: string[], range: Range): Promise<Ma
       netWorth: n(row.netWorth),
       investableAssets: n(row.investableAssets),
       netFlows: n(row.netFlows),
+      isVerified: row.isVerified,
     })
     byUser.set(row.userId, list)
   }
@@ -43,4 +44,55 @@ export async function computeReturns(
 ): Promise<ReturnSummary> {
   const byUser = await loadSnapshots([userId], range)
   return timeWeightedReturn(byUser.get(userId) ?? [], basis)
+}
+
+export type StandingInput = { userId: string; name: string | null; handle: string | null; image: string | null }
+
+export type Standing = StandingInput & {
+  rank: number
+  percent: number
+  days: number
+  /** Indexed series, downsampled for sparklines. */
+  spark: number[]
+  /** False until there are at least two snapshot days to compare. */
+  hasHistory: boolean
+  /** Every day behind this number came from a linked institution. */
+  isVerified: boolean
+}
+
+/**
+ * Ranks a set of users by time-weighted return. Used for both a league table
+ * and the public board — the only difference is which user ids come in.
+ */
+export async function buildStandings(members: StandingInput[], range: Range): Promise<Standing[]> {
+  const byUser = await loadSnapshots(
+    members.map((m) => m.userId),
+    range,
+  )
+
+  const scored = members.map((member) => {
+    const points = byUser.get(member.userId) ?? []
+    const summary = timeWeightedReturn(points)
+    return {
+      ...member,
+      rank: 0,
+      percent: summary.percent,
+      days: summary.days,
+      spark: sparkline(summary.series),
+      hasHistory: summary.days >= 2,
+      isVerified: points.length > 0 && points.every((p) => p.isVerified),
+    }
+  })
+
+  // Members without history sort last regardless of their placeholder 0%.
+  scored.sort((a, b) => {
+    if (a.hasHistory !== b.hasHistory) return a.hasHistory ? -1 : 1
+    return b.percent - a.percent
+  })
+
+  scored.forEach((s, i) => {
+    s.rank = i + 1
+  })
+
+  return scored
 }

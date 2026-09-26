@@ -1,10 +1,27 @@
 # Peerfolio
 
-Track your portfolio across every brokerage, with returns that mean something.
+Social investing built around one rule: **percentages are public, dollars never
+are.**
 
-Returns are **time-weighted**, so deposits don't count as performance. Adding
-cash doesn't make you look like a better investor — which matters a great deal
-once portfolios start getting compared to each other.
+Blossom, AfterHour and Robinhood Social are public feeds with follower counts
+and dollar amounts. Peerfolio is two surfaces on one engine:
+
+- **Leagues** — small private groups of actual friends, ranked on return.
+- **The Board** — a public leaderboard of top investors, where every return is
+  pulled from a connected brokerage rather than typed in.
+
+Returns are **time-weighted**, so deposits don't count as performance. Whoever
+adds the most cash doesn't win; that's what makes a ranking worth reading.
+
+## What's shared, and what isn't
+
+| Shared | Never shared |
+|---|---|
+| Percentage return, time-weighted | Account balances or net worth |
+| Top tickers as a share of your own portfolio (opt-in) | Position sizes in dollars |
+| Handle, avatar, bio | Email address |
+
+Public profiles are opt-in and off by default.
 
 ## Quickstart
 
@@ -20,6 +37,10 @@ npm run dev
 ```
 
 Then open **http://localhost:3000/dev-login** and sign in as any seeded user.
+
+Port 3000 taken? `PORT=3200 npm run dev --workspace=@repo/web`. Set
+`NEXTAUTH_URL` to the same port in `.env.local` — if it disagrees, sign-in
+hangs instead of failing loudly.
 
 The developer login exists behind two independent locks — a non-production
 build *and* `ENABLE_DEV_LOGIN=true` — because a provider that accepts an email
@@ -64,14 +85,18 @@ Accounts carry a **source**. Plaid-connected accounts are `plaid`; typed-in
 ones are `manual`.
 
 Manual accounts exist so people can start building history before their
-brokerage is connectable — waiting costs history permanently. They're marked
-as self-reported everywhere they appear.
+brokerage is connectable — waiting costs history permanently. Manual
+portfolios play in private leagues. **Only Plaid-verified portfolios can rank
+on the public board**, so nothing self-reported is ever presented as verified.
+That makes verification the reason to connect, rather than a prerequisite to
+launching.
 
 ## Architecture
 
 ```
 apps/web/src
-├── app/(app)/        Signed-in surfaces
+├── app/(app)/        Signed-in surfaces: dashboard, leagues, board, settings
+├── app/u/[handle]/   Public trader profiles
 ├── app/api/          Route handlers (every Plaid route is session-guarded)
 ├── components/       UI primitives, hand-rolled SVG charts, feature components
 ├── db/               Drizzle schema and client (server-only)

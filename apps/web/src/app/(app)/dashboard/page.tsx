@@ -28,7 +28,7 @@ type PortfolioResponse = {
   allocation: AllocationSlice[]
   topHoldings: HoldingRow[]
   history: { date: string; netWorth: number; investableAssets: number }[]
-  performance: { percent: number; days: number; range: Range }
+  performance: { percent: number; days: number; range: Range; series: { date: string; indexed: number }[] }
   hasHistory: boolean
   isVerified: boolean
 }
@@ -105,7 +105,10 @@ export default function DashboardPage() {
     )
   }
 
-  const series = data.history.map((h) => ({ date: h.date, value: h.netWorth }))
+  // Plot the time-weighted series, not net worth. They disagree whenever money
+  // moves in or out, and showing the dollar line under a time-weighted
+  // percentage told two different stories six pixels apart.
+  const series = data.performance.series.map((p) => ({ date: p.date, value: p.indexed }))
 
   return (
     <div className="space-y-6">
@@ -157,7 +160,7 @@ export default function DashboardPage() {
       <Card>
         <CardHeader className="flex-row flex-wrap items-center justify-between gap-3">
           <div>
-            <CardTitle>Performance</CardTitle>
+            <CardTitle>Return</CardTitle>
             {data.hasHistory ? (
               <div className="mt-1.5 flex items-center gap-2">
                 <Delta value={data.performance.percent} size="sm" />
@@ -171,8 +174,8 @@ export default function DashboardPage() {
           {data.hasHistory ? (
             <PerformanceChart
               points={series}
-              ariaLabel={`Net worth over the last ${range}`}
-              valueFormatter={(v) => formatCurrency(v, { hidden, compact: true })}
+              ariaLabel={`Time-weighted return over the last ${range}`}
+              valueFormatter={(v) => `${v >= 100 ? "+" : "−"}${Math.abs(v - 100).toFixed(2)}%`}
             />
           ) : (
             /* Being honest beats drawing a line through invented data. */

@@ -7,6 +7,7 @@ const point = (date: string, investableAssets: number, netFlows = 0) => ({
   investableAssets,
   netWorth: investableAssets,
   netFlows,
+  isVerified: true,
 })
 
 const close = (actual: number, expected: number, tolerance = 1e-6) =>
@@ -50,6 +51,25 @@ describe("timeWeightedReturn", () => {
       point("2026-01-03", 1440),
     ])
     close(depositor.percent, holder.percent, 1e-9)
+  })
+
+  it("does not count a newly linked account as performance", () => {
+    // Regression: every caller but the nightly sync used to pass no flow, so
+    // connecting a $40k 401(k) on a $10k portfolio booked +100% (clamped from
+    // +400%) straight into league standings and Board rank.
+    const linked = timeWeightedReturn([point("2026-01-01", 10000), point("2026-01-02", 50000, 40000)])
+    close(linked.percent, 0)
+  })
+
+  it("does not count removing an account as a loss", () => {
+    const removed = timeWeightedReturn([point("2026-01-01", 50000), point("2026-01-02", 10000, -40000)])
+    close(removed.percent, 0)
+  })
+
+  it("separates a real gain from a same-day account link", () => {
+    // $10k grows 5% to $10.5k, and a $40k account is linked the same day.
+    const mixed = timeWeightedReturn([point("2026-01-01", 10000), point("2026-01-02", 50500, 40000)])
+    close(mixed.percent, 5)
   })
 
   it("skips periods that open at zero instead of reporting infinite return", () => {
