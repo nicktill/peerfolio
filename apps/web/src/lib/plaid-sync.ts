@@ -307,6 +307,7 @@ export async function fetchNetFlows(userId: string, since: string): Promise<numb
     .select()
     .from(plaidItems)
     .where(and(eq(plaidItems.userId, userId), eq(plaidItems.status, "active")))
+  if (items.length === 0) return 0
 
   const client = getPlaidClient()
   const EXTERNAL = new Set(["deposit", "withdrawal", "contribution", "distribution", "rollover", "transfer"])
@@ -358,12 +359,22 @@ export async function syncUser(userId: string) {
   return { results, totals }
 }
 
-/** Users with at least one item that is worth syncing, for the nightly job. */
+/**
+ * Users who get a snapshot from the nightly job: anyone with an item worth
+ * syncing, plus anyone with a manual account — positions reprice overnight,
+ * and a typed-in balance still needs its day on the record.
+ */
 export async function listSyncableUserIds(): Promise<string[]> {
   const rows = await db
     .selectDistinct({ userId: plaidItems.userId })
     .from(plaidItems)
     .where(inArray(plaidItems.status, ["active", "error"]))
+    .union(
+      db
+        .selectDistinct({ userId: accounts.userId })
+        .from(accounts)
+        .where(and(eq(accounts.source, "manual"), eq(accounts.isActive, true))),
+    )
 
   return rows.map((r) => r.userId)
 }
