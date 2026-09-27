@@ -55,6 +55,10 @@ type Bar = { T?: string; c?: number; t?: number }
 type AggsResponse = { resultsCount?: number; results?: Bar[] }
 
 async function get(path: string, fetchImpl: typeof fetch): Promise<AggsResponse> {
+  return getJson<AggsResponse>(path, fetchImpl)
+}
+
+async function getJson<T>(path: string, fetchImpl: typeof fetch): Promise<T> {
   const key = process.env.MASSIVE_API_KEY
   if (!key) throw new MarketDataError("MASSIVE_API_KEY is not set")
 
@@ -64,7 +68,7 @@ async function get(path: string, fetchImpl: typeof fetch): Promise<AggsResponse>
   })
 
   if (!response.ok) throw new MarketDataError(`Market data request failed (${response.status})`, response.status)
-  return (await response.json()) as AggsResponse
+  return (await response.json()) as T
 }
 
 const isoDate = (ms: number) => new Date(ms).toISOString().slice(0, 10)
@@ -115,4 +119,46 @@ export async function latestCloses(
   }
 
   return out
+}
+
+export type TickerDetails = { name: string | null; iconUrl: string | null; logoUrl: string | null }
+
+/**
+ * Company name and branding for a ticker, or null when the provider doesn't
+ * know it. Crypto pairs have no branding; they return their name only.
+ */
+export async function tickerDetails(marketTicker: string, fetchImpl: typeof fetch = fetch): Promise<TickerDetails | null> {
+  type Response = { results?: { name?: string; branding?: { icon_url?: string; logo_url?: string } } }
+  let data: Response
+  try {
+    data = await getJson<Response>(`/v3/reference/tickers/${encodeURIComponent(marketTicker)}`, fetchImpl)
+  } catch (error) {
+    if (error instanceof MarketDataError && error.status === 404) return null
+    throw error
+  }
+  if (!data.results) return null
+  return {
+    name: data.results.name ?? null,
+    iconUrl: data.results.branding?.icon_url ?? null,
+    logoUrl: data.results.branding?.logo_url ?? null,
+  }
+}
+
+export type TickerMatch = { symbol: string; name: string }
+
+/** Up to `limit` active tickers matching what someone typed, for "did you mean". */
+export async function searchTickers(
+  query: string,
+  kind: AssetKind,
+  { limit = 3, fetchImpl = fetch }: { limit?: number; fetchImpl?: typeof fetch } = {},
+): Promise<TickerMatch[]> {
+  type Response = { results?: { ticker?: string; name?: string }[] }
+  const market = kind === "crypto" ? "crypto" : "stocks"
+  const data = await getJson<Response>(
+    `/v3/reference/tickers?search=${encodeURIComponent(query.trim())}&market=${market}&active=true&limit=${limit}`,
+    fetchImpl,
+  )
+  return (data.results ?? [])
+    .filter((r): r is { ticker: string; name: string } => !!r.ticker && !!r.name)
+    .map((r) => ({ symbol: displaySymbol(r.ticker), name: r.name }))
 }
