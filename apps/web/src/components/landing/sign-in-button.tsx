@@ -4,20 +4,22 @@ import { useState } from "react"
 import { signIn } from "next-auth/react"
 import { Button } from "@web/components/ui/button"
 
-export function SignInButton() {
+export function SignInButton({ compact = false }: { compact?: boolean }) {
   const [pending, setPending] = useState(false)
 
   return (
     <Button
-      size="lg"
+      size={compact ? "sm" : "lg"}
+      variant={compact ? "outline" : "default"}
+      className={compact ? "rounded-full" : undefined}
       loading={pending}
       onClick={() => {
         setPending(true)
         void signIn("google", { callbackUrl: "/dashboard" })
       }}
     >
-      {!pending ? <GoogleMark /> : null}
-      Sign in with Google
+      {!pending && !compact ? <GoogleMark /> : null}
+      {compact ? "Sign in" : "Sign in with Google"}
     </Button>
   )
 }

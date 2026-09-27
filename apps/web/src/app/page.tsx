@@ -50,9 +50,7 @@ export default async function HomePage() {
             </span>
             <span className="text-[15px] font-semibold tracking-tight">Peerfolio</span>
           </span>
-          <a href="/api/auth/signin/google" className="rounded-full border bg-card px-3.5 py-1.5 text-sm font-medium transition-colors hover:bg-secondary">
-            Sign in
-          </a>
+          <SignInButton compact />
         </div>
       </header>
 
