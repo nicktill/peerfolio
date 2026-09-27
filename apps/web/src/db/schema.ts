@@ -321,6 +321,118 @@ export const follows = pgTable(
 )
 
 /* ------------------------------------------------------------------ *
+ * Fantasy leagues — paper money, picked stocks
+ *
+ * Kept apart from `leagues` on purpose: nothing here ever touches real
+ * holdings or snapshots, so play money can't leak into a real return and a
+ * real balance can't leak into a fantasy one.
+ * ------------------------------------------------------------------ */
+
+export const tradeSide = pgEnum("trade_side", ["buy", "sell"])
+
+export const fantasyLeagues = pgTable(
+  "fantasy_leagues",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    emoji: text("emoji").notNull().default("🏈"),
+    accent: text("accent").notNull().default("emerald"),
+    ownerId: uuid("owner_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    inviteCode: text("invite_code").notNull(),
+    /** Everyone starts with exactly this much play cash. */
+    startingCash: numeric("starting_cash", { precision: 20, scale: 2 }).notNull().default("100000"),
+    /** No single ticker may exceed this share of a member's portfolio after a buy. Null means no cap. */
+    maxPositionPct: integer("max_position_pct"),
+    /** Null runs forever. After it passes, trading stops and standings freeze. */
+    endsAt: timestamp("ends_at", { withTimezone: true }),
+    memberLimit: integer("member_limit").notNull().default(50),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("fantasy_leagues_invite_code_idx").on(t.inviteCode),
+    index("fantasy_leagues_owner_idx").on(t.ownerId),
+  ],
+)
+
+export const fantasyMembers = pgTable(
+  "fantasy_members",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    leagueId: uuid("league_id")
+      .notNull()
+      .references(() => fantasyLeagues.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** Uninvested play cash. Changed only inside a locked trade transaction. */
+    cash: numeric("cash", { precision: 20, scale: 6 }).notNull(),
+    joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("fantasy_members_unique_idx").on(t.leagueId, t.userId),
+    index("fantasy_members_user_idx").on(t.userId),
+  ],
+)
+
+/** Current holdings per member. Priced from `securities`, like manual positions. */
+export const fantasyPositions = pgTable(
+  "fantasy_positions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    memberId: uuid("member_id")
+      .notNull()
+      .references(() => fantasyMembers.id, { onDelete: "cascade" }),
+    securityId: text("security_id")
+      .notNull()
+      .references(() => securities.id),
+    shares: numeric("shares", { precision: 24, scale: 8 }).notNull(),
+    /** Total paid for the shares still held, for the per-position gain. */
+    costBasis: numeric("cost_basis", { precision: 20, scale: 6 }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("fantasy_positions_unique_idx").on(t.memberId, t.securityId)],
+)
+
+/** Append-only trade log. Also the league's activity feed. */
+export const fantasyTrades = pgTable(
+  "fantasy_trades",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    leagueId: uuid("league_id")
+      .notNull()
+      .references(() => fantasyLeagues.id, { onDelete: "cascade" }),
+    memberId: uuid("member_id")
+      .notNull()
+      .references(() => fantasyMembers.id, { onDelete: "cascade" }),
+    securityId: text("security_id")
+      .notNull()
+      .references(() => securities.id),
+    side: tradeSide("side").notNull(),
+    shares: numeric("shares", { precision: 24, scale: 8 }).notNull(),
+    price: numeric("price", { precision: 20, scale: 6 }).notNull(),
+    priceAsOf: date("price_as_of").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("fantasy_trades_league_created_idx").on(t.leagueId, t.createdAt)],
+)
+
+/** One value per member per day, written by the nightly job, for the race chart. */
+export const fantasySnapshots = pgTable(
+  "fantasy_snapshots",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    memberId: uuid("member_id")
+      .notNull()
+      .references(() => fantasyMembers.id, { onDelete: "cascade" }),
+    date: date("date").notNull(),
+    value: numeric("value", { precision: 20, scale: 6 }).notNull(),
+  },
+  (t) => [uniqueIndex("fantasy_snapshots_member_date_idx").on(t.memberId, t.date)],
+)
+
+/* ------------------------------------------------------------------ *
  * Relations
  * ------------------------------------------------------------------ */
 
@@ -367,3 +479,5 @@ export type PortfolioSnapshot = typeof portfolioSnapshots.$inferSelect
 export type League = typeof leagues.$inferSelect
 export type LeagueMember = typeof leagueMembers.$inferSelect
 export type Follow = typeof follows.$inferSelect
+export type FantasyLeague = typeof fantasyLeagues.$inferSelect
+export type FantasyMember = typeof fantasyMembers.$inferSelect

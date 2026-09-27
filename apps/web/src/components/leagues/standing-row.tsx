@@ -35,9 +35,12 @@ const MEDALS = ["var(--rank-1)", "var(--rank-2)", "var(--rank-3)"]
 export function StandingRow({
   standing,
   onReact,
+  showSource = true,
 }: {
   standing: Standing
   onReact?: (toUserId: string, emoji: string) => void
+  /** Off for fantasy leagues, where everyone trades the same play money. */
+  showSource?: boolean
 }) {
   const [open, setOpen] = useState(false)
 
@@ -59,7 +62,7 @@ export function StandingRow({
           </p>
           <p className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
             {standing.handle ? `@${standing.handle}` : `${standing.days} days`}
-            {!standing.isVerified ? (
+            {showSource && !standing.isVerified ? (
               <span className="rounded bg-secondary px-1 py-px text-[10px] font-medium">self-reported</span>
             ) : null}
           </p>

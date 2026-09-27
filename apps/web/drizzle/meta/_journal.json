@@ -29,6 +29,13 @@
       "when": 1790461238321,
       "tag": "0003_market_ticker",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790524547892,
+      "tag": "0004_fantasy_leagues",
+      "breakpoints": true
     }
   ]
 }

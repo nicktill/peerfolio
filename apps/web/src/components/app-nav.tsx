@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation"
 import { signOut, useSession } from "next-auth/react"
 import { useTheme } from "next-themes"
 import { useEffect, useState } from "react"
-import { LayoutDashboard, LogOut, Moon, Settings, Sun, Trophy, Users } from "lucide-react"
+import { Gamepad2, LayoutDashboard, LogOut, Moon, Settings, Sun, Trophy, Users } from "lucide-react"
 import { cn } from "@web/lib/utils"
 import { Avatar } from "@web/components/ui/avatar"
 import { Button } from "@web/components/ui/button"
@@ -14,6 +14,7 @@ import { Button } from "@web/components/ui/button"
 const LINKS = [
   { href: "/dashboard", label: "Portfolio", icon: LayoutDashboard },
   { href: "/leagues", label: "Leagues", icon: Users },
+  { href: "/fantasy", label: "Fantasy", icon: Gamepad2 },
   { href: "/board", label: "Board", icon: Trophy },
 ]
 
@@ -26,7 +27,9 @@ export function AppNav() {
       <header className="sticky top-0 z-40 border-b bg-background/85 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4">
           <Link href="/dashboard" className="flex shrink-0 items-center gap-2">
-            <Image src="/logo.png" alt="" width={26} height={26} className="rounded-md" />
+            <span className="grid size-7 place-items-center rounded-lg bg-white shadow-sm ring-1 ring-border">
+              <Image src="/logo.png" alt="" width={20} height={20} />
+            </span>
             <span className="text-[15px] font-semibold tracking-tight">Peerfolio</span>
           </Link>
 
