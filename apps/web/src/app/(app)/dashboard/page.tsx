@@ -92,11 +92,11 @@ export default function DashboardPage() {
           <EmptyState
             icon={Sparkles}
             title="Let's see your portfolio"
-            description="Connect a brokerage for verified returns, or add an account manually to start building history today. Brokerages don't provide backfilled history, so the sooner you start, the longer your track record."
+            description="Add an account and type in what you hold. We price it every night from market data and start your track record today, so the sooner you start, the longer your history. Linking a brokerage for verified returns is coming soon."
             action={
               <div className="flex flex-wrap justify-center gap-2">
-                <ConnectButton onConnected={refetch} />
                 <ManualAccountForm onCreated={refetch} />
+                <ConnectButton onConnected={refetch} />
               </div>
             }
           />

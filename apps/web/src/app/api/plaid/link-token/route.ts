@@ -3,7 +3,7 @@ import { CountryCode, Products } from "plaid"
 import { and, eq } from "drizzle-orm"
 import { db, plaidItems } from "@web/db"
 import { decrypt } from "@web/lib/crypto"
-import { getPlaidClient, plaidErrorMessage } from "@web/lib/plaid"
+import { getPlaidClient, plaidErrorMessage, plaidLinkingEnabled } from "@web/lib/plaid"
 import { ApiError, readJson, withUser } from "@web/lib/api"
 
 type Body = { itemId?: string }
@@ -16,6 +16,8 @@ type Body = { itemId?: string }
  */
 export const POST = withUser<unknown>(async (userId, request) => {
   const body = await readJson<Body>(request).catch(() => ({}) as Body)
+  // Repairing an existing connection stays possible; new ones wait for production.
+  if (!body.itemId && !plaidLinkingEnabled()) throw new ApiError("Brokerage linking is coming soon", 409)
   const client = getPlaidClient()
 
   let accessToken: string | undefined
