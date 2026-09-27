@@ -170,7 +170,7 @@ export default function BoardPage() {
             <EmptyState
               icon={Trophy}
               title="The board is still filling up"
-              description={`Traders show up after ${data?.minHistoryDays ?? 7} days of verified history. Connect a brokerage and make your profile public to claim a spot.`}
+              description={`Traders show up after ${data?.minHistoryDays ?? 7} days of verified history. The board opens once brokerage linking launches. Until then, compete in a league or a fantasy league.`}
               action={
                 <Button asChild>
                   <Link href="/settings">Go public</Link>

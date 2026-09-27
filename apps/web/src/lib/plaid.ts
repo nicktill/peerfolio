@@ -9,6 +9,10 @@ function getPlaidEnv(): "sandbox" | "production" {
   return process.env.PLAID_ENV === "production" ? "production" : "sandbox"
 }
 
+/** Whether new connections may be made. Mirrors NEXT_PUBLIC_PLAID_LINKING in next.config. */
+export function plaidLinkingEnabled(): boolean {
+  return getPlaidEnv() === "production" || process.env.ENABLE_PLAID_SANDBOX === "true"
+}
 
 let cached: PlaidApi | null = null
 
