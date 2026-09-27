@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server"
-import { and, eq, ne, sql } from "drizzle-orm"
+import { and, asc, eq, ne, sql } from "drizzle-orm"
 import { z } from "zod"
-import { db, follows, portfolioSnapshots, users } from "@web/db"
+import { db, follows, leagueMembers, leagues, plaidItems, portfolioSnapshots, users, waitlistSignups } from "@web/db"
 import { ApiError, readJson, withUser } from "@web/lib/api"
+import { decrypt } from "@web/lib/crypto"
+import { getPlaidClient } from "@web/lib/plaid"
 
 export const GET = withUser<unknown>(async (userId) => {
   const user = await db.query.users.findFirst({ where: eq(users.id, userId) })
@@ -66,6 +68,51 @@ export const PATCH = withUser<unknown>(async (userId, request) => {
     .update(users)
     .set({ ...updates, updatedAt: new Date() })
     .where(eq(users.id, userId))
+
+  return NextResponse.json({ ok: true })
+})
+
+/**
+ * Deletes the account and everything attached to it.
+ *
+ * Plaid connections are revoked with `/item/remove` first, so no access token
+ * outlives the account. Everything else goes by cascade from the users row.
+ */
+export const DELETE = withUser<unknown>(async (userId) => {
+  const user = await db.query.users.findFirst({ where: eq(users.id, userId) })
+  if (!user) throw new ApiError("User not found", 404)
+
+  const items = await db.select().from(plaidItems).where(eq(plaidItems.userId, userId))
+  for (const item of items) {
+    try {
+      await getPlaidClient().itemRemove({ access_token: decrypt(item.accessToken) })
+    } catch (error) {
+      // Same trade-off as disconnecting: a Plaid-side failure must not keep
+      // someone's data here after they asked for it to be gone.
+      console.error("[me] item/remove failed during account deletion", error)
+    }
+  }
+
+  await db.transaction(async (tx) => {
+    // Leagues outlive their creator: hand each one to the longest-standing
+    // remaining member. A league with nobody else in it goes with the account.
+    const owned = await tx.select({ id: leagues.id }).from(leagues).where(eq(leagues.ownerId, userId))
+    for (const league of owned) {
+      const [heir] = await tx
+        .select()
+        .from(leagueMembers)
+        .where(and(eq(leagueMembers.leagueId, league.id), ne(leagueMembers.userId, userId)))
+        .orderBy(asc(leagueMembers.joinedAt))
+        .limit(1)
+      if (!heir) continue
+
+      await tx.update(leagues).set({ ownerId: heir.userId }).where(eq(leagues.id, league.id))
+      await tx.update(leagueMembers).set({ role: "owner" }).where(eq(leagueMembers.id, heir.id))
+    }
+
+    await tx.delete(waitlistSignups).where(eq(waitlistSignups.email, user.email))
+    await tx.delete(users).where(eq(users.id, userId))
+  })
 
   return NextResponse.json({ ok: true })
 })
