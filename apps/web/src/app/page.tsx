@@ -11,11 +11,11 @@ import { SignInButton } from "@web/components/landing/sign-in-button"
 import { TickerTape } from "@web/components/landing/ticker-tape"
 import { getCurrentUserId } from "@web/lib/auth"
 
-const RIVALS = ["friends", "the group chat", "your roommates", "your brother-in-law", "the office"] as const
+const RIVALS = ["friends", "the group chat", "your roommates", "your coworkers", "your dad"] as const
 
 const STEPS = [
   { title: "Start a league", body: "Name it, pick an emoji, get an invite link. Takes about ten seconds." },
-  { title: "Drop it in the group chat", body: "Friends link a brokerage through Plaid, read-only, or type their positions in by hand." },
+  { title: "Drop it in the group chat", body: "Everyone types in what they hold, or runs a fantasy portfolio with play money. It takes a minute." },
   { title: "Settle it with math", body: "Everyone is ranked by time-weighted return, updated daily. Receipts included." },
 ]
 
@@ -31,9 +31,9 @@ const POINTS = [
     body: "Returns are time-weighted. Adding cash or linking a new account doesn't move your number. Only your picks do.",
   },
   {
-    emoji: "🔌",
-    title: "Link it or type it",
-    body: "Connect a brokerage through Plaid, read-only, or add an account by hand. Either way it's tracked daily.",
+    emoji: "✍️",
+    title: "Type it in, we track it",
+    body: "Add your positions by hand and we price them every night from market data. Read-only brokerage linking is coming soon.",
   },
 ]
 
@@ -65,16 +65,13 @@ export default async function HomePage() {
               </span>
               Season&apos;s live. Bragging rights on the line.
             </span>
-            <h1 className="mt-6 text-balance text-4xl font-semibold tracking-tight sm:text-6xl">
+            <h1 className="mt-6 text-balance text-[2.6rem] font-semibold leading-[1.05] tracking-tight sm:text-7xl">
               Compete with
               <br />
               <RotatingWord words={RIVALS} />
-              <br />
-              <span className="text-muted-foreground">on returns. Keep the dollars to yourself.</span>
             </h1>
-            <p className="mx-auto mt-6 max-w-xl text-balance text-base text-muted-foreground sm:text-lg">
-              Private leagues rank everyone by time-weighted return. Your friends see how well you invest, never how
-              much you have.
+            <p className="mx-auto mt-6 max-w-md text-balance text-base text-muted-foreground sm:text-lg">
+              Private leagues ranked on returns. Friends see how well you invest, never how much.
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
               <SignInButton />
@@ -85,7 +82,7 @@ export default async function HomePage() {
                 See how it works <ArrowDown className="size-4" aria-hidden />
               </a>
             </div>
-            <p className="mt-4 text-xs text-muted-foreground">Free. Read-only brokerage access, or add positions by hand.</p>
+            <p className="mt-4 text-xs text-muted-foreground">Free. Add your positions by hand, or play with fantasy money.</p>
           </div>
 
           <div className="relative mx-auto max-w-6xl px-4">
@@ -148,6 +145,7 @@ export default async function HomePage() {
               Opt in and your return goes up against everyone&apos;s. Only portfolios pulled straight from a brokerage
               are ranked, and only after a week of history, so nobody tops it with a typo or one lucky day.
             </p>
+            <p className="mt-3 text-sm text-muted-foreground">Opens when brokerage linking launches.</p>
           </div>
           <div className="rounded-3xl border bg-secondary/60 p-2 sm:p-4">
             <BoardPreview />
@@ -155,15 +153,18 @@ export default async function HomePage() {
         </section>
 
         <section className="mx-auto max-w-6xl px-4 pb-16 sm:pb-24">
-          <div className="relative overflow-hidden rounded-3xl border border-dashed border-primary/40 bg-accent/40 p-8 sm:p-12">
+          <div className="relative overflow-hidden rounded-3xl border border-primary/40 bg-accent/40 p-8 sm:p-12">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-primary px-2.5 py-0.5 text-xs font-semibold text-primary-foreground">
-              <Sparkles className="size-3.5" aria-hidden /> Coming soon
+              <Sparkles className="size-3.5" aria-hidden /> New
             </span>
             <h2 className="mt-4 text-balance text-3xl font-semibold tracking-tight">Fantasy leagues. Draft day for stocks.</h2>
             <p className="mt-3 max-w-2xl text-muted-foreground">
               Everyone gets the same $100k of play money. Pick your stocks, set a deadline or let it run forever, and
               find out who actually knows what they&apos;re doing. No brokerage needed.
             </p>
+            <div className="relative mt-6">
+              <SignInButton />
+            </div>
             <span aria-hidden className="absolute -right-4 -top-6 select-none text-[9rem] leading-none opacity-15 sm:text-[12rem]">
               🏈
             </span>
