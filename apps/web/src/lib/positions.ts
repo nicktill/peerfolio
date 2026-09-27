@@ -6,6 +6,8 @@ import {
   latestCloses,
   MarketDataError,
   previousClose,
+  searchTickers,
+  tickerDetails,
   toMarketTicker,
   type AssetKind,
 } from "@web/lib/market-data"
@@ -48,6 +50,8 @@ export async function ensurePriced(marketTicker: string, kind: AssetKind, { maxA
 
   const close = await previousClose(marketTicker).catch((error: unknown) => {
     if (!(error instanceof MarketDataError)) throw error
+    // An unknown ticker is "not found", not an outage.
+    if (error.status === 404) return null
     console.error("[positions] price lookup failed:", error.message)
     throw error.status === 429
       ? new ApiError("Too many price lookups right now. Try again in a minute.", 429)
@@ -58,7 +62,7 @@ export async function ensurePriced(marketTicker: string, kind: AssetKind, { maxA
     if (existing?.closePrice && existing.closePriceAsOf) {
       return { securityId, price: Number(existing.closePrice), asOf: existing.closePriceAsOf, name: existing.name }
     }
-    throw new ApiError(`Couldn't find a price for ${displaySymbol(marketTicker)}`)
+    throw await notFound(displaySymbol(marketTicker), kind)
   }
 
   await db
@@ -79,23 +83,62 @@ export async function ensurePriced(marketTicker: string, kind: AssetKind, { maxA
   return { securityId, price: close.price, asOf: close.asOf, name: existing?.name ?? null }
 }
 
+/** A 404 naming the ticker, with close matches when the provider has any. */
+async function notFound(symbol: string, kind: AssetKind) {
+  const suggestions = await searchTickers(symbol, kind).catch(() => [])
+  const hint = suggestions[0] ? ` Did you mean ${suggestions[0].symbol}?` : ""
+  return new ApiError(`We couldn't find ${symbol}.${hint}`, 404, { suggestions })
+}
+
+/**
+ * Resolves what someone typed to a priced, named security, for the add form's
+ * preview. The company name is fetched once and kept on the security row.
+ */
+export async function lookupTicker(symbol: string, kind: AssetKind) {
+  const marketTicker = toMarketTicker(symbol, kind)
+  if (!marketTicker) throw await notFound(symbol.trim().toUpperCase(), kind)
+
+  const priced = await ensurePriced(marketTicker, kind)
+  let name = priced.name
+  if (!name) {
+    const details = await tickerDetails(marketTicker).catch(() => null)
+    name = details?.name ?? null
+    if (name) await db.update(securities).set({ name }).where(eq(securities.id, priced.securityId))
+  }
+  return { symbol: displaySymbol(marketTicker), kind, name, price: priced.price, asOf: priced.asOf }
+}
+
 /** Adds a position, or replaces the quantity if the account already holds it. */
 export async function setPosition(
   accountId: string,
   userId: string,
-  input: { symbol: string; kind: AssetKind; quantity: number },
+  input: { symbol: string; kind: AssetKind; quantity: number; avgCost?: number | null },
 ) {
   const marketTicker = toMarketTicker(input.symbol, input.kind)
   if (!marketTicker) throw new ApiError(`${input.symbol} doesn't look like a ${input.kind === "crypto" ? "coin" : "ticker"}`)
 
   const { securityId } = await ensurePriced(marketTicker, input.kind)
 
+  // An average cost sets the basis; leaving it out keeps the existing average
+  // per share, so changing the share count doesn't invent a gain.
+  const existing = await db.query.holdings.findFirst({
+    where: and(eq(holdings.accountId, accountId), eq(holdings.securityId, securityId)),
+  })
+  let costBasis: string | null
+  if (input.avgCost !== undefined) {
+    costBasis = input.avgCost === null ? null : (input.avgCost * input.quantity).toFixed(4)
+  } else if (existing?.costBasis && existing.quantity && Number(existing.quantity) > 0) {
+    costBasis = ((Number(existing.costBasis) / Number(existing.quantity)) * input.quantity).toFixed(4)
+  } else {
+    costBasis = null
+  }
+
   await db
     .insert(holdings)
-    .values({ accountId, userId, securityId, quantity: input.quantity.toString() })
+    .values({ accountId, userId, securityId, quantity: input.quantity.toString(), costBasis })
     .onConflictDoUpdate({
       target: [holdings.accountId, holdings.securityId],
-      set: { quantity: input.quantity.toString(), updatedAt: new Date() },
+      set: { quantity: input.quantity.toString(), costBasis, updatedAt: new Date() },
     })
 
   await revalue(accountId)

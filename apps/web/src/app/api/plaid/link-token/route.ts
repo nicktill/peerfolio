@@ -38,7 +38,7 @@ export const POST = withUser<unknown>(async (userId, request) => {
       // Update mode rejects `products`; the item keeps the ones it was created with.
       ...(accessToken
         ? { access_token: accessToken }
-        : { products: [Products.Investments], optional_products: [Products.Transactions] }),
+        : { products: [Products.Investments] }),
       ...(process.env.PLAID_REDIRECT_URI ? { redirect_uri: process.env.PLAID_REDIRECT_URI } : {}),
       ...(process.env.PLAID_WEBHOOK_URL ? { webhook: process.env.PLAID_WEBHOOK_URL } : {}),
     })
