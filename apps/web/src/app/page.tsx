@@ -11,7 +11,7 @@ import { SignInButton } from "@web/components/landing/sign-in-button"
 import { TickerTape } from "@web/components/landing/ticker-tape"
 import { getCurrentUserId } from "@web/lib/auth"
 
-const RIVALS = ["friends", "the group chat", "your roommates", "your coworkers", "your dad"] as const
+const RIVALS = ["friends", "the group chat", "your roommates", "your coworkers", "your family"] as const
 
 const STEPS = [
   { title: "Start a league", body: "Name it, pick an emoji, get an invite link. Takes about ten seconds." },
@@ -57,7 +57,7 @@ export default async function HomePage() {
       <main className="flex-1">
         <section className="relative isolate">
           <HeroBackdrop />
-          <div className="mx-auto max-w-4xl px-4 pb-14 pt-14 text-center sm:pt-24">
+          <div className="mx-auto max-w-5xl px-4 pb-14 pt-14 text-center sm:pt-24">
             <span className="inline-flex items-center gap-2 rounded-full border bg-card/80 px-3 py-1 text-xs font-medium shadow-sm backdrop-blur">
               <span className="relative flex size-2">
                 <span className="absolute inline-flex size-full animate-ping rounded-full bg-[var(--gain)] opacity-60 motion-reduce:hidden" />
@@ -65,10 +65,11 @@ export default async function HomePage() {
               </span>
               Season&apos;s live. Bragging rights on the line.
             </span>
-            <h1 className="mt-6 text-balance text-[2.6rem] font-semibold leading-[1.05] tracking-tight sm:text-7xl">
-              Compete with
-              <br />
-              <RotatingWord words={RIVALS} />
+            <h1 className="mt-6 text-balance text-[2.5rem] font-semibold leading-[1.05] tracking-tight sm:text-6xl lg:text-7xl">
+              {/* Phone: "Track your investments with / <group>". Wider: "Track your investments / with <group>". */}
+              Track your investments
+              <br className="hidden sm:inline" /> with
+              <br className="sm:hidden" /> <RotatingWord words={RIVALS} />
             </h1>
             <p className="mx-auto mt-6 max-w-md text-balance text-base text-muted-foreground sm:text-lg">
               Private leagues ranked on returns. Friends see how well you invest, never how much.
