@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { usePlaidLink, type PlaidLinkOnSuccessMetadata } from "react-plaid-link"
-import { Building2 } from "lucide-react"
+import { Building2, Clock } from "lucide-react"
 import { Button, type ButtonProps } from "@web/components/ui/button"
 import { useToast } from "@web/components/ui/toast"
 import { exchangePublicToken, pendingLinkToken } from "@web/lib/plaid-link"
@@ -21,7 +21,22 @@ type Props = {
  * The access token never comes back here — the server stores it encrypted and
  * returns only our own item id.
  */
-export function ConnectButton({ onConnected, itemId, children, ...buttonProps }: Props) {
+/** Set at build time from PLAID_ENV; see next.config.ts. */
+const LINKING_ENABLED = process.env.NEXT_PUBLIC_PLAID_LINKING === "1"
+
+export function ConnectButton(props: Props) {
+  if (!LINKING_ENABLED && !props.itemId) {
+    return (
+      <Button size={props.size} className={props.className} variant="outline" disabled title="Brokerage linking is coming soon">
+        <Clock aria-hidden />
+        Brokerage linking soon
+      </Button>
+    )
+  }
+  return <PlaidConnectButton {...props} />
+}
+
+function PlaidConnectButton({ onConnected, itemId, children, ...buttonProps }: Props) {
   const { toast } = useToast()
   const [linkToken, setLinkToken] = useState<string | null>(null)
   const [exchanging, setExchanging] = useState(false)
