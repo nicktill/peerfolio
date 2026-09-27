@@ -1,10 +1,11 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { usePlaidLink } from "react-plaid-link"
+import { usePlaidLink, type PlaidLinkOnSuccessMetadata } from "react-plaid-link"
 import { Building2 } from "lucide-react"
 import { Button, type ButtonProps } from "@web/components/ui/button"
 import { useToast } from "@web/components/ui/toast"
+import { exchangePublicToken, pendingLinkToken } from "@web/lib/plaid-link"
 import { mutate } from "@web/lib/use-api"
 
 type Props = {
@@ -43,12 +44,11 @@ export function ConnectButton({ onConnected, itemId, children, ...buttonProps }:
   }, [itemId])
 
   const onSuccess = useCallback(
-    async (publicToken: string, metadata: { institution?: { name?: string; institution_id?: string } }) => {
+    async (publicToken: string, metadata: PlaidLinkOnSuccessMetadata) => {
+      pendingLinkToken.clear()
       setExchanging(true)
       try {
-        await mutate("/api/plaid/exchange", {
-          body: { publicToken, institution: metadata.institution },
-        })
+        await exchangePublicToken(publicToken, metadata)
         toast("Account connected.", "success")
         onConnected()
       } catch (error) {
@@ -62,7 +62,8 @@ export function ConnectButton({ onConnected, itemId, children, ...buttonProps }:
 
   const { open, ready } = usePlaidLink({
     token: linkToken,
-    onSuccess: (publicToken, metadata) => void onSuccess(publicToken, metadata as never),
+    onSuccess: (publicToken, metadata) => void onSuccess(publicToken, metadata),
+    onExit: () => pendingLinkToken.clear(),
   })
 
   if (unavailable) {
@@ -75,7 +76,14 @@ export function ConnectButton({ onConnected, itemId, children, ...buttonProps }:
   }
 
   return (
-    <Button {...buttonProps} onClick={() => open()} disabled={!ready || !linkToken} loading={exchanging}>
+    <Button
+      {...buttonProps}
+      onClick={() => {
+        // Kept for /oauth-return in case an OAuth bank takes the user away.
+        pendingLinkToken.save(linkToken!)
+        open()
+      }}
+      disabled={!ready || !linkToken} loading={exchanging}>
       {!exchanging ? <Building2 aria-hidden /> : null}
       {children ?? (itemId ? "Reconnect" : "Connect account")}
     </Button>
