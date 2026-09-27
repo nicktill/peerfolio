@@ -1,0 +1,77 @@
+import assert from "node:assert/strict"
+import { describe, it } from "node:test"
+import { applyTrade, isClosed, portfolioValue, returnPct, TradeRejected, type MemberState } from "./fantasy-rules.ts"
+
+const fresh = (): MemberState => ({ cash: 100_000, positions: [] })
+const noCap = { maxPositionPct: null }
+
+describe("applyTrade: buys", () => {
+  it("turns cash into shares at the price", () => {
+    const out = applyTrade(fresh(), { side: "buy", securityId: "mkt:NVDA", price: 125, amount: 10_000 }, noCap)
+    assert.equal(out.shares, 80)
+    assert.equal(out.cashDelta, -10_000)
+    assert.deepEqual(out.position, { shares: 80, costBasis: 10_000 })
+  })
+
+  it("adds to an existing position and its cost basis", () => {
+    const state: MemberState = { cash: 50_000, positions: [{ securityId: "mkt:AAPL", shares: 10, costBasis: 2_000, price: 250 }] }
+    const out = applyTrade(state, { side: "buy", securityId: "mkt:AAPL", price: 250, amount: 500 }, noCap)
+    assert.deepEqual(out.position, { shares: 12, costBasis: 2_500 })
+  })
+
+  it("rejects spending more cash than you have", () => {
+    assert.throws(() => applyTrade(fresh(), { side: "buy", securityId: "x", price: 10, amount: 100_001 }, noCap), TradeRejected)
+  })
+
+  it("rejects an empty amount and a missing price", () => {
+    assert.throws(() => applyTrade(fresh(), { side: "buy", securityId: "x", price: 10, amount: 0 }, noCap), TradeRejected)
+    assert.throws(() => applyTrade(fresh(), { side: "buy", securityId: "x", price: 0, amount: 10 }, noCap), TradeRejected)
+  })
+
+  it("enforces the position cap against the whole portfolio", () => {
+    const cap = { maxPositionPct: 25 }
+    assert.doesNotThrow(() => applyTrade(fresh(), { side: "buy", securityId: "x", price: 10, amount: 25_000 }, cap))
+    assert.throws(() => applyTrade(fresh(), { side: "buy", securityId: "x", price: 10, amount: 25_001 }, cap), /caps any one pick at 25%/)
+  })
+})
+
+describe("applyTrade: sells", () => {
+  const holding: MemberState = { cash: 0, positions: [{ securityId: "mkt:TSLA", shares: 40, costBasis: 8_000, price: 300 }] }
+
+  it("sells part and shrinks the cost basis in proportion", () => {
+    const out = applyTrade(holding, { side: "sell", securityId: "mkt:TSLA", price: 300, shares: 10 }, noCap)
+    assert.equal(out.cashDelta, 3_000)
+    assert.deepEqual(out.position, { shares: 30, costBasis: 6_000 })
+  })
+
+  it("sells everything and removes the position", () => {
+    const out = applyTrade(holding, { side: "sell", securityId: "mkt:TSLA", price: 300, shares: "all" }, noCap)
+    assert.equal(out.shares, 40)
+    assert.equal(out.cashDelta, 12_000)
+    assert.equal(out.position, null)
+  })
+
+  it("rejects selling what you don't own", () => {
+    assert.throws(() => applyTrade(holding, { side: "sell", securityId: "mkt:TSLA", price: 300, shares: 41 }, noCap), TradeRejected)
+    assert.throws(() => applyTrade(holding, { side: "sell", securityId: "mkt:GME", price: 20, shares: 1 }, noCap), TradeRejected)
+  })
+})
+
+describe("scoring", () => {
+  it("values cash plus positions at their prices", () => {
+    const state: MemberState = { cash: 1_000, positions: [{ securityId: "a", shares: 2, costBasis: 100, price: 60 }] }
+    assert.equal(portfolioValue(state), 1_120)
+  })
+
+  it("measures return against starting cash", () => {
+    assert.equal(Math.round(returnPct(110_000, 100_000)), 10)
+    assert.equal(Math.round(returnPct(95_000, 100_000)), -5)
+  })
+
+  it("closes a league at its end time and never without one", () => {
+    const now = new Date("2026-10-01T00:00:00Z")
+    assert.equal(isClosed(null, now), false)
+    assert.equal(isClosed(new Date("2026-09-30T23:59:59Z"), now), true)
+    assert.equal(isClosed(new Date("2026-10-02T00:00:00Z"), now), false)
+  })
+})
