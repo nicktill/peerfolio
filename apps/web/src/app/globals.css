@@ -215,3 +215,56 @@
     animation: none;
   }
 }
+
+/* ==========================================================================
+   Landing page motion. Everything is visible without it; these only add life.
+   ========================================================================== */
+
+.hero-grid {
+  background-image:
+    linear-gradient(to right, hsl(var(--foreground) / 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, hsl(var(--foreground) / 0.06) 1px, transparent 1px);
+  background-size: 48px 48px;
+  background-position: center top;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 40%, transparent 100%);
+}
+
+.grid-cell {
+  opacity: 0.2;
+  animation: cell-glow 6s ease-in-out infinite;
+  mask-image: none;
+}
+
+@keyframes cell-glow {
+  0%, 100% { opacity: 0.15; }
+  50% { opacity: 1; }
+}
+
+.caret {
+  animation: caret-blink 1s steps(1) infinite;
+}
+
+@keyframes caret-blink {
+  50% { opacity: 0; }
+}
+
+.marquee {
+  animation: marquee 40s linear infinite;
+}
+
+.marquee:hover {
+  animation-play-state: paused;
+}
+
+@keyframes marquee {
+  to { transform: translateX(-50%); }
+}
+
+.float-y {
+  animation: float-y 6s ease-in-out infinite;
+}
+
+@keyframes float-y {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
