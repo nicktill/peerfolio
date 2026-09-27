@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { beforeEach, describe, it } from "node:test"
-import { displaySymbol, latestCloses, MarketDataError, previousClose, toMarketTicker } from "./market-data.ts"
+import { displaySymbol, latestCloses, MarketDataError, previousClose, searchTickers, tickerDetails, toMarketTicker } from "./market-data.ts"
 
 /** Stub fetch that answers from a path → body table and records every call. */
 function stubFetch(routes: Record<string, unknown>, status = 200) {
@@ -127,5 +127,36 @@ describe("latestCloses", () => {
     const { fetchImpl, calls } = stubFetch({})
     assert.equal((await latestCloses([], { fetchImpl })).size, 0)
     assert.equal(calls.length, 0)
+  })
+})
+
+describe("tickerDetails", () => {
+  beforeEach(() => {
+    process.env.MASSIVE_API_KEY = "test"
+  })
+
+  it("returns the name and branding", async () => {
+    const { fetchImpl } = stubFetch({
+      "/v3/reference/tickers/AAPL": { results: { name: "Apple Inc.", branding: { icon_url: "https://x/icon.png", logo_url: "https://x/logo.svg" } } },
+    })
+    assert.deepEqual(await tickerDetails("AAPL", fetchImpl), { name: "Apple Inc.", iconUrl: "https://x/icon.png", logoUrl: "https://x/logo.svg" })
+  })
+
+  it("returns null for a ticker the provider doesn't know", async () => {
+    const { fetchImpl } = stubFetch({}, 404)
+    assert.equal(await tickerDetails("APPL", fetchImpl), null)
+  })
+})
+
+describe("searchTickers", () => {
+  beforeEach(() => {
+    process.env.MASSIVE_API_KEY = "test"
+  })
+
+  it("maps matches to display symbols", async () => {
+    const { fetchImpl } = stubFetch({
+      "/v3/reference/tickers": { results: [{ ticker: "AAPL", name: "Apple Inc." }, { ticker: "X:BTCUSD" }] },
+    })
+    assert.deepEqual(await searchTickers("APPL", "stock", { fetchImpl }), [{ symbol: "AAPL", name: "Apple Inc." }])
   })
 })

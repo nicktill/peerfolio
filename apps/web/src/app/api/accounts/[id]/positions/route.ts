@@ -10,6 +10,8 @@ const Position = z.object({
   symbol: z.string().trim().min(1, "Enter a ticker").max(12),
   kind: z.enum(["stock", "crypto"]).default("stock"),
   quantity: z.number().finite().positive("Quantity must be more than zero").max(1e12),
+  /** Average price paid per share. Null clears it; omitted keeps the current one. */
+  avgCost: z.number().finite().positive("Average cost must be more than zero").max(1e9).nullable().optional(),
 })
 
 /** Adds a position to a manual account, or changes how much of it is held. */

@@ -5,6 +5,8 @@ export class ApiError extends Error {
   constructor(
     message: string,
     readonly status: number = 400,
+    /** Extra fields merged into the error body, e.g. ticker suggestions. */
+    readonly details?: Record<string, unknown>,
   ) {
     super(message)
   }
@@ -28,7 +30,7 @@ export function withUser<T>(handler: (userId: string, request: Request, context:
       return await handler(userId, request, context)
     } catch (error) {
       if (error instanceof ApiError) {
-        return NextResponse.json({ error: error.message }, { status: error.status })
+        return NextResponse.json({ ...error.details, error: error.message }, { status: error.status })
       }
       console.error("[api] unhandled error", error)
       return NextResponse.json({ error: "Something went wrong" }, { status: 500 })
@@ -43,7 +45,7 @@ export function withPublic<T>(handler: (request: Request, context: T) => Promise
       return await handler(request, context)
     } catch (error) {
       if (error instanceof ApiError) {
-        return NextResponse.json({ error: error.message }, { status: error.status })
+        return NextResponse.json({ ...error.details, error: error.message }, { status: error.status })
       }
       console.error("[api] unhandled error", error)
       return NextResponse.json({ error: "Something went wrong" }, { status: 500 })

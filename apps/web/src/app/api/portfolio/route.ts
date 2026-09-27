@@ -102,8 +102,12 @@ export const GET = withUser<unknown>(async (userId, request) => {
               .map((h) => ({
                 id: h.id,
                 ticker: h.ticker,
+                name: h.securityName,
+                kind: h.securityType === "cryptocurrency" ? ("crypto" as const) : ("stock" as const),
                 quantity: n(h.quantity),
+                price: n(h.closePrice),
                 value: n(h.institutionValue),
+                costBasis: h.costBasis == null ? null : n(h.costBasis),
                 priceAsOf: h.closePriceAsOf,
               }))
               .sort((a, b) => b.value - a.value)
