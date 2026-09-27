@@ -32,6 +32,53 @@ export async function requireManualAccount(userId: string, id: string) {
   return account
 }
 
+/**
+ * Makes sure a `mkt:` security row exists with a close price, fetching one only
+ * when there is none yet or (with `maxAgeHours`) the stored one is stale.
+ * Reusing the nightly close means everyone holding a ticker is valued
+ * identically, and saves a call per lookup.
+ */
+export async function ensurePriced(marketTicker: string, kind: AssetKind, { maxAgeHours }: { maxAgeHours?: number } = {}) {
+  const securityId = `mkt:${marketTicker}`
+  const existing = await db.query.securities.findFirst({ where: eq(securities.id, securityId) })
+  const fresh =
+    existing?.closePrice && existing.closePriceAsOf &&
+    (maxAgeHours === undefined || Date.now() - existing.updatedAt.getTime() < maxAgeHours * 3_600_000)
+  if (fresh) return { securityId, price: Number(existing.closePrice), asOf: existing.closePriceAsOf!, name: existing.name }
+
+  const close = await previousClose(marketTicker).catch((error: unknown) => {
+    if (!(error instanceof MarketDataError)) throw error
+    console.error("[positions] price lookup failed:", error.message)
+    throw error.status === 429
+      ? new ApiError("Too many price lookups right now. Try again in a minute.", 429)
+      : new ApiError("Prices are unavailable right now", 503)
+  })
+  if (!close) {
+    // A stale price beats none when the provider has nothing newer.
+    if (existing?.closePrice && existing.closePriceAsOf) {
+      return { securityId, price: Number(existing.closePrice), asOf: existing.closePriceAsOf, name: existing.name }
+    }
+    throw new ApiError(`Couldn't find a price for ${displaySymbol(marketTicker)}`)
+  }
+
+  await db
+    .insert(securities)
+    .values({
+      id: securityId,
+      tickerSymbol: displaySymbol(marketTicker),
+      type: kind === "crypto" ? "cryptocurrency" : "equity",
+      marketTicker,
+      closePrice: close.price.toString(),
+      closePriceAsOf: close.asOf,
+    })
+    .onConflictDoUpdate({
+      target: securities.id,
+      set: { closePrice: close.price.toString(), closePriceAsOf: close.asOf, updatedAt: new Date() },
+    })
+
+  return { securityId, price: close.price, asOf: close.asOf, name: existing?.name ?? null }
+}
+
 /** Adds a position, or replaces the quantity if the account already holds it. */
 export async function setPosition(
   accountId: string,
@@ -41,37 +88,7 @@ export async function setPosition(
   const marketTicker = toMarketTicker(input.symbol, input.kind)
   if (!marketTicker) throw new ApiError(`${input.symbol} doesn't look like a ${input.kind === "crypto" ? "coin" : "ticker"}`)
 
-  const securityId = `mkt:${marketTicker}`
-  const existing = await db.query.securities.findFirst({ where: eq(securities.id, securityId) })
-
-  // Price it now so the position's value enters as a flow at a real price.
-  // Reuse the nightly close when someone already holds it: one fewer call, and
-  // everyone holding the ticker is valued identically.
-  if (!existing?.closePrice) {
-    const close = await previousClose(marketTicker).catch((error: unknown) => {
-      if (!(error instanceof MarketDataError)) throw error
-      console.error("[positions] price lookup failed:", error.message)
-      throw error.status === 429
-        ? new ApiError("Too many price lookups right now. Try again in a minute.", 429)
-        : new ApiError("Prices are unavailable right now", 503)
-    })
-    if (!close) throw new ApiError(`Couldn't find a price for ${input.symbol.toUpperCase()}`)
-
-    await db
-      .insert(securities)
-      .values({
-        id: securityId,
-        tickerSymbol: displaySymbol(marketTicker),
-        type: input.kind === "crypto" ? "cryptocurrency" : "equity",
-        marketTicker,
-        closePrice: close.price.toString(),
-        closePriceAsOf: close.asOf,
-      })
-      .onConflictDoUpdate({
-        target: securities.id,
-        set: { closePrice: close.price.toString(), closePriceAsOf: close.asOf, updatedAt: new Date() },
-      })
-  }
+  const { securityId } = await ensurePriced(marketTicker, input.kind)
 
   await db
     .insert(holdings)
@@ -105,11 +122,17 @@ export async function accountHasPositions(accountId: string): Promise<boolean> {
  * move shows up as return rather than as a flow.
  */
 export async function repricePositions() {
+  // Every ticker someone holds, in a real manual account or a fantasy league.
   const held = await db
-    .selectDistinct({ id: securities.id, marketTicker: securities.marketTicker })
+    .select({ id: securities.id, marketTicker: securities.marketTicker })
     .from(securities)
-    .innerJoin(holdings, eq(holdings.securityId, securities.id))
-    .where(isNotNull(securities.marketTicker))
+    .where(
+      and(
+        isNotNull(securities.marketTicker),
+        sql`(EXISTS (SELECT 1 FROM holdings h WHERE h.security_id = ${securities.id})
+          OR EXISTS (SELECT 1 FROM fantasy_positions f WHERE f.security_id = ${securities.id}))`,
+      ),
+    )
 
   const closes = await latestCloses(held.map((s) => s.marketTicker!))
 

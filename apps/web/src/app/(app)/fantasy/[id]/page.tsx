@@ -1,0 +1,221 @@
+"use client"
+
+import { use, useState } from "react"
+import Link from "next/link"
+import { ArrowLeft, Check, Clock, Infinity as Forever, Link2 } from "lucide-react"
+import { RaceChart } from "@web/components/charts/race-chart"
+import { StandingRow } from "@web/components/leagues/standing-row"
+import { TradePanel } from "@web/components/fantasy/trade-panel"
+import { TradeFeed, type FeedItem } from "@web/components/fantasy/trade-feed"
+import { timeLeft } from "@web/components/fantasy/time-left"
+import { Button } from "@web/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card"
+import { Delta } from "@web/components/ui/delta"
+import { Skeleton } from "@web/components/ui/skeleton"
+import type { Standing } from "@web/components/leagues/standing-row"
+import { formatCurrency } from "@web/lib/format"
+import { useApi } from "@web/lib/use-api"
+
+export type Position = { ticker: string; name: string | null; shares: number; price: number; priceAsOf: string | null; value: number; gainPct: number }
+
+type LeagueData = {
+  league: {
+    id: string
+    name: string
+    emoji: string
+    inviteCode: string
+    startingCash: number
+    maxPositionPct: number | null
+    endsAt: string | null
+    isClosed: boolean
+  }
+  standings: (Standing & { value: number })[]
+  you: { cash: number; value: number; percent: number; rank: number; positions: Position[] }
+  feed: FeedItem[]
+}
+
+const MEDALS = ["🥇", "🥈", "🥉"]
+
+export default function FantasyLeaguePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
+  const { data, error, loading, refetch } = useApi<LeagueData>(`/api/fantasy/${id}`)
+
+  if (loading && !data) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-28 rounded-2xl" />
+        <Skeleton className="h-80 rounded-2xl" />
+      </div>
+    )
+  }
+  if (error || !data) return <p className="text-sm text-muted-foreground">{error ?? "Couldn't load this league."}</p>
+
+  const { league, standings, you, feed } = data
+
+  return (
+    <div className="space-y-6">
+      <Link href="/fantasy" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+        <ArrowLeft className="size-4" aria-hidden /> Fantasy
+      </Link>
+
+      <header className="relative overflow-hidden rounded-3xl border bg-card p-5 sm:p-7">
+        <div className="hero-grid absolute inset-0 opacity-60" aria-hidden />
+        <div className="absolute -left-10 -top-20 size-56 rounded-full bg-primary/15 blur-3xl" aria-hidden />
+        <div className="relative flex flex-wrap items-start justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="text-4xl" aria-hidden>{league.emoji}</span>
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight">{league.name}</h1>
+              <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                <span className="inline-flex items-center gap-1">
+                  {league.endsAt ? <Clock className="size-3.5" aria-hidden /> : <Forever className="size-3.5" aria-hidden />}
+                  {league.isClosed ? "Final standings" : league.endsAt ? timeLeft(league.endsAt) : "All-time league"}
+                </span>
+                <span>{formatCurrency(league.startingCash)} each</span>
+                {league.maxPositionPct ? <span>Max {league.maxPositionPct}% per pick</span> : null}
+              </p>
+            </div>
+          </div>
+          <InviteButton code={league.inviteCode} />
+        </div>
+
+        <dl className="relative mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Stat label="Your rank">
+            <span className="numeric">
+              {MEDALS[you.rank - 1] ?? ""}#{you.rank}
+              <span className="text-sm font-normal text-muted-foreground"> of {standings.length}</span>
+            </span>
+          </Stat>
+          <Stat label="Return">
+            <Delta value={you.percent} size="lg" variant="plain" />
+          </Stat>
+          <Stat label="Portfolio">
+            <span className="numeric">{formatCurrency(you.value)}</span>
+          </Stat>
+          <Stat label="Cash to spend">
+            <span className="numeric">{formatCurrency(you.cash)}</span>
+          </Stat>
+        </dl>
+      </header>
+
+      {league.isClosed ? <Podium standings={standings} /> : null}
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="min-w-0 space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>The race</CardTitle>
+              <p className="text-xs text-muted-foreground">Everyone starts at 100. Updated nightly, plus live values today.</p>
+            </CardHeader>
+            <CardContent>
+              <RaceChart
+                height={260}
+                series={standings.map((s) => ({ id: s.userId, label: s.name?.split(" ")[0] ?? s.handle ?? "", points: s.spark, isYou: s.isYou }))}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Standings</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ul className="divide-y">
+                {standings.map((s) => (
+                  <StandingRow key={s.userId} standing={s} showSource={false} />
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        </div>
+
+        <aside className="min-w-0 space-y-6">
+          {!league.isClosed ? <TradePanel leagueId={league.id} cash={you.cash} positions={you.positions} onTraded={refetch} /> : null}
+          <Holdings positions={you.positions} />
+          <TradeFeed items={feed} />
+        </aside>
+      </div>
+    </div>
+  )
+}
+
+function Stat({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-2xl border bg-background/70 p-3 backdrop-blur">
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="mt-1 text-xl font-semibold">{children}</dd>
+    </div>
+  )
+}
+
+function InviteButton({ code }: { code: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      className="rounded-full"
+      onClick={() => {
+        void navigator.clipboard.writeText(`${window.location.origin}/fantasy/join/${code}`)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      }}
+    >
+      {copied ? <Check aria-hidden /> : <Link2 aria-hidden />}
+      {copied ? "Link copied" : "Invite friends"}
+    </Button>
+  )
+}
+
+function Holdings({ positions }: { positions: Position[] }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Your picks</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {positions.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nothing yet. Cash doesn&apos;t win leagues.</p>
+        ) : (
+          <ul className="divide-y">
+            {positions.map((p) => (
+              <li key={p.ticker} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
+                <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-secondary font-mono text-[11px] font-bold">
+                  {p.ticker.slice(0, 4)}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="numeric text-sm font-medium">{formatCurrency(p.value)}</p>
+                  <p className="numeric truncate text-xs text-muted-foreground">
+                    {p.shares.toLocaleString(undefined, { maximumFractionDigits: 4 })} sh @ {formatCurrency(p.price)}
+                  </p>
+                </div>
+                <Delta value={p.gainPct} size="sm" />
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function Podium({ standings }: { standings: Standing[] }) {
+  const top = standings.slice(0, 3)
+  const order = [top[1], top[0], top[2]].filter(Boolean) as Standing[]
+  const heights: Record<number, string> = { 1: "h-28", 2: "h-20", 3: "h-14" }
+  return (
+    <section className="rounded-3xl border bg-card p-6 text-center" aria-label="Final podium">
+      <p className="text-sm font-semibold text-primary">Season over</p>
+      <div className="mt-6 flex items-end justify-center gap-3">
+        {order.map((s) => (
+          <div key={s.userId} className="flex w-24 flex-col items-center gap-2">
+            <span className="text-2xl" aria-hidden>{MEDALS[s.rank - 1]}</span>
+            <span className="truncate text-sm font-medium">{s.name?.split(" ")[0] ?? s.handle}</span>
+            <Delta value={s.percent} size="sm" />
+            <div className={`w-full rounded-t-xl bg-primary/15 ${heights[s.rank]}`} />
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}

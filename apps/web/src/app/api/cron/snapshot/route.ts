@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { listSyncableUserIds, syncUser } from "@web/lib/plaid-sync"
 import { assertCronAuthorized, withPublic } from "@web/lib/api"
 import { repricePositions } from "@web/lib/positions"
+import { snapshotFantasy } from "@web/lib/fantasy"
 
 export const maxDuration = 300
 
@@ -40,6 +41,15 @@ export const GET = withPublic<unknown>(async (request) => {
     }
   }
 
+  // Fantasy values come from the same closes, so they go after repricing too.
+  let fantasy: Awaited<ReturnType<typeof snapshotFantasy>> | { error: string }
+  try {
+    fantasy = await snapshotFantasy()
+  } catch (error) {
+    console.error("[cron] fantasy snapshot failed", error)
+    fantasy = { error: error instanceof Error ? error.message : "unknown" }
+  }
+
   console.log(`[cron] snapshot complete: ${succeeded}/${userIds.length} users`)
-  return NextResponse.json({ pricing, users: userIds.length, succeeded, failures })
+  return NextResponse.json({ pricing, fantasy, users: userIds.length, succeeded, failures })
 })
