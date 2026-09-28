@@ -1,5 +1,6 @@
 import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react"
 import { cn } from "@web/lib/utils"
+import { visibleReturn } from "@web/lib/return-display"
 import { formatPercent } from "@web/lib/format"
 
 type Size = "sm" | "md" | "lg"
@@ -31,6 +32,7 @@ export function Delta({
   className?: string
 }) {
   const s = SIZES[size]
+  value = visibleReturn(value, digits)
   const direction = value > 0 ? "up" : value < 0 ? "down" : "flat"
   const Icon = direction === "up" ? ArrowUpRight : direction === "down" ? ArrowDownRight : Minus
 

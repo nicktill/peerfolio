@@ -183,10 +183,12 @@ function PositionForm({
   )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const requestId = useRef(0)
   const cache = useRef(new Map<string, Lookup>())
   const shareRef = useRef<HTMLInputElement>(null)
 
   async function resolve(raw: string, k: Kind = kind) {
+    const request = ++requestId.current
     const s = raw.trim().toUpperCase()
     if (!s) return setLookup({ state: "idle" })
     const key = `${k}:${s}`
@@ -194,14 +196,18 @@ function PositionForm({
     if (hit) return setLookup(hit)
 
     setLookup({ state: "loading", symbol: s })
-    const response = await fetch(`/api/market/quote?symbol=${encodeURIComponent(s)}&kind=${k}`)
-    const body = await response.json().catch(() => ({}))
-    const next: Lookup = response.ok
-      ? { state: "found", quote: body as Quote }
-      : { state: "missing", symbol: s, message: body.error ?? `We couldn't find ${s}.`, suggestions: body.suggestions ?? [] }
-    // Only cache definite answers; a rate limit or outage should be retried.
-    if (response.ok || response.status === 404) cache.current.set(key, next)
-    setLookup((current) => (current.state === "loading" && current.symbol !== s ? current : next))
+    try {
+      const response = await fetch(`/api/market/quote?symbol=${encodeURIComponent(s)}&kind=${k}`)
+      const body = await response.json().catch(() => ({}))
+      const next: Lookup = response.ok
+        ? { state: "found", quote: body as Quote }
+        : { state: "missing", symbol: s, message: body.error ?? `We couldn't find ${s}.`, suggestions: body.suggestions ?? [] }
+      // Only cache definite answers; a rate limit or outage should be retried.
+      if (response.ok || response.status === 404) cache.current.set(key, next)
+      if (request === requestId.current) setLookup(next)
+    } catch {
+      if (request === requestId.current) setLookup({ state: "missing", symbol: s, message: "Price lookup failed. Check your connection and try the ticker again.", suggestions: [] })
+    }
   }
 
   // Look up after a pause in typing, so a finished ticker previews without a click.
@@ -225,8 +231,8 @@ function PositionForm({
     event.preventDefault()
     setError(null)
     if (!quote) return setError(lookup.state === "missing" ? lookup.message : "Pick a ticker first.")
-    if (!validQty) return setError("Enter how many you hold.")
-    if (avgNum !== null && !(avgNum > 0)) return setError("Average cost must be a positive number.")
+    if (!validQty) return setError("Enter a positive number of shares or coins, not a dollar amount.")
+    if (avgNum !== null && (!Number.isFinite(avgNum) || !(avgNum > 0))) return setError("Average cost must be a positive number.")
 
     setSaving(true)
     try {
@@ -257,6 +263,7 @@ function PositionForm({
           options={KINDS}
           value={kind}
           onChange={(k) => {
+            requestId.current++
             setKind(k)
             setLookup({ state: "idle" })
           }}
@@ -284,6 +291,7 @@ function PositionForm({
               value={symbol}
               disabled={!!existing}
               onChange={(e) => {
+                requestId.current++
                 setSymbol(e.target.value.toUpperCase())
                 setError(null)
                 if (lookup.state !== "idle") setLookup({ state: "idle" })
@@ -331,26 +339,30 @@ function PositionForm({
         ) : null}
       </div>
 
+      <p className="text-xs leading-5 text-muted-foreground">
+        Enter the {kind === "crypto" ? "coins" : "shares"} you already own, including fractions (for example, 2.5).
+        This records your holdings; it does not buy anything. Dollar value is calculated from the latest closing price.
+      </p>
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label={kind === "crypto" ? "Amount" : "Shares"} htmlFor={`shares-${accountId}`}>
+        <Field label={kind === "crypto" ? "Number of coins" : "Number of shares"} htmlFor={`shares-${accountId}`}>
           <input
             ref={shareRef}
             id={`shares-${accountId}`}
             value={shares}
-            onChange={(e) => setShares(e.target.value.replace(/[^0-9.]/g, ""))}
+            onChange={(e) => { setShares(e.target.value); setError(null) }}
             placeholder="0"
             inputMode="decimal"
             className="numeric h-11 w-full rounded-xl border bg-card px-3 text-sm"
           />
         </Field>
-        <Field label="Average cost per share" hint="Optional" htmlFor={`avg-${accountId}`}>
+        <Field label={kind === "crypto" ? "Average price paid per coin (USD)" : "Average price paid per share (USD)"} hint="Optional" htmlFor={`avg-${accountId}`}>
           <div className="relative">
             <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
             <input
               id={`avg-${accountId}`}
               value={avg}
-              onChange={(e) => setAvg(e.target.value.replace(/[^0-9.]/g, ""))}
-              placeholder={quote ? quote.price.toFixed(2) : "0.00"}
+              onChange={(e) => { setAvg(e.target.value); setError(null) }}
+              placeholder="Leave blank if unknown"
               inputMode="decimal"
               className="numeric h-11 w-full rounded-xl border bg-card pl-7 pr-3 text-sm"
             />
@@ -361,7 +373,7 @@ function PositionForm({
       {value !== null ? (
         <div className="numeric flex flex-wrap items-baseline gap-x-5 gap-y-1 rounded-xl bg-secondary/60 px-3 py-2.5 text-sm">
           <span>
-            <span className="text-muted-foreground">Worth </span>
+            <span className="text-muted-foreground">Value at latest close </span>
             <span className="font-semibold">{formatCurrency(value)}</span>
           </span>
           {cost ? (
@@ -379,7 +391,7 @@ function PositionForm({
               </span>
             </>
           ) : (
-            <span className="text-xs text-muted-foreground">Add your average cost to see total return.</span>
+            <span className="text-xs text-muted-foreground">Add the average price you paid to see your holding’s gain or loss.</span>
           )}
         </div>
       ) : null}
@@ -395,8 +407,8 @@ function PositionForm({
         <p className="max-w-sm text-xs leading-5 text-muted-foreground">
           Adding shares counts as a deposit, not a gain, so your league return stays fair.
         </p>
-        <Button type="submit" loading={saving} disabled={!quote || !validQty}>
-          {existing ? "Save" : quote ? `Add ${quote.symbol}` : "Add"}
+        <Button type="submit" loading={saving} disabled={!quote}>
+          {existing ? "Save holding" : quote ? `Add ${quote.symbol} holding` : "Add holding"}
         </Button>
       </div>
     </form>

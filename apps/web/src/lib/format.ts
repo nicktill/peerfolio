@@ -1,3 +1,5 @@
+import { visibleReturn } from "./return-display"
+
 /** Formatting helpers. Every numeric string here is meant to render in `.numeric`. */
 
 export function formatCurrency(value: number, { hidden = false, compact = false } = {}): string {
@@ -13,6 +15,7 @@ export function formatCurrency(value: number, { hidden = false, compact = false 
 
 /** Always signed — the sign is the accessible half of a red/green pair. */
 export function formatPercent(value: number, digits = 2): string {
+  value = visibleReturn(value, digits)
   const sign = value > 0 ? "+" : value < 0 ? "−" : ""
   return `${sign}${Math.abs(value).toFixed(digits)}%`
 }
