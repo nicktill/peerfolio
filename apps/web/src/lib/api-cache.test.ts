@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { beforeEach, describe, it } from "node:test"
-import { beginRequest, cacheClear, cacheGet, cacheSet, cacheSize, endRequest, getInflight, MAX_STALE_MS, subscribeInflight } from "./api-cache.ts"
+import { cacheClear, cacheGet, cacheSet, cacheSize, MAX_STALE_MS } from "./api-cache.ts"
 
 beforeEach(() => cacheClear())
 
@@ -43,25 +43,5 @@ describe("cache", () => {
     assert.equal(cacheSize(), 1)
     cacheClear()
     assert.equal(cacheSize(), 0)
-  })
-})
-
-describe("in-flight counter", () => {
-  it("counts requests and tells listeners when it changes", () => {
-    const seen: number[] = []
-    const stop = subscribeInflight(() => seen.push(getInflight()))
-    beginRequest()
-    beginRequest()
-    endRequest()
-    endRequest()
-    stop()
-    endRequest() // unsubscribed: not recorded
-    assert.deepEqual(seen, [1, 2, 1, 0])
-  })
-
-  it("never goes below zero", () => {
-    endRequest()
-    endRequest()
-    assert.equal(getInflight(), 0)
   })
 })

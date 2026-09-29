@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { beginRequest, cacheGet, cacheSet, endRequest } from "@web/lib/api-cache"
+import { cacheGet, cacheSet } from "@web/lib/api-cache"
 
 type State<T> = { data: T | null; error: string | null; loading: boolean }
 
@@ -29,7 +29,7 @@ export function useApi<T>(url: string | null, deps: unknown[] = [], { refreshMs 
   const requestId = useRef(0)
   const lastLoaded = useRef(0)
 
-  const load = useCallback(async (background = false) => {
+  const load = useCallback(async () => {
     if (!url) {
       setState({ data: null, error: null, loading: false })
       return
@@ -40,8 +40,6 @@ export function useApi<T>(url: string | null, deps: unknown[] = [], { refreshMs 
     const cached = cacheGet<T>(url)?.data ?? null
     setState((prev) => ({ data: cached ?? prev.data, error: null, loading: true }))
 
-    // Interval and focus refreshes are silent: no progress bar, just fresher numbers.
-    if (!background) beginRequest()
     try {
       const response = await fetch(url)
       const body = await response.json()
@@ -57,8 +55,6 @@ export function useApi<T>(url: string | null, deps: unknown[] = [], { refreshMs 
     } catch {
       if (id !== requestId.current) return
       setState((prev) => ({ data: prev.data, error: "Network error", loading: false }))
-    } finally {
-      if (!background) endRequest()
     }
   }, [url])
 
@@ -70,10 +66,10 @@ export function useApi<T>(url: string | null, deps: unknown[] = [], { refreshMs 
   useEffect(() => {
     if (!url || !refreshMs) return
     const tick = () => {
-      if (document.visibilityState === "visible") void load(true)
+      if (document.visibilityState === "visible") void load()
     }
     const onVisible = () => {
-      if (document.visibilityState === "visible" && Date.now() - lastLoaded.current >= refreshMs) void load(true)
+      if (document.visibilityState === "visible" && Date.now() - lastLoaded.current >= refreshMs) void load()
     }
     const timer = setInterval(tick, refreshMs)
     document.addEventListener("visibilitychange", onVisible)
@@ -83,9 +79,7 @@ export function useApi<T>(url: string | null, deps: unknown[] = [], { refreshMs 
     }
   }, [url, refreshMs, load])
 
-  const refetch = useCallback(() => load(false), [load])
-
-  return { ...state, refetch }
+  return { ...state, refetch: load }
 }
 
 /** POST/PATCH/DELETE helper that surfaces the API's error message. */
