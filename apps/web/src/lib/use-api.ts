@@ -1,33 +1,47 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import { beginRequest, cacheGet, cacheSet, endRequest } from "@web/lib/api-cache"
 
 type State<T> = { data: T | null; error: string | null; loading: boolean }
 
 /**
  * Minimal GET hook: load, expose errors, allow refetch.
  *
- * Stale responses are dropped by request id so a fast range switch can't be
- * overwritten by a slower earlier request landing late.
+ * Stale-while-revalidate: a URL loaded before paints immediately from the last
+ * response while a fresh one loads in the background, so going back to a page
+ * is instant and the numbers then update in place. `loading` stays true during
+ * that background load, so pages should show a skeleton only for
+ * `loading && !data`.
  *
- * A failed refresh keeps the last good data (with `error` set) rather than
- * blanking a page someone is looking at. With `refreshMs`, the data reloads on
- * that interval and when the tab regains focus, and stays quiet while hidden.
+ * Stale responses are dropped by request id so a fast range switch can't be
+ * overwritten by a slower earlier request landing late. A failed refresh keeps
+ * the last good data (with `error` set) rather than blanking a page someone is
+ * looking at. With `refreshMs`, the data reloads on that interval and when the
+ * tab regains focus, and stays quiet while hidden.
  */
 export function useApi<T>(url: string | null, deps: unknown[] = [], { refreshMs }: { refreshMs?: number } = {}) {
-  const [state, setState] = useState<State<T>>({ data: null, error: null, loading: !!url })
+  const [state, setState] = useState<State<T>>(() => ({
+    data: url ? (cacheGet<T>(url)?.data ?? null) : null,
+    error: null,
+    loading: !!url,
+  }))
   const requestId = useRef(0)
   const lastLoaded = useRef(0)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (background = false) => {
     if (!url) {
       setState({ data: null, error: null, loading: false })
       return
     }
 
     const id = ++requestId.current
-    setState((prev) => ({ ...prev, loading: true, error: null }))
+    // A page (or range) seen before shows its last response straight away.
+    const cached = cacheGet<T>(url)?.data ?? null
+    setState((prev) => ({ data: cached ?? prev.data, error: null, loading: true }))
 
+    // Interval and focus refreshes are silent: no progress bar, just fresher numbers.
+    if (!background) beginRequest()
     try {
       const response = await fetch(url)
       const body = await response.json()
@@ -38,10 +52,13 @@ export function useApi<T>(url: string | null, deps: unknown[] = [], { refreshMs 
         return
       }
       lastLoaded.current = Date.now()
+      cacheSet(url, body)
       setState({ data: body as T, error: null, loading: false })
     } catch {
       if (id !== requestId.current) return
       setState((prev) => ({ data: prev.data, error: "Network error", loading: false }))
+    } finally {
+      if (!background) endRequest()
     }
   }, [url])
 
@@ -53,10 +70,10 @@ export function useApi<T>(url: string | null, deps: unknown[] = [], { refreshMs 
   useEffect(() => {
     if (!url || !refreshMs) return
     const tick = () => {
-      if (document.visibilityState === "visible") void load()
+      if (document.visibilityState === "visible") void load(true)
     }
     const onVisible = () => {
-      if (document.visibilityState === "visible" && Date.now() - lastLoaded.current >= refreshMs) void load()
+      if (document.visibilityState === "visible" && Date.now() - lastLoaded.current >= refreshMs) void load(true)
     }
     const timer = setInterval(tick, refreshMs)
     document.addEventListener("visibilitychange", onVisible)
@@ -66,7 +83,9 @@ export function useApi<T>(url: string | null, deps: unknown[] = [], { refreshMs 
     }
   }, [url, refreshMs, load])
 
-  return { ...state, refetch: load }
+  const refetch = useCallback(() => load(false), [load])
+
+  return { ...state, refetch }
 }
 
 /** POST/PATCH/DELETE helper that surfaces the API's error message. */

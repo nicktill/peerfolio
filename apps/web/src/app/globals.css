@@ -303,3 +303,86 @@
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
+/* ==========================================================================
+   App motion. The signed-in app should feel like the landing page: things
+   arrive, they don't pop. Every animation here is neutralised by the
+   prefers-reduced-motion rule above.
+   ========================================================================== */
+
+/* Each page eases in when you navigate to it (see app/(app)/template.tsx). */
+.page-in {
+  animation: page-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+@keyframes page-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Sections arrive one after another: <Reveal index={n}>. */
+.reveal {
+  /* `backwards`, not `both`: once finished, the element's own styles (hover lifts) apply again. */
+  animation: reveal 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+
+@keyframes reveal {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* A slim loading bar across the top (components/motion/nav-progress.tsx). */
+.nav-progress {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 60;
+  height: 2px;
+  background: hsl(var(--primary));
+  box-shadow: 0 0 8px hsl(var(--primary) / 0.6);
+  transform-origin: left;
+  transform: scaleX(0);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.nav-progress.loading {
+  opacity: 1;
+  animation: progress-crawl 8s cubic-bezier(0.1, 0.7, 0.3, 1) forwards;
+}
+
+.nav-progress.done {
+  opacity: 0;
+  transform: scaleX(1);
+  transition: transform 0.2s ease-out, opacity 0.35s ease 0.2s;
+}
+
+@keyframes progress-crawl {
+  from { transform: scaleX(0.06); }
+  to { transform: scaleX(0.92); }
+}
+
+/* Anything you can press gives a little, like it has weight. */
+.press {
+  transition: transform 0.15s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.press:active {
+  transform: scale(0.97);
+}
+
+/* Skeletons that fade away into real content instead of vanishing. */
+.skeleton-fade {
+  animation: skeleton-out 0.25s ease-out both;
+}
+@keyframes skeleton-out {
+  to { opacity: 0; }
+}
+
+/* Live indicator: a gently breathing dot. */
+.live-dot {
+  animation: live-breathe 2s ease-in-out infinite;
+}
+@keyframes live-breathe {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.8); }
+}

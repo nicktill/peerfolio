@@ -8,7 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/car
 import { Delta } from "@web/components/ui/delta"
 import { EmptyState } from "@web/components/ui/empty-state"
 import { Segmented } from "@web/components/ui/segmented"
-import { Skeleton, SkeletonStat } from "@web/components/ui/skeleton"
+import { Reveal } from "@web/components/motion/reveal"
+import { DashboardSkeleton } from "@web/components/skeletons"
+import { AnimatedNumber } from "@web/components/ui/animated-number"
 import { StatTile } from "@web/components/ui/stat-tile"
 import { useToast } from "@web/components/ui/toast"
 import { AllocationBar, type AllocationSlice } from "@web/components/charts/allocation-bar"
@@ -54,19 +56,7 @@ export default function DashboardPage() {
     }
   }
 
-  if (loading && !data) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-12 w-56" />
-        <div className="grid gap-4 [&>*]:min-w-0 sm:grid-cols-2 lg:grid-cols-4">
-          {Array.from({ length: 4 }, (_, i) => (
-            <SkeletonStat key={i} />
-          ))}
-        </div>
-        <Skeleton className="h-72 rounded-xl" />
-      </div>
-    )
-  }
+  if (loading && !data) return <DashboardSkeleton />
 
   if (error) {
     return (
@@ -110,9 +100,12 @@ export default function DashboardPage() {
   // percentage told two different stories six pixels apart.
   const series = data.performance.series.map((p) => ({ date: p.date, value: p.indexed }))
 
+  const money = (v: number) => formatCurrency(v, { hidden })
+  const compact = (v: number) => formatCurrency(v, { hidden, compact: true })
+
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-3">
+      <Reveal index={0} className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-sm font-medium text-muted-foreground">Net worth</h1>
@@ -125,8 +118,8 @@ export default function DashboardPage() {
               <Badge variant="outline">Self-reported</Badge>
             )}
           </div>
-          <p className="numeric mt-1 text-4xl font-semibold tracking-tight sm:text-5xl">
-            {formatCurrency(data.summary.netWorth, { hidden })}
+          <p className="mt-1 text-4xl font-semibold tracking-tight sm:text-5xl">
+            <AnimatedNumber className="numeric" value={data.summary.netWorth} format={money} />
           </p>
         </div>
 
@@ -140,23 +133,24 @@ export default function DashboardPage() {
             Refresh
           </Button>
         </div>
-      </header>
+      </Reveal>
 
-      <div className="grid gap-4 [&>*]:min-w-0 sm:grid-cols-2 lg:grid-cols-4">
+      <Reveal index={1} className="grid gap-4 [&>*]:min-w-0 sm:grid-cols-2 lg:grid-cols-4">
         <StatTile
           label="Investing return"
-          value={data.hasHistory ? formatPercent(data.performance.percent) : "—"}
+          value={data.hasHistory ? <AnimatedNumber value={data.performance.percent} format={(v) => formatPercent(v)} /> : "—"}
           hint={data.hasHistory ? `time-weighted · ${range}` : "needs 2+ days"}
         />
-        <StatTile label="Invested" value={formatCurrency(data.summary.investableAssets, { hidden, compact: true })} />
-        <StatTile label="Assets" value={formatCurrency(data.summary.totalAssets, { hidden, compact: true })} />
+        <StatTile label="Invested" value={<AnimatedNumber value={data.summary.investableAssets} format={compact} />} />
+        <StatTile label="Assets" value={<AnimatedNumber value={data.summary.totalAssets} format={compact} />} />
         <StatTile
           label="Liabilities"
-          value={formatCurrency(data.summary.totalLiabilities, { hidden, compact: true })}
+          value={<AnimatedNumber value={data.summary.totalLiabilities} format={compact} />}
           hint={`${data.accounts.length} accounts`}
         />
-      </div>
+      </Reveal>
 
+      <Reveal index={2}>
       <Card>
         <CardHeader className="flex-row flex-wrap items-center justify-between gap-3">
           <div>
@@ -187,8 +181,9 @@ export default function DashboardPage() {
           )}
         </CardContent>
       </Card>
+      </Reveal>
 
-      <div className="grid gap-6 [&>*]:min-w-0 lg:grid-cols-2">
+      <Reveal index={3} className="grid gap-6 [&>*]:min-w-0 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Allocation</CardTitle>
@@ -203,9 +198,11 @@ export default function DashboardPage() {
         </Card>
 
         <HoldingsCard holdings={data.topHoldings} hidden={hidden} />
-      </div>
+      </Reveal>
 
-      <AccountsCard accounts={data.accounts} items={data.items} hidden={hidden} onChange={refetch} />
+      <Reveal index={4}>
+        <AccountsCard accounts={data.accounts} items={data.items} hidden={hidden} onChange={refetch} />
+      </Reveal>
     </div>
   )
 }
