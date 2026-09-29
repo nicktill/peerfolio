@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { and, asc, eq, gte } from "drizzle-orm"
 import { db, holdings, accounts, plaidItems, portfolioSnapshots, securities } from "@web/db"
 import { withUser } from "@web/lib/api"
+import { scheduleLiveRefresh } from "@web/lib/live-quotes"
 import { refreshStalePrices } from "@web/lib/positions"
 import { isRange, rangeStart, timeWeightedReturn, withLivePoint, type Range } from "@web/lib/returns"
 
@@ -35,6 +36,7 @@ export const GET = withUser<unknown>(async (userId, request) => {
   // Bring stored closes up to date first so balances below are current, not
   // last night's. Throttled and never throws.
   await refreshStalePrices()
+  scheduleLiveRefresh()
 
   const [accountRows, items, holdingRows] = await Promise.all([
     db.select().from(accounts).where(and(eq(accounts.userId, userId), eq(accounts.isActive, true))),
