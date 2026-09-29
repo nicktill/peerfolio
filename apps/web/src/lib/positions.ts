@@ -1,6 +1,7 @@
 import { and, eq, isNotNull, sql } from "drizzle-orm"
 import { accounts, db, holdings, securities } from "@web/db"
 import { ApiError } from "@web/lib/api"
+import { staleHeldSecurities } from "@web/lib/stale-prices"
 import {
   displaySymbol,
   isNewerClose,
@@ -217,14 +218,7 @@ export async function refreshStalePrices({ maxAgeHours = 6, minIntervalMinutes =
     const stale = await db
       .select({ id: securities.id, marketTicker: securities.marketTicker })
       .from(securities)
-      .where(
-        and(
-          isNotNull(securities.marketTicker),
-          sql`${securities.updatedAt} < ${cutoff}`,
-          sql`(EXISTS (SELECT 1 FROM holdings h WHERE h.security_id = ${securities.id})
-            OR EXISTS (SELECT 1 FROM fantasy_positions f WHERE f.security_id = ${securities.id}))`,
-        ),
-      )
+      .where(staleHeldSecurities(cutoff))
     if (stale.length === 0) return { refreshed: 0 }
 
     const closes = await latestCloses(stale.map((s) => s.marketTicker!))
@@ -242,6 +236,8 @@ export async function refreshStalePrices({ maxAgeHours = 6, minIntervalMinutes =
     return { refreshed }
   } catch (error) {
     console.error("[positions] price refresh failed:", error instanceof Error ? error.message : error)
+    // A failure shouldn't lock refreshing out for the whole interval: retry in a minute.
+    lastRefreshAttempt = now - (minIntervalMinutes - 1) * 60_000
     return { refreshed: 0 }
   }
 }
