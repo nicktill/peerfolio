@@ -3,6 +3,8 @@ import { and, eq, gte, sql } from "drizzle-orm"
 import { db, follows, portfolioSnapshots, users } from "@web/db"
 import { withPublic } from "@web/lib/api"
 import { getCurrentUserId } from "@web/lib/auth"
+import { scheduleLiveRefresh } from "@web/lib/live-quotes"
+import { refreshStalePrices } from "@web/lib/positions"
 import { buildStandings, isRange, rangeStart, type Range } from "@web/lib/returns"
 import { loadSharedHoldings } from "@web/lib/social"
 
@@ -24,6 +26,10 @@ export const GET = withPublic<unknown>(async (request) => {
   const rangeParam = url.searchParams.get("range") ?? "1M"
   const range: Range = isRange(rangeParam) ? rangeParam : "1M"
   const scope = url.searchParams.get("scope") === "following" ? "following" : "all"
+
+  // Standings end on today's live value; bring prices up to date first.
+  await refreshStalePrices()
+  scheduleLiveRefresh()
 
   const viewerId = await getCurrentUserId()
 

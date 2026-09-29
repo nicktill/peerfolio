@@ -3,6 +3,8 @@ import { and, eq } from "drizzle-orm"
 import { z } from "zod"
 import { db, leagueMembers, leagues } from "@web/db"
 import { ApiError, readJson, withUser } from "@web/lib/api"
+import { scheduleLiveRefresh } from "@web/lib/live-quotes"
+import { refreshStalePrices } from "@web/lib/positions"
 import { buildLeagueStandings, requireMembership } from "@web/lib/social"
 import { isRange, type Range } from "@web/lib/returns"
 
@@ -15,6 +17,9 @@ export const GET = withUser<Ctx>(async (userId, request, { params }) => {
   const rangeParam = new URL(request.url).searchParams.get("range") ?? "1M"
   const range: Range = isRange(rangeParam) ? rangeParam : "1M"
 
+  // Standings end on today's live value; bring prices up to date first.
+  await refreshStalePrices()
+  scheduleLiveRefresh()
   const standings = await buildLeagueStandings(id, userId, range)
 
   return NextResponse.json({
