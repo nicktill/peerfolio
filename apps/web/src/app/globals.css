@@ -291,6 +291,12 @@
   to { stroke-dashoffset: 0; }
 }
 
+/* Before the chart is scrolled into view, the lines wait undrawn. */
+.race-line-wait {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+
 .race-area {
   animation: race-fade 0.9s ease-out 0.3s both;
 }
@@ -316,8 +322,8 @@
 }
 
 @keyframes page-in {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: none; }
+  from { opacity: 0; translate: 0 8px; }
+  to { opacity: 1; translate: 0 0; }
 }
 
 /* Sections arrive one after another: <Reveal index={n}>. */
@@ -327,9 +333,20 @@
   animation-delay: calc(var(--i, 0) * 70ms);
 }
 
+/* `translate`, not `transform`: the standalone property leaves rotations and hover lifts alone. */
 @keyframes reveal {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: none; }
+  from { opacity: 0; translate: 0 12px; }
+  to { opacity: 1; translate: 0 0; }
+}
+
+/* Below-the-fold pieces (components/motion/in-view.tsx): hidden until they scroll into view, then ease in. */
+.rv-show {
+  transition: opacity 0.65s ease, translate 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: calc(var(--i, 0) * 80ms);
+}
+.rv-hidden {
+  opacity: 0;
+  translate: 0 18px;
 }
 
 /* Anything you can press gives a little, like it has weight. */
