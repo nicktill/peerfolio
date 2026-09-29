@@ -100,6 +100,27 @@ export function timeWeightedReturn(
   }
 }
 
+/**
+ * Adds today's live value as the last point, so a return reflects the day in
+ * progress instead of waiting for the nightly snapshot.
+ *
+ * Live balances only change through a sync, an edit (both write a snapshot with
+ * their cash flow) or a reprice, so the difference from the last snapshot is
+ * market movement. A snapshot already dated today keeps its recorded flows and
+ * takes the live balances; a later-dated one is left alone. With no history
+ * there is nothing to compare to, so nothing is added.
+ */
+export function withLivePoint(
+  points: SnapshotPoint[],
+  live: Pick<SnapshotPoint, "netWorth" | "investableAssets" | "isVerified">,
+  today: string,
+): SnapshotPoint[] {
+  const last = points[points.length - 1]
+  if (!last || last.date > today) return points
+  if (last.date === today) return [...points.slice(0, -1), { ...last, ...live }]
+  return [...points, { date: today, ...live, netFlows: 0 }]
+}
+
 const round2 = (n: number) => Math.round(n * 100) / 100
 
 /** Downsamples an indexed series to at most `max` points, always keeping the ends. */
