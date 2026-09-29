@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react"
 
 /**
- * Types out each word in turn. The first word is in the server markup, so the
- * headline is complete on first paint and never flashes empty.
+ * Types out each word in turn, after a fixed `prefix` that stays put ("with "),
+ * so the whole line reads as one green unit. The first word is in the server
+ * markup, so the headline is complete on first paint and never flashes empty.
  */
-export function RotatingWord({ words }: { words: readonly string[] }) {
+export function RotatingWord({ words, prefix = "" }: { words: readonly string[]; prefix?: string }) {
   const [index, setIndex] = useState(0)
   const [text, setText] = useState(words[0]!)
   const [deleting, setDeleting] = useState(false)
@@ -28,9 +29,9 @@ export function RotatingWord({ words }: { words: readonly string[] }) {
 
   return (
     <span className="whitespace-nowrap text-primary">
-      <span className="sr-only">{words[0]}</span>
+      <span className="sr-only">{prefix}{words[0]}</span>
       <span aria-hidden>
-        {text}
+        {prefix}{text}
         <span className="caret ml-0.5 inline-block w-[3px] translate-y-[0.08em] self-stretch bg-primary/70" style={{ height: "0.9em" }} />
       </span>
     </span>
