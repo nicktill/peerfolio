@@ -13,7 +13,19 @@ import {
 import { rankReturns } from "@web/lib/return-display"
 import { ApiError } from "@web/lib/api"
 import { generateInviteCode } from "@web/lib/crypto"
-import { applyTrade, isClosed, portfolioValue, returnPct, TradeRejected, type MemberState } from "@web/lib/fantasy-rules"
+import {
+  applyTrade,
+  findLedgerMismatches,
+  isClosed,
+  portfolioValue,
+  raceSeries,
+  replayLedger,
+  returnPct,
+  roundForStorage,
+  TradeRejected,
+  type LedgerMismatch,
+  type MemberState,
+} from "@web/lib/fantasy-rules"
 import { displaySymbol, toMarketTicker, type AssetKind } from "@web/lib/market-data"
 import { ensurePriced, refreshStalePrices } from "@web/lib/positions"
 
@@ -196,18 +208,21 @@ export async function placeTrade(
       throw error
     }
 
+    // The same rounding the tests use, so what they prove is what gets stored.
+    const stored = roundForStorage(outcome)
+
     await tx
       .update(fantasyMembers)
-      .set({ cash: sql`${fantasyMembers.cash} + ${outcome.cashDelta.toFixed(6)}::numeric` })
+      .set({ cash: sql`${fantasyMembers.cash} + ${stored.cashDelta}::numeric` })
       .where(eq(fantasyMembers.id, member.id))
 
-    if (outcome.position) {
+    if (stored.position) {
       await tx
         .insert(fantasyPositions)
-        .values({ memberId: member.id, securityId: priced.securityId, shares: outcome.position.shares.toFixed(8), costBasis: outcome.position.costBasis.toFixed(6) })
+        .values({ memberId: member.id, securityId: priced.securityId, shares: stored.position.shares, costBasis: stored.position.costBasis })
         .onConflictDoUpdate({
           target: [fantasyPositions.memberId, fantasyPositions.securityId],
-          set: { shares: outcome.position.shares.toFixed(8), costBasis: outcome.position.costBasis.toFixed(6), updatedAt: new Date() },
+          set: { shares: stored.position.shares, costBasis: stored.position.costBasis, updatedAt: new Date() },
         })
     } else {
       await tx
@@ -222,7 +237,7 @@ export async function placeTrade(
         memberId: member.id,
         securityId: priced.securityId,
         side: input.side,
-        shares: outcome.shares.toFixed(8),
+        shares: stored.shares,
         price: priced.price.toString(),
         priceAsOf: priced.asOf,
       })
@@ -291,7 +306,7 @@ export async function loadFantasyLeague(userId: string, leagueId: string) {
       const invested = value - cash
       const history = (historyBy.get(m.id) ?? []).filter((h) => h.date !== today())
       // Everyone starts at 100 on day one; the last point is live.
-      const spark = [100, ...history.map((h) => 100 + returnPct(h.value, startingCash)), 100 + returnPct(value, startingCash)]
+      const spark = raceSeries(history.map((h) => h.value), value, startingCash)
       return {
         userId: m.userId,
         name: m.name,
@@ -395,4 +410,70 @@ export async function snapshotFantasy() {
       .onConflictDoUpdate({ target: [fantasySnapshots.memberId, fantasySnapshots.date], set: { value: value.toFixed(6) } })
   }
   return { members: values.size }
+}
+
+export type IntegrityReport = {
+  members: number
+  mismatches: (LedgerMismatch & { memberId: string })[]
+  badPrices: { securityId: string; reason: "missing" | "stale" }[]
+}
+
+/** A held price older than this is a data problem, not a weekend: it spans a long weekend plus a holiday. */
+const MAX_PRICE_AGE_DAYS = 6
+
+/**
+ * Proves the numbers behind the standings, so an error is caught by us and not
+ * by a player: every member's stored cash and positions are rebuilt from their
+ * trade log and compared, and every held price is checked to exist and be
+ * recent. Runs with the nightly job; any finding makes that run report failure.
+ */
+export async function checkFantasyIntegrity(now = new Date()): Promise<IntegrityReport> {
+  const [members, trades, positions, held] = await Promise.all([
+    db
+      .select({ id: fantasyMembers.id, cash: fantasyMembers.cash, startingCash: fantasyLeagues.startingCash })
+      .from(fantasyMembers)
+      .innerJoin(fantasyLeagues, eq(fantasyMembers.leagueId, fantasyLeagues.id)),
+    db
+      .select({ memberId: fantasyTrades.memberId, securityId: fantasyTrades.securityId, side: fantasyTrades.side, shares: fantasyTrades.shares, price: fantasyTrades.price })
+      .from(fantasyTrades)
+      .orderBy(asc(fantasyTrades.createdAt)),
+    db
+      .select({ memberId: fantasyPositions.memberId, securityId: fantasyPositions.securityId, shares: fantasyPositions.shares, costBasis: fantasyPositions.costBasis })
+      .from(fantasyPositions),
+    db
+      .selectDistinct({ id: securities.id, price: securities.closePrice, asOf: securities.closePriceAsOf })
+      .from(fantasyPositions)
+      .innerJoin(securities, eq(fantasyPositions.securityId, securities.id)),
+  ])
+
+  const tradesBy = new Map<string, { securityId: string; side: "buy" | "sell"; shares: number; price: number }[]>()
+  for (const t of trades) {
+    const list = tradesBy.get(t.memberId) ?? []
+    list.push({ securityId: t.securityId, side: t.side as "buy" | "sell", shares: n(t.shares), price: n(t.price) })
+    tradesBy.set(t.memberId, list)
+  }
+  const positionsBy = new Map<string, { securityId: string; shares: number; costBasis: number }[]>()
+  for (const p of positions) {
+    const list = positionsBy.get(p.memberId) ?? []
+    list.push({ securityId: p.securityId, shares: n(p.shares), costBasis: n(p.costBasis) })
+    positionsBy.set(p.memberId, list)
+  }
+
+  const mismatches: IntegrityReport["mismatches"] = []
+  for (const m of members) {
+    const replayed = replayLedger(n(m.startingCash), tradesBy.get(m.id) ?? [])
+    const found = findLedgerMismatches({ cash: n(m.cash), positions: positionsBy.get(m.id) ?? [] }, replayed)
+    for (const f of found) mismatches.push({ memberId: m.id, ...f })
+  }
+
+  const badPrices: IntegrityReport["badPrices"] = []
+  for (const s of held) {
+    if (!(n(s.price) > 0) || !s.asOf) {
+      badPrices.push({ securityId: s.id, reason: "missing" })
+    } else if ((now.getTime() - new Date(`${String(s.asOf).slice(0, 10)}T00:00:00Z`).getTime()) / 86_400_000 > MAX_PRICE_AGE_DAYS) {
+      badPrices.push({ securityId: s.id, reason: "stale" })
+    }
+  }
+
+  return { members: members.length, mismatches, badPrices }
 }
