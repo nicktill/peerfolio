@@ -21,10 +21,17 @@ import { claimLiveQuotesSql } from "@web/lib/stale-prices"
 
 const DEFAULT_MAX_SYMBOLS = 40
 
+/**
+ * How stale a stored price may get before the next page load refreshes it.
+ * One provider call per ticker, so 30s costs 2 calls a minute per ticker: fine
+ * for a few dozen tickers on Finnhub's 60-a-minute free plan.
+ */
+export const REFRESH_SECONDS = 30
+
 /** Refreshes prices claimed for this interval. Safe to call from any number of servers at once. */
 export async function refreshLivePrices({
   now = new Date(),
-  maxAgeSeconds = 60,
+  maxAgeSeconds = REFRESH_SECONDS,
   maxSymbols = Number(process.env.LIVE_QUOTE_MAX_SYMBOLS) || DEFAULT_MAX_SYMBOLS,
 }: { now?: Date; maxAgeSeconds?: number; maxSymbols?: number } = {}) {
   if (!isUsMarketOpen(now)) return { skipped: "market closed" as const }
@@ -37,9 +44,17 @@ export async function refreshLivePrices({
   const result = await provider.getQuotes(claimed.map((r) => r.market_ticker))
 
   const updated: string[] = []
+  let rejected = 0
+  let rejectedExample: string | undefined
   for (const row of claimed) {
     const quote = result.quotes.get(row.market_ticker)
-    if (!acceptQuote(quote, now) || !isNewerClose(quoteDate(quote), row.close_price_as_of)) continue
+    if (!acceptQuote(quote, now)) {
+      rejected++
+      const raw = result.quotes.get(row.market_ticker)
+      rejectedExample ??= raw ? `${row.market_ticker} price=${raw.price} asOf=${raw.asOf}` : `${row.market_ticker} (no quote)`
+      continue
+    }
+    if (!isNewerClose(quoteDate(quote), row.close_price_as_of)) continue
     await db
       .update(securities)
       .set({ closePrice: quote.price.toString(), closePriceAsOf: quoteDate(quote), updatedAt: new Date() })
@@ -49,7 +64,32 @@ export async function refreshLivePrices({
   await revalueSecurities(updated)
 
   if (result.rateLimited) console.warn(`[quotes] ${provider.name} rate limited us after ${result.quotes.size}/${claimed.length}`)
-  return { provider: provider.name, claimed: claimed.length, refreshed: updated.length, rateLimited: result.rateLimited, failed: result.failed }
+  return { provider: provider.name, claimed: claimed.length, refreshed: updated.length, rejected, rejectedExample, rateLimited: result.rateLimited, failed: result.failed }
+}
+
+let warnedNoProvider = false
+
+/**
+ * One line per run that did or tried something, so "why aren't prices moving?"
+ * can be answered from the logs. Quiet when the market is closed.
+ */
+function logRun(run: Awaited<ReturnType<typeof refreshLivePrices>>) {
+  if ("skipped" in run) {
+    if (run.skipped === "no provider" && !warnedNoProvider) {
+      warnedNoProvider = true
+      console.warn("[quotes] no live provider configured (set FINNHUB_API_KEY); prices stay at the last close")
+    }
+    return
+  }
+  if (run.claimed === 0) return
+  const problems = [
+    run.rateLimited ? "rate limited" : "",
+    run.failed ? `${run.failed} failed` : "",
+    run.rejected ? `${run.rejected} rejected (${run.rejectedExample})` : "",
+  ].filter(Boolean)
+  const line = `[quotes] ${run.provider}: refreshed ${run.refreshed}/${run.claimed}${problems.length ? ` · ${problems.join(", ")}` : ""}`
+  if (run.refreshed === 0 || problems.length) console.warn(line)
+  else console.info(line)
 }
 
 /**
@@ -60,7 +100,8 @@ export function scheduleLiveRefresh() {
   try {
     after(async () => {
       try {
-        await refreshLivePrices()
+        const run = await refreshLivePrices()
+        logRun(run)
       } catch (error) {
         console.error("[quotes] live refresh failed:", error instanceof Error ? error.message : error)
       }

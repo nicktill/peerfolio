@@ -7,6 +7,9 @@
  */
 
 import { createFinnhubProvider } from "./finnhub.ts"
+import { isUsMarketOpen } from "./market-hours.ts"
+
+export { isUsMarketOpen }
 
 /** The price of one ticker at the time of its last trade. */
 export type Quote = {
@@ -53,29 +56,6 @@ export function createQuoteProvider(env: Record<string, string | undefined>, fet
       console.error(`[quotes] unknown QUOTE_PROVIDER "${name}"; live prices are off`)
       return null
   }
-}
-
-const OPEN_MINUTE = 9 * 60 + 30
-/** A few minutes past 4pm ET so the closing print is caught. */
-const CLOSE_MINUTE = 16 * 60 + 5
-
-/**
- * Whether the US stock market's regular session is (about) open, in New York
- * time so daylight saving takes care of itself. Holidays are not listed here;
- * `acceptQuote` rejects the stale prices a holiday produces.
- */
-export function isUsMarketOpen(now: Date): boolean {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    weekday: "short",
-    hour: "numeric",
-    minute: "numeric",
-    hourCycle: "h23",
-  }).formatToParts(now)
-  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? ""
-  if (get("weekday") === "Sat" || get("weekday") === "Sun") return false
-  const minutes = Number(get("hour")) * 60 + Number(get("minute"))
-  return minutes >= OPEN_MINUTE && minutes < CLOSE_MINUTE
 }
 
 /** A last trade older than this isn't "live": the market is shut, halted, or it's a holiday. */
