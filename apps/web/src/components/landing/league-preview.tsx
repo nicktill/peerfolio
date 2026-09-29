@@ -1,5 +1,6 @@
 "use client"
 
+import { InView } from "@web/components/motion/in-view"
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card"
 import { RaceChart } from "@web/components/charts/race-chart"
 import { StandingRow } from "@web/components/leagues/standing-row"
@@ -9,7 +10,8 @@ import { DEMO_STANDINGS } from "@web/components/landing/demo"
 export function LeaguePreview() {
   return (
     <div className="grid gap-3 lg:grid-cols-5">
-      <Card className="lg:col-span-3">
+      <InView className="lg:col-span-3">
+      <Card>
         <CardHeader>
           <CardTitle>
             <span aria-hidden>🏆</span> The Group Chat
@@ -28,8 +30,10 @@ export function LeaguePreview() {
           />
         </CardContent>
       </Card>
+      </InView>
 
-      <Card className="lg:col-span-2">
+      <InView index={1} className="lg:col-span-2">
+      <Card>
         <CardHeader>
           <CardTitle>Standings</CardTitle>
         </CardHeader>
@@ -41,6 +45,7 @@ export function LeaguePreview() {
           </ul>
         </CardContent>
       </Card>
+      </InView>
     </div>
   )
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useId, useMemo, useState } from "react"
+import { useEffect, useId, useMemo, useState } from "react"
 import { niceTicks, pointIndexAt, spreadLabels, tickDigits, xAt } from "@web/lib/chart-math"
 import { formatPercent } from "@web/lib/format"
 import { indexedDomain, visibleReturn } from "@web/lib/return-display"
@@ -44,7 +44,30 @@ export function RaceChart({
 }) {
   const { ref, width } = useMeasure<HTMLDivElement>()
   const [hoverX, setHoverX] = useState<number | null>(null)
+  // The lines draw in when the chart scrolls into view, not on page load: on the
+  // landing page it sits far below the fold and would finish before anyone saw it.
+  const [seen, setSeen] = useState(false)
   const gradientId = useId()
+
+  useEffect(() => {
+    const element = ref.current
+    if (!element || seen) return
+    if (typeof IntersectionObserver === "undefined" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setSeen(true)
+      return
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) {
+          setSeen(true)
+          observer.disconnect()
+        }
+      },
+      { threshold: 0.3 },
+    )
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [ref, seen])
 
   const compact = width > 0 && width < 460
   const pad = { top: 14, right: compact ? 60 : 88, bottom: 26, left: compact ? 44 : 46 }
@@ -161,14 +184,14 @@ export function RaceChart({
               <path
                 d={`${you.d} L${(pad.left + geometry.plotW).toFixed(2)},${geometry.baselineY.toFixed(2)} L${pad.left},${geometry.baselineY.toFixed(2)} Z`}
                 fill={`url(#${gradientId})`}
-                className="race-area"
+                className={seen ? "race-area" : "opacity-0"}
               />
             ) : null}
 
             {/* Context lines first so highlighted ones sit on top. */}
             {geometry.lines.map((l) =>
               !l.highlighted ? (
-                <path key={l.id} d={l.d} pathLength={1} className="race-line" fill="none" stroke={MUTED} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                <path key={l.id} d={l.d} pathLength={1} className={seen ? "race-line" : "race-line-wait"} fill="none" stroke={MUTED} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
               ) : null,
             )}
             {geometry.lines.map((l, i) =>
@@ -177,7 +200,7 @@ export function RaceChart({
                   key={l.id}
                   d={l.d}
                   pathLength={1}
-                  className="race-line"
+                  className={seen ? "race-line" : "race-line-wait"}
                   style={{ animationDelay: `${i * 90}ms` }}
                   fill="none"
                   stroke={l.color}
@@ -194,7 +217,7 @@ export function RaceChart({
               const ly = geometry.labelYs[i]!
               const returnPct = l.last - 100
               return (
-                <g key={`end-${l.id}`} className="race-end">
+                <g key={`end-${l.id}`} className={seen ? "race-end" : "opacity-0"}>
                   <circle cx={ex} cy={geometry.y(l.last)} r={l.isYou ? 4.5 : 3.5} fill={l.color} stroke="hsl(var(--card))" strokeWidth={2} />
                   {geometry.twoLine ? (
                     <>

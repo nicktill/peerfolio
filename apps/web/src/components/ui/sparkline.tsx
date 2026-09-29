@@ -1,4 +1,7 @@
+"use client"
+
 import { indexedDomain, visibleReturn } from "@web/lib/return-display"
+import { useSeen } from "@web/lib/use-seen"
 import { cn } from "@web/lib/utils"
 
 /**
@@ -18,6 +21,9 @@ export function Sparkline({
   width?: number
   height?: number
 }) {
+  // The trend line draws itself when the row scrolls into view.
+  const { ref, seen } = useSeen<SVGSVGElement>(0.4)
+
   if (points.length < 2) {
     return (
       <svg width={width} height={height} className={cn("overflow-visible", className)} aria-hidden>
@@ -51,17 +57,19 @@ export function Sparkline({
   const [lastX, lastY] = coords[coords.length - 1]!
 
   return (
-    <svg width={width} height={height} className={cn("overflow-visible", className)} aria-hidden>
+    <svg ref={ref} width={width} height={height} className={cn("overflow-visible", className)} aria-hidden>
+      {/* No non-scaling-stroke here: it would measure the dash in screen pixels and break the draw-in. */}
       <path
         d={d}
+        pathLength={1}
+        className={seen ? "race-line" : "race-line-wait"}
         fill="none"
         stroke={color}
         strokeWidth={2}
         strokeLinecap="round"
         strokeLinejoin="round"
-        vectorEffect="non-scaling-stroke"
       />
-      <circle cx={lastX} cy={lastY} r={2.5} fill={color} />
+      <circle cx={lastX} cy={lastY} r={2.5} fill={color} className={seen ? "race-end" : "opacity-0"} />
     </svg>
   )
 }
