@@ -19,7 +19,7 @@ import { PerformanceChart } from "@web/components/charts/performance-chart"
 import { AccountsCard, type AccountRow, type ItemRow } from "@web/components/dashboard/accounts-card"
 import { ConnectButton } from "@web/components/dashboard/connect-button"
 import { HoldingsCard, type HoldingRow } from "@web/components/dashboard/holdings-card"
-import { ManualAccountForm } from "@web/components/dashboard/manual-account-form"
+import { AddAccountButton } from "@web/components/dashboard/add-account-dialog"
 import { formatCurrency, formatPercent } from "@web/lib/format"
 import { mutate, useApi } from "@web/lib/use-api"
 import { RANGES, type Range } from "@web/lib/ranges"
@@ -86,7 +86,7 @@ export default function DashboardPage() {
             description="Add an account and type in what you hold. We price it every night from market data and start your track record today, so the sooner you start, the longer your history. Linking a brokerage for verified returns is coming soon."
             action={
               <div className="flex flex-wrap justify-center gap-2">
-                <ManualAccountForm onCreated={refetch} />
+                <AddAccountButton onCreated={() => void refetch()}>Add an account</AddAccountButton>
                 <ConnectButton onConnected={refetch} />
               </div>
             }
