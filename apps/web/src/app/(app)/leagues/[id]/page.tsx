@@ -3,7 +3,7 @@
 import { use, useState } from "react"
 import Link from "next/link"
 import { ArrowLeft, Check, LogOut, Share2, Trophy } from "lucide-react"
-import { Avatar } from "@web/components/ui/avatar"
+import { Avatar, initialsFor } from "@web/components/ui/avatar"
 import { Button } from "@web/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card"
 import { EmptyState } from "@web/components/ui/empty-state"
@@ -171,6 +171,7 @@ export default function LeaguePage({ params }: { params: Promise<{ id: string }>
               series={ranked.slice(0, 8).map((s) => ({
                 id: s.userId,
                 label: s.name?.split(" ")[0] ?? s.handle ?? "Member",
+                initials: initialsFor(s.name, s.handle),
                 points: s.spark,
                 isYou: s.isYou,
               }))}

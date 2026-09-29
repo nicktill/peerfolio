@@ -2,7 +2,7 @@ import { cn } from "@web/lib/utils"
 
 const SIZES = { sm: "h-7 w-7 text-[10px]", md: "h-9 w-9 text-xs", lg: "h-12 w-12 text-sm", xl: "h-20 w-20 text-xl" }
 
-function initials(name: string | null, handle: string | null): string {
+export function initialsFor(name: string | null | undefined, handle: string | null | undefined): string {
   const source = name?.trim() || handle?.trim() || "?"
   const parts = source.split(/\s+/).filter(Boolean)
   if (parts.length >= 2) return (parts[0]![0]! + parts[1]![0]!).toUpperCase()
@@ -38,7 +38,7 @@ export function Avatar({
         // eslint-disable-next-line @next/next/no-img-element
         <img src={src} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
       ) : (
-        <span aria-hidden>{initials(name ?? null, handle ?? null)}</span>
+        <span aria-hidden>{initialsFor(name, handle)}</span>
       )}
       <span className="sr-only">{label}</span>
     </span>
