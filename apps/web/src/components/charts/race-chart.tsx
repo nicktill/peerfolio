@@ -19,6 +19,12 @@ const toneOf = (returnPct: number) => {
   return v === 0 ? "hsl(var(--muted-foreground))" : v > 0 ? "var(--gain)" : "var(--loss)"
 }
 
+const initialsOf = (label: string, isYou: boolean) => {
+  if (isYou) return "ME"
+  const words = label.trim().split(/\s+/)
+  return (words.length > 1 ? words[0]![0]! + words[1]![0]! : label.slice(0, 2)).toUpperCase()
+}
+
 const shortName = (label: string, max = 9) => (label.length > max ? `${label.slice(0, max - 1)}…` : label)
 
 /**
@@ -37,10 +43,13 @@ export function RaceChart({
   series,
   height = 240,
   className,
+  rich = false,
 }: {
   series: RaceSeries[]
   height?: number
   className?: string
+  /** In-app look: glowing lines, avatar discs at the line ends and a replay button. */
+  rich?: boolean
 }) {
   const { ref, width } = useMeasure<HTMLDivElement>()
   const [hoverX, setHoverX] = useState<number | null>(null)
@@ -48,6 +57,8 @@ export function RaceChart({
   // landing page it sits far below the fold and would finish before anyone saw it.
   const [seen, setSeen] = useState(false)
   const gradientId = useId()
+  // Bumping this remounts the lines, which restarts their draw-in animation.
+  const [replayKey, setReplayKey] = useState(0)
 
   useEffect(() => {
     const element = ref.current
@@ -70,7 +81,7 @@ export function RaceChart({
   }, [ref, seen])
 
   const compact = width > 0 && width < 460
-  const pad = { top: 14, right: compact ? 60 : 88, bottom: 26, left: compact ? 44 : 46 }
+  const pad = { top: 14, right: rich ? (compact ? 76 : 108) : compact ? 60 : 88, bottom: 26, left: compact ? 44 : 46 }
 
   const geometry = useMemo(() => {
     const usable = series
@@ -109,7 +120,8 @@ export function RaceChart({
     const gap = twoLine ? 28 : 14
     const labelYs = spreadLabels(groups.map((g) => g.y), gap, pad.top + 6, height - pad.bottom - 6)
 
-    return { lines, groups, plotW, y, length, ticks, digits, twoLine, labelYs, baselineY: y(100) }
+    const leaderId = lines.reduce((best, l) => (l.last > best.last ? l : best), lines[0]!).id
+    return { lines, groups, leaderId, plotW, y, length, ticks, digits, twoLine, labelYs, baselineY: y(100) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [series, width, height, compact])
 
@@ -138,6 +150,17 @@ export function RaceChart({
 
   return (
     <div ref={ref} className={cn("relative w-full", className)}>
+      {rich && seen ? (
+        <button
+          type="button"
+          onClick={() => setReplayKey((k) => k + 1)}
+          style={{ top: height - 24 }}
+          className="press absolute right-0 z-10 inline-flex h-6 items-center gap-1.5 rounded-full border bg-card/80 px-2 text-[11px] font-medium text-muted-foreground backdrop-blur transition-colors hover:text-foreground"
+        >
+          <svg width="9" height="9" viewBox="0 0 12 12" aria-hidden><path d="M2 1.2v9.6L10.5 6z" fill="currentColor" /></svg>
+          Replay
+        </button>
+      ) : null}
       <svg
         width={width || "100%"}
         height={height}
@@ -200,17 +223,17 @@ export function RaceChart({
             {/* Context lines first so highlighted ones sit on top. */}
             {geometry.lines.map((l) =>
               !l.highlighted ? (
-                <path key={l.id} d={l.d} pathLength={1} className={seen ? "race-line" : "race-line-wait"} fill="none" stroke={MUTED} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                <path key={`${l.id}-${replayKey}`} d={l.d} pathLength={1} className={seen ? "race-line" : "race-line-wait"} fill="none" stroke={MUTED} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
               ) : null,
             )}
             {geometry.lines.map((l, i) =>
               l.highlighted && !l.retraces ? (
                 <path
-                  key={l.id}
+                  key={`${l.id}-${replayKey}`}
                   d={l.d}
                   pathLength={1}
                   className={seen ? "race-line" : "race-line-wait"}
-                  style={{ animationDelay: `${i * 90}ms` }}
+                  style={{ animationDelay: `${i * 90}ms`, ...(rich ? { filter: `drop-shadow(0 0 6px color-mix(in srgb, ${l.color} 55%, transparent))` } : null) }}
                   fill="none"
                   stroke={l.color}
                   strokeWidth={l.isYou ? 3 : 2.25}
@@ -227,31 +250,47 @@ export function RaceChart({
             )}
 
             {/* Where each line ends: a dot on every line, and one label per result. */}
-            <g className={seen ? "race-end" : "opacity-0"}>
-              {geometry.lines.map((l) => (
-                <circle key={`dot-${l.id}`} cx={pad.left + geometry.plotW} cy={geometry.y(l.last)} r={l.isYou ? 4.5 : 3.5} fill={l.color} stroke="hsl(var(--card))" strokeWidth={2} />
-              ))}
+            <g key={replayKey} className={seen ? "race-end" : "opacity-0"}>
+              {/* Dots first, then the avatar discs, so a disc is never buried under a neighbour's dot. */}
+              {geometry.lines.map((l) =>
+                rich && (l.isYou || l.id === geometry.leaderId) ? null : (
+                  <circle key={`dot-${l.id}`} cx={pad.left + geometry.plotW} cy={geometry.y(l.last)} r={l.isYou ? 4.5 : 3.5} fill={l.color} stroke="hsl(var(--card))" strokeWidth={2} />
+                ),
+              )}
+              {rich
+                ? geometry.lines.map((l) =>
+                    l.isYou || l.id === geometry.leaderId ? (
+                      <g key={`disc-${l.id}`}>
+                        <circle cx={pad.left + geometry.plotW} cy={geometry.y(l.last)} r={l.isYou ? 11 : 9} fill={l.isYou ? "hsl(var(--secondary))" : l.color} stroke="hsl(var(--card))" strokeWidth={2} />
+                        <text x={pad.left + geometry.plotW} y={geometry.y(l.last)} textAnchor="middle" dominantBaseline="central" fontSize={l.isYou ? 8.5 : 8} fontWeight={700} style={{ fill: l.isYou ? "hsl(var(--foreground))" : "#fff" }}>
+                          {initialsOf(l.label, l.isYou)}
+                        </text>
+                      </g>
+                    ) : null,
+                  )
+                : null}
               {geometry.groups.map((g, i) => {
                 const ex = pad.left + geometry.plotW
                 const ly = geometry.labelYs[i]!
                 const displaced = Math.abs(ly - g.y) > 5
+                const off = rich ? 18 : 10
                 const name = groupName(g.names, compact ? 7 : 12)
                 return (
                   <g key={g.ids.join("-")}>
                     <title>{`${g.names.join(", ")}: ${formatPercent(g.value)}`}</title>
                     {/* A short leader when the label had to move, so it can't be read as a neighbour's. */}
-                    {displaced ? <path d={`M${ex + 4},${g.y} L${ex + 8},${ly}`} className="stroke-muted-foreground" strokeOpacity={0.6} strokeWidth={1} fill="none" /> : null}
+                    {displaced ? <path d={`M${ex + off - 6},${g.y} L${ex + off - 2},${ly}`} className="stroke-muted-foreground" strokeOpacity={0.6} strokeWidth={1} fill="none" /> : null}
                     {geometry.twoLine ? (
                       <>
-                        <text x={ex + 10} y={ly - 5} dominantBaseline="middle" fontSize={11} className={g.hasYou ? "fill-foreground font-semibold" : "fill-muted-foreground"}>
+                        <text x={ex + off} y={ly - 5} dominantBaseline="middle" fontSize={11} className={g.hasYou ? "fill-foreground font-semibold" : "fill-muted-foreground"}>
                           {name}
                         </text>
-                        <text x={ex + 10} y={ly + 8} dominantBaseline="middle" fontSize={12} fontWeight={600} className="numeric" style={{ fill: toneOf(g.value) }}>
+                        <text x={ex + off} y={ly + 8} dominantBaseline="middle" fontSize={12} fontWeight={600} className="numeric" style={{ fill: toneOf(g.value) }}>
                           {formatPercent(g.value)}
                         </text>
                       </>
                     ) : (
-                      <text x={ex + 10} y={ly} dominantBaseline="middle" fontSize={11} fontWeight={600} className="numeric" style={{ fill: toneOf(g.value) }}>
+                      <text x={ex + off} y={ly} dominantBaseline="middle" fontSize={11} fontWeight={600} className="numeric" style={{ fill: toneOf(g.value) }}>
                         {formatPercent(g.value)}
                       </text>
                     )}
