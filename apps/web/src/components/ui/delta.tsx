@@ -38,9 +38,9 @@ export function Delta({
 
   const tone =
     direction === "up"
-      ? "text-[--gain] bg-[--gain]/10"
+      ? "text-gain-ink tint-gain"
       : direction === "down"
-        ? "text-[--loss] bg-[--loss]/10"
+        ? "text-loss-ink tint-loss"
         : "text-muted-foreground bg-muted"
 
   return (

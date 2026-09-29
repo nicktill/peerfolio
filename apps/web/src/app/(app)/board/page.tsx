@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { ShieldCheck, Trophy, UserPlus, Users } from "lucide-react"
+import { Check, ShieldCheck, Trophy, UserPlus, Users } from "lucide-react"
 import { Avatar } from "@web/components/ui/avatar"
 import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
@@ -60,7 +60,7 @@ export default function BoardPage() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">The Board</h1>
+        <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">The Board</h1>
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
           Every return here is pulled straight from a connected brokerage and time-weighted, so deposits don&apos;t
           inflate anyone&apos;s number. Percentages only — no balances, ever.
@@ -102,7 +102,7 @@ export default function BoardPage() {
                 <li
                   key={trader.handle ?? trader.rank}
                   style={revealStyle(Math.min(i, 8))}
-                  className={cn("reveal py-3 first:pt-0 last:pb-0", trader.isYou && "-mx-2 rounded-lg bg-accent/40 px-2")}
+                  className={cn("reveal py-3 first:pt-0 last:pb-0", trader.isYou && "surface-you -mx-2 rounded-xl px-3")}
                 >
                   <div className="flex items-center gap-3">
                     <span
@@ -116,14 +116,14 @@ export default function BoardPage() {
 
                     <div className="min-w-0 flex-1">
                       {trader.handle ? (
-                        <Link href={`/u/${trader.handle}`} className="truncate text-sm font-medium hover:underline">
+                        <Link href={`/u/${trader.handle}`} className="block truncate text-sm font-medium hover:underline">
                           {trader.name ?? `@${trader.handle}`}
                         </Link>
                       ) : (
-                        <span className="truncate text-sm font-medium">{trader.name ?? "Trader"}</span>
+                        <span className="block truncate text-sm font-medium">{trader.name ?? "Trader"}</span>
                       )}
                       <p className="truncate text-xs text-muted-foreground">
-                        {trader.handle ? `@${trader.handle}` : ""} · {trader.days}d tracked
+                        {trader.handle ? `@${trader.handle}` : ""} · {trader.days}d<span className="max-sm:hidden"> tracked</span>
                       </p>
                     </div>
 
@@ -137,11 +137,12 @@ export default function BoardPage() {
                       <Button
                         variant={trader.isFollowing ? "secondary" : "outline"}
                         size="sm"
-                        className="shrink-0"
+                        className="shrink-0 max-sm:size-10 max-sm:px-0"
                         onClick={() => void toggleFollow(trader)}
+                        aria-label={trader.isFollowing ? `Unfollow ${trader.name ?? trader.handle}` : `Follow ${trader.name ?? trader.handle}`}
                       >
-                        {!trader.isFollowing ? <UserPlus aria-hidden /> : null}
-                        {trader.isFollowing ? "Following" : "Follow"}
+                        {trader.isFollowing ? <Check aria-hidden className="sm:hidden" /> : <UserPlus aria-hidden />}
+                        <span className="max-sm:hidden">{trader.isFollowing ? "Following" : "Follow"}</span>
                       </Button>
                     ) : null}
                   </div>
@@ -172,10 +173,10 @@ export default function BoardPage() {
             <EmptyState
               icon={Trophy}
               title="The board is still filling up"
-              description={`Traders show up after ${data?.minHistoryDays ?? 7} days of verified history. The board opens once brokerage linking launches. Until then, compete in a league or a fantasy league.`}
+              description={`Traders show up after ${data?.minHistoryDays ?? 7} days of verified history, which needs a linked brokerage. Linking is coming soon. Until then, leagues are where the action is.`}
               action={
                 <Button asChild>
-                  <Link href="/settings">Go public</Link>
+                  <Link href="/leagues">Start a league</Link>
                 </Button>
               }
             />

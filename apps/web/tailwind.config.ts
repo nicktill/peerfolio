@@ -15,6 +15,7 @@ const config = {
   		fontFamily: {
   			sans: ['var(--font-geist-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
   			mono: ['var(--font-geist-mono)', 'ui-monospace', 'monospace'],
+  			display: ['var(--font-display)', 'var(--font-geist-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
   		},
   		colors: {
   			border: 'hsl(var(--border))',
@@ -50,8 +51,9 @@ const config = {
   				DEFAULT: 'hsl(var(--card))',
   				foreground: 'hsl(var(--card-foreground))'
   			},
-  			gain: 'var(--gain)',
-  			loss: 'var(--loss)',
+  			gain: { DEFAULT: 'var(--gain)', ink: 'var(--gain-ink)' },
+  			loss: { DEFAULT: 'var(--loss)', ink: 'var(--loss-ink)' },
+  			gold: { ink: 'var(--gold-ink)' },
   			series: {
   				'1': 'var(--series-1)',
   				'2': 'var(--series-2)',

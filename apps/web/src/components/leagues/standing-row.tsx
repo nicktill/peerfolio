@@ -6,6 +6,7 @@ import { Avatar } from "@web/components/ui/avatar"
 import { Delta } from "@web/components/ui/delta"
 import { Sparkline } from "@web/components/ui/sparkline"
 import { cn } from "@web/lib/utils"
+import { plural } from "@web/lib/plural"
 
 const REACTIONS = ["🔥", "🚀", "👏", "🧊", "🤝", "😤"] as const
 
@@ -36,20 +37,30 @@ export function StandingRow({
   standing,
   onReact,
   showSource = true,
+  tone = "landing",
 }: {
   standing: Standing
   onReact?: (toUserId: string, emoji: string) => void
   /** Off for fantasy leagues, where everyone trades the same play money. */
   showSource?: boolean
+  /** "app" marks you in ink, not green, so your row never looks like a win when you're last. */
+  tone?: "landing" | "app"
 }) {
   const [open, setOpen] = useState(false)
 
   return (
-    <li className={cn("py-3", standing.isYou && "-mx-2 rounded-lg bg-accent/40 px-2")}>
+    <li
+      className={cn(
+        "py-3",
+        standing.isYou && (tone === "app" ? "surface-you -mx-2 rounded-xl px-3" : "-mx-2 rounded-lg bg-accent/40 px-2"),
+      )}
+    >
       <div className="flex items-center gap-3">
         <span
           className="numeric w-6 shrink-0 text-center text-sm font-bold"
-          style={standing.rank <= 3 ? { color: MEDALS[standing.rank - 1] } : undefined}
+          style={
+            standing.rank <= 3 ? { color: tone === "app" && standing.rank === 1 ? "var(--gold-ink)" : MEDALS[standing.rank - 1] } : undefined
+          }
         >
           {standing.rank}
         </span>
@@ -59,9 +70,14 @@ export function StandingRow({
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">
             {standing.isYou ? "You" : (standing.name ?? standing.handle ?? "Member")}
+            {standing.isYou && tone === "app" ? (
+              <span className="ml-1.5 rounded bg-foreground px-1 py-px align-middle text-[10px] font-semibold uppercase tracking-wide text-background">
+                you
+              </span>
+            ) : null}
           </p>
           <p className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
-            {standing.handle ? `@${standing.handle}` : `${standing.days} days`}
+            {standing.handle ? `@${standing.handle}` : plural(standing.days, "day")}
             {showSource && !standing.isVerified ? (
               <span className="rounded bg-secondary px-1 py-px text-[10px] font-medium">self-reported</span>
             ) : null}

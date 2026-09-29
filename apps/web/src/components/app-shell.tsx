@@ -24,7 +24,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (status === "unauthenticated") return null
 
   return (
-    <div className="min-h-screen">
+    <div className="app-bg min-h-screen">
       <AppNav />
       {/* Bottom padding clears the mobile tab bar. */}
       <main className="mx-auto max-w-6xl px-4 pb-24 pt-6 sm:pb-12">{children}</main>

@@ -12,6 +12,7 @@ import { Skeleton, SkeletonRow } from "@web/components/ui/skeleton"
 import { useToast } from "@web/components/ui/toast"
 import { RaceChart } from "@web/components/charts/race-chart"
 import { StandingRow, type Standing } from "@web/components/leagues/standing-row"
+import { plural } from "@web/lib/plural"
 import { mutate, useApi } from "@web/lib/use-api"
 import { RANGES, type Range } from "@web/lib/ranges"
 
@@ -83,7 +84,24 @@ export default function LeaguePage({ params }: { params: Promise<{ id: string }>
     )
   }
 
-  if (!data) return null
+  if (!data) {
+    return (
+      <Card>
+        <CardContent className="pt-5">
+          <EmptyState
+            icon={Trophy}
+            title="Couldn't open this league"
+            description="It may have been deleted, or you may no longer be a member."
+            action={
+              <Button asChild variant="outline" size="sm">
+                <Link href="/leagues">Back to leagues</Link>
+              </Button>
+            }
+          />
+        </CardContent>
+      </Card>
+    )
+  }
 
   const ranked = data.standings.filter((s) => s.hasHistory)
   const waiting = data.standings.filter((s) => !s.hasHistory)
@@ -105,9 +123,9 @@ export default function LeaguePage({ params }: { params: Promise<{ id: string }>
               {data.league.emoji}
             </span>
             <div>
-              <h1 className="text-2xl font-semibold tracking-tight">{data.league.name}</h1>
+              <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">{data.league.name}</h1>
               <p className="mt-0.5 text-sm text-muted-foreground">
-                {data.league.description || `${data.standings.length} members`}
+                {data.league.description || (data.standings.length === 1 ? "Just you so far" : plural(data.standings.length, "member"))}
               </p>
             </div>
           </div>
@@ -163,6 +181,9 @@ export default function LeaguePage({ params }: { params: Promise<{ id: string }>
       <Card>
         <CardHeader>
           <CardTitle>Standings</CardTitle>
+          {ranked.some((s) => !s.isVerified) ? (
+            <p className="text-xs text-muted-foreground">Returns are self-reported unless a member is verified.</p>
+          ) : null}
         </CardHeader>
         <CardContent>
           {ranked.length === 0 ? (
@@ -174,7 +195,7 @@ export default function LeaguePage({ params }: { params: Promise<{ id: string }>
           ) : (
             <ul className="divide-y">
               {ranked.map((standing) => (
-                <StandingRow key={standing.userId} standing={standing} onReact={react} />
+                <StandingRow key={standing.userId} standing={standing} onReact={react} showSource={false} tone="app" />
               ))}
             </ul>
           )}

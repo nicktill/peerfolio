@@ -39,7 +39,7 @@ export default function LeaguesPage() {
     <div className="space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Leagues</h1>
+          <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">Leagues</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Private groups ranked on percentage return. Nobody sees anyone&apos;s balances.
           </p>
