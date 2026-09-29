@@ -10,10 +10,13 @@ import { TradeFeed, type FeedItem } from "@web/components/fantasy/trade-feed"
 import { timeLeft } from "@web/components/fantasy/time-left"
 import { Button } from "@web/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card"
+import { useRankBaseline } from "@web/components/fantasy/use-rank-baseline"
+import { AnimatedNumber } from "@web/components/ui/animated-number"
 import { Delta } from "@web/components/ui/delta"
 import { Skeleton } from "@web/components/ui/skeleton"
 import type { Standing } from "@web/components/leagues/standing-row"
 import { formatCurrency } from "@web/lib/format"
+import { describeMovement, rankMovement } from "@web/lib/rank-change"
 import { useApi } from "@web/lib/use-api"
 
 export type Position = { ticker: string; name: string | null; shares: number; price: number; priceAsOf: string | null; value: number; gainPct: number }
@@ -36,9 +39,13 @@ type LeagueData = {
 
 const MEDALS = ["🥇", "🥈", "🥉"]
 
+/** How often an open league page re-reads standings and prices. Cheap: prices are throttled server-side. */
+const REFRESH_MS = 60_000
+
 export default function FantasyLeaguePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
-  const { data, error, loading, refetch } = useApi<LeagueData>(`/api/fantasy/${id}`)
+  const { data, error, loading, refetch } = useApi<LeagueData>(`/api/fantasy/${id}`, [], { refreshMs: REFRESH_MS })
+  const rankBefore = useRankBaseline(id, data?.you.rank ?? null)
 
   if (loading && !data) {
     return (
@@ -48,9 +55,11 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
       </div>
     )
   }
-  if (error || !data) return <p className="text-sm text-muted-foreground">{error ?? "Couldn't load this league."}</p>
+  // A failed refresh keeps the page up with the last good data.
+  if (!data) return <p className="text-sm text-muted-foreground">{error ?? "Couldn't load this league."}</p>
 
   const { league, standings, you, feed } = data
+  const moved = rankMovement(rankBefore, you.rank)
 
   return (
     <div className="space-y-6">
@@ -85,15 +94,22 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
               {MEDALS[you.rank - 1] ?? ""}#{you.rank}
               <span className="text-sm font-normal text-muted-foreground"> of {standings.length}</span>
             </span>
+            {moved !== null ? (
+              <span
+                className={`animate-rise-in mt-1 block text-xs font-medium ${moved > 0 ? "text-[--gain]" : "text-[--loss]"}`}
+              >
+                {moved > 0 ? "▲" : "▼"} {describeMovement(moved)} since your last visit
+              </span>
+            ) : null}
           </Stat>
           <Stat label="Return">
             <Delta value={you.percent} size="lg" variant="plain" />
           </Stat>
           <Stat label="Portfolio">
-            <span className="numeric">{formatCurrency(you.value)}</span>
+            <AnimatedNumber className="numeric" value={you.value} format={formatCurrency} />
           </Stat>
           <Stat label="Cash to spend">
-            <span className="numeric">{formatCurrency(you.cash)}</span>
+            <AnimatedNumber className="numeric" value={you.cash} format={formatCurrency} />
           </Stat>
         </dl>
       </header>

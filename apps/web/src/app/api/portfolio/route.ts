@@ -2,7 +2,8 @@ import { NextResponse } from "next/server"
 import { and, asc, eq, gte } from "drizzle-orm"
 import { db, holdings, accounts, plaidItems, portfolioSnapshots, securities } from "@web/db"
 import { withUser } from "@web/lib/api"
-import { isRange, rangeStart, timeWeightedReturn, type Range } from "@web/lib/returns"
+import { refreshStalePrices } from "@web/lib/positions"
+import { isRange, rangeStart, timeWeightedReturn, withLivePoint, type Range } from "@web/lib/returns"
 
 const n = (v: string | null) => (v == null ? 0 : Number(v))
 
@@ -30,6 +31,10 @@ export const GET = withUser<unknown>(async (userId, request) => {
   const url = new URL(request.url)
   const rangeParam = url.searchParams.get("range") ?? "1M"
   const range: Range = isRange(rangeParam) ? rangeParam : "1M"
+
+  // Bring stored closes up to date first so balances below are current, not
+  // last night's. Throttled and never throws.
+  await refreshStalePrices()
 
   const [accountRows, items, holdingRows] = await Promise.all([
     db.select().from(accounts).where(and(eq(accounts.userId, userId), eq(accounts.isActive, true))),
@@ -159,13 +164,20 @@ export const GET = withUser<unknown>(async (userId, request) => {
       gainPercent: h.costBasis > 0 ? ((h.value - h.costBasis) / h.costBasis) * 100 : null,
     }))
 
-  const points = snapshotRows.map((row) => ({
-    date: row.date,
-    netWorth: n(row.netWorth),
-    investableAssets: n(row.investableAssets),
-    netFlows: n(row.netFlows),
-    isVerified: row.isVerified,
-  }))
+  const isVerified = accountRows.length > 0 && accountRows.every((a) => a.source === "plaid")
+
+  // Snapshots are nightly, so end the series on today's live value.
+  const points = withLivePoint(
+    snapshotRows.map((row) => ({
+      date: row.date,
+      netWorth: n(row.netWorth),
+      investableAssets: n(row.investableAssets),
+      netFlows: n(row.netFlows),
+      isVerified: row.isVerified,
+    })),
+    { netWorth, investableAssets, isVerified },
+    new Date().toISOString().slice(0, 10),
+  )
 
   const performance = timeWeightedReturn(points, "investableAssets")
 
@@ -196,6 +208,6 @@ export const GET = withUser<unknown>(async (userId, request) => {
     /** Two snapshots is the minimum for any return to exist. */
     hasHistory: points.length >= 2,
     /** Plaid-backed portfolios are the only ones eligible for the public board. */
-    isVerified: accountRows.length > 0 && accountRows.every((a) => a.source === "plaid"),
+    isVerified,
   })
 })
