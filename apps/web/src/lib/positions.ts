@@ -1,6 +1,7 @@
 import { and, eq, isNotNull, sql } from "drizzle-orm"
 import { accounts, db, holdings, securities } from "@web/db"
 import { ApiError } from "@web/lib/api"
+import { latestCompletedSession } from "@web/lib/market-hours"
 import { staleHeldSecurities } from "@web/lib/stale-prices"
 import {
   displaySymbol,
@@ -210,17 +211,20 @@ let lastRefreshAttempt = 0
  * and is throttled per server instance so page loads can't spend the provider's
  * free rate limit. Never throws: a stale price beats a broken page.
  */
-export async function refreshStalePrices({ maxAgeHours = 6, minIntervalMinutes = 10 } = {}) {
+export async function refreshStalePrices({ maxAgeHours = 6, minIntervalMinutes = 10, recheckMinutes = 15 } = {}) {
   const now = Date.now()
   if (now - lastRefreshAttempt < minIntervalMinutes * 60_000) return { refreshed: 0 }
   lastRefreshAttempt = now
 
   try {
     const cutoff = new Date(now - maxAgeHours * 3_600_000)
+    // Also look when the stored close is older than the latest finished session, so a
+    // new official close is picked up shortly after it's published, not hours later.
+    const catchUp = { expectedDate: latestCompletedSession(new Date(now)), recheckBefore: new Date(now - recheckMinutes * 60_000) }
     const stale = await db
       .select({ id: securities.id, marketTicker: securities.marketTicker, asOf: securities.closePriceAsOf })
       .from(securities)
-      .where(staleHeldSecurities(cutoff))
+      .where(staleHeldSecurities(cutoff, catchUp))
     if (stale.length === 0) return { refreshed: 0 }
 
     const closes = await latestCloses(stale.map((s) => s.marketTicker!))

@@ -42,7 +42,7 @@ type LeagueData = {
 
 const MEDALS = ["🥇", "🥈", "🥉"]
 
-/** Off-hours pace: standings only move when someone trades. While the market is open it's 30s, see liveRefreshMs. */
+/** Off-hours pace: standings only move when someone trades. While the market is open it's every minute, see liveRefreshMs. */
 const CLOSED_REFRESH_MS = 60_000
 
 export default function FantasyLeaguePage({ params }: { params: Promise<{ id: string }> }) {
