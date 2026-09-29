@@ -50,6 +50,12 @@ export const GET = withPublic<unknown>(async (request) => {
     fantasy = { error: error instanceof Error ? error.message : "unknown" }
   }
 
-  console.log(`[cron] snapshot complete: ${succeeded}/${userIds.length} users`)
-  return NextResponse.json({ pricing, fantasy, users: userIds.length, succeeded, failures })
+  console.log(`[cron] snapshot complete: ${succeeded}/${userIds.length} users`, JSON.stringify({ pricing, fantasy }))
+
+  // Everything above is best-effort so one failure can't cost the others their
+  // data point, but the run must not *look* healthy: a 200 here is what let
+  // stale prices go unnoticed. Vercel marks non-2xx cron runs as failed.
+  const pricingBroken = "error" in pricing || (pricing.tickers > 0 && pricing.priced === 0)
+  const healthy = !pricingBroken && !("error" in fantasy) && failures.length === 0
+  return NextResponse.json({ healthy, pricing, fantasy, users: userIds.length, succeeded, failures }, { status: healthy ? 200 : 500 })
 })

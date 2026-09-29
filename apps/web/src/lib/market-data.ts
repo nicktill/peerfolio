@@ -81,10 +81,24 @@ export async function previousClose(marketTicker: string, fetchImpl: typeof fetc
   return { price: bar.c, asOf: isoDate(bar.t) }
 }
 
+/** US stocks have printed their close by this UTC time in every season (4pm ET is 20:00-21:00 UTC). */
+const STOCK_CLOSE_UTC_MINUTES = 21 * 60 + 30
+
+/**
+ * Days back to start looking for a finished bar. Once the US session is over,
+ * today's stock bar is final, so use it: starting at yesterday made every
+ * nightly run a trading day stale, which showed up as flat returns for a full
+ * day. Crypto trades around the clock, so today's bar is never final.
+ */
+function firstDayBack(marketTickerIsCrypto: boolean, now: Date): number {
+  if (marketTickerIsCrypto) return 1
+  return now.getUTCHours() * 60 + now.getUTCMinutes() >= STOCK_CLOSE_UTC_MINUTES ? 0 : 1
+}
+
 /**
  * Latest daily close for each ticker, from whole-market daily bars.
  *
- * Starts at yesterday (UTC) so every bar is a finished day, and walks back past
+ * Starts at the latest finished day (see `firstDayBack`) and walks back past
  * weekends and holidays until a market has data. Tickers the market didn't
  * report are left out; callers keep the last price they had.
  */
@@ -96,19 +110,29 @@ export async function latestCloses(
   const wanted = new Set(marketTickers)
 
   const markets = [
-    { path: "/v2/aggs/grouped/locale/us/market/stocks", tickers: marketTickers.filter((t) => !isCrypto(t)) },
-    { path: "/v2/aggs/grouped/locale/global/market/crypto", tickers: marketTickers.filter(isCrypto) },
+    { path: "/v2/aggs/grouped/locale/us/market/stocks", tickers: marketTickers.filter((t) => !isCrypto(t)), crypto: false },
+    { path: "/v2/aggs/grouped/locale/global/market/crypto", tickers: marketTickers.filter(isCrypto), crypto: true },
   ]
 
   for (const market of markets) {
     if (market.tickers.length === 0) continue
 
-    for (let back = 1; back <= MAX_LOOKBACK_DAYS; back++) {
+    const first = firstDayBack(market.crypto, now)
+    for (let back = first; back <= MAX_LOOKBACK_DAYS; back++) {
       const day = new Date(now)
       day.setUTCDate(day.getUTCDate() - back)
       const date = day.toISOString().slice(0, 10)
 
-      const data = await get(`${market.path}/${date}?adjusted=true&include_otc=true`, fetchImpl)
+      let data: AggsResponse
+      try {
+        data = await get(`${market.path}/${date}?adjusted=true&include_otc=true`, fetchImpl)
+      } catch (error) {
+        // Some plans withhold the current day until later. That is "not yet",
+        // not an outage: yesterday's close is still a correct answer.
+        const notYet = back === 0 && error instanceof MarketDataError && (error.status === 403 || error.status === 404)
+        if (notYet) continue
+        throw error
+      }
       if (!data.results?.length) continue
 
       for (const bar of data.results) {

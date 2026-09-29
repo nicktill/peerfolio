@@ -15,7 +15,7 @@ import { ApiError } from "@web/lib/api"
 import { generateInviteCode } from "@web/lib/crypto"
 import { applyTrade, isClosed, portfolioValue, returnPct, TradeRejected, type MemberState } from "@web/lib/fantasy-rules"
 import { displaySymbol, toMarketTicker, type AssetKind } from "@web/lib/market-data"
-import { ensurePriced } from "@web/lib/positions"
+import { ensurePriced, refreshStalePrices } from "@web/lib/positions"
 
 /**
  * Fantasy leagues: everyone gets the same play cash, picks tickers, and is
@@ -85,6 +85,7 @@ export async function listFantasyLeaguesForUser(userId: string) {
     .where(eq(fantasyMembers.userId, userId))
     .orderBy(desc(fantasyLeagues.createdAt))
   if (rows.length === 0) return []
+  await refreshStalePrices()
 
   const ids = rows.map((r) => r.league.id)
   const [counts, values] = await Promise.all([
@@ -254,6 +255,8 @@ export type FantasyStanding = {
 export async function loadFantasyLeague(userId: string, leagueId: string) {
   const { league, member: me } = await requireFantasyMember(userId, leagueId)
   const startingCash = n(league.startingCash)
+  // A finished league is frozen at its last snapshot, so only live ones need fresh prices.
+  if (!isClosed(league.endsAt)) await refreshStalePrices()
 
   const members = await db
     .select({ id: fantasyMembers.id, cash: fantasyMembers.cash, userId: users.id, name: users.name, handle: users.handle, image: users.image })
