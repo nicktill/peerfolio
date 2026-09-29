@@ -3,6 +3,7 @@
 import { use, useState } from "react"
 import Link from "next/link"
 import { ArrowLeft, Check, Clock, Infinity as Forever, Link2 } from "lucide-react"
+import { initialsFor } from "@web/components/ui/avatar"
 import { RaceChart } from "@web/components/charts/race-chart"
 import { StandingRow } from "@web/components/leagues/standing-row"
 import { TradePanel } from "@web/components/fantasy/trade-panel"
@@ -122,7 +123,7 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
               <RaceChart
               rich
                 height={260}
-                series={standings.map((s) => ({ id: s.userId, label: s.name?.split(" ")[0] ?? s.handle ?? "", points: s.spark, isYou: s.isYou }))}
+                series={standings.map((s) => ({ id: s.userId, label: s.name?.split(" ")[0] ?? s.handle ?? "", initials: initialsFor(s.name, s.handle), points: s.spark, isYou: s.isYou }))}
               />
             </CardContent>
           </Card>
