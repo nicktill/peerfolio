@@ -4,10 +4,9 @@ import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { AppNav } from "@web/components/app-nav"
-import { NavProgress } from "@web/components/motion/nav-progress"
 
 /**
- * The signed-in frame: progress bar, nav, and the page.
+ * The signed-in frame: nav and the page.
  *
  * It renders while the session is still being confirmed, rather than showing a
  * placeholder and swapping the whole frame in afterwards. Data routes check the
@@ -26,7 +25,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen">
-      <NavProgress />
       <AppNav />
       {/* Bottom padding clears the mobile tab bar. */}
       <main className="mx-auto max-w-6xl px-4 pb-24 pt-6 sm:pb-12">{children}</main>

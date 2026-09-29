@@ -1,10 +1,9 @@
 /**
- * A tiny client-side response cache and in-flight counter.
+ * A tiny client-side response cache.
  *
- * Together they make navigation feel instant: a page you've already visited
- * paints immediately from the last response while a fresh one loads in the
- * background (stale-while-revalidate), and the top progress bar knows when
- * anything is loading. Free of React and the DOM so the tests can run it.
+ * It makes navigation feel instant: a page you've already visited paints
+ * immediately from the last response while a fresh one loads in the background
+ * (stale-while-revalidate). Free of React and the DOM so the tests can run it.
  *
  * Responses are per-user, so the cache must be cleared on sign-out.
  */
@@ -47,29 +46,4 @@ export function cacheClear(prefix?: string) {
 
 export function cacheSize() {
   return store.size
-}
-
-// ---- in-flight requests, for the progress bar ------------------------------
-
-let inflight = 0
-const listeners = new Set<() => void>()
-
-export function beginRequest() {
-  inflight++
-  listeners.forEach((l) => l())
-}
-
-export function endRequest() {
-  inflight = Math.max(0, inflight - 1)
-  listeners.forEach((l) => l())
-}
-
-export const getInflight = () => inflight
-
-/** For `useSyncExternalStore`. */
-export function subscribeInflight(listener: () => void) {
-  listeners.add(listener)
-  return () => {
-    listeners.delete(listener)
-  }
 }
