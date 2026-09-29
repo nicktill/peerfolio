@@ -1,7 +1,7 @@
-import { and, asc, gte, inArray } from "drizzle-orm"
+import { and, asc, eq, gte, inArray } from "drizzle-orm"
 import "server-only"
-import { db, portfolioSnapshots } from "@web/db"
-import { rangeStart, sparkline, timeWeightedReturn, type Range, type ReturnSummary, type SnapshotPoint } from "@web/lib/ranges"
+import { accounts, db, portfolioSnapshots } from "@web/db"
+import { rangeStart, sparkline, timeWeightedReturn, withLivePoint, type Range, type ReturnSummary, type SnapshotPoint } from "@web/lib/ranges"
 
 export * from "@web/lib/ranges"
 
@@ -37,6 +37,42 @@ export async function loadSnapshots(userIds: string[], range: Range): Promise<Ma
   return byUser
 }
 
+const LIABILITY = new Set(["credit", "loan"])
+
+/**
+ * Each user's balances right now, in the same terms as a nightly snapshot
+ * (investable assets, net worth, verified), so a standing can end on today's
+ * value instead of last night's. Matches what `writeDailySnapshot` would record.
+ */
+export async function loadLivePoints(userIds: string[]): Promise<Map<string, Pick<SnapshotPoint, "netWorth" | "investableAssets" | "isVerified">>> {
+  const out = new Map<string, Pick<SnapshotPoint, "netWorth" | "investableAssets" | "isVerified">>()
+  if (userIds.length === 0) return out
+
+  const rows = await db
+    .select({ userId: accounts.userId, category: accounts.category, source: accounts.source, balance: accounts.currentBalance })
+    .from(accounts)
+    .where(and(inArray(accounts.userId, userIds), eq(accounts.isActive, true)))
+
+  const acc = new Map<string, { assets: number; liabilities: number; investable: number; sawManual: boolean; count: number }>()
+  for (const r of rows) {
+    const a = acc.get(r.userId) ?? { assets: 0, liabilities: 0, investable: 0, sawManual: false, count: 0 }
+    const balance = Math.abs(n(r.balance))
+    a.count++
+    if (r.source === "manual") a.sawManual = true
+    if (LIABILITY.has(r.category)) a.liabilities += balance
+    else {
+      a.assets += balance
+      if (r.category === "investment") a.investable += balance
+    }
+    acc.set(r.userId, a)
+  }
+
+  for (const [userId, a] of acc) {
+    out.set(userId, { netWorth: a.assets - a.liabilities, investableAssets: a.investable, isVerified: a.count > 0 && !a.sawManual })
+  }
+  return out
+}
+
 export async function computeReturns(
   userId: string,
   range: Range,
@@ -65,13 +101,15 @@ export type Standing = StandingInput & {
  * and the public board — the only difference is which user ids come in.
  */
 export async function buildStandings(members: StandingInput[], range: Range): Promise<Standing[]> {
-  const byUser = await loadSnapshots(
-    members.map((m) => m.userId),
-    range,
-  )
+  const ids = members.map((m) => m.userId)
+  const [byUser, live] = await Promise.all([loadSnapshots(ids, range), loadLivePoints(ids)])
+  const today = new Date().toISOString().slice(0, 10)
 
   const scored = members.map((member) => {
-    const points = byUser.get(member.userId) ?? []
+    // End on today's live value, like the dashboard and fantasy do.
+    const stored = byUser.get(member.userId) ?? []
+    const liveNow = live.get(member.userId)
+    const points = liveNow ? withLivePoint(stored, liveNow, today) : stored
     const summary = timeWeightedReturn(points)
     return {
       ...member,
