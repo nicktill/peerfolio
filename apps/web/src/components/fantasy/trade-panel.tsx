@@ -1,18 +1,28 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@web/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card"
 import { useToast } from "@web/components/ui/toast"
 import { formatCurrency } from "@web/lib/format"
+import { checkTradeInput, estimateShares, sanitizeAmount } from "@web/lib/trade-input"
 import { mutate } from "@web/lib/use-api"
 import { cn } from "@web/lib/utils"
 
 type Held = { ticker: string; shares: number; value: number }
+type Quote = { symbol: string; name: string | null; price: number; asOf: string }
+type Lookup =
+  | { state: "idle" }
+  | { state: "loading" }
+  | { state: "found"; quote: Quote }
+  | { state: "missing"; message: string }
 
 const HYPE = ["NVDA", "TSLA", "AAPL", "PLTR", "GME", "SPY"]
 
-/** Buy by dollars, sell by shares. Fills at the latest daily close. */
+const fmtShares = (v: number) => v.toLocaleString(undefined, { maximumFractionDigits: 4 })
+const asOfLabel = (asOf: string) => new Date(`${asOf.slice(0, 10)}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+
+/** Buy by dollars, sell by shares. Fills at the latest daily close, which the form shows before you commit. */
 export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: string; cash: number; positions: Held[]; onTraded: () => void }) {
   const { toast } = useToast()
   const [side, setSide] = useState<"buy" | "sell">("buy")
@@ -20,22 +30,61 @@ export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: 
   const [amount, setAmount] = useState("")
   const [pending, setPending] = useState(false)
   const [burst, setBurst] = useState(0)
+  const [touched, setTouched] = useState(false)
+  const [lookup, setLookup] = useState<Lookup>({ state: "idle" })
 
-  const held = positions.find((p) => p.ticker === symbol.trim().toUpperCase())
+  const ticker = symbol.trim().toUpperCase()
+  const held = positions.find((p) => p.ticker === ticker)
+  const check = checkTradeInput(side, ticker, amount, { cash, heldShares: held?.shares ?? null })
+  const problem = touched && !check.ok ? check.message : null
+
+  // Show what you'd be trading at before you commit. Debounced, and a slow
+  // response for an old ticker can never overwrite the one on screen.
+  useEffect(() => {
+    if (!ticker) {
+      setLookup({ state: "idle" })
+      return
+    }
+    let cancelled = false
+    setLookup({ state: "loading" })
+    const timer = setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/market/quote?symbol=${encodeURIComponent(ticker)}&kind=stock`)
+        const body = await response.json().catch(() => ({}))
+        if (cancelled) return
+        setLookup(
+          response.ok
+            ? { state: "found", quote: body as Quote }
+            : { state: "missing", message: (body as { error?: string }).error ?? "Couldn't look that up." },
+        )
+      } catch {
+        if (!cancelled) setLookup({ state: "missing", message: "Couldn't reach the price service. Try again." })
+      }
+    }, 350)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [ticker])
+
+  const quote = lookup.state === "found" ? lookup.quote : null
+  const estimated = side === "buy" && check.ok && typeof check.value === "number" ? estimateShares(check.value, quote?.price ?? null) : null
 
   async function submit(event: React.FormEvent) {
     event.preventDefault()
+    setTouched(true)
+    if (!check.ok) return
+    if (lookup.state === "missing") return
+
     setPending(true)
     try {
-      const body =
-        side === "buy"
-          ? { side, symbol, amount: Number(amount) }
-          : { side, symbol, shares: amount === "all" ? "all" : Number(amount) }
+      const body = side === "buy" ? { side, symbol: ticker, amount: check.value } : { side, symbol: ticker, shares: check.value }
       const result = await mutate<{ ticker: string; shares: number; price: number }>(`/api/fantasy/${leagueId}/trade`, { body })
       const verb = side === "buy" ? "Bought" : "Sold"
-      toast(`${verb} ${result.shares.toLocaleString(undefined, { maximumFractionDigits: 4 })} ${result.ticker} at ${formatCurrency(result.price)}`, "success")
+      toast(`${verb} ${fmtShares(result.shares)} ${result.ticker} at ${formatCurrency(result.price)}`, "success")
       if (side === "buy") setBurst((b) => b + 1)
       setAmount("")
+      setTouched(false)
       onTraded()
     } catch (error) {
       toast(error instanceof Error ? error.message : "Trade failed.", "error")
@@ -56,7 +105,7 @@ export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: 
               type="button"
               role="tab"
               aria-selected={side === s}
-              onClick={() => { setSide(s); setAmount("") }}
+              onClick={() => { setSide(s); setAmount(""); setTouched(false) }}
               className={cn("rounded-full px-3 py-1 capitalize transition-colors", side === s ? "bg-foreground text-background" : "text-muted-foreground")}
             >
               {s}
@@ -65,41 +114,70 @@ export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: 
         </div>
       </CardHeader>
       <CardContent>
-        <form onSubmit={submit} className="space-y-3">
-          <input
-            aria-label="Ticker"
-            required
-            value={symbol}
-            onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-            placeholder="Ticker, e.g. NVDA"
-            className="h-11 w-full rounded-xl border bg-background px-3 font-mono text-sm uppercase tracking-wide placeholder:font-sans placeholder:normal-case placeholder:tracking-normal"
-          />
+        <form onSubmit={submit} className="space-y-3" noValidate>
+          <div>
+            <input
+              aria-label="Ticker"
+              autoCapitalize="characters"
+              autoComplete="off"
+              spellCheck={false}
+              value={symbol}
+              onChange={(e) => setSymbol(e.target.value.toUpperCase().replace(/[^A-Z0-9.\-/]/g, "").slice(0, 12))}
+              placeholder="Ticker, e.g. NVDA"
+              className="h-11 w-full rounded-xl border bg-background px-3 font-mono text-sm uppercase tracking-wide placeholder:font-sans placeholder:normal-case placeholder:tracking-normal"
+            />
+            <p className="numeric mt-1.5 min-h-4 text-xs text-muted-foreground" aria-live="polite">
+              {lookup.state === "loading"
+                ? "Looking up…"
+                : quote
+                  ? `${quote.name ?? quote.symbol} · ${formatCurrency(quote.price)} at the ${asOfLabel(quote.asOf)} close`
+                  : lookup.state === "missing"
+                    ? <span className="text-[--loss]">{lookup.message}</span>
+                    : null}
+            </p>
+          </div>
           <div className="flex flex-wrap gap-1.5">
             {(side === "buy" ? HYPE : positions.map((p) => p.ticker)).slice(0, 6).map((t) => (
               <button
                 key={t}
                 type="button"
                 onClick={() => setSymbol(t)}
-                className={cn("rounded-full border px-2.5 py-1 font-mono text-[11px] font-semibold transition-colors hover:bg-secondary", symbol === t && "border-primary text-primary")}
+                className={cn("rounded-full border px-2.5 py-1 font-mono text-[11px] font-semibold transition-colors hover:bg-secondary", ticker === t && "border-primary text-primary")}
               >
                 {t}
               </button>
             ))}
           </div>
 
-          <div className="relative">
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-              {side === "buy" ? "$" : "sh"}
-            </span>
-            <input
-              aria-label={side === "buy" ? "Amount in dollars" : "Shares to sell"}
-              required
-              inputMode="decimal"
-              value={amount === "all" ? "All" : amount}
-              onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
-              placeholder="0"
-              className="numeric h-11 w-full rounded-xl border bg-background pl-9 pr-3 text-sm"
-            />
+          <div>
+            <div className="relative">
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                {side === "buy" ? "$" : "sh"}
+              </span>
+              <input
+                aria-label={side === "buy" ? "Amount in dollars" : "Shares to sell"}
+                aria-invalid={problem ? true : undefined}
+                inputMode="decimal"
+                autoComplete="off"
+                value={amount === "all" ? "All" : amount}
+                onChange={(e) => setAmount(sanitizeAmount(e.target.value, side === "buy" ? 2 : 4))}
+                placeholder="0"
+                className="numeric h-11 w-full rounded-xl border bg-background pl-9 pr-3 text-sm aria-[invalid=true]:border-[--loss]"
+              />
+            </div>
+            <p className="numeric mt-1.5 min-h-4 text-xs text-muted-foreground" aria-live="polite">
+              {problem ? (
+                <span className="text-[--loss]">{problem}</span>
+              ) : estimated !== null ? (
+                `≈ ${fmtShares(estimated)} shares of ${ticker}`
+              ) : side === "buy" ? (
+                `${formatCurrency(cash)} available`
+              ) : held ? (
+                `You hold ${fmtShares(held.shares)} sh (${formatCurrency(held.value)})`
+              ) : (
+                "Pick something you own"
+              )}
+            </p>
           </div>
           <div className="grid grid-cols-4 gap-1.5">
             {side === "buy"
@@ -118,9 +196,6 @@ export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: 
                   </Quick>,
                 )}
           </div>
-          <p className="numeric text-xs text-muted-foreground">
-            {side === "buy" ? `${formatCurrency(cash)} available` : held ? `You hold ${held.shares.toLocaleString(undefined, { maximumFractionDigits: 4 })} sh (${formatCurrency(held.value)})` : "Pick something you own"}
-          </p>
           <Button type="submit" className="w-full" size="lg" loading={pending} variant={side === "sell" ? "outline" : "default"}>
             {side === "buy" ? "Buy 🚀" : "Sell 💸"}
           </Button>

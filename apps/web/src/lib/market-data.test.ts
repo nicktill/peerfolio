@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { beforeEach, describe, it } from "node:test"
-import { displaySymbol, latestCloses, MarketDataError, previousClose, searchTickers, tickerDetails, toMarketTicker } from "./market-data.ts"
+import { displaySymbol, isNewerClose, latestCloses, MarketDataError, previousClose, searchTickers, tickerDetails, toMarketTicker } from "./market-data.ts"
 
 /** Stub fetch that answers from a path → body table and records every call. */
 function stubFetch(routes: Record<string, unknown>, status = 200) {
@@ -79,6 +79,21 @@ describe("previousClose", () => {
   })
 })
 
+describe("isNewerClose", () => {
+  it("accepts newer or equal dates and rejects older ones", () => {
+    assert.equal(isNewerClose("2026-09-29", "2026-09-28"), true)
+    assert.equal(isNewerClose("2026-09-28", "2026-09-28"), true)
+    assert.equal(isNewerClose("2026-09-25", "2026-09-28"), false)
+  })
+
+  it("accepts anything when nothing is stored, and ignores time-of-day suffixes", () => {
+    assert.equal(isNewerClose("2026-09-25", null), true)
+    assert.equal(isNewerClose("2026-09-25", undefined), true)
+    assert.equal(isNewerClose("2026-09-28", "2026-09-28T00:00:00.000Z"), true)
+    assert.equal(isNewerClose("2026-09-27", "2026-09-28T00:00:00.000Z"), false)
+  })
+})
+
 describe("latestCloses", () => {
   // A Monday: the last stock session was Friday, crypto traded all weekend.
   const monday = new Date(Date.UTC(2026, 8, 28, 6))
@@ -121,6 +136,63 @@ describe("latestCloses", () => {
     const closes = await latestCloses(["A", "B", "C", "X:ETHUSD"], { now: new Date(Date.UTC(2026, 8, 26, 6)), fetchImpl })
     assert.equal(closes.size, 4)
     assert.deepEqual(calls, [`${STOCKS}/2026-09-25`, `${CRYPTO}/2026-09-25`])
+  })
+
+  it("uses today's stock bar once the US session is over, so the nightly run isn't a day stale", async () => {
+    const tuesdayNight = new Date(Date.UTC(2026, 8, 29, 22, 30))
+    const { fetchImpl, calls } = stubFetch({
+      [`${STOCKS}/2026-09-29`]: { resultsCount: 1, results: [{ T: "VTI", c: 305 }] },
+      [`${STOCKS}/2026-09-28`]: { resultsCount: 1, results: [{ T: "VTI", c: 301 }] },
+    })
+
+    const closes = await latestCloses(["VTI"], { now: tuesdayNight, fetchImpl })
+
+    assert.deepEqual(closes.get("VTI"), { price: 305, asOf: "2026-09-29" })
+    assert.deepEqual(calls, [`${STOCKS}/2026-09-29`])
+  })
+
+  it("does not take a partial intraday stock bar before the close", async () => {
+    const tuesdayMidday = new Date(Date.UTC(2026, 8, 29, 17, 0))
+    const { fetchImpl, calls } = stubFetch({
+      [`${STOCKS}/2026-09-29`]: { resultsCount: 1, results: [{ T: "VTI", c: 999 }] },
+      [`${STOCKS}/2026-09-28`]: { resultsCount: 1, results: [{ T: "VTI", c: 301 }] },
+    })
+
+    const closes = await latestCloses(["VTI"], { now: tuesdayMidday, fetchImpl })
+
+    assert.equal(closes.get("VTI")?.price, 301)
+    assert.deepEqual(calls, [`${STOCKS}/2026-09-28`])
+  })
+
+  it("falls back a day when the provider withholds today's bar", async () => {
+    const tuesdayNight = new Date(Date.UTC(2026, 8, 29, 22, 30))
+    const calls: string[] = []
+    const fetchImpl = (async (input: string | URL | Request) => {
+      const path = new URL(String(input)).pathname
+      calls.push(path)
+      if (path === `${STOCKS}/2026-09-29`) return new Response("{}", { status: 403 })
+      return new Response(JSON.stringify({ results: [{ T: "VTI", c: 301 }] }), { status: 200 })
+    }) as typeof fetch
+
+    const closes = await latestCloses(["VTI"], { now: tuesdayNight, fetchImpl })
+
+    assert.deepEqual(closes.get("VTI"), { price: 301, asOf: "2026-09-28" })
+    assert.deepEqual(calls, [`${STOCKS}/2026-09-29`, `${STOCKS}/2026-09-28`])
+  })
+
+  it("still surfaces a real outage on a finished day", async () => {
+    const { fetchImpl } = stubFetch({}, 500)
+    await assert.rejects(latestCloses(["VTI"], { now: monday, fetchImpl }), MarketDataError)
+  })
+
+  it("never uses today's crypto bar, which is still forming", async () => {
+    const tuesdayNight = new Date(Date.UTC(2026, 8, 29, 22, 30))
+    const { fetchImpl, calls } = stubFetch({
+      [`${CRYPTO}/2026-09-28`]: { resultsCount: 1, results: [{ T: "X:BTCUSD", c: 98000 }] },
+    })
+
+    await latestCloses(["X:BTCUSD"], { now: tuesdayNight, fetchImpl })
+    assert.deepEqual(calls, [`${CRYPTO}/2026-09-28`])
   })
 
   it("makes no calls when nothing is held", async () => {
