@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { beforeEach, describe, it } from "node:test"
-import { displaySymbol, latestCloses, MarketDataError, previousClose, searchTickers, tickerDetails, toMarketTicker } from "./market-data.ts"
+import { displaySymbol, isNewerClose, latestCloses, MarketDataError, previousClose, searchTickers, tickerDetails, toMarketTicker } from "./market-data.ts"
 
 /** Stub fetch that answers from a path → body table and records every call. */
 function stubFetch(routes: Record<string, unknown>, status = 200) {
@@ -76,6 +76,21 @@ describe("previousClose", () => {
     const { fetchImpl, calls } = stubFetch({})
     await assert.rejects(previousClose("AAPL", fetchImpl), MarketDataError)
     assert.equal(calls.length, 0)
+  })
+})
+
+describe("isNewerClose", () => {
+  it("accepts newer or equal dates and rejects older ones", () => {
+    assert.equal(isNewerClose("2026-09-29", "2026-09-28"), true)
+    assert.equal(isNewerClose("2026-09-28", "2026-09-28"), true)
+    assert.equal(isNewerClose("2026-09-25", "2026-09-28"), false)
+  })
+
+  it("accepts anything when nothing is stored, and ignores time-of-day suffixes", () => {
+    assert.equal(isNewerClose("2026-09-25", null), true)
+    assert.equal(isNewerClose("2026-09-25", undefined), true)
+    assert.equal(isNewerClose("2026-09-28", "2026-09-28T00:00:00.000Z"), true)
+    assert.equal(isNewerClose("2026-09-27", "2026-09-28T00:00:00.000Z"), false)
   })
 })
 

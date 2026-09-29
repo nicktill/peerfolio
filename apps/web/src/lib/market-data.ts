@@ -81,6 +81,15 @@ export async function previousClose(marketTicker: string, fetchImpl: typeof fetc
   return { price: bar.c, asOf: isoDate(bar.t) }
 }
 
+/**
+ * Whether a fetched close may replace the stored one. Prices only ever move
+ * forward in time: `/prev` can lag the nightly whole-market bars by a day, and
+ * letting it overwrite them would silently move everyone's valuation backwards.
+ */
+export function isNewerClose(incomingAsOf: string, storedAsOf: string | null | undefined): boolean {
+  return !storedAsOf || incomingAsOf.slice(0, 10) >= storedAsOf.slice(0, 10)
+}
+
 /** US stocks have printed their close by this UTC time in every season (4pm ET is 20:00-21:00 UTC). */
 const STOCK_CLOSE_UTC_MINUTES = 21 * 60 + 30
 

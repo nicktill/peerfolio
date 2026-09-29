@@ -3,6 +3,7 @@ import { accounts, db, holdings, securities } from "@web/db"
 import { ApiError } from "@web/lib/api"
 import {
   displaySymbol,
+  isNewerClose,
   latestCloses,
   MarketDataError,
   previousClose,
@@ -63,6 +64,11 @@ export async function ensurePriced(marketTicker: string, kind: AssetKind, { maxA
       return { securityId, price: Number(existing.closePrice), asOf: existing.closePriceAsOf, name: existing.name }
     }
     throw await notFound(displaySymbol(marketTicker), kind)
+  }
+
+  // Never step a price backwards: keep the stored close when it is newer.
+  if (existing?.closePrice && existing.closePriceAsOf && !isNewerClose(close.asOf, existing.closePriceAsOf)) {
+    return { securityId, price: Number(existing.closePrice), asOf: existing.closePriceAsOf, name: existing.name }
   }
 
   await db
