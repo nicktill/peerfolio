@@ -7,6 +7,7 @@ import { Button } from "@web/components/ui/button"
 import { Card, CardContent } from "@web/components/ui/card"
 import { EmptyState } from "@web/components/ui/empty-state"
 import { Skeleton } from "@web/components/ui/skeleton"
+import { revealStyle } from "@web/components/motion/reveal"
 import { useToast } from "@web/components/ui/toast"
 import { mutate, useApi } from "@web/lib/use-api"
 import { cn } from "@web/lib/utils"
@@ -57,18 +58,19 @@ export default function LeaguesPage() {
       {mode === "create" ? <CreateLeagueForm onDone={() => { setMode("none"); void refetch() }} /> : null}
       {mode === "join" ? <JoinLeagueForm onDone={() => { setMode("none"); void refetch() }} /> : null}
 
-      {loading ? (
+      {loading && !data ? (
         <div className="grid gap-4 [&>*]:min-w-0 sm:grid-cols-2">
           <Skeleton className="h-28 rounded-xl" />
           <Skeleton className="h-28 rounded-xl" />
         </div>
       ) : data && data.leagues.length > 0 ? (
         <div className="grid gap-4 [&>*]:min-w-0 sm:grid-cols-2">
-          {data.leagues.map((league) => (
+          {data.leagues.map((league, i) => (
             <Link
               key={league.id}
               href={`/leagues/${league.id}`}
-              className="group relative overflow-hidden rounded-xl border bg-card p-5 transition-shadow hover:shadow-md"
+              style={revealStyle(i + 1)}
+              className="reveal press group relative overflow-hidden rounded-xl border bg-card p-5 transition-[box-shadow,transform] hover:-translate-y-0.5 hover:shadow-md"
             >
               <div
                 className={cn(

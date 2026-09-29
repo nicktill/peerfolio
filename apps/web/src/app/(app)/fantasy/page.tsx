@@ -6,6 +6,7 @@ import { Clock, Infinity as Forever, Plus, Users } from "lucide-react"
 import { Button } from "@web/components/ui/button"
 import { Delta } from "@web/components/ui/delta"
 import { Skeleton } from "@web/components/ui/skeleton"
+import { revealStyle } from "@web/components/motion/reveal"
 import { useToast } from "@web/components/ui/toast"
 import { mutate, useApi } from "@web/lib/use-api"
 import { cn } from "@web/lib/utils"
@@ -36,7 +37,7 @@ export default function FantasyPage() {
 
   return (
     <div className="space-y-6">
-      <header className="relative overflow-hidden rounded-3xl border bg-card p-6 sm:p-8">
+      <header className="reveal relative overflow-hidden rounded-3xl border bg-card p-6 sm:p-8" style={revealStyle(0)}>
         <div className="hero-grid absolute inset-0 opacity-70" aria-hidden />
         <div className="absolute -right-16 -top-16 size-64 rounded-full bg-primary/20 blur-3xl" aria-hidden />
         <span aria-hidden className="absolute -bottom-6 right-4 select-none text-[7rem] leading-none opacity-20 sm:text-[9rem]">
@@ -66,18 +67,19 @@ export default function FantasyPage() {
       {mode === "create" ? <CreateForm onCancel={() => setMode("none")} /> : null}
       {mode === "join" ? <JoinForm onDone={() => { setMode("none"); void refetch() }} /> : null}
 
-      {loading ? (
+      {loading && !data ? (
         <div className="grid gap-4 sm:grid-cols-2">
           <Skeleton className="h-32 rounded-2xl" />
           <Skeleton className="h-32 rounded-2xl" />
         </div>
       ) : data && data.leagues.length > 0 ? (
         <div className="grid gap-4 [&>*]:min-w-0 sm:grid-cols-2">
-          {data.leagues.map((league) => (
+          {data.leagues.map((league, i) => (
             <Link
               key={league.id}
               href={`/fantasy/${league.id}`}
-              className="group relative overflow-hidden rounded-2xl border bg-card p-5 transition-all hover:-translate-y-0.5 hover:shadow-lg"
+              style={revealStyle(i + 1)}
+              className="reveal press group relative overflow-hidden rounded-2xl border bg-card p-5 transition-all hover:-translate-y-0.5 hover:shadow-lg"
             >
               <div className={cn("pointer-events-none absolute inset-0 bg-gradient-to-br to-transparent", ACCENTS[league.accent] ?? ACCENTS.emerald)} aria-hidden />
               <div className="relative flex items-start gap-3">

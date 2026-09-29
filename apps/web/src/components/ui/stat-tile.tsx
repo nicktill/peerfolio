@@ -14,7 +14,7 @@ export function StatTile({
   className,
 }: {
   label: string
-  value: string
+  value: React.ReactNode
   delta?: number | null
   hint?: string
   emphasis?: boolean

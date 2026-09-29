@@ -15,6 +15,7 @@ import { Sparkline } from "@web/components/ui/sparkline"
 import { useToast } from "@web/components/ui/toast"
 import { mutate, useApi } from "@web/lib/use-api"
 import { RANGES, type Range } from "@web/lib/ranges"
+import { revealStyle } from "@web/components/motion/reveal"
 import { cn } from "@web/lib/utils"
 
 type Trader = {
@@ -97,10 +98,11 @@ export default function BoardPage() {
             </div>
           ) : data && data.traders.length > 0 ? (
             <ul className="divide-y">
-              {data.traders.map((trader) => (
+              {data.traders.map((trader, i) => (
                 <li
                   key={trader.handle ?? trader.rank}
-                  className={cn("py-3 first:pt-0 last:pb-0", trader.isYou && "-mx-2 rounded-lg bg-accent/40 px-2")}
+                  style={revealStyle(Math.min(i, 8))}
+                  className={cn("reveal py-3 first:pt-0 last:pb-0", trader.isYou && "-mx-2 rounded-lg bg-accent/40 px-2")}
                 >
                   <div className="flex items-center gap-3">
                     <span
