@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     template: "%s | Peerfolio",
   },
   description:
-    "Compete with friends on investment returns without sharing dollar amounts.",
+    "A calmer, more social way to understand your portfolio, follow thoughtful investors, and compete on returns.",
   openGraph: {
     type: "website",
     locale: "en_US",

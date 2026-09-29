@@ -4,7 +4,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { signOut, useSession } from "next-auth/react"
-import { Gamepad2, LayoutDashboard, LogOut, Settings, Trophy, Users } from "lucide-react"
+import { Compass, Gamepad2, LayoutDashboard, LogOut, Settings, Trophy, Users } from "lucide-react"
 import { cn } from "@web/lib/utils"
 import { Avatar } from "@web/components/ui/avatar"
 import { Button } from "@web/components/ui/button"
@@ -12,10 +12,10 @@ import { Button } from "@web/components/ui/button"
 import { ThemeToggle } from "@web/components/theme-toggle"
 
 const LINKS = [
-  { href: "/dashboard", label: "Portfolio", icon: LayoutDashboard },
+  { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
+  { href: "/board", label: "Discover", icon: Compass },
   { href: "/leagues", label: "Leagues", icon: Users },
-  { href: "/fantasy", label: "Fantasy", icon: Gamepad2 },
-  { href: "/board", label: "Board", icon: Trophy },
+  { href: "/fantasy", label: "Competitions", icon: Gamepad2 },
 ]
 
 export function AppNav() {
