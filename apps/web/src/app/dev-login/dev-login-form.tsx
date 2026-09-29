@@ -52,7 +52,7 @@ export function DevLoginForm() {
       />
 
       {error ? (
-        <p role="alert" className="text-sm text-[--loss]">
+        <p role="alert" className="text-sm text-loss-ink">
           {error}
         </p>
       ) : null}

@@ -47,7 +47,7 @@ export default function FantasyPage() {
           <span className="inline-flex items-center gap-1.5 rounded-full bg-primary px-2.5 py-0.5 text-xs font-semibold text-primary-foreground">
             Play money
           </span>
-          <h1 className="mt-3 text-balance text-3xl font-semibold tracking-tight">Fantasy leagues. Draft day for stocks.</h1>
+          <h1 className="mt-3 text-balance font-display text-3xl font-semibold tracking-tight sm:text-4xl">Fantasy leagues. Draft day for stocks.</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             Everyone starts with the same cash. Pick your stocks, trash-talk your friends, and find out who actually
             knows what they&apos;re doing.
