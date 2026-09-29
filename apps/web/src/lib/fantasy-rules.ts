@@ -36,6 +36,93 @@ export const returnPct = (value: number, startingCash: number) => {
   return gain === 0 ? 0 : (gain / startingCash) * 100
 }
 
+/**
+ * What gets written to the database for a trade: fixed precision, as strings.
+ * `placeTrade` and the tests both go through this, so the tests exercise the
+ * same rounding production does.
+ */
+export function roundForStorage(outcome: TradeOutcome) {
+  return {
+    cashDelta: outcome.cashDelta.toFixed(6),
+    shares: outcome.shares.toFixed(8),
+    position: outcome.position
+      ? { shares: outcome.position.shares.toFixed(8), costBasis: outcome.position.costBasis.toFixed(6) }
+      : null,
+  }
+}
+
+/** The member's state after a trade, exactly as the database will hold it. */
+export function applyStored(state: MemberState, securityId: string, price: number, outcome: TradeOutcome): MemberState {
+  const stored = roundForStorage(outcome)
+  const others = state.positions.filter((p) => p.securityId !== securityId)
+  const position = stored.position
+    ? [{ securityId, shares: Number(stored.position.shares), costBasis: Number(stored.position.costBasis), price }]
+    : []
+  return { cash: Number((state.cash + Number(stored.cashDelta)).toFixed(6)), positions: [...others, ...position] }
+}
+
+export type TradeRecord = { securityId: string; side: "buy" | "sell"; shares: number; price: number }
+
+/**
+ * Rebuilds a member's cash and positions from nothing but their starting cash
+ * and their trade log. If this disagrees with what is stored, something wrote
+ * the wrong number somewhere.
+ */
+export function replayLedger(startingCash: number, trades: TradeRecord[]) {
+  let cash = startingCash
+  const positions = new Map<string, { shares: number; costBasis: number }>()
+  for (const t of trades) {
+    const held = positions.get(t.securityId) ?? { shares: 0, costBasis: 0 }
+    const value = t.shares * t.price
+    if (t.side === "buy") {
+      cash -= value
+      positions.set(t.securityId, { shares: held.shares + t.shares, costBasis: held.costBasis + value })
+    } else {
+      cash += value
+      const remaining = held.shares - t.shares
+      positions.set(t.securityId, {
+        shares: remaining,
+        costBasis: held.shares > 0 ? held.costBasis * (remaining / held.shares) : 0,
+      })
+    }
+  }
+  for (const [id, p] of positions) if (p.shares < 1e-6) positions.delete(id)
+  return { cash, positions }
+}
+
+export type LedgerMismatch = { kind: "cash" | "shares" | "cost_basis" | "unexpected_position" | "missing_position"; securityId?: string; expected: number; actual: number }
+
+/** Differences between a stored member and their replayed trade log, beyond rounding noise. */
+export function findLedgerMismatches(
+  stored: { cash: number; positions: { securityId: string; shares: number; costBasis: number }[] },
+  replayed: ReturnType<typeof replayLedger>,
+): LedgerMismatch[] {
+  const out: LedgerMismatch[] = []
+  if (Math.abs(stored.cash - replayed.cash) > 0.01) out.push({ kind: "cash", expected: replayed.cash, actual: stored.cash })
+
+  const seen = new Set<string>()
+  for (const p of stored.positions) {
+    seen.add(p.securityId)
+    const expected = replayed.positions.get(p.securityId)
+    if (!expected) {
+      out.push({ kind: "unexpected_position", securityId: p.securityId, expected: 0, actual: p.shares })
+      continue
+    }
+    // Shares are stored to 8 places; allow a millionth of a share of drift.
+    if (Math.abs(p.shares - expected.shares) > 1e-6) out.push({ kind: "shares", securityId: p.securityId, expected: expected.shares, actual: p.shares })
+    if (Math.abs(p.costBasis - expected.costBasis) > 0.01) out.push({ kind: "cost_basis", securityId: p.securityId, expected: expected.costBasis, actual: p.costBasis })
+  }
+  for (const [securityId, p] of replayed.positions) {
+    if (!seen.has(securityId)) out.push({ kind: "missing_position", securityId, expected: p.shares, actual: 0 })
+  }
+  return out
+}
+
+/** The race chart line: everyone starts at 100, the last point is the live value. */
+export function raceSeries(pastValues: number[], liveValue: number, startingCash: number): number[] {
+  return [100, ...pastValues.map((v) => 100 + returnPct(v, startingCash)), 100 + returnPct(liveValue, startingCash)]
+}
+
 export function isClosed(endsAt: Date | null, now = new Date()) {
   return endsAt !== null && endsAt.getTime() <= now.getTime()
 }
