@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import { acceptQuote, createQuoteProvider, isUsMarketOpen, priceLabel, quoteDate } from "./quote-provider.ts"
+import { latestCompletedSession } from "./market-hours.ts"
 
 describe("isUsMarketOpen", () => {
   it("opens at 9:30 ET and closes just after 4:00 ET in summer (EDT, UTC-4)", () => {
@@ -84,5 +85,29 @@ describe("quoteDate and priceLabel", () => {
     assert.equal(priceLabel("2026-09-28", open), "close")
     assert.equal(priceLabel("2026-09-29", new Date("2026-09-29T22:30:00Z")), "close")
     assert.equal(priceLabel(null, open), "close")
+  })
+})
+
+describe("latestCompletedSession", () => {
+  it("is today once it's past 4:30pm New York time on a weekday", () => {
+    assert.equal(latestCompletedSession(new Date("2026-09-29T21:00:00Z")), "2026-09-29") // 5:00pm EDT
+    assert.equal(latestCompletedSession(new Date("2026-09-29T22:46:00Z")), "2026-09-29") // when the nightly job ran
+  })
+
+  it("is the previous weekday before then, including the morning after", () => {
+    assert.equal(latestCompletedSession(new Date("2026-09-29T20:29:00Z")), "2026-09-28") // 4:29pm EDT
+    assert.equal(latestCompletedSession(new Date("2026-09-30T13:00:00Z")), "2026-09-29") // 9:00am EDT next day
+    assert.equal(latestCompletedSession(new Date("2026-09-30T00:40:00Z")), "2026-09-29") // 8:40pm EDT, UTC already rolled over
+  })
+
+  it("skips weekends", () => {
+    assert.equal(latestCompletedSession(new Date("2026-09-26T15:00:00Z")), "2026-09-25") // Saturday
+    assert.equal(latestCompletedSession(new Date("2026-09-27T23:00:00Z")), "2026-09-25") // Sunday evening
+    assert.equal(latestCompletedSession(new Date("2026-09-28T13:00:00Z")), "2026-09-25") // Monday before the close
+  })
+
+  it("follows daylight saving", () => {
+    assert.equal(latestCompletedSession(new Date("2026-12-15T21:29:00Z")), "2026-12-14") // 4:29pm EST
+    assert.equal(latestCompletedSession(new Date("2026-12-15T21:30:00Z")), "2026-12-15") // 4:30pm EST
   })
 })
