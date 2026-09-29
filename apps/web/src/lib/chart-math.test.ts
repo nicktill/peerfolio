@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { niceTicks, pointIndexAt, spreadLabels, tickDigits, xAt } from "./chart-math.ts"
+import { groupEndLabels, groupName, niceTicks, pointIndexAt, spreadLabels, tickDigits, xAt } from "./chart-math.ts"
 
 describe("niceTicks", () => {
   it("picks round values and always includes 0 when it's in range", () => {
@@ -87,5 +87,45 @@ describe("pointIndexAt and xAt", () => {
     assert.equal(xAt(1, 3, 40, 400), 240)
     assert.equal(xAt(2, 3, 40, 400), 440)
     assert.equal(xAt(0, 1, 40, 400), 440)
+  })
+})
+
+describe("groupEndLabels", () => {
+  const item = (id: string, value: number, y: number, isYou = false) => ({ id, label: id, isYou, value, y })
+
+  it("puts players who finish level under one label, so none is pushed beside a neighbour's line", () => {
+    const groups = groupEndLabels([item("Bennett", 0, 100), item("Andri", 0, 100), item("You", -0.34, 112, true), item("Nick", -2.2, 190)])
+    assert.equal(groups.length, 3)
+    assert.deepEqual(groups[0]!.names, ["Bennett", "Andri"])
+    assert.equal(groups[0]!.value, 0)
+  })
+
+  it("treats returns that display the same as level", () => {
+    const groups = groupEndLabels([item("A", 0.001, 50), item("B", -0.002, 50.02)])
+    assert.equal(groups.length, 1)
+    assert.equal(groups[0]!.value, 0)
+  })
+
+  it("lists You first within a group and orders groups best to worst", () => {
+    const groups = groupEndLabels([item("Sam", 1.5, 40), item("You", 1.5, 40, true), item("Priya", 3, 20), item("Jo", -1, 80)])
+    assert.deepEqual(groups.map((g) => g.value), [3, 1.5, -1])
+    assert.deepEqual(groups[1]!.names, ["You", "Sam"])
+    assert.equal(groups[1]!.hasYou, true)
+  })
+
+  it("keeps different results apart", () => {
+    assert.equal(groupEndLabels([item("A", 1.01, 10), item("B", 1.02, 12)]).length, 2)
+  })
+})
+
+describe("groupName", () => {
+  it("shows a single name, clipped if long", () => {
+    assert.equal(groupName(["Bennett"], 12), "Bennett")
+    assert.equal(groupName(["Bartholomew"], 6), "Barth…")
+  })
+
+  it("joins names that fit and falls back to a count when they don't", () => {
+    assert.equal(groupName(["You", "Andri"], 12), "You · Andri")
+    assert.equal(groupName(["Bennett", "Andri", "Sam"], 12), "3 tied")
   })
 })
