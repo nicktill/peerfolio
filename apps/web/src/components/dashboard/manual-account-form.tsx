@@ -15,8 +15,8 @@ const CATEGORIES = [
 ] as const
 
 const VALUE_BY = [
-  { value: "positions", label: "Positions" },
-  { value: "balance", label: "Balance" },
+  { value: "positions", label: "Stocks & crypto" },
+  { value: "balance", label: "Total balance" },
 ] as const
 
 /**
@@ -41,7 +41,7 @@ export function ManualAccountForm({ onCreated }: { onCreated: () => void }) {
     const balance = byPositions ? 0 : Number(form.balance)
 
     if (!form.name.trim()) return toast("Give the account a name.", "error")
-    if (!Number.isFinite(balance) || balance < 0) return toast("Enter a valid balance.", "error")
+    if ((!byPositions && !form.balance.trim()) || !Number.isFinite(balance) || balance < 0) return toast("Enter a valid balance.", "error")
 
     setSaving(true)
     try {
@@ -109,18 +109,18 @@ export function ManualAccountForm({ onCreated }: { onCreated: () => void }) {
         {form.category === "investment" ? (
           // Not a <label>: it would forward clicks on its text to the first option.
           <div className="space-y-1.5">
-            <span className="text-xs font-medium text-muted-foreground">Value by</span>
+            <span className="text-xs font-medium text-muted-foreground">How will you track this account?</span>
             <Segmented<"positions" | "balance">
               options={VALUE_BY}
               value={valueBy}
               onChange={setValueBy}
-              label="Value by"
+              label="How will you track this account?"
               className="flex h-10 w-full [&>button]:flex-1"
             />
           </div>
         ) : null}
         {!byPositions ? (
-          <Field label="Current value">
+          <Field label="Current balance (USD)">
             <input
               value={form.balance}
               onChange={(e) => setForm({ ...form, balance: e.target.value })}

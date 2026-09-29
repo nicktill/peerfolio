@@ -45,7 +45,7 @@ export function StandingRow({
   const [open, setOpen] = useState(false)
 
   return (
-    <li className={cn("py-3 first:pt-0 last:pb-0", standing.isYou && "-mx-2 rounded-lg bg-accent/40 px-2")}>
+    <li className={cn("py-3", standing.isYou && "-mx-2 rounded-lg bg-accent/40 px-2")}>
       <div className="flex items-center gap-3">
         <span
           className="numeric w-6 shrink-0 text-center text-sm font-bold"
@@ -70,12 +70,12 @@ export function StandingRow({
 
         <Sparkline points={standing.spark} className="hidden shrink-0 sm:block" />
 
-        <div className="shrink-0 text-right">
+        <div className="w-24 shrink-0 text-right">
           <Delta value={standing.percent} size="md" variant="plain" />
         </div>
       </div>
 
-      <div className="mt-2 flex flex-wrap items-center gap-1.5 pl-9">
+      <div className="mt-2 flex flex-wrap items-center gap-1.5 pl-[84px]">
         {standing.shareHoldings && standing.holdings.length > 0 ? (
           standing.holdings.slice(0, 4).map((h) => (
             <span

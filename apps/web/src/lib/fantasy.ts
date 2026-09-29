@@ -10,6 +10,7 @@ import {
   securities,
   users,
 } from "@web/db"
+import { rankReturns } from "@web/lib/return-display"
 import { ApiError } from "@web/lib/api"
 import { generateInviteCode } from "@web/lib/crypto"
 import { applyTrade, isClosed, portfolioValue, returnPct, TradeRejected, type MemberState } from "@web/lib/fantasy-rules"
@@ -276,7 +277,7 @@ export async function loadFantasyLeague(userId: string, leagueId: string) {
   const historyBy = new Map<string, { date: string; value: number }[]>()
   for (const s of snapshots) historyBy.set(s.memberId, [...(historyBy.get(s.memberId) ?? []), { date: s.date, value: n(s.value) }])
 
-  const standings: FantasyStanding[] = members
+  const standings: FantasyStanding[] = rankReturns(members
     .map((m) => {
       const held = positionsBy.get(m.id) ?? []
       const cash = n(m.cash)
@@ -287,7 +288,7 @@ export async function loadFantasyLeague(userId: string, leagueId: string) {
       const invested = value - cash
       const history = (historyBy.get(m.id) ?? []).filter((h) => h.date !== today())
       // Everyone starts at 100 on day one; the last point is live.
-      const spark = [100, ...history.map((h) => (h.value / startingCash) * 100), (value / startingCash) * 100]
+      const spark = [100, ...history.map((h) => 100 + returnPct(h.value, startingCash)), 100 + returnPct(value, startingCash)]
       return {
         userId: m.userId,
         name: m.name,
@@ -313,9 +314,8 @@ export async function loadFantasyLeague(userId: string, leagueId: string) {
         value,
         cash,
       }
-    })
-    .sort((a, b) => b.percent - a.percent)
-    .map((s, i) => ({ ...s, rank: i + 1 }))
+    }),
+  )
 
   const mine = (positionsBy.get(me.id) ?? []).map((p) => ({
     ticker: p.ticker,

@@ -1,5 +1,6 @@
 "use client"
 
+import { indexedDomain } from "@web/lib/return-display"
 import { useMemo } from "react"
 import { cn } from "@web/lib/utils"
 import { useMeasure } from "@web/lib/use-measure"
@@ -32,16 +33,12 @@ export function RaceChart({
   const { ref, width } = useMeasure<HTMLDivElement>()
 
   const geometry = useMemo(() => {
-    const usable = series.filter((s) => s.points.length >= 2)
+    const usable = series.map((s) => ({ ...s, points: s.points.length === 1 ? [100, s.points[0]!] : s.points })).filter((s) => s.points.length >= 2)
     if (width <= 0 || usable.length === 0) return null
 
     const length = Math.max(...usable.map((s) => s.points.length))
     const all = usable.flatMap((s) => s.points)
-    const min = Math.min(...all, 100)
-    const max = Math.max(...all, 100)
-    const span = max - min || 1
-    const lo = min - span * 0.1
-    const hi = max + span * 0.1
+    const { lo, hi } = indexedDomain(all)
 
     const innerH = height - PAD.top - PAD.bottom
     const y = (v: number) => PAD.top + innerH - ((v - lo) / (hi - lo)) * innerH
