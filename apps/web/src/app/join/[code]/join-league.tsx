@@ -49,7 +49,7 @@ export function JoinLeague({ code, leagueName }: { code: string; leagueName: str
         Join {leagueName}
       </Button>
       {error ? (
-        <p role="alert" className="mt-3 text-sm text-[--loss]">
+        <p role="alert" className="mt-3 text-sm text-loss-ink">
           {error}
         </p>
       ) : null}

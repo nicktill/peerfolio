@@ -40,8 +40,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 }
 
 const TONES: Record<ToastTone, { icon: typeof Info; className: string }> = {
-  success: { icon: CheckCircle2, className: "text-[--gain]" },
-  error: { icon: AlertTriangle, className: "text-[--loss]" },
+  success: { icon: CheckCircle2, className: "text-gain-ink" },
+  error: { icon: AlertTriangle, className: "text-loss-ink" },
   info: { icon: Info, className: "text-muted-foreground" },
 }
 

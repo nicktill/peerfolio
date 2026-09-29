@@ -11,6 +11,7 @@ import { Segmented } from "@web/components/ui/segmented"
 import { Reveal } from "@web/components/motion/reveal"
 import { DashboardSkeleton } from "@web/components/skeletons"
 import { AnimatedNumber } from "@web/components/ui/animated-number"
+import { plural } from "@web/lib/plural"
 import { StatTile } from "@web/components/ui/stat-tile"
 import { useToast } from "@web/components/ui/toast"
 import { AllocationBar, type AllocationSlice } from "@web/components/charts/allocation-bar"
@@ -118,7 +119,7 @@ export default function DashboardPage() {
               <Badge variant="outline">Self-reported</Badge>
             )}
           </div>
-          <p className="mt-1 text-4xl font-semibold tracking-tight sm:text-5xl">
+          <p className="mt-1 font-display text-5xl font-semibold tracking-tight sm:text-6xl">
             <AnimatedNumber className="numeric" value={data.summary.netWorth} format={money} />
           </p>
         </div>
@@ -146,7 +147,7 @@ export default function DashboardPage() {
         <StatTile
           label="Liabilities"
           value={<AnimatedNumber value={data.summary.totalLiabilities} format={compact} />}
-          hint={`${data.accounts.length} accounts`}
+          hint={plural(data.accounts.length, "account")}
         />
       </Reveal>
 

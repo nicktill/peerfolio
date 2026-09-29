@@ -127,7 +127,7 @@ export function PositionsEditor({
           <span>Cost {formatCurrency(totalCost)}</span>
           <span className="inline-flex items-center gap-1">
             Total return
-            <span className={totalValueWithBasis >= totalCost ? "text-[var(--gain)]" : "text-[var(--loss)]"}>
+            <span className={totalValueWithBasis >= totalCost ? "text-gain-ink" : "text-loss-ink"}>
               {totalValueWithBasis >= totalCost ? "+" : "−"}
               {formatCurrency(Math.abs(totalValueWithBasis - totalCost))}
             </span>
@@ -318,7 +318,7 @@ function PositionForm({
           </div>
         </div>
         {lookup.state === "missing" ? (
-          <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-[var(--loss)]">
+          <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-loss-ink">
             <AlertCircle className="size-4 shrink-0" aria-hidden />
             <span>{lookup.message}</span>
             {lookup.suggestions.map((s) => (
@@ -383,7 +383,7 @@ function PositionForm({
                 {formatCurrency(cost)}
               </span>
               <span className="inline-flex items-center gap-1.5">
-                <span className={value >= cost ? "text-[var(--gain)]" : "text-[var(--loss)]"}>
+                <span className={value >= cost ? "text-gain-ink" : "text-loss-ink"}>
                   {value >= cost ? "+" : "−"}
                   {formatCurrency(Math.abs(value - cost))}
                 </span>
@@ -397,7 +397,7 @@ function PositionForm({
       ) : null}
 
       {error ? (
-        <p role="alert" className="flex items-center gap-2 text-sm text-[var(--loss)]">
+        <p role="alert" className="flex items-center gap-2 text-sm text-loss-ink">
           <AlertCircle className="size-4 shrink-0" aria-hidden />
           {error}
         </p>

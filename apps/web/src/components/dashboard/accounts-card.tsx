@@ -153,7 +153,7 @@ export function AccountsCard({
                     </div>
 
                     <span
-                      className={cn("numeric shrink-0 text-sm font-semibold", account.isLiability && "text-[--loss]")}
+                      className={cn("numeric shrink-0 text-sm font-semibold", account.isLiability && "text-loss-ink")}
                     >
                       {account.isLiability ? "−" : ""}
                       {formatCurrency(account.balance, { hidden, compact: true })}

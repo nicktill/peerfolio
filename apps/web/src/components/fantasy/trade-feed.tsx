@@ -25,7 +25,7 @@ export function TradeFeed({ items }: { items: FeedItem[] }) {
                 <Avatar src={item.image} name={item.name} handle={item.handle} size="sm" />
                 <p className="min-w-0 flex-1 leading-snug">
                   <span className="font-medium">{item.name?.split(" ")[0] ?? item.handle}</span>{" "}
-                  <span style={{ color: item.side === "buy" ? "var(--gain)" : "var(--loss)" }}>
+                  <span style={{ color: item.side === "buy" ? "var(--gain-ink)" : "var(--loss-ink)" }}>
                     {item.side === "buy" ? "bought" : "sold"}
                   </span>{" "}
                   <span className="font-mono font-semibold">{item.ticker}</span>{" "}

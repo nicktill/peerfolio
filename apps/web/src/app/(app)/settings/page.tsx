@@ -3,12 +3,13 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { signOut } from "next-auth/react"
-import { ExternalLink, Globe, Lock, ShieldCheck, Trash2 } from "lucide-react"
+import { ExternalLink, Globe, Lock, LogOut, ShieldCheck, Trash2 } from "lucide-react"
 import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card"
 import { Skeleton } from "@web/components/ui/skeleton"
 import { useToast } from "@web/components/ui/toast"
+import { cacheClear } from "@web/lib/api-cache"
 import { mutate, useApi } from "@web/lib/use-api"
 
 type MeResponse = {
@@ -75,7 +76,7 @@ export default function SettingsPage() {
   return (
     <div className="max-w-2xl space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
+        <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">Settings</h1>
         <p className="mt-1 text-sm text-muted-foreground">{data.user.email}</p>
       </header>
 
@@ -136,7 +137,7 @@ export default function SettingsPage() {
         <CardContent className="space-y-4">
           <div className="flex items-start gap-3 rounded-lg border p-4">
             {data.user.isPublic ? (
-              <Globe className="mt-0.5 h-4 w-4 shrink-0 text-[--gain]" aria-hidden />
+              <Globe className="mt-0.5 h-4 w-4 shrink-0 text-gain-ink" aria-hidden />
             ) : (
               <Lock className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
             )}
@@ -207,6 +208,26 @@ export default function SettingsPage() {
             </Link>
             .
           </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Session</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              // Cached responses belong to this user.
+              cacheClear()
+              void signOut({ callbackUrl: "/" })
+            }}
+          >
+            <LogOut aria-hidden />
+            Sign out
+          </Button>
         </CardContent>
       </Card>
 

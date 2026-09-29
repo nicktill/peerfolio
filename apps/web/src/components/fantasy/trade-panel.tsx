@@ -132,7 +132,7 @@ export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: 
                 : quote
                   ? `${quote.name ?? quote.symbol} · ${formatCurrency(quote.price)} ${quote.live ? "live price" : `at the ${asOfLabel(quote.asOf)} close`}`
                   : lookup.state === "missing"
-                    ? <span className="text-[--loss]">{lookup.message}</span>
+                    ? <span className="text-loss-ink">{lookup.message}</span>
                     : null}
             </p>
           </div>
@@ -167,7 +167,7 @@ export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: 
             </div>
             <p className="numeric mt-1.5 min-h-4 text-xs text-muted-foreground" aria-live="polite">
               {problem ? (
-                <span className="text-[--loss]">{problem}</span>
+                <span className="text-loss-ink">{problem}</span>
               ) : estimated !== null ? (
                 `≈ ${fmtShares(estimated)} shares of ${ticker}`
               ) : side === "buy" ? (
