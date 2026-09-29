@@ -6,7 +6,7 @@ const EVENTS = [
     value: s.percent,
   })),
 ]
-const CHATTER = ["You took the lead 👑", "DeShawn is holding strong 🧊", "Priya bought the dip. Again. 😤", "Sam moved up to #3", "Week 4 closes Friday ⏰"]
+const CHATTER = ["You took the lead 👑", "DeShawn is holding strong 🧊", "Jordan bought the dip. Again. 😤", "Sam moved up to #3", "Week 4 closes Friday ⏰"]
 
 /** Scoreboard crawl of league moves. Paused for reduced motion. */
 export function TickerTape() {

@@ -1,4 +1,4 @@
-import Image from "next/image"
+import { LandingHeader } from "@web/components/landing/landing-header"
 import { redirect } from "next/navigation"
 import { ArrowDown, Sparkles } from "lucide-react"
 import { SiteFooter } from "@web/components/site-footer"
@@ -42,22 +42,12 @@ export default async function HomePage() {
 
   return (
     <div className="flex min-h-screen flex-col overflow-x-clip">
-      <header className="sticky top-0 z-40 border-b border-transparent bg-background/70 backdrop-blur-md supports-[backdrop-filter]:bg-background/60">
-        <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between px-4">
-          <span className="flex items-center gap-2">
-            <span className="grid size-7 place-items-center rounded-lg bg-white shadow-sm ring-1 ring-border">
-              <Image src="/logo.png" alt="" width={20} height={20} priority />
-            </span>
-            <span className="text-[15px] font-semibold tracking-tight">Peerfolio</span>
-          </span>
-          <SignInButton compact />
-        </div>
-      </header>
+      <LandingHeader />
 
       <main className="flex-1">
         <section className="relative isolate">
           <HeroBackdrop />
-          <div className="mx-auto max-w-4xl px-4 pb-14 pt-14 text-center sm:pt-24">
+          <div className="mx-auto max-w-4xl px-4 pb-14 pt-28 text-center sm:pt-40">
             <span className="inline-flex items-center gap-2 rounded-full border bg-card/80 px-3 py-1 text-xs font-medium shadow-sm backdrop-blur">
               <span className="relative flex size-2">
                 <span className="absolute inline-flex size-full animate-ping rounded-full bg-[var(--gain)] opacity-60 motion-reduce:hidden" />
@@ -92,7 +82,7 @@ export default async function HomePage() {
             <ChatBubble from="DeShawn" className="-top-9 right-10 rotate-2" delay={1.5}>
               index funds and chill 🧊 see you at the finish
             </ChatBubble>
-            <ChatBubble from="Priya" className="-bottom-8 left-[38%] -rotate-1" delay={3}>
+            <ChatBubble from="Jordan" className="-bottom-8 left-[38%] -rotate-1" delay={3}>
               who let me buy the dip again 😭
             </ChatBubble>
             <div className="rounded-3xl border bg-card/40 p-2 shadow-2xl shadow-primary/10 backdrop-blur sm:p-4">

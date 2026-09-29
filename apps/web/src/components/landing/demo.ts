@@ -18,7 +18,7 @@ const MEMBERS = [
   { name: "Maya Chen", handle: "maya", seed: 7, drift: 0.0022, vol: 0.02, holdings: [["NVDA", 38], ["MSFT", 22], ["AAPL", 15]], reactions: { "🔥": 3, "🚀": 1 } },
   { name: "Alex Rivera", handle: "alex", seed: 3, drift: 0.0028, vol: 0.012, holdings: [["VTI", 52], ["VXUS", 20], ["AAPL", 9]], reactions: { "👏": 2 }, isYou: true },
   { name: "Sam Okafor", handle: "sam", seed: 11, drift: 0.0008, vol: 0.009, holdings: [["VTI", 50], ["VXUS", 29], ["MSFT", 19]], reactions: {} },
-  { name: "Priya Raman", handle: "priya", seed: 5, drift: -0.0012, vol: 0.03, holdings: [], reactions: { "😤": 2 } },
+  { name: "Jordan Lee", handle: "jordan", seed: 5, drift: -0.0012, vol: 0.03, holdings: [], reactions: { "😤": 2 } },
   { name: "DeShawn Ellis", handle: "deshawn", seed: 13, drift: -0.0009, vol: 0.006, holdings: [["VTI", 67], ["BND", 33]], reactions: { "🧊": 1 } },
 ] as const
 

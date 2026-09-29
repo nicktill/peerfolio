@@ -1,3 +1,4 @@
+import { indexedDomain, visibleReturn } from "@web/lib/return-display"
 import { cn } from "@web/lib/utils"
 
 /**
@@ -34,10 +35,8 @@ export function Sparkline({
     )
   }
 
-  const min = Math.min(...points)
-  const max = Math.max(...points)
-  // A flat series would divide by zero; draw it down the middle instead.
-  const span = max - min || 1
+  const { lo: min, hi: max } = indexedDomain(points)
+  const span = max - min
   const pad = 2
 
   const coords = points.map((value, i) => {
@@ -47,7 +46,8 @@ export function Sparkline({
   })
 
   const d = coords.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)}`).join(" ")
-  const rising = points[points.length - 1]! >= points[0]!
+  const change = visibleReturn(points[points.length - 1]! - points[0]!)
+  const color = change === 0 ? "hsl(var(--muted-foreground))" : change > 0 ? "var(--gain)" : "var(--loss)"
   const [lastX, lastY] = coords[coords.length - 1]!
 
   return (
@@ -55,13 +55,13 @@ export function Sparkline({
       <path
         d={d}
         fill="none"
-        stroke={rising ? "var(--gain)" : "var(--loss)"}
+        stroke={color}
         strokeWidth={2}
         strokeLinecap="round"
         strokeLinejoin="round"
         vectorEffect="non-scaling-stroke"
       />
-      <circle cx={lastX} cy={lastY} r={2.5} fill={rising ? "var(--gain)" : "var(--loss)"} />
+      <circle cx={lastX} cy={lastY} r={2.5} fill={color} />
     </svg>
   )
 }
