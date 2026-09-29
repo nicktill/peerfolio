@@ -13,7 +13,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/car
 import { useRankBaseline } from "@web/components/fantasy/use-rank-baseline"
 import { AnimatedNumber } from "@web/components/ui/animated-number"
 import { Delta } from "@web/components/ui/delta"
-import { Skeleton } from "@web/components/ui/skeleton"
+import { LeaguePageSkeleton } from "@web/components/skeletons"
+import { revealStyle } from "@web/components/motion/reveal"
 import type { Standing } from "@web/components/leagues/standing-row"
 import { formatCurrency } from "@web/lib/format"
 import { describeMovement, rankMovement } from "@web/lib/rank-change"
@@ -47,14 +48,8 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
   const { data, error, loading, refetch } = useApi<LeagueData>(`/api/fantasy/${id}`, [], { refreshMs: REFRESH_MS })
   const rankBefore = useRankBaseline(id, data?.you.rank ?? null)
 
-  if (loading && !data) {
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-28 rounded-2xl" />
-        <Skeleton className="h-80 rounded-2xl" />
-      </div>
-    )
-  }
+  if (loading && !data) return <LeaguePageSkeleton />
+
   // A failed refresh keeps the page up with the last good data.
   if (!data) return <p className="text-sm text-muted-foreground">{error ?? "Couldn't load this league."}</p>
 
@@ -67,7 +62,7 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
         <ArrowLeft className="size-4" aria-hidden /> Fantasy
       </Link>
 
-      <header className="relative overflow-hidden rounded-3xl border bg-card p-5 sm:p-7">
+      <header className="reveal relative overflow-hidden rounded-3xl border bg-card p-5 sm:p-7" style={revealStyle(0)}>
         <div className="hero-grid absolute inset-0 opacity-60" aria-hidden />
         <div className="absolute -left-10 -top-20 size-56 rounded-full bg-primary/15 blur-3xl" aria-hidden />
         <div className="relative flex flex-wrap items-start justify-between gap-4">
@@ -118,7 +113,7 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="min-w-0 space-y-6">
-          <Card>
+          <Card className="reveal" style={revealStyle(1)}>
             <CardHeader>
               <CardTitle>The race</CardTitle>
               <p className="text-xs text-muted-foreground">Everyone starts at 100. Updated nightly, plus live values today.</p>
@@ -131,7 +126,7 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="reveal" style={revealStyle(2)}>
             <CardHeader>
               <CardTitle>Standings</CardTitle>
               <p className="text-xs text-muted-foreground">Matching returns to 0.01% share a rank.</p>
@@ -146,7 +141,7 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
           </Card>
         </div>
 
-        <aside className="min-w-0 space-y-6">
+        <aside className="reveal min-w-0 space-y-6" style={revealStyle(2)}>
           {!league.isClosed ? <TradePanel leagueId={league.id} cash={you.cash} positions={you.positions} onTraded={refetch} /> : null}
           <Holdings positions={you.positions} />
           <TradeFeed items={feed} />
