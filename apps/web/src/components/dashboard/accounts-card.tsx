@@ -1,13 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { AlertTriangle, Landmark, PencilLine, RefreshCw, Trash2 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card"
 import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
 import { useToast } from "@web/components/ui/toast"
 import { ConnectButton } from "@web/components/dashboard/connect-button"
-import { ManualAccountForm } from "@web/components/dashboard/manual-account-form"
+import { AddAccountButton } from "@web/components/dashboard/add-account-dialog"
 import { PositionsEditor, type PositionRow } from "@web/components/dashboard/positions-editor"
 import { formatCurrency, formatRelativeTime } from "@web/lib/format"
 import { mutate } from "@web/lib/use-api"
@@ -59,6 +59,18 @@ export function AccountsCard({
 }) {
   const { toast } = useToast()
   const [busyId, setBusyId] = useState<string | null>(null)
+  // A just-created account is scrolled into view and briefly outlined, so the
+  // eye lands where the next step (adding holdings) is.
+  const [highlightId, setHighlightId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!highlightId) return
+    const row = document.getElementById(`account-${highlightId}`)
+    if (!row) return // the refreshed list hasn't arrived yet; this runs again when it does
+    row.scrollIntoView({ behavior: "smooth", block: "center" })
+    const timer = setTimeout(() => setHighlightId(null), 2600)
+    return () => clearTimeout(timer)
+  }, [highlightId, accounts])
 
   const grouped = GROUP_ORDER.map((key) => ({
     key,
@@ -131,7 +143,11 @@ export function AccountsCard({
               {group.rows.map((account) => (
                 <li
                   key={account.id}
-                  className="group space-y-3 rounded-lg border bg-background p-3 transition-colors hover:bg-secondary/50"
+                  id={`account-${account.id}`}
+                  className={cn(
+                    "group space-y-3 rounded-lg border bg-background p-3 transition-[background-color,box-shadow] duration-500 hover:bg-secondary/50",
+                    highlightId === account.id && "shadow-[0_0_0_2px_hsl(var(--primary))]",
+                  )}
                 >
                   <div className="flex items-center gap-3">
                     <InstitutionMark logo={account.institutionLogo} name={account.institutionName} />
@@ -217,8 +233,13 @@ export function AccountsCard({
         ) : null}
 
         <div className="flex flex-wrap gap-2 border-t pt-4">
+          <AddAccountButton
+            onCreated={(id) => {
+              setHighlightId(id)
+              onChange()
+            }}
+          />
           <ConnectButton onConnected={onChange} variant="outline" />
-          <ManualAccountForm onCreated={onChange} />
         </div>
       </CardContent>
     </Card>
