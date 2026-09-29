@@ -3,6 +3,7 @@ import { accounts, db, holdings, securities } from "@web/db"
 import { ApiError } from "@web/lib/api"
 import {
   displaySymbol,
+  isNewerClose,
   latestCloses,
   MarketDataError,
   previousClose,
@@ -63,6 +64,11 @@ export async function ensurePriced(marketTicker: string, kind: AssetKind, { maxA
       return { securityId, price: Number(existing.closePrice), asOf: existing.closePriceAsOf, name: existing.name }
     }
     throw await notFound(displaySymbol(marketTicker), kind)
+  }
+
+  // Never step a price backwards: keep the stored close when it is newer.
+  if (existing?.closePrice && existing.closePriceAsOf && !isNewerClose(close.asOf, existing.closePriceAsOf)) {
+    return { securityId, price: Number(existing.closePrice), asOf: existing.closePriceAsOf, name: existing.name }
   }
 
   await db
@@ -190,6 +196,54 @@ export async function repricePositions() {
 
   await revalue()
   return { tickers: held.length, priced: closes.size }
+}
+
+let lastRefreshAttempt = 0
+
+/**
+ * Brings stored closes up to date when someone opens a page, so a balance never
+ * waits a full day on the nightly job. Costs at most one grouped request per
+ * market (not per ticker), only for tickers not checked within `maxAgeHours`,
+ * and is throttled per server instance so page loads can't spend the provider's
+ * free rate limit. Never throws: a stale price beats a broken page.
+ */
+export async function refreshStalePrices({ maxAgeHours = 6, minIntervalMinutes = 10 } = {}) {
+  const now = Date.now()
+  if (now - lastRefreshAttempt < minIntervalMinutes * 60_000) return { refreshed: 0 }
+  lastRefreshAttempt = now
+
+  try {
+    const cutoff = new Date(now - maxAgeHours * 3_600_000)
+    const stale = await db
+      .select({ id: securities.id, marketTicker: securities.marketTicker })
+      .from(securities)
+      .where(
+        and(
+          isNotNull(securities.marketTicker),
+          sql`${securities.updatedAt} < ${cutoff}`,
+          sql`(EXISTS (SELECT 1 FROM holdings h WHERE h.security_id = ${securities.id})
+            OR EXISTS (SELECT 1 FROM fantasy_positions f WHERE f.security_id = ${securities.id}))`,
+        ),
+      )
+    if (stale.length === 0) return { refreshed: 0 }
+
+    const closes = await latestCloses(stale.map((s) => s.marketTicker!))
+    let refreshed = 0
+    for (const security of stale) {
+      const close = closes.get(security.marketTicker!)
+      // No newer close (weekend, holiday) still counts as checked.
+      await db
+        .update(securities)
+        .set(close ? { closePrice: close.price.toString(), closePriceAsOf: close.asOf, updatedAt: new Date() } : { updatedAt: new Date() })
+        .where(eq(securities.id, security.id))
+      if (close) refreshed++
+    }
+    if (refreshed > 0) await revalue()
+    return { refreshed }
+  } catch (error) {
+    console.error("[positions] price refresh failed:", error instanceof Error ? error.message : error)
+    return { refreshed: 0 }
+  }
 }
 
 /**

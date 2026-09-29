@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { rangeStart, timeWeightedReturn } from "./ranges.ts"
+import { rangeStart, timeWeightedReturn, withLivePoint } from "./ranges.ts"
 
 const point = (date: string, investableAssets: number, netFlows = 0) => ({
   date,
@@ -107,5 +107,40 @@ describe("rangeStart", () => {
   it("counts back the right number of days", () => {
     assert.equal(rangeStart("1W", new Date("2026-03-15T00:00:00Z")), "2026-03-08")
     assert.equal(rangeStart("1Y", new Date("2026-03-15T00:00:00Z")), "2025-03-15")
+  })
+})
+
+describe("withLivePoint", () => {
+  const live = { netWorth: 1100, investableAssets: 1100, isVerified: false }
+
+  it("lets a return move today, before the nightly snapshot exists", () => {
+    const points = withLivePoint([point("2026-01-01", 1000)], live, "2026-01-02")
+    assert.equal(points.length, 2)
+    close(timeWeightedReturn(points).percent, 10)
+  })
+
+  it("keeps today's recorded cash flow so a fresh deposit is not counted as a gain", () => {
+    // 1000 yesterday, +500 deposited today (snapshot written with the flow), live value 1500.
+    const points = withLivePoint(
+      [point("2026-01-01", 1000), point("2026-01-02", 1500, 500)],
+      { netWorth: 1500, investableAssets: 1500, isVerified: false },
+      "2026-01-02",
+    )
+    assert.equal(points.length, 2)
+    assert.equal(points[1]!.netFlows, 500)
+    close(timeWeightedReturn(points).percent, 0)
+  })
+
+  it("replaces today's balances with live ones", () => {
+    const points = withLivePoint([point("2026-01-01", 1000), point("2026-01-02", 1000)], live, "2026-01-02")
+    assert.equal(points.length, 2)
+    assert.equal(points[1]!.investableAssets, 1100)
+    close(timeWeightedReturn(points).percent, 10)
+  })
+
+  it("adds nothing without history, or when the last snapshot is somehow in the future", () => {
+    assert.deepEqual(withLivePoint([], live, "2026-01-02"), [])
+    const future = [point("2026-01-05", 1000)]
+    assert.deepEqual(withLivePoint(future, live, "2026-01-02"), future)
   })
 })
