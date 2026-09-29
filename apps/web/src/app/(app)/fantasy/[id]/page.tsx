@@ -120,6 +120,7 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
             </CardHeader>
             <CardContent>
               <RaceChart
+              rich
                 height={260}
                 series={standings.map((s) => ({ id: s.userId, label: s.name?.split(" ")[0] ?? s.handle ?? "", points: s.spark, isYou: s.isYou }))}
               />
