@@ -4,7 +4,7 @@ import { db, securities } from "@web/db"
 import { isNewerClose } from "@web/lib/market-data"
 import { revalueSecurities } from "@web/lib/positions"
 import { acceptQuote, createQuoteProvider, isUsMarketOpen, quoteDate } from "@web/lib/quote-provider"
-import { claimLiveQuotesSql } from "@web/lib/stale-prices"
+import { claimBudget, claimLiveQuotesSql, recentClaimsSql, releaseClaimsSql } from "@web/lib/stale-prices"
 
 /**
  * Keeps prices moving while the market is open.
@@ -19,26 +19,45 @@ import { claimLiveQuotesSql } from "@web/lib/stale-prices"
  * rate limit or an outage all leave the last stored price in place.
  */
 
-const DEFAULT_MAX_SYMBOLS = 40
+/** Most tickers one run may claim. */
+const DEFAULT_MAX_SYMBOLS = 25
 
 /**
- * How stale a stored price may get before the next page load refreshes it.
- * One provider call per ticker, so 30s costs 2 calls a minute per ticker: fine
- * for a few dozen tickers on Finnhub's 60-a-minute free plan.
+ * How stale a stored price may get before a page load refreshes it. Each
+ * ticker is refreshed this long after its own last refresh, so once the first
+ * round has gone through, refreshes stay spread out instead of arriving together.
  */
-export const REFRESH_SECONDS = 30
+export const REFRESH_SECONDS = Number(process.env.LIVE_QUOTE_REFRESH_SECONDS) || 15 * 60
+
+/**
+ * Provider calls we allow ourselves per rolling minute (Finnhub's free plan is
+ * 60; the margin covers other servers and the trade path). Together with
+ * REFRESH_SECONDS this bounds the tickers we can keep fresh at about
+ * CALLS_PER_MINUTE x REFRESH_SECONDS / 60, i.e. 600 at 15 minutes.
+ */
+export const CALLS_PER_MINUTE = Number(process.env.LIVE_QUOTE_CALLS_PER_MINUTE) || 40
+
+/** When to try a ticker again that didn't get a price: soon for a hiccup, later for a rejected or empty quote. */
+const RETRY_AFTER_ERROR_SECONDS = 120
+const RETRY_AFTER_REJECTED_SECONDS = 300
 
 /** Refreshes prices claimed for this interval. Safe to call from any number of servers at once. */
 export async function refreshLivePrices({
   now = new Date(),
   maxAgeSeconds = REFRESH_SECONDS,
   maxSymbols = Number(process.env.LIVE_QUOTE_MAX_SYMBOLS) || DEFAULT_MAX_SYMBOLS,
-}: { now?: Date; maxAgeSeconds?: number; maxSymbols?: number } = {}) {
+  callsPerMinute = CALLS_PER_MINUTE,
+}: { now?: Date; maxAgeSeconds?: number; maxSymbols?: number; callsPerMinute?: number } = {}) {
   if (!isUsMarketOpen(now)) return { skipped: "market closed" as const }
   const provider = createQuoteProvider(process.env)
   if (!provider) return { skipped: "no provider" as const }
 
-  const claimed = [...(await db.execute<{ id: string; market_ticker: string; close_price_as_of: string | null }>(claimLiveQuotesSql(maxAgeSeconds, maxSymbols)))]
+  // Calls already spent this minute come off the budget, so a burst of due tickers drains over a few runs.
+  const [recent] = [...(await db.execute<{ n: number }>(recentClaimsSql(60)))]
+  const limit = claimBudget({ recent: Number(recent?.n ?? 0), perMinute: callsPerMinute, maxPerRun: maxSymbols })
+  if (limit <= 0) return { skipped: "budget" as const }
+
+  const claimed = [...(await db.execute<{ id: string; market_ticker: string; close_price_as_of: string | null }>(claimLiveQuotesSql(maxAgeSeconds, limit)))]
   if (claimed.length === 0) return { provider: provider.name, claimed: 0, refreshed: 0 }
 
   const result = await provider.getQuotes(claimed.map((r) => r.market_ticker))
@@ -62,6 +81,14 @@ export async function refreshLivePrices({
     updated.push(row.id)
   }
   await revalueSecurities(updated)
+
+  // Anything that didn't get a price goes back in the queue rather than waiting out a whole period.
+  const done = new Set(updated)
+  const missed = claimed.filter((row) => !done.has(row.id)).map((row) => row.id)
+  if (missed.length > 0) {
+    const retry = result.rateLimited || result.failed > 0 ? RETRY_AFTER_ERROR_SECONDS : RETRY_AFTER_REJECTED_SECONDS
+    await db.execute(releaseClaimsSql(missed, retry, maxAgeSeconds))
+  }
 
   if (result.rateLimited) console.warn(`[quotes] ${provider.name} rate limited us after ${result.quotes.size}/${claimed.length}`)
   return { provider: provider.name, claimed: claimed.length, refreshed: updated.length, rejected, rejectedExample, rateLimited: result.rateLimited, failed: result.failed }
