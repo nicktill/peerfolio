@@ -174,7 +174,7 @@ export async function accountHasPositions(accountId: string): Promise<boolean> {
 export async function repricePositions() {
   // Every ticker someone holds, in a real manual account or a fantasy league.
   const held = await db
-    .select({ id: securities.id, marketTicker: securities.marketTicker })
+    .select({ id: securities.id, marketTicker: securities.marketTicker, asOf: securities.closePriceAsOf })
     .from(securities)
     .where(
       and(
@@ -188,7 +188,9 @@ export async function repricePositions() {
 
   for (const security of held) {
     const close = closes.get(security.marketTicker!)
-    if (!close) continue
+    // Never step a price back: a live price from today outranks yesterday's close,
+    // and today's official close (same date) replaces the live one.
+    if (!close || !isNewerClose(close.asOf, security.asOf)) continue
     await db
       .update(securities)
       .set({ closePrice: close.price.toString(), closePriceAsOf: close.asOf, updatedAt: new Date() })
@@ -216,7 +218,7 @@ export async function refreshStalePrices({ maxAgeHours = 6, minIntervalMinutes =
   try {
     const cutoff = new Date(now - maxAgeHours * 3_600_000)
     const stale = await db
-      .select({ id: securities.id, marketTicker: securities.marketTicker })
+      .select({ id: securities.id, marketTicker: securities.marketTicker, asOf: securities.closePriceAsOf })
       .from(securities)
       .where(staleHeldSecurities(cutoff))
     if (stale.length === 0) return { refreshed: 0 }
@@ -224,8 +226,10 @@ export async function refreshStalePrices({ maxAgeHours = 6, minIntervalMinutes =
     const closes = await latestCloses(stale.map((s) => s.marketTicker!))
     let refreshed = 0
     for (const security of stale) {
-      const close = closes.get(security.marketTicker!)
-      // No newer close (weekend, holiday) still counts as checked.
+      const found = closes.get(security.marketTicker!)
+      // A close that isn't newer than what we hold (weekend, holiday, or a live
+      // price from today) still counts as checked, but never replaces it.
+      const close = found && isNewerClose(found.asOf, security.asOf) ? found : undefined
       await db
         .update(securities)
         .set(close ? { closePrice: close.price.toString(), closePriceAsOf: close.asOf, updatedAt: new Date() } : { updatedAt: new Date() })
@@ -247,21 +251,34 @@ export async function refreshStalePrices({ maxAgeHours = 6, minIntervalMinutes =
  * With an account id, only that account — including one whose last position
  * was just removed, which drops to zero.
  */
-async function revalue(accountId?: string) {
+async function revalue(accountId?: string, securityIds?: string[]) {
   const onlyAccount = accountId ? sql`AND h.account_id = ${accountId}` : sql``
+  const idList = securityIds && securityIds.length > 0 ? sql.join(securityIds.map((id) => sql`${id}`), sql`, `) : null
+  const onlySecurities = idList ? sql`AND h.security_id IN (${idList})` : sql``
 
   await db.execute(sql`
     UPDATE holdings h
     SET institution_value = h.quantity * s.close_price, updated_at = now()
     FROM securities s
-    WHERE s.id = h.security_id AND s.market_ticker IS NOT NULL ${onlyAccount}
+    WHERE s.id = h.security_id AND s.market_ticker IS NOT NULL ${onlyAccount} ${onlySecurities}
   `)
+
+  // With a list of securities, only the accounts that hold them need a new balance.
+  const affected = accountId
+    ? sql`a.id = ${accountId}`
+    : idList
+      ? sql`a.id IN (SELECT account_id FROM holdings WHERE security_id IN (${idList}))`
+      : sql`EXISTS (SELECT 1 FROM holdings WHERE account_id = a.id)`
 
   await db.execute(sql`
     UPDATE accounts a
     SET current_balance = COALESCE((SELECT sum(institution_value) FROM holdings WHERE account_id = a.id), 0),
         updated_at = now()
-    WHERE a.source = 'manual'
-      AND ${accountId ? sql`a.id = ${accountId}` : sql`EXISTS (SELECT 1 FROM holdings WHERE account_id = a.id)`}
+    WHERE a.source = 'manual' AND ${affected}
   `)
+}
+
+/** Revalues only the holdings and manual accounts that depend on these securities. */
+export async function revalueSecurities(securityIds: string[]) {
+  if (securityIds.length > 0) await revalue(undefined, securityIds)
 }

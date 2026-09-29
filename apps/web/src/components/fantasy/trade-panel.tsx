@@ -10,7 +10,7 @@ import { mutate } from "@web/lib/use-api"
 import { cn } from "@web/lib/utils"
 
 type Held = { ticker: string; shares: number; value: number }
-type Quote = { symbol: string; name: string | null; price: number; asOf: string }
+type Quote = { symbol: string; name: string | null; price: number; asOf: string; live?: boolean }
 type Lookup =
   | { state: "idle" }
   | { state: "loading" }
@@ -22,7 +22,7 @@ const HYPE = ["NVDA", "TSLA", "AAPL", "PLTR", "GME", "SPY"]
 const fmtShares = (v: number) => v.toLocaleString(undefined, { maximumFractionDigits: 4 })
 const asOfLabel = (asOf: string) => new Date(`${asOf.slice(0, 10)}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric" })
 
-/** Buy by dollars, sell by shares. Fills at the latest daily close, which the form shows before you commit. */
+/** Buy by dollars, sell by shares. Fills at the price the form shows before you commit: live while the market is open, otherwise the last close. */
 export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: string; cash: number; positions: Held[]; onTraded: () => void }) {
   const { toast } = useToast()
   const [side, setSide] = useState<"buy" | "sell">("buy")
@@ -130,7 +130,7 @@ export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: 
               {lookup.state === "loading"
                 ? "Looking up…"
                 : quote
-                  ? `${quote.name ?? quote.symbol} · ${formatCurrency(quote.price)} at the ${asOfLabel(quote.asOf)} close`
+                  ? `${quote.name ?? quote.symbol} · ${formatCurrency(quote.price)} ${quote.live ? "live price" : `at the ${asOfLabel(quote.asOf)} close`}`
                   : lookup.state === "missing"
                     ? <span className="text-[--loss]">{lookup.message}</span>
                     : null}
@@ -199,7 +199,7 @@ export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: 
           <Button type="submit" className="w-full" size="lg" loading={pending} variant={side === "sell" ? "outline" : "default"}>
             {side === "buy" ? "Buy 🚀" : "Sell 💸"}
           </Button>
-          <p className="text-[11px] leading-4 text-muted-foreground">Fills at the latest closing price. Play money only.</p>
+          <p className="text-[11px] leading-4 text-muted-foreground">Fills at the price shown: live while the market is open, otherwise the last close. Play money only.</p>
         </form>
       </CardContent>
     </Card>
