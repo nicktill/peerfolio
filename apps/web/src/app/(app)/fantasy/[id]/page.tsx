@@ -19,6 +19,7 @@ import { revealStyle } from "@web/components/motion/reveal"
 import type { Standing } from "@web/components/leagues/standing-row"
 import { formatCurrency } from "@web/lib/format"
 import { describeMovement, rankMovement } from "@web/lib/rank-change"
+import { liveRefreshMs } from "@web/lib/live-refresh"
 import { useApi } from "@web/lib/use-api"
 
 export type Position = { ticker: string; name: string | null; shares: number; price: number; priceAsOf: string | null; value: number; gainPct: number }
@@ -41,12 +42,12 @@ type LeagueData = {
 
 const MEDALS = ["🥇", "🥈", "🥉"]
 
-/** How often an open league page re-reads standings and prices. Cheap: prices are throttled server-side. */
-const REFRESH_MS = 60_000
+/** Off-hours pace: standings only move when someone trades. While the market is open it's 30s, see liveRefreshMs. */
+const CLOSED_REFRESH_MS = 60_000
 
 export default function FantasyLeaguePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
-  const { data, error, loading, refetch } = useApi<LeagueData>(`/api/fantasy/${id}`, [], { refreshMs: REFRESH_MS })
+  const { data, error, loading, refetch } = useApi<LeagueData>(`/api/fantasy/${id}`, [], { refreshMs: liveRefreshMs(CLOSED_REFRESH_MS) })
   const rankBefore = useRankBaseline(id, data?.you.rank ?? null)
 
   if (loading && !data) return <LeaguePageSkeleton />
