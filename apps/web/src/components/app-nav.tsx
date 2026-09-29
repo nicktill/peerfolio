@@ -4,12 +4,12 @@ import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { signOut, useSession } from "next-auth/react"
-import { useTheme } from "next-themes"
-import { useEffect, useState } from "react"
-import { Gamepad2, LayoutDashboard, LogOut, Moon, Settings, Sun, Trophy, Users } from "lucide-react"
+import { Gamepad2, LayoutDashboard, LogOut, Settings, Trophy, Users } from "lucide-react"
 import { cn } from "@web/lib/utils"
 import { Avatar } from "@web/components/ui/avatar"
 import { Button } from "@web/components/ui/button"
+
+import { ThemeToggle } from "@web/components/theme-toggle"
 
 const LINKS = [
   { href: "/dashboard", label: "Portfolio", icon: LayoutDashboard },
@@ -114,29 +114,5 @@ function NavLink({
       <Icon className="h-4 w-4" aria-hidden />
       {label}
     </Link>
-  )
-}
-
-function ThemeToggle() {
-  const { resolvedTheme, setTheme } = useTheme()
-  const [mounted, setMounted] = useState(false)
-
-  // The server can't know the resolved theme, so render a stable placeholder
-  // until after hydration rather than guessing and flipping.
-  useEffect(() => setMounted(true), [])
-
-  return (
-    <Button
-      variant="ghost"
-      size="icon"
-      onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-      aria-label={mounted ? `Switch to ${resolvedTheme === "dark" ? "light" : "dark"} mode` : "Toggle theme"}
-    >
-      {mounted && resolvedTheme === "dark" ? (
-        <Sun className="h-4 w-4" aria-hidden />
-      ) : (
-        <Moon className="h-4 w-4" aria-hidden />
-      )}
-    </Button>
   )
 }

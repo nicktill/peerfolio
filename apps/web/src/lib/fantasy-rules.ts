@@ -30,7 +30,11 @@ export const portfolioValue = (state: MemberState) =>
   state.cash + state.positions.reduce((sum, p) => sum + p.shares * p.price, 0)
 
 /** Return in percent against the league's starting cash. */
-export const returnPct = (value: number, startingCash: number) => (value / startingCash - 1) * 100
+export const returnPct = (value: number, startingCash: number) => {
+  // Persisted share precision can introduce sub-cent valuation noise after a fill.
+  const gain = Math.round((value - startingCash) * 100) / 100
+  return gain === 0 ? 0 : (gain / startingCash) * 100
+}
 
 export function isClosed(endsAt: Date | null, now = new Date()) {
   return endsAt !== null && endsAt.getTime() <= now.getTime()

@@ -118,6 +118,7 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
           <Card>
             <CardHeader>
               <CardTitle>Standings</CardTitle>
+              <p className="text-xs text-muted-foreground">Matching returns to 0.01% share a rank.</p>
             </CardHeader>
             <CardContent>
               <ul className="divide-y">
@@ -200,13 +201,15 @@ function Holdings({ positions }: { positions: Position[] }) {
 }
 
 function Podium({ standings }: { standings: Standing[] }) {
-  const top = standings.slice(0, 3)
-  const order = [top[1], top[0], top[2]].filter(Boolean) as Standing[]
+  const top = standings.filter((s) => s.rank <= 3)
+  const order = top.length === 3 && top.every((s, i) => s.rank === i + 1)
+    ? [top[1]!, top[0]!, top[2]!]
+    : top
   const heights: Record<number, string> = { 1: "h-28", 2: "h-20", 3: "h-14" }
   return (
     <section className="rounded-3xl border bg-card p-6 text-center" aria-label="Final podium">
       <p className="text-sm font-semibold text-primary">Season over</p>
-      <div className="mt-6 flex items-end justify-center gap-3">
+      <div className="mt-6 flex flex-wrap items-end justify-center gap-3">
         {order.map((s) => (
           <div key={s.userId} className="flex w-24 flex-col items-center gap-2">
             <span className="text-2xl" aria-hidden>{MEDALS[s.rank - 1]}</span>
