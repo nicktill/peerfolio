@@ -21,6 +21,7 @@ import { ConnectButton } from "@web/components/dashboard/connect-button"
 import { HoldingsCard, type HoldingRow } from "@web/components/dashboard/holdings-card"
 import { AddAccountButton } from "@web/components/dashboard/add-account-dialog"
 import { formatCurrency, formatPercent } from "@web/lib/format"
+import { liveRefreshMs } from "@web/lib/live-refresh"
 import { mutate, useApi } from "@web/lib/use-api"
 import { RANGES, type Range } from "@web/lib/ranges"
 
@@ -42,7 +43,7 @@ export default function DashboardPage() {
   const [hidden, setHidden] = useState(false)
   const [syncing, setSyncing] = useState(false)
 
-  const { data, loading, error, refetch } = useApi<PortfolioResponse>(`/api/portfolio?range=${range}`, [range])
+  const { data, loading, error, refetch } = useApi<PortfolioResponse>(`/api/portfolio?range=${range}`, [range], { refreshMs: liveRefreshMs(300_000) })
 
   async function sync() {
     setSyncing(true)

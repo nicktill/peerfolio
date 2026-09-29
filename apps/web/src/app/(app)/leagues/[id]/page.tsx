@@ -13,6 +13,7 @@ import { useToast } from "@web/components/ui/toast"
 import { RaceChart } from "@web/components/charts/race-chart"
 import { StandingRow, type Standing } from "@web/components/leagues/standing-row"
 import { plural } from "@web/lib/plural"
+import { liveRefreshMs } from "@web/lib/live-refresh"
 import { mutate, useApi } from "@web/lib/use-api"
 import { RANGES, type Range } from "@web/lib/ranges"
 
@@ -28,7 +29,7 @@ export default function LeaguePage({ params }: { params: Promise<{ id: string }>
   const [range, setRange] = useState<Range>("1M")
   const [copied, setCopied] = useState(false)
 
-  const { data, loading, refetch } = useApi<LeagueResponse>(`/api/leagues/${id}?range=${range}`, [range, id])
+  const { data, loading, refetch } = useApi<LeagueResponse>(`/api/leagues/${id}?range=${range}`, [range, id], { refreshMs: liveRefreshMs(300_000) })
 
   async function react(toUserId: string, emoji: string) {
     try {
