@@ -27,6 +27,7 @@ import {
   type MemberState,
 } from "@web/lib/fantasy-rules"
 import { displaySymbol, toMarketTicker, type AssetKind } from "@web/lib/market-data"
+import { ensureLivePrice, scheduleLiveRefresh } from "@web/lib/live-quotes"
 import { ensurePriced, refreshStalePrices } from "@web/lib/positions"
 
 /**
@@ -98,6 +99,7 @@ export async function listFantasyLeaguesForUser(userId: string) {
     .orderBy(desc(fantasyLeagues.createdAt))
   if (rows.length === 0) return []
   await refreshStalePrices()
+  scheduleLiveRefresh()
 
   const ids = rows.map((r) => r.league.id)
   const [counts, values] = await Promise.all([
@@ -178,8 +180,12 @@ export async function placeTrade(
   const marketTicker = toMarketTicker(input.symbol, input.kind)
   if (!marketTicker) throw new ApiError(`${input.symbol} doesn't look like a ${input.kind === "crypto" ? "coin" : "ticker"}`)
 
-  // Outside the transaction: this may call the price provider.
-  const priced = await ensurePriced(marketTicker, input.kind, { maxAgeHours: 20 })
+  // Outside the transaction: this may call the price providers.
+  const closePriced = await ensurePriced(marketTicker, input.kind, { maxAgeHours: 20 })
+  // While the market is open, fill at the current price and store it for everyone,
+  // so the fill and every valuation agree and a buy can't show an instant gain.
+  const live = input.kind === "stock" ? await ensureLivePrice(marketTicker) : null
+  const priced = live ? { ...closePriced, price: live.price, asOf: live.asOf } : closePriced
 
   return db.transaction(async (tx) => {
     const [locked] = await tx.execute<{ cash: string }>(sql`SELECT cash FROM fantasy_members WHERE id = ${member.id} FOR UPDATE`)
@@ -271,7 +277,10 @@ export async function loadFantasyLeague(userId: string, leagueId: string) {
   const { league, member: me } = await requireFantasyMember(userId, leagueId)
   const startingCash = n(league.startingCash)
   // A finished league is frozen at its last snapshot, so only live ones need fresh prices.
-  if (!isClosed(league.endsAt)) await refreshStalePrices()
+  if (!isClosed(league.endsAt)) {
+    await refreshStalePrices()
+    scheduleLiveRefresh()
+  }
 
   const members = await db
     .select({ id: fantasyMembers.id, cash: fantasyMembers.cash, userId: users.id, name: users.name, handle: users.handle, image: users.image })
