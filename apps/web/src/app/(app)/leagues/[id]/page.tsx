@@ -167,6 +167,7 @@ export default function LeaguePage({ params }: { params: Promise<{ id: string }>
           </CardHeader>
           <CardContent>
             <RaceChart
+              rich
               series={ranked.slice(0, 8).map((s) => ({
                 id: s.userId,
                 label: s.name?.split(" ")[0] ?? s.handle ?? "Member",

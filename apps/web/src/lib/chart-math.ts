@@ -62,3 +62,46 @@ export function pointIndexAt(x: number, left: number, width: number, length: num
 export function xAt(index: number, length: number, left: number, width: number): number {
   return length <= 1 ? left + width : left + (index / (length - 1)) * width
 }
+
+export type EndItem = { id: string; label: string; isYou: boolean; value: number; y: number }
+export type EndGroup = { ids: string[]; names: string[]; value: number; y: number; hasYou: boolean }
+
+/**
+ * Lines that finish on the same displayed return share one end label.
+ *
+ * Two labels for the same number can't both sit next to their own dot, so one
+ * gets pushed off to make room, next to somebody else's dot, and reads as that
+ * person's result. One label naming both can't be misread. Groups come back top
+ * to bottom, and within a group "You" is listed first.
+ */
+export function groupEndLabels(items: EndItem[], digits = 2): EndGroup[] {
+  const shown = (v: number) => {
+    const rounded = Number(Math.abs(v).toFixed(digits))
+    return rounded === 0 ? 0 : Math.sign(v) * rounded
+  }
+  const byValue = new Map<number, EndItem[]>()
+  for (const item of items) {
+    const key = shown(item.value)
+    byValue.set(key, [...(byValue.get(key) ?? []), item])
+  }
+  return [...byValue.entries()]
+    .sort((a, b) => b[0] - a[0])
+    .map(([value, members]) => {
+      const ordered = [...members.filter((m) => m.isYou), ...members.filter((m) => !m.isYou)]
+      return {
+        ids: ordered.map((m) => m.id),
+        names: ordered.map((m) => (m.isYou ? "You" : m.label)),
+        value,
+        y: members.reduce((sum, m) => sum + m.y, 0) / members.length,
+        hasYou: members.some((m) => m.isYou),
+      }
+    })
+}
+
+/** A group's name as it fits: "Bennett", "You · Andri", or "3 tied" when the names can't all fit. */
+export function groupName(names: string[], maxChars: number): string {
+  const clip = (n: string) => (n.length > maxChars ? `${n.slice(0, Math.max(1, maxChars - 1))}…` : n)
+  if (names.length === 1) return clip(names[0]!)
+  const joined = names.join(" · ")
+  return joined.length <= maxChars ? joined : `${names.length} tied`
+}
