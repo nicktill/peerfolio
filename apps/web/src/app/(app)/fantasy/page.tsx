@@ -11,6 +11,9 @@ import { useToast } from "@web/components/ui/toast"
 import { mutate, useApi } from "@web/lib/use-api"
 import { cn } from "@web/lib/utils"
 import { timeLeft } from "@web/components/fantasy/time-left"
+import { Choice, Row } from "@web/components/fantasy/choice"
+import { LookPicker } from "@web/components/fantasy/league-look-picker"
+import { accentFor } from "@web/lib/league-look"
 
 type FantasySummary = {
   id: string
@@ -21,14 +24,6 @@ type FantasySummary = {
   isClosed: boolean
   memberCount: number
   yourReturn: number
-}
-
-const ACCENTS: Record<string, string> = {
-  emerald: "from-emerald-500/20",
-  violet: "from-violet-500/20",
-  amber: "from-amber-500/20",
-  sky: "from-sky-500/20",
-  rose: "from-rose-500/20",
 }
 
 export default function FantasyPage() {
@@ -81,7 +76,7 @@ export default function FantasyPage() {
               style={revealStyle(i + 1)}
               className="reveal press group relative overflow-hidden rounded-2xl border bg-card p-5 transition-all hover:-translate-y-0.5 hover:shadow-lg"
             >
-              <div className={cn("pointer-events-none absolute inset-0 bg-gradient-to-br to-transparent", ACCENTS[league.accent] ?? ACCENTS.emerald)} aria-hidden />
+              <div className={cn("pointer-events-none absolute inset-0 bg-gradient-to-br to-transparent", accentFor(league.accent).gradient)} aria-hidden />
               <div className="relative flex items-start gap-3">
                 <span className="text-3xl transition-transform group-hover:scale-110" aria-hidden>
                   {league.emoji}
@@ -113,7 +108,6 @@ export default function FantasyPage() {
   )
 }
 
-const EMOJIS = ["🏈", "🏀", "⚾", "🥊", "🎰", "🚀", "🦍", "💎"]
 const CASH = [10_000, 100_000, 1_000_000]
 const DURATIONS = [
   { label: "1 week", days: 7 },
@@ -127,27 +121,11 @@ const CAPS = [
   { label: "10%", value: 10 },
 ] as const
 
-function Choice({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={cn(
-        "rounded-full border px-3 py-1.5 text-sm transition-colors",
-        active ? "border-primary bg-primary text-primary-foreground" : "bg-background hover:bg-secondary",
-      )}
-    >
-      {children}
-    </button>
-  )
-}
-
 function CreateForm({ onCancel }: { onCancel: () => void }) {
   const { toast } = useToast()
   const [saving, setSaving] = useState(false)
   const [name, setName] = useState("")
-  const [emoji, setEmoji] = useState("🏈")
+  const [look, setLook] = useState({ emoji: "🏈", accent: "emerald" })
   const [cash, setCash] = useState(100_000)
   const [days, setDays] = useState<number | null>(30)
   const [cap, setCap] = useState<number | null>(null)
@@ -159,7 +137,8 @@ function CreateForm({ onCancel }: { onCancel: () => void }) {
       const result = await mutate<{ league: { id: string } }>("/api/fantasy", {
         body: {
           name,
-          emoji,
+          emoji: look.emoji,
+          accent: look.accent,
           startingCash: cash,
           maxPositionPct: cap,
           endsAt: days ? new Date(Date.now() + days * 86_400_000).toISOString() : null,
@@ -189,13 +168,7 @@ function CreateForm({ onCancel }: { onCancel: () => void }) {
           className="h-10 w-full rounded-lg border bg-background px-3 text-sm"
         />
       </div>
-      <Row label="Icon">
-        {EMOJIS.map((e) => (
-          <Choice key={e} active={emoji === e} onClick={() => setEmoji(e)}>
-            <span className="text-lg leading-none">{e}</span>
-          </Choice>
-        ))}
-      </Row>
+      <LookPicker look={look} name={name} onChange={setLook} />
       <Row label="Starting cash (same for everyone)">
         {CASH.map((c) => (
           <Choice key={c} active={cash === c} onClick={() => setCash(c)}>
@@ -226,15 +199,6 @@ function CreateForm({ onCancel }: { onCancel: () => void }) {
         </Button>
       </div>
     </form>
-  )
-}
-
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <fieldset>
-      <legend className="mb-2 text-xs font-medium text-muted-foreground">{label}</legend>
-      <div className="flex flex-wrap gap-1.5">{children}</div>
-    </fieldset>
   )
 }
 

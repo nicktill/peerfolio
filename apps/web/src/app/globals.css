@@ -397,6 +397,15 @@
   50% { opacity: 0.45; transform: scale(0.8); }
 }
 
+/* A league logo popping in when you pick it (components/fantasy/league-look-picker.tsx). */
+.emoji-pop {
+  animation: emoji-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes emoji-pop {
+  from { transform: scale(0.5) rotate(-12deg); opacity: 0.2; }
+  to { transform: none; opacity: 1; }
+}
+
 /* League balance cards (components/fantasy/balance-cards.tsx). */
 .stat-card {
   background-color: hsl(var(--background) / 0.7);

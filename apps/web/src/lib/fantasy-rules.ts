@@ -141,6 +141,19 @@ export function findLedgerMismatches(
   return out
 }
 
+/**
+ * Whether the owner may move a league's end date, as a message for the owner or
+ * null when it's fine. The date may only move later, or be removed; an all-time
+ * league can't be given an end (that would quietly cut it short).
+ */
+export function checkEndChange(current: Date | null, next: Date | null, now = new Date()): string | null {
+  if (next === null) return null
+  if (current === null) return "This league has no end date, so there's nothing to extend"
+  if (next.getTime() <= current.getTime()) return "The new end date has to be later than the current one"
+  if (next.getTime() < now.getTime() + 60 * 60 * 1000) return "Pick an end date at least an hour away"
+  return null
+}
+
 /** The race chart line: everyone starts at 100, the last point is the live value. */
 export function raceSeries(pastValues: number[], liveValue: number, startingCash: number): number[] {
   return [100, ...pastValues.map((v) => 100 + returnPct(v, startingCash)), 100 + returnPct(liveValue, startingCash)]

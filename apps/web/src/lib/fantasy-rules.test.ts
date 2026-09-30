@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { applyTrade, isClosed, portfolioValue, returnPct, TradeRejected, type MemberState } from "./fantasy-rules.ts"
+import { applyTrade, checkEndChange, isClosed, portfolioValue, returnPct, TradeRejected, type MemberState } from "./fantasy-rules.ts"
 
 const fresh = (): MemberState => ({ cash: 100_000, positions: [] })
 const noCap = { maxPositionPct: null }
@@ -73,5 +73,28 @@ describe("scoring", () => {
     assert.equal(isClosed(null, now), false)
     assert.equal(isClosed(new Date("2026-09-30T23:59:59Z"), now), true)
     assert.equal(isClosed(new Date("2026-10-02T00:00:00Z"), now), false)
+  })
+})
+
+describe("changing a league's end date", () => {
+  const now = new Date("2026-10-01T12:00:00Z")
+  const day = (d: number) => new Date(now.getTime() + d * 86_400_000)
+
+  it("lets the owner push it later", () => {
+    assert.equal(checkEndChange(day(3), day(33), now), null)
+  })
+
+  it("lets the owner remove the end date altogether", () => {
+    assert.equal(checkEndChange(day(3), null, now), null)
+  })
+
+  it("won't shorten a league, or leave it where it is", () => {
+    assert.match(checkEndChange(day(30), day(10), now)!, /later/)
+    assert.match(checkEndChange(day(30), day(30), now)!, /later/)
+  })
+
+  it("won't cut a league that has no end short by giving it one", () => {
+    assert.match(checkEndChange(null, day(30), now)!, /no end date/)
+    assert.equal(checkEndChange(null, null, now), null)
   })
 })

@@ -2,10 +2,11 @@
 
 import { use, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, Check, Clock, Infinity as Forever, Link2 } from "lucide-react"
+import { ArrowLeft, Check, Clock, Infinity as Forever, Link2, Pencil } from "lucide-react"
 import { initialsFor } from "@web/components/ui/avatar"
 import { RaceChart } from "@web/components/charts/race-chart"
 import { StandingRow } from "@web/components/leagues/standing-row"
+import { EditLeagueDialog } from "@web/components/fantasy/edit-league-dialog"
 import { CashStat, PortfolioStat } from "@web/components/fantasy/balance-cards"
 import { TradePanel } from "@web/components/fantasy/trade-panel"
 import { TradeFeed, type FeedItem } from "@web/components/fantasy/trade-feed"
@@ -20,6 +21,7 @@ import type { Standing } from "@web/components/leagues/standing-row"
 import { formatCurrency } from "@web/lib/format"
 import { describeMovement, rankMovement } from "@web/lib/rank-change"
 import { liveRefreshMs } from "@web/lib/live-refresh"
+import { accentFor } from "@web/lib/league-look"
 import { mutate, useApi } from "@web/lib/use-api"
 import { useToast } from "@web/components/ui/toast"
 
@@ -31,6 +33,8 @@ type LeagueData = {
     id: string
     name: string
     emoji: string
+    accent: string
+    isOwner: boolean
     inviteCode: string
     startingCash: number
     maxPositionPct: number | null
@@ -50,6 +54,7 @@ const CLOSED_REFRESH_MS = 60_000
 export default function FantasyLeaguePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const { toast } = useToast()
+  const [editing, setEditing] = useState(false)
   const { data, error, loading, refetch } = useApi<LeagueData>(`/api/fantasy/${id}`, [], { refreshMs: liveRefreshMs(CLOSED_REFRESH_MS) })
   const rankBefore = useRankBaseline(id, data?.you.rank ?? null)
 
@@ -78,7 +83,7 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
 
       <header className="reveal relative overflow-hidden rounded-3xl border bg-card p-5 sm:p-7" style={revealStyle(0)}>
         <div className="hero-grid absolute inset-0 opacity-60" aria-hidden />
-        <div className="absolute -left-10 -top-20 size-56 rounded-full bg-primary/15 blur-3xl" aria-hidden />
+        <div className={`absolute -left-10 -top-20 size-56 rounded-full blur-3xl ${accentFor(league.accent).glow}`} aria-hidden />
         <div className="relative flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-center gap-3">
             <span className="text-4xl" aria-hidden>{league.emoji}</span>
@@ -94,7 +99,15 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
               </p>
             </div>
           </div>
-          <InviteButton code={league.inviteCode} />
+          <div className="flex items-center gap-2">
+            {league.isOwner && !league.isClosed ? (
+              <Button variant="outline" size="sm" className="rounded-full" onClick={() => setEditing(true)}>
+                <Pencil aria-hidden />
+                Edit league
+              </Button>
+            ) : null}
+            <InviteButton code={league.inviteCode} />
+          </div>
         </div>
 
         <dl className="relative mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -118,6 +131,10 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
           <CashStat cash={you.cash} value={you.value} />
         </dl>
       </header>
+
+      {league.isOwner && !league.isClosed ? (
+        <EditLeagueDialog league={league} open={editing} onClose={() => setEditing(false)} onSaved={refetch} />
+      ) : null}
 
       {league.isClosed ? <Podium standings={standings} /> : null}
 
