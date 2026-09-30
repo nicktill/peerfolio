@@ -238,9 +238,9 @@ export default function DashboardPage() {
         </div>
       </Reveal>
 
-      <Reveal index={1} className="grid items-stretch gap-6 [&>*]:min-w-0 lg:grid-cols-[minmax(0,1fr)_400px]">
-        {/* Empty history follows the accounts card's height, so expanded accounts do not leave a stranded panel. */}
-        <Card className={cn(data.hasHistory ? "lg:sticky lg:top-20 lg:self-start" : "h-full", "flex flex-col")}>
+      <Reveal index={1} className="grid items-start gap-6 [&>*]:min-w-0 lg:grid-cols-[minmax(0,1fr)_400px]">
+        {/* Keep the return surface stable while account drawers open and close beside it. */}
+        <Card className={cn(data.hasHistory ? "lg:sticky lg:top-20" : "lg:h-[32rem]", "flex flex-col")}>
           <CardHeader className="flex-row items-start justify-between gap-3">
             <div className="min-w-0">
               <CardTitle>Return</CardTitle>
