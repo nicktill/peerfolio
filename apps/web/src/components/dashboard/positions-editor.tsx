@@ -99,12 +99,12 @@ export function PositionsEditor({
                     <span className="truncate text-xs text-muted-foreground">{p.name}</span>
                   </p>
                   <p className="numeric truncate text-xs text-muted-foreground">
-                    {formatQuantity(p.quantity)} {p.kind === "crypto" ? "" : "sh"} · {formatCurrency(p.price)}
+                    {formatQuantity(p.quantity)} {p.kind === "crypto" ? "" : "sh"} · {p.price > 0 ? formatCurrency(p.price) : "getting a price…"}
                     {p.costBasis ? ` · avg ${formatCurrency(p.costBasis / p.quantity)}` : ""}
                   </p>
                 </button>
                 <div className="shrink-0 text-right">
-                  <p className="numeric text-sm font-semibold">{formatCurrency(p.value, { hidden })}</p>
+                  <p className="numeric text-sm font-semibold">{p.price > 0 ? formatCurrency(p.value, { hidden }) : "—"}</p>
                   {gain !== null ? (
                     <Delta value={(gain / p.costBasis!) * 100} size="sm" variant="plain" className="justify-end" />
                   ) : (

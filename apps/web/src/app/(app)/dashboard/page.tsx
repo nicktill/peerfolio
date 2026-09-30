@@ -234,8 +234,8 @@ export default function DashboardPage() {
 
       <Reveal index={1} className="grid items-start gap-6 [&>*]:min-w-0 lg:grid-cols-[minmax(0,1fr)_400px]">
         {/* Sticks while a long accounts list scrolls past beside it. */}
-        {/* With a chart it sticks beside a long accounts list; empty, it fills the row so it doesn't look cut off. */}
-        <Card className={cn(data.hasHistory ? "lg:sticky lg:top-20" : "lg:h-full lg:self-stretch", "flex flex-col")}>
+        {/* With a chart it sticks beside a long accounts list. Empty, it keeps a fixed height, so opening or closing an account never resizes it. */}
+        <Card className={cn(data.hasHistory ? "lg:sticky lg:top-20" : "lg:min-h-[32rem]", "flex flex-col")}>
           <CardHeader className="flex-row items-start justify-between gap-3">
             <div className="min-w-0">
               <CardTitle>Return</CardTitle>
