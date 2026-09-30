@@ -155,9 +155,12 @@ export function PositionsEditor({
       ) : null}
 
       {editing && positions.length === 0 ? (
-        <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-          Have a list already?
-          <ImportPositionsButton accountId={accountId} hasPositions={false} onDone={onChange} variant="ghost" />
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-dashed p-4">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold">Got a lot to add?</p>
+            <p className="text-xs text-muted-foreground">Paste your positions or upload your brokerage’s CSV and add them all at once.</p>
+          </div>
+          <ImportPositionsButton accounts={[{ id: accountId, name: "This account", hasPositions: false }]} onDone={onChange} variant="default" label="Import positions" />
         </div>
       ) : null}
 
@@ -179,7 +182,7 @@ export function PositionsEditor({
             <Plus aria-hidden />
             Add position
           </Button>
-          <ImportPositionsButton accountId={accountId} hasPositions={positions.length > 0} onDone={onChange} />
+          <ImportPositionsButton accounts={[{ id: accountId, name: "This account", hasPositions: positions.length > 0 }]} onDone={onChange} />
         </div>
       )}
 

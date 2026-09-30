@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { FileUp, Loader2, X } from "lucide-react"
+import { ChevronDown, FileUp, Loader2, X } from "lucide-react"
 import { Button } from "@web/components/ui/button"
 import { Dialog } from "@web/components/ui/dialog"
 import { useToast } from "@web/components/ui/toast"
@@ -21,23 +21,27 @@ const money = (n: number) => new Intl.NumberFormat("en-US", { style: "currency",
  * or upload its CSV export. You get a preview to check (and trim) before
  * anything is saved.
  */
+export type ImportTarget = { id: string; name: string; hasPositions: boolean }
+
 export function ImportPositionsButton({
-  accountId,
-  hasPositions,
+  accounts,
   onDone,
   variant = "outline",
+  label = "Import",
 }: {
-  accountId: string
-  hasPositions: boolean
+  /** The accounts positions can go into; with several, the dialog asks which. */
+  accounts: ImportTarget[]
   onDone: () => void
-  variant?: "outline" | "ghost"
+  variant?: "outline" | "ghost" | "default"
+  label?: string
 }) {
   const [open, setOpen] = useState(false)
+  if (accounts.length === 0) return null
   return (
     <>
       <Button variant={variant} size="sm" className="rounded-full" onClick={() => setOpen(true)}>
         <FileUp aria-hidden />
-        Import
+        {label}
       </Button>
       <Dialog
         open={open}
@@ -47,8 +51,7 @@ export function ImportPositionsButton({
         className="sm:max-w-2xl"
       >
         <ImportFlow
-          accountId={accountId}
-          hasPositions={hasPositions}
+          accounts={accounts}
           onClose={() => setOpen(false)}
           onSaved={() => {
             onDone()
@@ -59,8 +62,10 @@ export function ImportPositionsButton({
   )
 }
 
-function ImportFlow({ accountId, hasPositions, onClose, onSaved }: { accountId: string; hasPositions: boolean; onClose: () => void; onSaved: () => void }) {
+function ImportFlow({ accounts, onClose, onSaved }: { accounts: ImportTarget[]; onClose: () => void; onSaved: () => void }) {
   const { toast } = useToast()
+  const [accountId, setAccountId] = useState(accounts[0]!.id)
+  const hasPositions = accounts.find((a) => a.id === accountId)?.hasPositions ?? false
   const file = useRef<HTMLInputElement>(null)
   const [text, setText] = useState("")
   const [busy, setBusy] = useState(false)
@@ -225,6 +230,28 @@ function ImportFlow({ accountId, hasPositions, onClose, onSaved }: { accountId: 
   // Step 1: bring it in.
   return (
     <div className="space-y-4">
+      {accounts.length > 1 ? (
+        <div>
+          <label htmlFor="import-account" className="mb-1.5 block text-xs font-medium text-muted-foreground">
+            Import into
+          </label>
+          <select
+            id="import-account"
+            value={accountId}
+            onChange={(e) => setAccountId(e.target.value)}
+            className="h-10 w-full rounded-xl border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {accounts.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
+
+      <BrokerHelp />
+
       <div>
         <label htmlFor="import-text" className="mb-1.5 block text-xs font-medium text-muted-foreground">
           Paste your positions
@@ -262,6 +289,57 @@ function ImportFlow({ accountId, hasPositions, onClose, onSaved }: { accountId: 
       <p className="text-xs text-muted-foreground">
         Nothing is saved until you confirm. Only tickers, share counts and average cost are used. Text that isn’t a plain table may be read by an AI model.
       </p>
+    </div>
+  )
+}
+
+const BROKERS: { name: string; steps: string }[] = [
+  { name: "Fidelity", steps: "Open Positions, click the download icon (a down arrow) above the table, then upload the file here." },
+  { name: "Vanguard", steps: "My accounts → Holdings → Download (spreadsheet/CSV), then upload the file here." },
+  { name: "Schwab", steps: "Open Positions and use Export at the top right of the table, then upload the file here." },
+  { name: "E*TRADE", steps: "Portfolios → Positions → Download, then upload the file here." },
+  { name: "Robinhood", steps: "Robinhood’s report is a trade history, not your holdings. Instead open your account page on the website, select the list of stocks, copy it and paste it below." },
+  { name: "Something else", steps: "Open your positions page, select the table, copy it and paste it below. Or type one per line: AAPL 10 @ 150." },
+]
+
+/** Where to get the list, per broker. Kept short and honest: steps vary, and pasting always works. */
+function BrokerHelp() {
+  const [open, setOpen] = useState(false)
+  const [broker, setBroker] = useState(BROKERS[0]!.name)
+  const current = BROKERS.find((b) => b.name === broker)!
+  return (
+    <div className="rounded-xl border bg-secondary/40">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left text-sm font-medium"
+      >
+        Where do I get my list?
+        <ChevronDown className={cn("size-4 text-muted-foreground transition-transform", open && "rotate-180")} aria-hidden />
+      </button>
+      {open ? (
+        <div className="space-y-3 border-t px-3 py-3">
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Your brokerage">
+            {BROKERS.map((b) => (
+              <button
+                key={b.name}
+                type="button"
+                onClick={() => setBroker(b.name)}
+                aria-pressed={broker === b.name}
+                className={cn(
+                  "rounded-full border px-2.5 py-1 text-xs transition-colors",
+                  broker === b.name ? "border-primary/60 bg-primary/10 font-medium" : "text-muted-foreground hover:bg-secondary",
+                )}
+              >
+                {b.name}
+              </button>
+            ))}
+          </div>
+          <p className="text-sm">{current.steps}</p>
+          <p className="text-xs text-muted-foreground">Menus change from time to time. If you can’t find it, copying the table from your positions page and pasting it works everywhere.</p>
+        </div>
+      ) : null}
     </div>
   )
 }
