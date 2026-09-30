@@ -180,6 +180,21 @@ describe("latestCloses", () => {
     assert.deepEqual(calls, [`${STOCKS}/2026-09-29`, `${STOCKS}/2026-09-28`])
   })
 
+  it("also falls back when yesterday's bar is withheld after midnight UTC", async () => {
+    const wednesdayEarly = new Date(Date.UTC(2026, 8, 30, 0, 36))
+    const calls: string[] = []
+    const fetchImpl = (async (input: string | URL | Request) => {
+      const path = new URL(String(input)).pathname
+      calls.push(path)
+      if (path === `${STOCKS}/2026-09-29`) return new Response("{}", { status: 403 })
+      return new Response(JSON.stringify({ results: [{ T: "VTI", c: 301 }] }), { status: 200 })
+    }) as typeof fetch
+
+    const closes = await latestCloses(["VTI"], { now: wednesdayEarly, fetchImpl })
+
+    assert.deepEqual(closes.get("VTI"), { price: 301, asOf: "2026-09-28" })
+  })
+
   it("still surfaces a real outage on a finished day", async () => {
     const { fetchImpl } = stubFetch({}, 500)
     await assert.rejects(latestCloses(["VTI"], { now: monday, fetchImpl }), MarketDataError)

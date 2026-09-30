@@ -204,6 +204,9 @@ export async function repricePositions() {
 
 let lastRefreshAttempt = 0
 
+/** Per-ticker closes fetched per catch-up run: stays under the provider's free per-minute limit. */
+const PREVIOUS_CLOSE_CALLS_PER_RUN = 4
+
 /**
  * Brings stored closes up to date when someone opens a page, so a balance never
  * waits a full day on the nightly job. Costs at most one grouped request per
@@ -225,9 +228,29 @@ export async function refreshStalePrices({ maxAgeHours = 6, minIntervalMinutes =
       .select({ id: securities.id, marketTicker: securities.marketTicker, asOf: securities.closePriceAsOf })
       .from(securities)
       .where(staleHeldSecurities(cutoff, catchUp))
+      // Least recently checked first, so the per-ticker fallback below rotates through everything.
+      .orderBy(securities.updatedAt)
     if (stale.length === 0) return { refreshed: 0 }
 
     const closes = await latestCloses(stale.map((s) => s.marketTicker!))
+
+    // The whole-market bars can trail a finished session by a day on some plans. The
+    // per-ticker "previous close" doesn't, so use it for a few tickers per run (the
+    // provider's free tier allows a handful of calls a minute); later runs do the rest.
+    const behind = stale.filter((s) => {
+      const have = closes.get(s.marketTicker!)?.asOf ?? s.asOf
+      return !have || have.slice(0, 10) < catchUp.expectedDate
+    })
+    for (const security of behind.slice(0, PREVIOUS_CLOSE_CALLS_PER_RUN)) {
+      try {
+        const close = await previousClose(security.marketTicker!)
+        if (close) closes.set(security.marketTicker!, close)
+      } catch (error) {
+        if (error instanceof MarketDataError && error.status === 429) break
+        // One ticker failing shouldn't stop the others.
+      }
+    }
+
     let refreshed = 0
     for (const security of stale) {
       const found = closes.get(security.marketTicker!)
