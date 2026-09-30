@@ -68,3 +68,57 @@ describe("parseHoldingsText", () => {
     assert.equal(parseHoldingsText("Robinhood Markets\nHOOD\n100\n$117.55"), null)
   })
 })
+
+describe("several accounts in one file", () => {
+  const csv = [
+    "Account Number,Account Name,Symbol,Description,Quantity,Average Cost Basis",
+    "X111,Individual,AAPL,APPLE INC,10,$190.00",
+    "X111,Individual,VOO,VANGUARD S&P 500,5,$600.00",
+    "X222,ROTH IRA,VOO,VANGUARD S&P 500,20,$450.00",
+    "X333,401(k) Plan,FXAIX,FIDELITY 500 INDEX,100,$120.00",
+    "X111,Individual,VOO,VANGUARD S&P 500,1,$700.00",
+  ].join("\n")
+
+  it("keeps the same ticker in two accounts as two positions, labelled by account", () => {
+    const out = parseDelimited(csv)
+    assert.ok(out)
+    const voo = out.rows.filter((r) => r.symbol === "VOO")
+    assert.deepEqual(voo.map((r) => [r.account, r.quantity]).sort(), [["Individual", 6], ["ROTH IRA", 20]])
+    assert.deepEqual([...new Set(out.rows.map((r) => r.account))].sort(), ["401(k) Plan", "Individual", "ROTH IRA"])
+  })
+
+  it("adds up lots within one account, weighting the average cost", () => {
+    const out = parseDelimited(csv)!
+    const voo = out.rows.find((r) => r.symbol === "VOO" && r.account === "Individual")!
+    assert.equal(voo.quantity, 6)
+    assert.ok(Math.abs(voo.avgCost! - (5 * 600 + 1 * 700) / 6) < 1e-9)
+  })
+
+  it("falls back to the account number when there is no name column", () => {
+    const out = parseDelimited("Account Number,Symbol,Quantity\nX111,AAPL,1\nX222,AAPL,2")!
+    assert.deepEqual(out.rows.map((r) => r.account), ["X111", "X222"])
+  })
+
+  it("leaves account empty for a single-account file", () => {
+    assert.equal(parseDelimited("Symbol,Quantity\nAAPL,3")!.rows[0]!.account, null)
+  })
+})
+
+describe("prices in the file", () => {
+  it("reads the last price, or works it out from the value, for tickers no market source covers", () => {
+    const out = parseDelimited(
+      [
+        "Symbol,Description,Quantity,Last Price,Current Value,Average Cost Basis",
+        'FXAIX,FIDELITY 500 INDEX,12.3,$200.00,"$2,460.00",$146.34',
+        'FZROX,FIDELITY ZERO TOTAL,50,,"$1,000.00",$16.00',
+        "AAPL,APPLE INC,10,$329.40,,$190.00",
+      ].join("\n"),
+    )!
+    assert.deepEqual(out.rows.map((r) => [r.symbol, r.price]), [["FXAIX", 200], ["FZROX", 20], ["AAPL", 329.4]])
+  })
+
+  it("has no price when the file doesn't show one", () => {
+    assert.equal(parseDelimited("Symbol,Quantity\nAAPL,3")!.rows[0]!.price, null)
+    assert.equal(parseLines("AAPL 3 @ 150")!.rows[0]!.price, null)
+  })
+})

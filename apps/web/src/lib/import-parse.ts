@@ -14,6 +14,10 @@ export type ImportRow = {
   avgCost: number | null
   name: string | null
   kind: "stock" | "crypto"
+  /** The price per share the source showed, used only when no market data source can price the ticker (mutual funds). */
+  price: number | null
+  /** Which account of the source this belongs to (for example "Roth IRA"), when the file has several. */
+  account: string | null
 }
 
 export type ParseOutcome = { rows: ImportRow[]; warnings: string[] }
@@ -69,6 +73,10 @@ const H = {
   avg: /^(avg\.? ?cost|average cost|average cost basis|avg\.? cost basis|avg\.? price|average price|average buy price|avg\.? buy price|cost per share|cost basis per share|price paid)$/i,
   total: /^(cost basis|cost basis total|total cost|total cost basis|book cost|book value)$/i,
   name: /^(name|description|security name|security description|company|instrument name)$/i,
+  price: /^(last price|price|current price|last|share price|market price|nav)$/i,
+  value: /^(current value|market value|value|total value|current market value)$/i,
+  accountName: /^(account name|account nickname|account title|account)$/i,
+  accountNumber: /^(account number|account #|account no\.?|acct|acct\.? ?#?)$/i,
 }
 
 /** A brokerage CSV/TSV export: finds the header row, then reads each holding beneath it. */
@@ -80,11 +88,21 @@ export function parseDelimited(text: string): ParseOutcome | null {
   if (!delimiter) return null
 
   let headerAt = -1
-  let cols = { symbol: -1, quantity: -1, avg: -1, total: -1, name: -1 }
+  let cols = { symbol: -1, quantity: -1, avg: -1, total: -1, name: -1, price: -1, value: -1, accountName: -1, accountNumber: -1 }
   for (let i = 0; i < Math.min(lines.length, 20); i++) {
     const cells = splitLine(lines[i]!, delimiter)
     const find = (re: RegExp) => cells.findIndex((c) => re.test(c.replace(/\s+/g, " ")))
-    const found = { symbol: find(H.symbol), quantity: find(H.quantity), avg: find(H.avg), total: find(H.total), name: find(H.name) }
+    const found = {
+      symbol: find(H.symbol),
+      quantity: find(H.quantity),
+      avg: find(H.avg),
+      total: find(H.total),
+      name: find(H.name),
+      price: find(H.price),
+      value: find(H.value),
+      accountName: find(H.accountName),
+      accountNumber: find(H.accountNumber),
+    }
     if (found.symbol >= 0 && found.quantity >= 0) {
       headerAt = i
       cols = found
@@ -115,7 +133,16 @@ export function parseDelimited(text: string): ParseOutcome | null {
     }
     if (avg != null && !(avg > 0)) avg = null
 
-    add(rows, { symbol, quantity, avgCost: avg, name, kind: "stock" })
+    // The same ticker in two accounts stays two positions. Its account is the name when
+    // the file has one, otherwise the number.
+    const account = (cols.accountName >= 0 ? cells[cols.accountName]?.trim() : "") || (cols.accountNumber >= 0 ? cells[cols.accountNumber]?.trim() : "") || null
+    // The price shown in the file, or its value divided by the shares.
+    let price = cols.price >= 0 ? toNumber(cells[cols.price]) : null
+    if ((price == null || !(price > 0)) && cols.value >= 0) {
+      const value = toNumber(cells[cols.value])
+      price = value != null && value > 0 ? value / quantity : null
+    }
+    add(rows, { symbol, quantity, avgCost: avg, name, kind: "stock", account, price: price != null && price > 0 ? price : null })
   }
 
   if (rows.size === 0) return null
@@ -139,7 +166,7 @@ export function parseLines(text: string): ParseOutcome | null {
     if (!m || !symbol || quantity == null || !(quantity > 0)) continue
     matched++
     const avg = toNumber(m[3])
-    add(rows, { symbol, quantity, avgCost: avg != null && avg > 0 ? avg : null, name: null, kind: "stock" })
+    add(rows, { symbol, quantity, avgCost: avg != null && avg > 0 ? avg : null, name: null, kind: "stock", account: null, price: null })
   }
 
   if (matched === 0 || matched / lines.length < 0.6) return null
@@ -149,14 +176,15 @@ export function parseLines(text: string): ParseOutcome | null {
 
 /** Same ticker twice (two lots, two accounts): add the shares and weight the average cost. */
 function add(rows: Map<string, ImportRow>, next: ImportRow) {
-  const existing = rows.get(next.symbol)
+  const key = `${next.account ?? ""}|${next.symbol}`
+  const existing = rows.get(key)
   if (!existing) {
-    rows.set(next.symbol, next)
+    rows.set(key, next)
     return
   }
   const quantity = existing.quantity + next.quantity
   const cost = existing.avgCost != null && next.avgCost != null ? (existing.avgCost * existing.quantity + next.avgCost * next.quantity) / quantity : null
-  rows.set(next.symbol, { ...existing, quantity, avgCost: cost, name: existing.name ?? next.name })
+  rows.set(key, { ...existing, quantity, avgCost: cost, name: existing.name ?? next.name, price: next.price ?? existing.price })
 }
 
 function finish(rows: Map<string, ImportRow>, warnings: string[]): ParseOutcome {
@@ -172,7 +200,7 @@ export function parseHoldingsText(text: string): ParseOutcome | null {
 
 /** Cleans rows from any reader (including the AI one): valid symbols, positive numbers, duplicates merged. */
 export function normalizeRows(
-  raw: { symbol: string; quantity: number; avgCost?: number | null; name?: string | null; kind?: "stock" | "crypto" }[],
+  raw: { symbol: string; quantity: number; avgCost?: number | null; name?: string | null; kind?: "stock" | "crypto"; account?: string | null; price?: number | null }[],
 ): ParseOutcome {
   const rows = new Map<string, ImportRow>()
   let dropped = 0
@@ -184,7 +212,7 @@ export function normalizeRows(
       continue
     }
     const avg = r.avgCost != null && Number.isFinite(r.avgCost) && r.avgCost > 0 ? r.avgCost : null
-    add(rows, { symbol, quantity: r.quantity, avgCost: avg, name: r.name?.trim().slice(0, 80) || null, kind })
+    add(rows, { symbol, quantity: r.quantity, avgCost: avg, name: r.name?.trim().slice(0, 80) || null, kind, account: r.account?.trim().slice(0, 60) || null, price: r.price != null && Number.isFinite(r.price) && r.price > 0 ? r.price : null })
   }
   return finish(rows, dropped > 0 ? [`Left out ${dropped} row${dropped === 1 ? "" : "s"} that weren't valid holdings.`] : [])
 }

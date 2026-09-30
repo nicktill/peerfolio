@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { ChevronDown, FileUp, Loader2, X } from "lucide-react"
 import { Button } from "@web/components/ui/button"
 import { Dialog } from "@web/components/ui/dialog"
@@ -9,9 +9,27 @@ import { plural } from "@web/lib/plural"
 import { mutate } from "@web/lib/use-api"
 import { cn } from "@web/lib/utils"
 
-type Row = { symbol: string; quantity: number; avgCost: number | null; name: string | null; kind: "stock" | "crypto" }
+type Row = { symbol: string; quantity: number; avgCost: number | null; name: string | null; kind: "stock" | "crypto"; account: string | null; price: number | null }
 type Preview = { rows: Row[]; warnings: string[]; reader: "table" | "ai" }
-type Result = { imported: number; removed: number; failed: { symbol: string; reason: string }[]; pending: string[] }
+type Result = { imported: number; removed: number; failed: { symbol: string; reason: string }[]; pending: string[]; fromFile?: string[]; created?: number }
+
+/**
+ * Fills in anything the server left out. A page opened before a release can talk to a
+ * newer server, and a missing list must never crash the screen.
+ */
+const tidy = (d: Partial<Result>): Result => ({
+  imported: d.imported ?? 0,
+  removed: d.removed ?? 0,
+  failed: d.failed ?? [],
+  pending: d.pending ?? [],
+  fromFile: d.fromFile ?? [],
+  created: d.created,
+})
+
+/** "X12345678" reads badly as an account name; show "Account ••5678" instead. */
+function friendlyAccountName(label: string) {
+  return /^[A-Za-z]?\d{6,}$/.test(label) ? `Account ••${label.slice(-4)}` : label
+}
 
 const fmt = (n: number) => new Intl.NumberFormat("en-US", { maximumFractionDigits: 8 }).format(n)
 const money = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n)
@@ -74,6 +92,15 @@ function ImportFlow({ accounts, onClose, onSaved }: { accounts: ImportTarget[]; 
   const [rows, setRows] = useState<Row[]>([])
   const [replace, setReplace] = useState(false)
   const [result, setResult] = useState<Result | null>(null)
+  // Where each account named in the file goes: a new account (the default) or one you already have.
+  const [dest, setDest] = useState<Record<string, string>>({})
+
+  const groups = useMemo(() => {
+    const out = new Map<string, Row[]>()
+    for (const r of rows) out.set(r.account ?? "", [...(out.get(r.account ?? "") ?? []), r])
+    return out
+  }, [rows])
+  const multi = [...groups.keys()].filter(Boolean).length > 1
 
   async function read(source: string) {
     setError(null)
@@ -103,11 +130,36 @@ function ImportFlow({ accounts, onClose, onSaved }: { accounts: ImportTarget[]; 
     setError(null)
     setBusy(true)
     try {
-      const data = await mutate<Result>(`/api/accounts/${accountId}/positions/import`, { body: { rows, replace } })
-      setResult(data)
-      if (data.imported > 0) onSaved()
-      if (data.failed.length === 0 && data.pending.length === 0) toast(`Imported ${plural(data.imported, "position")}.`, "success")
+      if (!multi) {
+        const data = tidy(await mutate<Result>(`/api/accounts/${accountId}/positions/import`, { body: { rows, replace } }))
+        setResult(data)
+        if (data.imported > 0) onSaved()
+        if (data.failed.length === 0 && data.pending.length === 0) toast(`Imported ${plural(data.imported, "position")}.`, "success")
+        return
+      }
+
+      // Several accounts: create the new ones, then import each group into its own account.
+      const total: Result = { imported: 0, removed: 0, failed: [], pending: [], fromFile: [], created: 0 }
+      for (const [label, groupRows] of groups) {
+        const choice = dest[label] ?? "new"
+        let id = choice
+        if (choice === "new") {
+          const made = await mutate<{ account: { id: string } }>("/api/accounts", {
+            body: { name: friendlyAccountName(label || "Imported account").slice(0, 60), category: "investment", balance: 0 },
+          })
+          id = made.account.id
+          total.created = (total.created ?? 0) + 1
+        }
+        const data = tidy(await mutate<Result>(`/api/accounts/${id}/positions/import`, { body: { rows: groupRows, replace: false } }))
+        total.imported += data.imported
+        total.failed.push(...data.failed.map((f) => ({ ...f, symbol: `${f.symbol} (${friendlyAccountName(label)})` })))
+        total.pending.push(...data.pending)
+        total.fromFile!.push(...(data.fromFile ?? []))
+      }
+      setResult(total)
+      if (total.imported > 0) onSaved()
     } catch (err) {
+      // Accounts made before the failure stay; importing again adds to them rather than duplicating positions.
       setError(err instanceof Error ? err.message : "Couldn't import.")
     } finally {
       setBusy(false)
@@ -119,9 +171,16 @@ function ImportFlow({ accounts, onClose, onSaved }: { accounts: ImportTarget[]; 
     return (
       <div className="space-y-4">
         <p className="text-sm">
-          <span className="font-semibold">{plural(result.imported, "position")} imported.</span>
+          <span className="font-semibold">{plural(result.imported, "position")} imported</span>
+          {result.created ? ` into ${plural(result.created, "new account")}` : ""}.
           {result.removed > 0 ? ` ${plural(result.removed, "old position")} removed.` : ""}
         </p>
+        {result.fromFile && result.fromFile.length > 0 ? (
+          <p className="rounded-xl border p-3 text-sm text-muted-foreground">
+            {plural(result.fromFile.length, "holding")} (mostly mutual funds) {result.fromFile.length === 1 ? "isn’t" : "aren’t"} covered by any market data source, so {result.fromFile.length === 1 ? "it’s" : "they’re"} valued at the price in your file. To update
+            {result.fromFile.length === 1 ? " it" : " them"}, import a fresh file.
+          </p>
+        ) : null}
         {result.pending.length > 0 ? (
           <p className="rounded-xl border p-3 text-sm text-muted-foreground">
             {plural(result.pending.length, "holding")} {result.pending.length === 1 ? "is" : "are"} waiting for a price and will fill in within a few minutes:{" "}
@@ -166,38 +225,42 @@ function ImportFlow({ accounts, onClose, onSaved }: { accounts: ImportTarget[]; 
           <p key={w} className="text-xs text-muted-foreground">{w}</p>
         ))}
 
-        <div className="max-h-72 overflow-auto rounded-xl border">
-          <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-card text-[11px] uppercase tracking-wide text-muted-foreground">
-              <tr>
-                <th className="px-3 py-2 text-left font-medium">Ticker</th>
-                <th className="px-3 py-2 text-right font-medium">Shares</th>
-                <th className="px-3 py-2 text-right font-medium">Avg cost</th>
-                <th className="w-8" />
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {rows.map((r) => (
-                <tr key={r.symbol}>
-                  <td className="px-3 py-2">
-                    <span className="font-mono font-semibold">{r.symbol}</span>
-                    {r.name ? <span className="ml-2 hidden text-xs text-muted-foreground sm:inline">{r.name}</span> : null}
-                  </td>
-                  <td className="numeric px-3 py-2 text-right">{fmt(r.quantity)}</td>
-                  <td className="numeric px-3 py-2 text-right text-muted-foreground">{r.avgCost != null ? money(r.avgCost) : "—"}</td>
-                  <td className="pr-2 text-right">
-                    <button type="button" className="rounded p-1 text-muted-foreground hover:bg-secondary hover:text-foreground" onClick={() => setRows(rows.filter((x) => x.symbol !== r.symbol))}>
-                      <X className="size-3.5" aria-hidden />
-                      <span className="sr-only">Leave out {r.symbol}</span>
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {multi ? (
+          <div className="max-h-[22rem] space-y-3 overflow-auto pr-0.5">
+            <p className="text-xs text-muted-foreground">
+              Your file has {plural(groups.size, "account")}. Each becomes its own account here, or goes into one you already have.
+            </p>
+            {[...groups].map(([label, groupRows]) => (
+              <div key={label} className="rounded-xl border">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-secondary/40 px-3 py-2">
+                  <p className="text-sm font-medium">
+                    {friendlyAccountName(label || "Unlabelled")} <span className="ml-1 text-xs font-normal text-muted-foreground">{plural(groupRows.length, "holding")}</span>
+                  </p>
+                  <select
+                    aria-label={`Where ${label || "these"} goes`}
+                    value={dest[label] ?? "new"}
+                    onChange={(e) => setDest({ ...dest, [label]: e.target.value })}
+                    className="h-8 max-w-[14rem] rounded-lg border bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <option value="new">New account</option>
+                    {accounts.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        Add to {a.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <RowsTable rows={groupRows} onRemove={(r) => setRows(rows.filter((x) => x !== r))} />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="max-h-72 overflow-auto rounded-xl border">
+            <RowsTable rows={rows} onRemove={(r) => setRows(rows.filter((x) => x !== r))} />
+          </div>
+        )}
 
-        {hasPositions ? (
+        {hasPositions && !multi ? (
           <fieldset className="space-y-2 text-sm">
             <legend className="sr-only">What to do with what’s already here</legend>
             {[
@@ -341,5 +404,38 @@ function BrokerHelp() {
         </div>
       ) : null}
     </div>
+  )
+}
+
+function RowsTable({ rows, onRemove }: { rows: Row[]; onRemove: (row: Row) => void }) {
+  return (
+    <table className="w-full text-sm">
+      <thead className="sticky top-0 bg-card text-[11px] uppercase tracking-wide text-muted-foreground">
+        <tr>
+          <th className="px-3 py-2 text-left font-medium">Ticker</th>
+          <th className="px-3 py-2 text-right font-medium">Shares</th>
+          <th className="px-3 py-2 text-right font-medium">Avg cost</th>
+          <th className="w-8" />
+        </tr>
+      </thead>
+      <tbody className="divide-y">
+        {rows.map((r) => (
+          <tr key={`${r.account ?? ""}|${r.symbol}`}>
+            <td className="px-3 py-2">
+              <span className="font-mono font-semibold">{r.symbol}</span>
+              {r.name ? <span className="ml-2 hidden text-xs text-muted-foreground sm:inline">{r.name}</span> : null}
+            </td>
+            <td className="numeric px-3 py-2 text-right">{fmt(r.quantity)}</td>
+            <td className="numeric px-3 py-2 text-right text-muted-foreground">{r.avgCost != null ? money(r.avgCost) : "—"}</td>
+            <td className="pr-2 text-right">
+              <button type="button" className="rounded p-1 text-muted-foreground hover:bg-secondary hover:text-foreground" onClick={() => onRemove(r)}>
+                <X className="size-3.5" aria-hidden />
+                <span className="sr-only">Leave out {r.symbol}</span>
+              </button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   )
 }
