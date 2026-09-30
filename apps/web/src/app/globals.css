@@ -406,6 +406,38 @@
   to { transform: none; opacity: 1; }
 }
 
+/* The trade receipt (components/fantasy/trade-receipt.tsx) and the row that just changed in "Your picks". */
+.receipt-pop {
+  animation: receipt-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes receipt-pop {
+  from { opacity: 0; transform: scale(0.92) translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.receipt-timer {
+  transform-origin: left;
+  animation: receipt-timer linear forwards;
+}
+@keyframes receipt-timer {
+  to { transform: scaleX(0); }
+}
+.rain {
+  top: -1.5rem;
+  animation: rain-fall ease-in both;
+}
+@keyframes rain-fall {
+  from { transform: translateY(0) rotate(-10deg); opacity: 0; }
+  15% { opacity: 1; }
+  to { transform: translateY(22rem) rotate(24deg); opacity: 0; }
+}
+.pick-flash {
+  animation: pick-flash 1.8s ease-out;
+}
+@keyframes pick-flash {
+  0% { background-color: color-mix(in srgb, var(--gain) 26%, transparent); box-shadow: 0 0 0 6px color-mix(in srgb, var(--gain) 16%, transparent); }
+  100% { background-color: transparent; box-shadow: 0 0 0 0 transparent; }
+}
+
 /* League balance cards (components/fantasy/balance-cards.tsx). */
 .stat-card {
   background-color: hsl(var(--background) / 0.7);
