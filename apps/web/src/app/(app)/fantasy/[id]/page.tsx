@@ -6,13 +6,13 @@ import { ArrowLeft, Check, Clock, Infinity as Forever, Link2 } from "lucide-reac
 import { initialsFor } from "@web/components/ui/avatar"
 import { RaceChart } from "@web/components/charts/race-chart"
 import { StandingRow } from "@web/components/leagues/standing-row"
+import { CashStat, PortfolioStat } from "@web/components/fantasy/balance-cards"
 import { TradePanel } from "@web/components/fantasy/trade-panel"
 import { TradeFeed, type FeedItem } from "@web/components/fantasy/trade-feed"
 import { timeLeft } from "@web/components/fantasy/time-left"
 import { Button } from "@web/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card"
 import { useRankBaseline } from "@web/components/fantasy/use-rank-baseline"
-import { AnimatedNumber } from "@web/components/ui/animated-number"
 import { Delta } from "@web/components/ui/delta"
 import { LeaguePageSkeleton } from "@web/components/skeletons"
 import { revealStyle } from "@web/components/motion/reveal"
@@ -23,7 +23,8 @@ import { liveRefreshMs } from "@web/lib/live-refresh"
 import { mutate, useApi } from "@web/lib/use-api"
 import { useToast } from "@web/components/ui/toast"
 
-export type Position = { ticker: string; name: string | null; shares: number; price: number; priceAsOf: string | null; value: number; gainPct: number }
+/** `averageCost` is stored (trade-derived); `price` is the live quote. Value and gain are measured between them. */
+export type Position = { ticker: string; name: string | null; shares: number; averageCost: number; price: number; priceAsOf: string | null; value: number; gainPct: number }
 
 type LeagueData = {
   league: {
@@ -113,12 +114,8 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
           <Stat label="Return">
             <Delta value={you.percent} size="lg" variant="plain" />
           </Stat>
-          <Stat label="Portfolio">
-            <AnimatedNumber className="numeric" value={you.value} format={formatCurrency} />
-          </Stat>
-          <Stat label="Cash to spend">
-            <AnimatedNumber className="numeric" value={you.cash} format={formatCurrency} />
-          </Stat>
+          <PortfolioStat value={you.value} cash={you.cash} startingCash={league.startingCash} />
+          <CashStat cash={you.cash} value={you.value} />
         </dl>
       </header>
 
@@ -212,8 +209,9 @@ function Holdings({ positions }: { positions: Position[] }) {
                 <div className="min-w-0 flex-1">
                   <p className="numeric text-sm font-medium">{formatCurrency(p.value)}</p>
                   <p className="numeric truncate text-xs text-muted-foreground">
-                    {p.shares.toLocaleString(undefined, { maximumFractionDigits: 4 })} sh @ {formatCurrency(p.price)}
+                    {p.shares.toLocaleString(undefined, { maximumFractionDigits: 4 })} sh @ {formatCurrency(p.averageCost)} avg
                   </p>
+                  <p className="numeric truncate text-xs text-muted-foreground">Now {formatCurrency(p.price)}</p>
                 </div>
                 <Delta value={p.gainPct} size="sm" />
               </li>
