@@ -39,6 +39,14 @@ export function rangeAvailability(firstDate: string | null, today: string): Reco
   return out
 }
 
+/** Days of tracking still needed before each range unlocks (0 once it has). */
+export function rangeUnlockDays(firstDate: string | null, today: string): Record<Range, number> {
+  const tracked = firstDate ? Math.max(0, daysBetween(firstDate, today)) : 0
+  const out = { ALL: 0 } as Record<Range, number>
+  for (const range of RANGES) if (range !== "ALL") out[range] = Math.max(0, DAYS[range] - tracked)
+  return out
+}
+
 /** The longest available range up to one month, or ALL while history is younger than that. */
 export function defaultRange(firstDate: string | null, today: string): Range {
   return rangeAvailability(firstDate, today)["1M"] ? "1M" : "ALL"

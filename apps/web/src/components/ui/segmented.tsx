@@ -56,9 +56,13 @@ export function Segmented<T extends string>({
             type="button"
             role="radio"
             aria-checked={selected}
-            disabled={item.disabled}
+            // aria-disabled, not disabled: a disabled button shows no tooltip, and the
+            // tooltip is the only place the reason lives.
+            aria-disabled={item.disabled || undefined}
             title={item.title}
-            onClick={() => onChange(item.value)}
+            onClick={() => {
+              if (!item.disabled) onChange(item.value)
+            }}
             className={cn(
               "press relative z-10 rounded-[6px] font-medium transition-colors",
               // Taller on touch screens, where 24px is too small a target.
