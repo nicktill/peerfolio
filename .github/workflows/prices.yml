@@ -22,15 +22,19 @@ jobs:
     steps:
       - name: Call /api/cron/prices
         env:
-          APP_URL: ${{ vars.PEERFOLIO_URL || 'https://peerfolio.org' }}
+          APP_URL: ${{ vars.PEERFOLIO_URL || 'https://www.peerfolio.org' }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           if [ -z "$CRON_SECRET" ]; then
             echo "Set the CRON_SECRET repository secret." >&2
             exit 1
           fi
-          curl --silent --show-error --fail-with-body --max-time 90 \
-            --retry 2 --retry-delay 10 \
+          # Anything but a 200 fails the run. A redirect (the bare domain redirects to www)
+          # would otherwise look like success without the app ever being reached.
+          code=$(curl --silent --show-error --max-time 90 --retry 2 --retry-delay 10 \
+            -o response.json -w '%{http_code}' \
             -H "Authorization: Bearer $CRON_SECRET" \
-            "${APP_URL%/}/api/cron/prices"
+            "${APP_URL%/}/api/cron/prices")
+          cat response.json
           echo
+          [ "$code" = "200" ] || { echo "Expected HTTP 200, got $code" >&2; exit 1; }

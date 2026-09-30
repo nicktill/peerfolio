@@ -77,7 +77,7 @@ The endpoint refuses without a matching `CRON_SECRET`, so it is safe to expose.
 close. `.github/workflows/prices.yml` calls it every 15 minutes during market
 hours and every 30 minutes after the close. Add one repository secret
 (Settings → Secrets and variables → Actions): `CRON_SECRET`, the same value as
-in Vercel. It calls `https://peerfolio.org` unless you set a `PEERFOLIO_URL`
+in Vercel. It calls `https://www.peerfolio.org` unless you set a `PEERFOLIO_URL`
 repository variable. A run
 turns red when it tried to refresh and nothing arrived.
 
