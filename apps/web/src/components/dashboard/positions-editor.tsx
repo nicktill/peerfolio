@@ -37,6 +37,9 @@ type Lookup =
   | { state: "found"; quote: Quote }
   | { state: "missing"; symbol: string; message: string; suggestions: { symbol: string; name: string }[] }
 
+/** Positions shown before "Show all", so a big account stays scannable. */
+const PREVIEW_COUNT = 8
+
 const formatQuantity = (q: number) => new Intl.NumberFormat("en-US", { maximumFractionDigits: 8 }).format(q)
 const asOfLabel = (d: string) => formatDate(`${d}T12:00:00`, "short")
 
@@ -45,11 +48,13 @@ const asOfLabel = (d: string) => formatDate(`${d}T12:00:00`, "short")
  * repriced nightly; an optional average cost turns on total return.
  */
 export function PositionsEditor({
+  id,
   accountId,
   positions,
   hidden,
   onChange,
 }: {
+  id?: string
   accountId: string
   positions: PositionRow[]
   hidden: boolean
@@ -58,6 +63,7 @@ export function PositionsEditor({
   const { toast } = useToast()
   const [editing, setEditing] = useState<PositionRow | "new" | null>(positions.length === 0 ? "new" : null)
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [showAll, setShowAll] = useState(false)
 
   async function remove(position: PositionRow) {
     setBusyId(position.id)
@@ -78,10 +84,10 @@ export function PositionsEditor({
   const asOf = positions.find((p) => p.priceAsOf)?.priceAsOf
 
   return (
-    <div className="space-y-3 border-t pt-3">
+    <div id={id} className="space-y-3 border-t pt-3">
       {positions.length > 0 ? (
         <ul className="-mx-2 space-y-0.5">
-          {positions.map((p) => {
+          {(showAll ? positions : positions.slice(0, PREVIEW_COUNT)).map((p) => {
             const gain = p.costBasis ? p.value - p.costBasis : null
             return (
               <li key={p.id} className="group flex items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-secondary/60">
@@ -120,6 +126,16 @@ export function PositionsEditor({
             )
           })}
         </ul>
+      ) : null}
+
+      {positions.length > PREVIEW_COUNT ? (
+        <button
+          type="button"
+          onClick={() => setShowAll((v) => !v)}
+          className="w-full rounded-lg py-1.5 text-center text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground"
+        >
+          {showAll ? "Show fewer" : `Show all ${positions.length} positions`}
+        </button>
       ) : null}
 
       {withBasis.length > 0 && !hidden ? (
