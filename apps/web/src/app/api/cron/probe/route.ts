@@ -19,6 +19,8 @@ export const GET = withPublic<unknown>(async (request) => {
   const config = {
     QUOTE_PROVIDER: process.env.QUOTE_PROVIDER ?? "(unset, defaults to finnhub)",
     FINNHUB_API_KEY: process.env.FINNHUB_API_KEY ? "set" : "MISSING",
+    ALPACA_API_KEY: process.env.ALPACA_API_KEY ? "set" : "MISSING",
+    ALPACA_API_SECRET: process.env.ALPACA_API_SECRET ? "set" : "MISSING",
     MASSIVE_API_KEY: process.env.MASSIVE_API_KEY ? "set" : "MISSING",
     LIVE_QUOTE_REFRESH_SECONDS: process.env.LIVE_QUOTE_REFRESH_SECONDS ?? "(default 900)",
     LIVE_QUOTE_CALLS_PER_MINUTE: process.env.LIVE_QUOTE_CALLS_PER_MINUTE ?? "(default 40)",
@@ -56,6 +58,30 @@ export const GET = withPublic<unknown>(async (request) => {
       })
     : { skipped: "no FINNHUB_API_KEY" }
 
+  const alpaca =
+    process.env.ALPACA_API_KEY && process.env.ALPACA_API_SECRET
+      ? await time(async () => {
+          const response = await fetch(`https://data.alpaca.markets/v2/stocks/snapshots?symbols=${symbol}&feed=iex`, {
+            headers: { "APCA-API-KEY-ID": process.env.ALPACA_API_KEY!, "APCA-API-SECRET-KEY": process.env.ALPACA_API_SECRET! },
+            cache: "no-store",
+            signal: AbortSignal.timeout(8_000),
+          })
+          const text = await response.text()
+          if (!response.ok) return { status: response.status, body: text.slice(0, 160) }
+          const raw = JSON.parse(text) as Record<string, unknown>
+          const snap = ((raw.snapshots as Record<string, unknown> | undefined) ?? raw)[symbol] as { latestTrade?: { p?: number; t?: string }; prevDailyBar?: { c?: number } } | undefined
+          const t = snap?.latestTrade?.t
+          return {
+            status: response.status,
+            price: snap?.latestTrade?.p,
+            previousClose: snap?.prevDailyBar?.c,
+            lastTrade: t ?? null,
+            ageMinutes: t ? Math.round((Date.now() - Date.parse(t.replace(/(\.\d{3})\d+/, "$1"))) / 60_000) : null,
+            note: snap ? undefined : "no snapshot for this symbol on the IEX feed",
+          }
+        })
+      : { skipped: "no ALPACA_API_KEY / ALPACA_API_SECRET" }
+
   const massive = process.env.MASSIVE_API_KEY
     ? await time(async () => {
         const response = await fetch(`https://api.massive.com/v2/aggs/ticker/${symbol}/prev?adjusted=true`, {
@@ -70,5 +96,5 @@ export const GET = withPublic<unknown>(async (request) => {
       })
     : { skipped: "no MASSIVE_API_KEY" }
 
-  return NextResponse.json({ at: new Date().toISOString(), symbol, config, finnhub, massive })
+  return NextResponse.json({ at: new Date().toISOString(), symbol, config, alpaca, finnhub, massive })
 })
