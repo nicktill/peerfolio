@@ -2,6 +2,7 @@ import { and, eq, isNotNull, sql } from "drizzle-orm"
 import { accounts, db, holdings, securities } from "@web/db"
 import { ApiError } from "@web/lib/api"
 import { latestCompletedSession } from "@web/lib/market-hours"
+import { previousCloseOnUpdate } from "@web/lib/price-write"
 import { staleHeldSecurities } from "@web/lib/stale-prices"
 import {
   displaySymbol,
@@ -85,7 +86,7 @@ export async function ensurePriced(marketTicker: string, kind: AssetKind, { maxA
     })
     .onConflictDoUpdate({
       target: securities.id,
-      set: { closePrice: close.price.toString(), closePriceAsOf: close.asOf, updatedAt: new Date() },
+      set: { previousClose: previousCloseOnUpdate(close.asOf), closePrice: close.price.toString(), closePriceAsOf: close.asOf, updatedAt: new Date() },
     })
 
   return { securityId, price: close.price, asOf: close.asOf, name: existing?.name ?? null }
@@ -194,7 +195,7 @@ export async function repricePositions() {
     if (!close || !isNewerClose(close.asOf, security.asOf)) continue
     await db
       .update(securities)
-      .set({ closePrice: close.price.toString(), closePriceAsOf: close.asOf, updatedAt: new Date() })
+      .set({ previousClose: previousCloseOnUpdate(close.asOf), closePrice: close.price.toString(), closePriceAsOf: close.asOf, updatedAt: new Date() })
       .where(eq(securities.id, security.id))
   }
 
@@ -265,7 +266,7 @@ export async function refreshStalePrices({ maxAgeHours = 6, minIntervalMinutes =
       const close = found && isNewerClose(found.asOf, security.asOf) ? found : undefined
       await db
         .update(securities)
-        .set(close ? { closePrice: close.price.toString(), closePriceAsOf: close.asOf, updatedAt: new Date() } : { updatedAt: new Date() })
+        .set(close ? { previousClose: previousCloseOnUpdate(close.asOf), closePrice: close.price.toString(), closePriceAsOf: close.asOf, updatedAt: new Date() } : { updatedAt: new Date() })
         .where(eq(securities.id, security.id))
       if (close) refreshed++
     }
