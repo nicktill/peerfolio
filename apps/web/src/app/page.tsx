@@ -1,4 +1,5 @@
 import { LandingHeader } from "@web/components/landing/landing-header"
+import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 import { ArrowDown, Sparkles } from "lucide-react"
 import { SiteFooter } from "@web/components/site-footer"
@@ -12,6 +13,13 @@ import { TickerTape } from "@web/components/landing/ticker-tape"
 import { InView } from "@web/components/motion/in-view"
 import { revealStyle } from "@web/components/motion/reveal"
 import { getCurrentUserId } from "@web/lib/auth"
+import { SITE } from "@web/lib/site"
+
+// The canonical lives here, not in the layout: every other page would otherwise claim to be the homepage.
+export const metadata: Metadata = { alternates: { canonical: "/" } }
+
+/** Tells Google the site's name (so it shows "Peerfolio", not the bare domain) and where it lives. */
+const structuredData = { "@context": "https://schema.org", "@type": "WebSite", name: SITE.name, url: SITE.baseUrl, description: SITE.description }
 
 const RIVALS = ["friends", "the group chat", "your roommates", "your coworkers", "your dad"] as const
 
@@ -44,6 +52,7 @@ export default async function HomePage() {
 
   return (
     <div className="flex min-h-screen flex-col overflow-x-clip">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }} />
       <LandingHeader />
 
       <main className="flex-1">

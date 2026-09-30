@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import { Bricolage_Grotesque, Geist, Geist_Mono } from "next/font/google"
 import "./globals.css"
 import { Providers } from "@web/components/providers"
+import { SITE } from "@web/lib/site"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -23,35 +24,32 @@ const display = Bricolage_Grotesque({
 })
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXTAUTH_URL ?? "https://www.peerfolio.org"),
+  metadataBase: new URL(SITE.baseUrl),
   title: {
-    default: "Peerfolio",
-    template: "%s | Peerfolio",
+    default: SITE.title,
+    template: `%s | ${SITE.name}`,
   },
-  description:
-    "Compete with friends on investment returns without sharing dollar amounts.",
+  description: SITE.description,
   openGraph: {
     type: "website",
     locale: "en_US",
     url: "/",
-    title: "Peerfolio",
-    description:
-      "Compete with friends on investment returns without sharing dollar amounts.",
-    siteName: "Peerfolio",
+    title: SITE.title,
+    description: SITE.description,
+    siteName: SITE.name,
     images: [
       {
         url: "/preview.png",
         width: 1200,
         height: 630,
-        alt: "Peerfolio",
+        alt: SITE.name,
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Peerfolio",
-    description:
-      "Compete with friends on investment returns without sharing dollar amounts.",
+    title: SITE.title,
+    description: SITE.description,
     images: ["/preview.png"],
   },
   icons: {
