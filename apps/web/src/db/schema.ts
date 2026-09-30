@@ -155,6 +155,11 @@ export const securities = pgTable("securities", {
   type: text("type"),
   closePrice: numeric("close_price", { precision: 20, scale: 6 }),
   closePriceAsOf: date("close_price_as_of"),
+  /**
+   * The close before `closePrice`, kept when a newer price arrives. It is what
+   * "today's change" is measured against; null until a second price has been seen.
+   */
+  previousClose: numeric("previous_close", { precision: 20, scale: 6 }),
   isoCurrencyCode: text("iso_currency_code").default("USD"),
   /**
    * Symbol at our market data provider, e.g. `AAPL` or `X:BTCUSD`. Set means

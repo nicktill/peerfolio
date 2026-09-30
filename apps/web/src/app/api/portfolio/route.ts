@@ -3,7 +3,9 @@ import { and, asc, eq, gte } from "drizzle-orm"
 import { db, holdings, accounts, plaidItems, portfolioSnapshots, securities } from "@web/db"
 import { withUser } from "@web/lib/api"
 import { scheduleLiveRefresh } from "@web/lib/live-quotes"
+import { allTimeGain, summarizeHoldings, todayChange, type PositionInput } from "@web/lib/dashboard-math"
 import { refreshStalePrices } from "@web/lib/positions"
+import { buildLeagueStandings, listLeaguesForUser } from "@web/lib/social"
 import { isRange, rangeStart, timeWeightedReturn, withLivePoint, type Range } from "@web/lib/returns"
 
 const n = (v: string | null) => (v == null ? 0 : Number(v))
@@ -54,6 +56,7 @@ export const GET = withUser<unknown>(async (userId, request) => {
         securityType: securities.type,
         closePrice: securities.closePrice,
         closePriceAsOf: securities.closePriceAsOf,
+        previousClose: securities.previousClose,
       })
       .from(holdings)
       .innerJoin(securities, eq(holdings.securityId, securities.id))
@@ -147,24 +150,38 @@ export const GET = withUser<unknown>(async (userId, request) => {
     .map(([name, value]) => ({ name, value, percent: allocationTotal > 0 ? (value / allocationTotal) * 100 : 0 }))
     .sort((a, b) => b.value - a.value)
 
-  const topHoldings = holdingRows
-    .map((h) => ({
-      securityId: h.securityId,
-      ticker: h.ticker,
-      name: h.securityName,
-      type: h.securityType,
-      quantity: n(h.quantity),
-      value: n(h.institutionValue) || n(h.quantity) * n(h.closePrice),
-      costBasis: n(h.costBasis),
-    }))
-    .filter((h) => h.value > 0)
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 8)
-    .map((h) => ({
-      ...h,
-      // Unrealized gain is only meaningful when the institution reports a basis.
-      gainPercent: h.costBasis > 0 ? ((h.value - h.costBasis) / h.costBasis) * 100 : null,
-    }))
+  const positionInputs: PositionInput[] = holdingRows.map((h) => ({
+    securityId: h.securityId,
+    ticker: h.ticker,
+    name: h.securityName,
+    type: h.securityType,
+    quantity: n(h.quantity),
+    value: n(h.institutionValue) || n(h.quantity) * n(h.closePrice),
+    costBasis: h.costBasis == null ? null : n(h.costBasis),
+    price: n(h.closePrice),
+    previousClose: h.previousClose == null ? null : n(h.previousClose),
+    priceAsOf: h.closePriceAsOf,
+  }))
+  // One row per security however many accounts hold it, so the same fund in two
+  // accounts is one line.
+  const holdingSummaries = summarizeHoldings(positionInputs)
+  const today = todayChange(positionInputs, netWorth)
+  const allTime = allTimeGain(positionInputs)
+
+  // Where you stand in each league, for the pills by the headline. A failure
+  // here must never cost someone their portfolio page.
+  const leaguePills = await listLeaguesForUser(userId)
+    .then((rows) =>
+      Promise.all(
+        rows.map(async (row) => {
+          const standing = await buildLeagueStandings(row.id, userId, "1M")
+            .then((all) => all.find((s) => s.isYou))
+            .catch(() => undefined)
+          return { id: row.id, name: row.name, emoji: row.emoji, rank: standing?.hasHistory ? standing.rank : null, members: row.memberCount }
+        }),
+      ),
+    )
+    .catch(() => [])
 
   const isVerified = accountRows.length > 0 && accountRows.every((a) => a.source === "plaid")
 
@@ -197,7 +214,10 @@ export const GET = withUser<unknown>(async (userId, request) => {
         lastSyncedAt: i.lastSyncedAt,
       })),
     allocation,
-    topHoldings,
+    holdings: holdingSummaries,
+    today,
+    allTime,
+    leagues: leaguePills,
     history: points.map((p) => ({ date: p.date, netWorth: p.netWorth, investableAssets: p.investableAssets })),
     performance: {
       percent: performance.percent,

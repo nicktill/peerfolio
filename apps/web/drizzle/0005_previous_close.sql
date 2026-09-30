@@ -1,0 +1,1 @@
+ALTER TABLE "securities" ADD COLUMN "previous_close" numeric(20, 6);
