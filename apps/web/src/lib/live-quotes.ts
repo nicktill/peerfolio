@@ -2,6 +2,7 @@ import { after } from "next/server"
 import { eq } from "drizzle-orm"
 import { db, securities } from "@web/db"
 import { isNewerClose } from "@web/lib/market-data"
+import { previousCloseOnUpdate } from "@web/lib/price-write"
 import { revalueSecurities } from "@web/lib/positions"
 import { acceptQuote, createQuoteProvider, isUsMarketOpen, quoteDate } from "@web/lib/quote-provider"
 import { claimBudget, claimLiveQuotesSql, recentClaimsSql, releaseClaimsSql } from "@web/lib/stale-prices"
@@ -76,7 +77,7 @@ export async function refreshLivePrices({
     if (!isNewerClose(quoteDate(quote), row.close_price_as_of)) continue
     await db
       .update(securities)
-      .set({ closePrice: quote.price.toString(), closePriceAsOf: quoteDate(quote), updatedAt: new Date() })
+      .set({ previousClose: previousCloseOnUpdate(quoteDate(quote)), closePrice: quote.price.toString(), closePriceAsOf: quoteDate(quote), updatedAt: new Date() })
       .where(eq(securities.id, row.id))
     updated.push(row.id)
   }
@@ -173,7 +174,7 @@ export async function ensureLivePrice(marketTicker: string, { maxAgeSeconds = 0,
 
     await db
       .update(securities)
-      .set({ closePrice: quote.price.toString(), closePriceAsOf: quoteDate(quote), updatedAt: new Date() })
+      .set({ previousClose: previousCloseOnUpdate(quoteDate(quote)), closePrice: quote.price.toString(), closePriceAsOf: quoteDate(quote), updatedAt: new Date() })
       .where(eq(securities.id, securityId))
     await revalueSecurities([securityId])
     return { price: quote.price, asOf: quoteDate(quote) }

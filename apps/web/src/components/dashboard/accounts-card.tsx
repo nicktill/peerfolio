@@ -1,9 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { AlertTriangle, ChevronDown, Landmark, PencilLine, RefreshCw, Trash2 } from "lucide-react"
+import { AlertTriangle, ChevronDown, Landmark, RefreshCw, Trash2 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card"
-import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
 import { Delta } from "@web/components/ui/delta"
 import { useToast } from "@web/components/ui/toast"
@@ -190,16 +189,11 @@ export function AccountsCard({
                           <span className="min-w-0 flex-1">
                             <span className="flex items-center gap-1.5">
                               <span className="truncate text-sm font-medium">{account.name}</span>
-                              {account.source === "manual" ? (
-                                <Badge variant="outline" className="hidden shrink-0 sm:inline-flex">
-                                  <PencilLine aria-hidden />
-                                  Manual
-                                </Badge>
-                              ) : null}
                             </span>
                             <span className="block truncate text-xs text-muted-foreground">
                               {account.institutionName}
                               {account.mask ? ` ···· ${account.mask}` : ""}
+                              {account.source === "manual" ? " · by hand" : ""}
                               {detail ? ` · ${detail}` : ""}
                             </span>
                           </span>

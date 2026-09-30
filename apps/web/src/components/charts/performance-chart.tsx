@@ -21,12 +21,21 @@ export function PerformanceChart({
   valueFormatter = (v: number) => formatCurrency(v, { compact: true }),
   className,
   ariaLabel,
+  onHover,
+  showTooltip = true,
+  baseline,
 }: {
   points: PerformancePoint[]
   height?: number
   valueFormatter?: (value: number) => string
   className?: string
   ariaLabel: string
+  /** Called with the hovered point (or null on leave), for a readout outside the chart. */
+  onHover?: (index: number | null) => void
+  /** Turn off the floating tooltip when the page shows its own readout. */
+  showTooltip?: boolean
+  /** A value to draw a dashed reference line at (the 0% line for an indexed return). */
+  baseline?: number
 }) {
   const { ref, width } = useMeasure<HTMLDivElement>()
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
@@ -38,8 +47,8 @@ export function PerformanceChart({
     const innerH = height - PAD.top - PAD.bottom
 
     const values = points.map((p) => p.value)
-    const min = Math.min(...values)
-    const max = Math.max(...values)
+    const min = Math.min(...values, ...(baseline != null ? [baseline] : []))
+    const max = Math.max(...values, ...(baseline != null ? [baseline] : []))
     // Pad the domain so a nearly-flat series doesn't hug the top and bottom edges.
     const span = max - min || Math.abs(max) * 0.1 || 1
     const lo = min - span * 0.12
@@ -52,8 +61,8 @@ export function PerformanceChart({
     const line = coords.map(([cx, cy], i) => `${i === 0 ? "M" : "L"}${cx.toFixed(2)},${cy.toFixed(2)}`).join(" ")
     const area = `${line} L${coords[coords.length - 1]![0].toFixed(2)},${(height - PAD.bottom).toFixed(2)} L${coords[0]![0].toFixed(2)},${(height - PAD.bottom).toFixed(2)} Z`
 
-    return { coords, line, area, innerH }
-  }, [points, width, height])
+    return { coords, line, area, innerH, baselineY: baseline != null ? y(baseline) : null }
+  }, [points, width, height, baseline])
 
   const rising = points.length >= 2 && points[points.length - 1]!.value >= points[0]!.value
   const stroke = rising ? "var(--gain)" : "var(--loss)"
@@ -64,7 +73,14 @@ export function PerformanceChart({
     const rect = event.currentTarget.getBoundingClientRect()
     const ratio = (event.clientX - rect.left - PAD.left) / (rect.width - PAD.left - PAD.right)
     const index = Math.round(ratio * (points.length - 1))
-    setHoverIndex(Math.max(0, Math.min(points.length - 1, index)))
+    const clamped = Math.max(0, Math.min(points.length - 1, index))
+    setHoverIndex(clamped)
+    onHover?.(clamped)
+  }
+
+  function clearHover() {
+    setHoverIndex(null)
+    onHover?.(null)
   }
 
   return (
@@ -77,7 +93,7 @@ export function PerformanceChart({
         className="touch-none select-none"
         onPointerMove={handlePointer}
         onPointerDown={handlePointer}
-        onPointerLeave={() => setHoverIndex(null)}
+        onPointerLeave={clearHover}
       >
         <defs>
           <linearGradient id="perf-fill" x1="0" y1="0" x2="0" y2="1">
@@ -97,6 +113,18 @@ export function PerformanceChart({
               className="stroke-border"
               strokeWidth={1}
             />
+
+            {geometry.baselineY != null ? (
+              <line
+                x1={0}
+                y1={geometry.baselineY}
+                x2={width}
+                y2={geometry.baselineY}
+                className="stroke-muted-foreground/50"
+                strokeWidth={1}
+                strokeDasharray="4 4"
+              />
+            ) : null}
 
             <path d={geometry.area} fill="url(#perf-fill)" />
             <path
@@ -141,7 +169,7 @@ export function PerformanceChart({
         </div>
       ) : null}
 
-      {active ? (
+      {active && showTooltip ? (
         <div className="pointer-events-none absolute left-0 top-0 rounded-lg border bg-popover px-2.5 py-1.5 text-xs shadow-md">
           <div className="text-muted-foreground">{formatDate(active.date)}</div>
           <div className="numeric mt-0.5 font-semibold">{valueFormatter(active.value)}</div>
