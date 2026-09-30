@@ -1,9 +1,14 @@
+import { inviteMetadata } from "@web/lib/invite-metadata"
 import Image from "next/image"
 import Link from "next/link"
 import { previewFantasyLeague } from "@web/lib/fantasy"
 import { formatCurrency } from "@web/lib/format"
 import { HeroBackdrop } from "@web/components/landing/hero-backdrop"
 import { JoinFantasy } from "./join-fantasy"
+
+export async function generateMetadata({ params }: { params: Promise<{ code: string }> }) {
+  return inviteMetadata("fantasy", (await params).code)
+}
 
 /** Invite landing page. Holding the code is the permission to see the league's name. */
 export default async function JoinFantasyPage({ params }: { params: Promise<{ code: string }> }) {

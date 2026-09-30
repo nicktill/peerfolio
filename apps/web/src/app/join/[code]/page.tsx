@@ -1,8 +1,13 @@
+import { inviteMetadata } from "@web/lib/invite-metadata"
 import { eq, sql } from "drizzle-orm"
 import Image from "next/image"
 import Link from "next/link"
 import { db, leagueMembers, leagues } from "@web/db"
 import { JoinLeague } from "./join-league"
+
+export async function generateMetadata({ params }: { params: Promise<{ code: string }> }) {
+  return inviteMetadata("league", (await params).code)
+}
 
 /**
  * Invite landing page.
