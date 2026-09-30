@@ -102,6 +102,9 @@ export function StandingRow({
               {h.ticker} <span className="text-muted-foreground">{h.weight.toFixed(0)}%</span>
             </span>
           ))
+        ) : standing.shareHoldings ? (
+          // Sharing is on but there's nothing to show yet (a new member who hasn't bought anything). Not the same as private.
+          <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">Nothing held yet</span>
         ) : (
           <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
             <EyeOff className="h-3 w-3" aria-hidden />
