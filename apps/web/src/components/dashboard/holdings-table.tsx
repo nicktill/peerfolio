@@ -1,7 +1,7 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import { PieChart } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { ChevronDown, PieChart } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card"
 import { EmptyState } from "@web/components/ui/empty-state"
 import { Segmented } from "@web/components/ui/segmented"
@@ -34,6 +34,7 @@ const SORTS = [
 
 /** Rows shown before "Show all", so a hundred holdings don't become a hundred rows of scrolling. */
 const PREVIEW = 12
+const OPEN_KEY = "peerfolio:holdings-open"
 
 const signed = (v: number, hidden: boolean) =>
   hidden ? "••••" : `${v > 0 ? "+" : v < 0 ? "−" : ""}${formatCurrency(Math.abs(v))}`
@@ -59,6 +60,25 @@ export function HoldingsTable({
 }) {
   const [sort, setSort] = useState<Sort>("value")
   const [showAll, setShowAll] = useState(false)
+  // Open by default; a person's choice is remembered on this device (best effort).
+  const [open, setOpen] = useState(true)
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(OPEN_KEY) === "0") setOpen(false)
+    } catch {
+      // Storage can be unavailable (private windows); the card just stays open.
+    }
+  }, [])
+  function toggle() {
+    setOpen((v) => {
+      try {
+        window.localStorage.setItem(OPEN_KEY, v ? "0" : "1")
+      } catch {
+        // Not remembering is fine.
+      }
+      return !v
+    })
+  }
 
   const sorted = useMemo(() => {
     const key = (h: HoldingRow) => (sort === "value" ? h.value : sort === "gain" ? h.gainPercent : h.todayPercent)
@@ -88,12 +108,22 @@ export function HoldingsTable({
   return (
     <Card>
       <CardHeader className="flex-row flex-wrap items-center gap-3">
-        <CardTitle>Holdings</CardTitle>
-        <span className="numeric text-sm text-muted-foreground">{holdings.length}</span>
-        <Segmented<Sort> options={sortOptions} value={sort} onChange={setSort} size="sm" label="Sort holdings" className="ml-auto" />
+        <button type="button" onClick={toggle} aria-expanded={open} aria-controls="holdings-body" className="flex items-center gap-3 rounded-md text-left">
+          <CardTitle>Holdings</CardTitle>
+          <span className="numeric text-sm text-muted-foreground">{holdings.length}</span>
+          <ChevronDown className={cn("size-4 text-muted-foreground transition-transform", !open && "-rotate-90")} aria-hidden />
+        </button>
+        {open ? (
+          <Segmented<Sort> options={sortOptions} value={sort} onChange={setSort} size="sm" label="Sort holdings" className="ml-auto" />
+        ) : (
+          <p className="ml-auto min-w-0 truncate text-xs text-muted-foreground">
+            {sorted.slice(0, 4).map((h) => h.ticker ?? h.name ?? "?").join(" · ")}
+            {sorted.length > 4 ? ` · +${sorted.length - 4} more` : ""}
+          </p>
+        )}
       </CardHeader>
 
-      <CardContent>
+      <CardContent id="holdings-body" hidden={!open}>
         {slices.length > 0 ? (
           <div className="mb-2">
             <div className="flex h-1.5 w-full gap-0.5 overflow-hidden rounded-full" role="img" aria-label={slices.map((s) => `${s.name} ${s.percent.toFixed(0)} percent`).join(", ")}>
