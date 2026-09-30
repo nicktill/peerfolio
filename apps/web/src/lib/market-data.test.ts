@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { beforeEach, describe, it } from "node:test"
-import { displaySymbol, isNewerClose, latestCloses, MarketDataError, previousClose, searchTickers, tickerDetails, toMarketTicker } from "./market-data.ts"
+import { displaySymbol, isNewerClose, latestCloses, MarketDataError, previousClose, searchTickers, securityTypeFromTickerType, tickerDetails, toMarketTicker } from "./market-data.ts"
 
 /** Stub fetch that answers from a path → body table and records every call. */
 function stubFetch(routes: Record<string, unknown>, status = 200) {
@@ -226,7 +226,7 @@ describe("tickerDetails", () => {
     const { fetchImpl } = stubFetch({
       "/v3/reference/tickers/AAPL": { results: { name: "Apple Inc.", branding: { icon_url: "https://x/icon.png", logo_url: "https://x/logo.svg" } } },
     })
-    assert.deepEqual(await tickerDetails("AAPL", fetchImpl), { name: "Apple Inc.", iconUrl: "https://x/icon.png", logoUrl: "https://x/logo.svg" })
+    assert.deepEqual(await tickerDetails("AAPL", fetchImpl), { name: "Apple Inc.", securityType: null, iconUrl: "https://x/icon.png", logoUrl: "https://x/logo.svg" })
   })
 
   it("returns null for a ticker the provider doesn't know", async () => {
@@ -245,5 +245,20 @@ describe("searchTickers", () => {
       "/v3/reference/tickers": { results: [{ ticker: "AAPL", name: "Apple Inc." }, { ticker: "X:BTCUSD" }] },
     })
     assert.deepEqual(await searchTickers("APPL", "stock", { fetchImpl }), [{ symbol: "AAPL", name: "Apple Inc." }])
+  })
+})
+
+
+describe("instrument classification", () => {
+  it("uses the provider type rather than a fund-like name", () => {
+    assert.equal(securityTypeFromTickerType("ETF"), "etf")
+    assert.equal(securityTypeFromTickerType("CS"), "equity")
+    for (const type of [undefined, "ETN", "ETV", "FUND", "unknown"]) assert.equal(securityTypeFromTickerType(type), null)
+  })
+  it("preserves ETF metadata even without branding", async () => {
+    process.env.MASSIVE_API_KEY = "test"
+    const result = await tickerDetails("VOO", async () => new Response(JSON.stringify({ results: { name: "Vanguard S&P 500 ETF", type: "ETF" } })))
+    assert.equal(result?.securityType, "etf")
+    assert.equal(result?.iconUrl, null)
   })
 })

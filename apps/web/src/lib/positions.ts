@@ -111,13 +111,47 @@ export async function lookupTicker(symbol: string, kind: AssetKind) {
   if (!marketTicker) throw await notFound(symbol.trim().toUpperCase(), kind)
 
   const priced = await ensurePriced(marketTicker, kind)
-  let name = priced.name
-  if (!name) {
-    const details = await tickerDetails(marketTicker).catch(() => null)
-    name = details?.name ?? null
-    if (name) await db.update(securities).set({ name }).where(eq(securities.id, priced.securityId))
-  }
+  const name = await enrichSecurityMetadata(priced.securityId, marketTicker).catch(() => null) ?? priced.name
   return { symbol: displaySymbol(marketTicker), kind, name, price: priced.price, asOf: priced.asOf }
+}
+
+/** Metadata writes never touch prices, basis, quantity or price freshness. */
+async function enrichSecurityMetadata(securityId: string, marketTicker: string) {
+  const current = await db.query.securities.findFirst({ where: eq(securities.id, securityId) })
+  if (!current || current.type === "mutual_fund") return current?.name
+  if (current.metadataCheckedAt && Date.now() - current.metadataCheckedAt.getTime() < 7 * 86_400_000) return current.name
+  const details = await tickerDetails(marketTicker)
+  await db.update(securities).set({
+    metadataCheckedAt: new Date(),
+    ...(details?.name && !current.name ? { name: details.name } : {}),
+    ...(details?.securityType && current.type !== "cryptocurrency" ? { type: details.securityType } : {}),
+  }).where(eq(securities.id, securityId))
+  return details?.name ?? current.name
+}
+
+/** One reference request per cron run; never send provider requests for plan identifiers. */
+export async function refreshSecurityMetadata() {
+  if (!process.env.MASSIVE_API_KEY) return { checked: 0 }
+  const candidates = await db.select({ id: securities.id, marketTicker: securities.marketTicker }).from(securities)
+    .where(and(
+      isNotNull(securities.marketTicker),
+      inArray(securities.type, ["equity", "etf"]),
+      sql`(${securities.metadataCheckedAt} IS NULL OR ${securities.metadataCheckedAt} < now() - interval '7 days')`,
+      sql`(EXISTS (SELECT 1 FROM holdings h WHERE h.security_id = ${securities.id})
+        OR EXISTS (SELECT 1 FROM fantasy_positions f WHERE f.security_id = ${securities.id}))`,
+    ))
+    .orderBy(sql`${securities.metadataCheckedAt} ASC NULLS FIRST`, securities.id).limit(1)
+  for (const security of candidates) {
+    try {
+      await enrichSecurityMetadata(security.id, security.marketTicker!)
+    } catch (error) {
+      // Retry failures later without delaying prices or permanently starving other tickers.
+      await db.update(securities).set({ metadataCheckedAt: new Date(Date.now() - 6 * 86_400_000) }).where(eq(securities.id, security.id))
+      console.error("[positions] metadata refresh failed:", error instanceof Error ? error.message : "unknown")
+      return { checked: 0 }
+    }
+  }
+  return { checked: candidates.length }
 }
 
 type PositionInput = { symbol: string; kind: AssetKind; quantity: number; avgCost?: number | null }
