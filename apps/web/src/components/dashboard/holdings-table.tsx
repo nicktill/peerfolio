@@ -142,16 +142,17 @@ export function HoldingsTable({
           </div>
         ) : null}
 
-        <div className="mt-4 hidden grid-cols-[minmax(0,2.2fr)_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)] gap-4 border-b pb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground md:grid">
+        <div className="mt-4 hidden grid-cols-[minmax(0,2fr)_minmax(140px,0.9fr)_minmax(90px,0.65fr)_minmax(90px,0.7fr)_minmax(95px,0.75fr)] gap-4 border-b pb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground md:grid">
           <span>Name</span>
           <span>Weight</span>
-          <span className="text-right">Value · {todayLabel.toLowerCase()}</span>
+          <span className="text-right">Value</span>
+          <span className="text-right">{todayLabel}</span>
           <span className="text-right">Total return</span>
         </div>
 
         <ul className="divide-y">
           {visible.map((h) => (
-            <li key={h.securityId} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-0.5 py-3 md:grid-cols-[minmax(0,2.2fr)_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)]">
+            <li key={h.securityId} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-0.5 py-3 md:grid-cols-[minmax(0,2fr)_minmax(140px,0.9fr)_minmax(90px,0.65fr)_minmax(90px,0.7fr)_minmax(95px,0.75fr)]">
               <div className="flex min-w-0 items-center gap-3">
                 <TickerLogo symbol={h.ticker ?? "?"} kind={h.type === "cryptocurrency" ? "crypto" : "stock"} size="sm" />
                 <div className="min-w-0">
@@ -173,9 +174,20 @@ export function HoldingsTable({
 
               <div className="text-right">
                 <p className="numeric text-sm font-semibold">{formatCurrency(h.value, { hidden })}</p>
-                <p className={cn("numeric text-xs", tone(h.todayAmount))}>
+                <p className={cn("numeric text-xs md:hidden", tone(h.todayAmount))}>
                   {h.todayAmount != null ? signed(h.todayAmount, hidden) : "—"}
                 </p>
+              </div>
+
+              <div className="hidden text-right md:block">
+                {h.todayPercent != null ? (
+                  <>
+                    <p className={cn("numeric text-sm font-semibold", tone(h.todayPercent))}>{hidden ? "••" : formatPercent(h.todayPercent, 2)}</p>
+                    <p className={cn("numeric text-xs", tone(h.todayAmount))}>{h.todayAmount != null ? signed(h.todayAmount, hidden) : ""}</p>
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground">—</p>
+                )}
               </div>
 
               <div className="hidden text-right md:block">

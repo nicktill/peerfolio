@@ -1,9 +1,10 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { AlertCircle, Loader2, Pencil, Plus, Trash2, X } from "lucide-react"
+import { AlertCircle, Loader2, Pencil, Plus, Trash2 } from "lucide-react"
 import { Button } from "@web/components/ui/button"
 import { Delta } from "@web/components/ui/delta"
+import { Dialog } from "@web/components/ui/dialog"
 import { Segmented } from "@web/components/ui/segmented"
 import { ImportPositionsButton } from "@web/components/dashboard/import-positions-dialog"
 import { TickerLogo } from "@web/components/ui/ticker-logo"
@@ -39,9 +40,6 @@ type Lookup =
   | { state: "found"; quote: Quote }
   | { state: "missing"; symbol: string; message: string; suggestions: { symbol: string; name: string }[] }
 
-/** Positions shown before "Show all", so a big account stays scannable. */
-const PREVIEW_COUNT = 8
-
 const formatQuantity = (q: number) => new Intl.NumberFormat("en-US", { maximumFractionDigits: 8 }).format(q)
 const asOfLabel = (d: string) => formatDate(`${d}T12:00:00`, "short")
 
@@ -63,9 +61,8 @@ export function PositionsEditor({
   onChange: () => void
 }) {
   const { toast } = useToast()
-  const [editing, setEditing] = useState<PositionRow | "new" | null>(positions.length === 0 ? "new" : null)
+  const [editing, setEditing] = useState<PositionRow | "new" | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
-  const [showAll, setShowAll] = useState(false)
 
   async function remove(position: PositionRow) {
     setBusyId(position.id)
@@ -88,8 +85,8 @@ export function PositionsEditor({
   return (
     <div id={id} className="space-y-3 border-t pt-3">
       {positions.length > 0 ? (
-        <ul className="-mx-2 space-y-0.5">
-          {(showAll ? positions : positions.slice(0, PREVIEW_COUNT)).map((p) => {
+        <ul className="-mx-2 max-h-72 space-y-0.5 overflow-y-auto overscroll-contain pr-1 [scrollbar-color:var(--muted-foreground)_transparent] [scrollbar-width:thin]">
+          {positions.map((p) => {
             const gain = p.costBasis ? p.value - p.costBasis : null
             return (
               <li key={p.id} className="group flex items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-secondary/60">
@@ -130,15 +127,7 @@ export function PositionsEditor({
         </ul>
       ) : null}
 
-      {positions.length > PREVIEW_COUNT ? (
-        <button
-          type="button"
-          onClick={() => setShowAll((v) => !v)}
-          className="w-full rounded-lg py-1.5 text-center text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground"
-        >
-          {showAll ? "Show fewer" : `Show all ${positions.length} positions`}
-        </button>
-      ) : null}
+      {positions.length > 6 ? <p className="text-center text-[11px] text-muted-foreground">Scroll to see all {positions.length} positions</p> : null}
 
       {withBasis.length > 0 && !hidden ? (
         <div className="numeric flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl bg-secondary/60 px-3 py-2 text-xs text-muted-foreground">
@@ -155,29 +144,23 @@ export function PositionsEditor({
         </div>
       ) : null}
 
-      {editing && positions.length === 0 ? (
+      {positions.length === 0 ? (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-dashed p-4">
           <div className="min-w-0">
             <p className="text-sm font-semibold">Got a lot to add?</p>
             <p className="text-xs text-muted-foreground">Paste your positions or upload your brokerage’s CSV and add them all at once.</p>
           </div>
-          <ImportPositionsButton accounts={[{ id: accountId, name: "This account", hasPositions: false }]} onDone={onChange} variant="default" label="Import positions" />
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" onClick={() => setEditing("new")}>
+              <Plus aria-hidden />
+              Add position
+            </Button>
+            <ImportPositionsButton accounts={[{ id: accountId, name: "This account", hasPositions: false }]} onDone={onChange} label="Import positions" />
+          </div>
         </div>
       ) : null}
 
-      {editing ? (
-        <PositionForm
-          key={editing === "new" ? "new" : editing.id}
-          accountId={accountId}
-          existing={editing === "new" ? null : editing}
-          onCancel={positions.length > 0 ? () => setEditing(null) : undefined}
-          onSaved={(message) => {
-            toast(message, "success")
-            setEditing(null)
-            onChange()
-          }}
-        />
-      ) : (
+      {positions.length > 0 ? (
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" className="rounded-full" onClick={() => setEditing("new")}>
             <Plus aria-hidden />
@@ -185,9 +168,31 @@ export function PositionsEditor({
           </Button>
           <ImportPositionsButton accounts={[{ id: accountId, name: "This account", hasPositions: positions.length > 0 }]} onDone={onChange} />
         </div>
-      )}
+      ) : null}
 
-      {asOf && !editing ? <p className="text-xs text-muted-foreground">Prices as of the {asOfLabel(asOf)} close. Updated nightly.</p> : null}
+      {asOf ? <p className="text-xs text-muted-foreground">Prices as of the {asOfLabel(asOf)} close. Updated nightly.</p> : null}
+
+      <Dialog
+        open={editing !== null}
+        onClose={() => setEditing(null)}
+        title={editing && editing !== "new" ? `Edit ${editing.ticker}` : "Add a position"}
+        description={editing === "new" ? "Enter a ticker and the shares you already own." : "Change shares or average cost without expanding the account."}
+        className="sm:max-w-xl"
+      >
+        {editing ? (
+          <PositionForm
+            key={editing === "new" ? "new" : editing.id}
+            accountId={accountId}
+            existing={editing === "new" ? null : editing}
+            onCancel={() => setEditing(null)}
+            onSaved={(message) => {
+              toast(message, "success")
+              setEditing(null)
+              onChange()
+            }}
+          />
+        ) : null}
+      </Dialog>
     </div>
   )
 }
@@ -279,16 +284,7 @@ function PositionForm({
   }
 
   return (
-    <form onSubmit={submit} className="animate-rise-in space-y-4 rounded-2xl border bg-background p-4 shadow-sm">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-semibold">{existing ? `Edit ${existing.ticker}` : "Add a position"}</p>
-        {onCancel ? (
-          <Button type="button" variant="ghost" size="icon" className="size-8" onClick={onCancel}>
-            <X className="size-4" aria-hidden />
-            <span className="sr-only">Cancel</span>
-          </Button>
-        ) : null}
-      </div>
+    <form onSubmit={submit} className="space-y-4">
 
       {!existing ? (
         <Segmented<Kind>
@@ -439,9 +435,12 @@ function PositionForm({
         <p className="max-w-sm text-xs leading-5 text-muted-foreground">
           Adding shares counts as a deposit, not a gain, so your league return stays fair.
         </p>
-        <Button type="submit" loading={saving} disabled={!quote}>
-          {existing ? "Save holding" : quote ? `Add ${quote.symbol} holding` : "Add holding"}
-        </Button>
+        <div className="ml-auto flex gap-2">
+          <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
+          <Button type="submit" loading={saving} disabled={!quote}>
+            {existing ? "Save holding" : quote ? `Add ${quote.symbol} holding` : "Add holding"}
+          </Button>
+        </div>
       </div>
     </form>
   )
