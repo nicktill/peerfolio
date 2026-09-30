@@ -239,10 +239,12 @@ export default function DashboardPage() {
           <CardHeader className="flex-row items-start justify-between gap-3">
             <div className="min-w-0">
               <CardTitle>Return</CardTitle>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Since you started tracking. Deposits and withdrawals don’t count.
-                {nextRange ? ` More views unlock as your history grows: ${nextRange} in ${plural(unlockIn[nextRange], "day")}.` : ""}
-              </p>
+              {data.hasHistory ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Since you started tracking. Deposits and withdrawals don’t count.
+                  {nextRange ? ` ${nextRange} unlocks in ${plural(unlockIn[nextRange], "day")}.` : ""}
+                </p>
+              ) : null}
               {data.hasHistory ? (
                 <div className="mt-3 flex items-baseline gap-3">
                   <span className={cn("numeric font-display text-4xl font-semibold leading-none", shownPercent >= 0 ? "text-gain-ink" : "text-loss-ink")}>
@@ -279,7 +281,6 @@ export default function DashboardPage() {
                 points={series}
                 height={340}
                 baseline={100}
-                showTooltip={false}
                 onHover={setHoverIndex}
                 ariaLabel={`Time-weighted return over the last ${range}`}
                 valueFormatter={(v) => `${v >= 100 ? "+" : "−"}${Math.abs(v - 100).toFixed(2)}%`}
