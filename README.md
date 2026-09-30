@@ -74,7 +74,7 @@ cron. Set it up in whichever way suits your plan:
 The endpoint refuses without a matching `CRON_SECRET`, so it is safe to expose.
 
 **Prices.** `/api/cron/prices` refreshes live quotes and picks up the official
-close. `.github/workflows/prices.yml` calls it every 15 minutes during market
+close. `.github/workflows/prices.yml` calls it every 5 minutes during market
 hours and every 10 minutes for a few hours after the close. Add one repository secret
 (Settings → Secrets and variables → Actions): `CRON_SECRET`, the same value as
 in Vercel. It calls `https://www.peerfolio.org` unless you set a `PEERFOLIO_URL`

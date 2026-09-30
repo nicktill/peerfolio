@@ -20,23 +20,25 @@ import { claimBudget, claimLiveQuotesSql, recentClaimsSql, releaseClaimsSql } fr
  * rate limit or an outage all leave the last stored price in place.
  */
 
-/** Most tickers one run may claim. */
-const DEFAULT_MAX_SYMBOLS = 25
+/** Most tickers one run may claim. Alpaca prices a hundred in one request. */
+const DEFAULT_MAX_SYMBOLS = 100
 
 /**
  * How stale a stored price may get before a page load refreshes it. Each
  * ticker is refreshed this long after its own last refresh, so once the first
  * round has gone through, refreshes stay spread out instead of arriving together.
  */
-export const REFRESH_SECONDS = Number(process.env.LIVE_QUOTE_REFRESH_SECONDS) || 15 * 60
+export const REFRESH_SECONDS = Number(process.env.LIVE_QUOTE_REFRESH_SECONDS) || 2 * 60
 
 /**
- * Provider calls we allow ourselves per rolling minute (Finnhub's free plan is
- * 60; the margin covers other servers and the trade path). Together with
+ * Tickers we allow ourselves to claim per rolling minute. Alpaca prices a
+ * hundred per request (its free plan allows 200 requests a minute); only the
+ * tickers it misses go to Finnhub, whose free plan is 60 calls a minute, and a
+ * rate limit there just leaves those tickers for the next round. Together with
  * REFRESH_SECONDS this bounds the tickers we can keep fresh at about
- * CALLS_PER_MINUTE x REFRESH_SECONDS / 60, i.e. 600 at 15 minutes.
+ * CALLS_PER_MINUTE x REFRESH_SECONDS / 60, i.e. 200 at two minutes.
  */
-export const CALLS_PER_MINUTE = Number(process.env.LIVE_QUOTE_CALLS_PER_MINUTE) || 40
+export const CALLS_PER_MINUTE = Number(process.env.LIVE_QUOTE_CALLS_PER_MINUTE) || 100
 
 /** When to try a ticker again that didn't get a price: soon for a hiccup, later for a rejected or empty quote. */
 const RETRY_AFTER_ERROR_SECONDS = 120
