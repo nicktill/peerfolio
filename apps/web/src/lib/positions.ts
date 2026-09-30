@@ -131,7 +131,7 @@ async function enrichSecurityMetadata(securityId: string, marketTicker: string) 
 
 /** One reference request per cron run; never send provider requests for plan identifiers. */
 export async function refreshSecurityMetadata() {
-  if (!process.env.MASSIVE_API_KEY) return { checked: 0 }
+  if (!process.env.MASSIVE_API_KEY) return { checked: 0, attempted: 0, reason: "missing_key" as const }
   const candidates = await db.select({ id: securities.id, marketTicker: securities.marketTicker }).from(securities)
     .where(and(
       isNotNull(securities.marketTicker),
@@ -148,10 +148,16 @@ export async function refreshSecurityMetadata() {
       // Retry failures later without delaying prices or permanently starving other tickers.
       await db.update(securities).set({ metadataCheckedAt: new Date(Date.now() - 6 * 86_400_000) }).where(eq(securities.id, security.id))
       console.error("[positions] metadata refresh failed:", error instanceof Error ? error.message : "unknown")
-      return { checked: 0 }
+      return {
+        checked: 0,
+        attempted: 1,
+        symbol: security.marketTicker,
+        status: error instanceof MarketDataError ? error.status ?? null : null,
+        reason: "provider_error" as const,
+      }
     }
   }
-  return { checked: candidates.length }
+  return { checked: candidates.length, attempted: candidates.length, reason: candidates.length ? "updated" as const : "no_candidate" as const }
 }
 
 type PositionInput = { symbol: string; kind: AssetKind; quantity: number; avgCost?: number | null }

@@ -20,7 +20,8 @@ import type { Standing } from "@web/components/leagues/standing-row"
 import { formatCurrency } from "@web/lib/format"
 import { describeMovement, rankMovement } from "@web/lib/rank-change"
 import { liveRefreshMs } from "@web/lib/live-refresh"
-import { useApi } from "@web/lib/use-api"
+import { mutate, useApi } from "@web/lib/use-api"
+import { useToast } from "@web/components/ui/toast"
 
 export type Position = { ticker: string; name: string | null; shares: number; price: number; priceAsOf: string | null; value: number; gainPct: number }
 
@@ -47,8 +48,18 @@ const CLOSED_REFRESH_MS = 60_000
 
 export default function FantasyLeaguePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
+  const { toast } = useToast()
   const { data, error, loading, refetch } = useApi<LeagueData>(`/api/fantasy/${id}`, [], { refreshMs: liveRefreshMs(CLOSED_REFRESH_MS) })
   const rankBefore = useRankBaseline(id, data?.you.rank ?? null)
+
+  async function react(toUserId: string, emoji: string) {
+    try {
+      await mutate(`/api/fantasy/${id}/react`, { body: { toUserId, emoji } })
+      await refetch()
+    } catch (error) {
+      toast(error instanceof Error ? error.message : "Couldn't react.", "error")
+    }
+  }
 
   if (loading && !data) return <LeaguePageSkeleton />
 
@@ -137,7 +148,7 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
             <CardContent>
               <ul className="divide-y">
                 {standings.map((s) => (
-                  <StandingRow key={s.userId} standing={s} showSource={false} />
+                  <StandingRow key={s.userId} standing={s} onReact={react} showSource={false} />
                 ))}
               </ul>
             </CardContent>
