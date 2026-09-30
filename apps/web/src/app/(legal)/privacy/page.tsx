@@ -128,6 +128,12 @@ export default function PrivacyPage() {
           <strong>Massive</strong>, our market data provider. We send it ticker symbols to get prices. It receives
           nothing about you.
         </li>
+        <li>
+          <strong>Anthropic</strong>, only when you paste holdings that aren&apos;t a plain table into the import box. We
+          send it the text you pasted so it can pick out tickers, share counts and average costs. We don&apos;t send your
+          name, email or login details, and we ask it to return only the holdings. Uploading a CSV or typing a simple list
+          is read on our servers without it.
+        </li>
       </ul>
 
       <h2>Cookies</h2>
