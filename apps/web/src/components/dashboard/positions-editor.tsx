@@ -5,6 +5,7 @@ import { AlertCircle, Loader2, Pencil, Plus, Trash2, X } from "lucide-react"
 import { Button } from "@web/components/ui/button"
 import { Delta } from "@web/components/ui/delta"
 import { Segmented } from "@web/components/ui/segmented"
+import { ImportPositionsButton } from "@web/components/dashboard/import-positions-dialog"
 import { TickerLogo } from "@web/components/ui/ticker-logo"
 import { useToast } from "@web/components/ui/toast"
 import { formatCurrency, formatDate } from "@web/lib/format"
@@ -153,6 +154,13 @@ export function PositionsEditor({
         </div>
       ) : null}
 
+      {editing && positions.length === 0 ? (
+        <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          Have a list already?
+          <ImportPositionsButton accountId={accountId} hasPositions={false} onDone={onChange} variant="ghost" />
+        </div>
+      ) : null}
+
       {editing ? (
         <PositionForm
           key={editing === "new" ? "new" : editing.id}
@@ -166,10 +174,13 @@ export function PositionsEditor({
           }}
         />
       ) : (
-        <Button variant="outline" size="sm" className="rounded-full" onClick={() => setEditing("new")}>
-          <Plus aria-hidden />
-          Add position
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" className="rounded-full" onClick={() => setEditing("new")}>
+            <Plus aria-hidden />
+            Add position
+          </Button>
+          <ImportPositionsButton accountId={accountId} hasPositions={positions.length > 0} onDone={onChange} />
+        </div>
       )}
 
       {asOf && !editing ? <p className="text-xs text-muted-foreground">Prices as of the {asOfLabel(asOf)} close. Updated nightly.</p> : null}

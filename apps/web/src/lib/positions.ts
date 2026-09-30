@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, sql } from "drizzle-orm"
+import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm"
 import { accounts, db, holdings, securities } from "@web/db"
 import { ApiError } from "@web/lib/api"
 import { latestCompletedSession } from "@web/lib/market-hours"
@@ -117,12 +117,10 @@ export async function lookupTicker(symbol: string, kind: AssetKind) {
   return { symbol: displaySymbol(marketTicker), kind, name, price: priced.price, asOf: priced.asOf }
 }
 
-/** Adds a position, or replaces the quantity if the account already holds it. */
-export async function setPosition(
-  accountId: string,
-  userId: string,
-  input: { symbol: string; kind: AssetKind; quantity: number; avgCost?: number | null },
-) {
+type PositionInput = { symbol: string; kind: AssetKind; quantity: number; avgCost?: number | null }
+
+/** The write behind `setPosition`, without revaluing, so a bulk import can revalue once at the end. */
+async function upsertPosition(accountId: string, userId: string, input: PositionInput) {
   const marketTicker = toMarketTicker(input.symbol, input.kind)
   if (!marketTicker) throw new ApiError(`${input.symbol} doesn't look like a ${input.kind === "crypto" ? "coin" : "ticker"}`)
 
@@ -150,7 +148,113 @@ export async function setPosition(
       set: { quantity: input.quantity.toString(), costBasis, updatedAt: new Date() },
     })
 
+  return { securityId, marketTicker }
+}
+
+/** Adds a position, or replaces the quantity if the account already holds it. */
+export async function setPosition(accountId: string, userId: string, input: PositionInput) {
+  await upsertPosition(accountId, userId, input)
   await revalue(accountId)
+}
+
+export type ImportRowInput = PositionInput & { name?: string | null }
+export type ImportResult = {
+  imported: number
+  removed: number
+  failed: { symbol: string; reason: string }[]
+  /** Rows not attempted because the price provider asked us to slow down. */
+  notTried: string[]
+}
+
+/**
+ * Prices every unseen ticker in one grouped request instead of one call each,
+ * so a fifty-position import doesn't run into the provider's per-minute limit.
+ * Tickers it doesn't return fall through to the per-ticker lookup (and its
+ * clear "couldn't find" error) later. Never throws.
+ */
+async function primePrices(rows: { marketTicker: string; kind: AssetKind; name?: string | null }[]) {
+  try {
+    const ids = rows.map((r) => `mkt:${r.marketTicker}`)
+    const known = await db.select({ id: securities.id, name: securities.name, price: securities.closePrice }).from(securities).where(inArray(securities.id, ids))
+    const priced = new Set(known.filter((k) => k.price != null).map((k) => k.id))
+
+    const missing = rows.filter((r) => !priced.has(`mkt:${r.marketTicker}`))
+    if (missing.length > 0) {
+      const closes = await latestCloses(missing.map((r) => r.marketTicker))
+      for (const row of missing) {
+        const close = closes.get(row.marketTicker)
+        if (!close) continue
+        await db
+          .insert(securities)
+          .values({
+            id: `mkt:${row.marketTicker}`,
+            tickerSymbol: displaySymbol(row.marketTicker),
+            name: row.name ?? null,
+            type: row.kind === "crypto" ? "cryptocurrency" : "equity",
+            marketTicker: row.marketTicker,
+            closePrice: close.price.toString(),
+            closePriceAsOf: close.asOf,
+          })
+          .onConflictDoNothing()
+      }
+    }
+
+    // A name we were handed fills a blank one; it never replaces a known one.
+    const unnamed = new Set(known.filter((k) => !k.name).map((k) => k.id))
+    for (const row of rows) {
+      if (row.name && unnamed.has(`mkt:${row.marketTicker}`)) {
+        await db.update(securities).set({ name: row.name }).where(and(eq(securities.id, `mkt:${row.marketTicker}`), isNull(securities.name)))
+      }
+    }
+  } catch (error) {
+    console.error("[positions] price priming failed:", error instanceof Error ? error.message : error)
+  }
+}
+
+/**
+ * Adds many positions at once. With `replace`, positions the list doesn't
+ * mention are removed afterwards, but only when every row went in, so a bad
+ * ticker can never leave an account half-emptied.
+ */
+export async function importPositions(accountId: string, userId: string, rows: ImportRowInput[], { replace }: { replace: boolean }): Promise<ImportResult> {
+  const result: ImportResult = { imported: 0, removed: 0, failed: [], notTried: [] }
+
+  const usable: (ImportRowInput & { marketTicker: string })[] = []
+  for (const row of rows) {
+    const marketTicker = toMarketTicker(row.symbol, row.kind)
+    if (marketTicker) usable.push({ ...row, marketTicker })
+    else result.failed.push({ symbol: row.symbol, reason: `Doesn't look like a ${row.kind === "crypto" ? "coin" : "ticker"}` })
+  }
+
+  await primePrices(usable)
+
+  const keptSecurityIds = new Set<string>()
+  for (let i = 0; i < usable.length; i++) {
+    const row = usable[i]!
+    try {
+      const { securityId } = await upsertPosition(accountId, userId, { symbol: row.symbol, kind: row.kind, quantity: row.quantity, avgCost: row.avgCost ?? undefined })
+      keptSecurityIds.add(securityId)
+      result.imported++
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 429) {
+        result.notTried = usable.slice(i).map((r) => r.symbol)
+        break
+      }
+      result.failed.push({ symbol: row.symbol, reason: error instanceof ApiError ? error.message : "Couldn't add it" })
+    }
+  }
+
+  if (replace && result.failed.length === 0 && result.notTried.length === 0) {
+    const current = await db.select({ id: holdings.id, securityId: holdings.securityId }).from(holdings).where(eq(holdings.accountId, accountId))
+    const stale = current.filter((h) => !keptSecurityIds.has(h.securityId)).map((h) => h.id)
+    if (stale.length > 0) {
+      await db.delete(holdings).where(and(eq(holdings.accountId, accountId), inArray(holdings.id, stale)))
+      result.removed = stale.length
+    }
+  }
+
+  await revalue(accountId)
+  return result
 }
 
 export async function removePosition(accountId: string, holdingId: string) {
