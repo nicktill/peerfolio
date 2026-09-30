@@ -28,7 +28,7 @@ if (!['localhost', '127.0.0.1'].includes(target.hostname) || target.pathname !==
 const sql = postgres(url, { onnotice: () => {} });
 await sql.unsafe(`CREATE TABLE IF NOT EXISTS users(id uuid PRIMARY KEY DEFAULT gen_random_uuid());
 CREATE TABLE IF NOT EXISTS accounts(id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id uuid NOT NULL REFERENCES users(id), source text DEFAULT 'manual', name text, current_balance numeric(20,4), updated_at timestamptz DEFAULT now());
-CREATE TABLE IF NOT EXISTS securities(id text PRIMARY KEY, ticker_symbol text, name text, type text, close_price numeric(20,6), close_price_as_of date, previous_close numeric(20,6), iso_currency_code text DEFAULT 'USD', market_ticker text, updated_at timestamptz DEFAULT now());
+CREATE TABLE IF NOT EXISTS securities(id text PRIMARY KEY, ticker_symbol text, name text, type text, close_price numeric(20,6), close_price_as_of date, previous_close numeric(20,6), iso_currency_code text DEFAULT 'USD', market_ticker text, metadata_checked_at timestamptz, updated_at timestamptz DEFAULT now());
 CREATE TABLE IF NOT EXISTS holdings(id uuid PRIMARY KEY DEFAULT gen_random_uuid(), account_id uuid REFERENCES accounts(id),user_id uuid REFERENCES users(id),security_id text REFERENCES securities(id),quantity numeric(24,8),cost_basis numeric(20,4),institution_value numeric(20,4),iso_currency_code text DEFAULT 'USD',updated_at timestamptz DEFAULT now(), UNIQUE(account_id,security_id));
 CREATE TABLE IF NOT EXISTS fantasy_positions(security_id text);`);
 await sql.unsafe('TRUNCATE holdings, fantasy_positions, accounts, securities, users CASCADE');
@@ -42,7 +42,7 @@ process.env.DATABASE_URL=url;
 for(const key of Object.keys(process.env)) if(/API_KEY|API_SECRET/.test(key))delete process.env[key];
 let providerCalls = 0;
 globalThis.fetch=()=>{providerCalls++;throw new Error('Unexpected provider network request')};
-const {importPositions,setPosition,repricePositions,refreshStalePrices}=require(path.join(temp,'positions.cjs'));
+const {importPositions,setPosition,repricePositions,refreshStalePrices,refreshSecurityMetadata,lookupTicker}=require(path.join(temp,'positions.cjs'));
 const assert=require('node:assert/strict');
 const db=postgres(url);
 const [{id:user}]=await db`INSERT INTO users DEFAULT VALUES RETURNING id`;
@@ -71,6 +71,35 @@ result=await importPositions(a,user,[{...row,symbol:'84679P405',price:null},{sym
 assert.equal(result.failed.length,1);assert.equal(result.imported,1);assert.equal(result.removed,0);
 assert.equal((await db`SELECT count(*) FROM holdings WHERE account_id=${a}`)[0].count,'2');
 assert.equal(providerCalls,0,'File-only holdings must never call a market provider');
+// Real service + database: enrich previously imported ETFs without touching valuation.
+await db`UPDATE securities SET metadata_checked_at=now() WHERE id='mkt:AAPL'`;
+for (const ticker of ['VOO','VTI','AVUV']) {
+  await db`INSERT INTO securities(id,ticker_symbol,name,type,market_ticker,close_price,close_price_as_of) VALUES(${`mkt:${ticker}`},${ticker},'Existing imported name','equity',${ticker},100,'2026-09-29')`;
+  await importPositions(a,user,[{symbol:ticker,kind:'stock',quantity:3,avgCost:70}],{replace:false});
+}
+const valuationBefore=await db`SELECT security_id,quantity,cost_basis,institution_value FROM holdings ORDER BY security_id`;
+const pricesBefore=await db`SELECT id,close_price,close_price_as_of,updated_at FROM securities ORDER BY id`;
+process.env.MASSIVE_API_KEY='regression';
+const requested=[];
+globalThis.fetch=async(url)=>{requested.push(url);assert.match(url,/\/v3\/reference\/tickers\//);return new Response(JSON.stringify({results:{name:'Provider ETF name',type:'ETF'}}));};
+for(let i=0;i<3;i++)assert.equal((await refreshSecurityMetadata()).checked,1);
+assert.deepEqual((await db`SELECT type FROM securities WHERE id IN ('mkt:VOO','mkt:VTI','mkt:AVUV')`).map(v=>v.type),['etf','etf','etf']);
+assert.equal((await refreshSecurityMetadata()).checked,0);
+assert.equal(requested.length,3);
+await lookupTicker('VOO','stock');
+assert.equal(requested.length,3,'Fresh metadata and price need no requests');
+assert.deepEqual(await db`SELECT security_id,quantity,cost_basis,institution_value FROM holdings ORDER BY security_id`,valuationBefore);
+assert.deepEqual(await db`SELECT id,close_price,close_price_as_of,updated_at FROM securities ORDER BY id`,pricesBefore);
+assert.equal((await db`SELECT name FROM securities WHERE id='mkt:VOO'`)[0].name,'Existing imported name');
+// Unknown metadata never downgrades ETF classification; failures rotate with a retry delay.
+await db`UPDATE securities SET metadata_checked_at=null WHERE id='mkt:VOO'`;
+globalThis.fetch=async()=>new Response(JSON.stringify({results:{name:'Unknown',type:'UNKNOWN'}}));
+await refreshSecurityMetadata();assert.equal((await db`SELECT type FROM securities WHERE id='mkt:VOO'`)[0].type,'etf');
+await db`UPDATE securities SET metadata_checked_at=null WHERE id='mkt:VTI'`;
+globalThis.fetch=async()=>new Response('',{status:429});
+assert.equal((await refreshSecurityMetadata()).checked,0);
+assert.equal((await refreshSecurityMetadata()).checked,0);
+console.log('PASS: metadata backfill, ETF classification, cache reuse, unknown types, rate limits, no price/basis/value changes');
 console.log('PASS: file identifiers, exact basis rounding, account isolation, reimport, replace, partial failure and refresh exclusion');
 await db.end();await rm(temp,{recursive:true,force:true});process.exit(0);
 

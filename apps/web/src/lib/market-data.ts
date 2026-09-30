@@ -155,14 +155,21 @@ export async function latestCloses(
   return out
 }
 
-export type TickerDetails = { name: string | null; iconUrl: string | null; logoUrl: string | null }
+/** Only provider-confirmed instrument types; names are not classification evidence. */
+export function securityTypeFromTickerType(type: string | undefined): "etf" | "equity" | null {
+  if (type === "ETF") return "etf"
+  if (type === "CS" || type === "ADRC" || type === "PFD") return "equity"
+  return null
+}
+
+export type TickerDetails = { name: string | null; iconUrl: string | null; logoUrl: string | null; securityType: "etf" | "equity" | null }
 
 /**
  * Company name and branding for a ticker, or null when the provider doesn't
  * know it. Crypto pairs have no branding; they return their name only.
  */
 export async function tickerDetails(marketTicker: string, fetchImpl: typeof fetch = fetch): Promise<TickerDetails | null> {
-  type Response = { results?: { name?: string; branding?: { icon_url?: string; logo_url?: string } } }
+  type Response = { results?: { name?: string; type?: string; branding?: { icon_url?: string; logo_url?: string } } }
   let data: Response
   try {
     data = await getJson<Response>(`/v3/reference/tickers/${encodeURIComponent(marketTicker)}`, fetchImpl)
@@ -173,6 +180,7 @@ export async function tickerDetails(marketTicker: string, fetchImpl: typeof fetc
   if (!data.results) return null
   return {
     name: data.results.name ?? null,
+    securityType: securityTypeFromTickerType(data.results.type),
     iconUrl: data.results.branding?.icon_url ?? null,
     logoUrl: data.results.branding?.logo_url ?? null,
   }
