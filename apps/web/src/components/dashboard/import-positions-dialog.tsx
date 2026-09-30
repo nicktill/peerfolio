@@ -11,7 +11,7 @@ import { cn } from "@web/lib/utils"
 
 type Row = { symbol: string; quantity: number; avgCost: number | null; name: string | null; kind: "stock" | "crypto" }
 type Preview = { rows: Row[]; warnings: string[]; reader: "table" | "ai" }
-type Result = { imported: number; removed: number; failed: { symbol: string; reason: string }[]; notTried: string[] }
+type Result = { imported: number; removed: number; failed: { symbol: string; reason: string }[]; pending: string[] }
 
 const fmt = (n: number) => new Intl.NumberFormat("en-US", { maximumFractionDigits: 8 }).format(n)
 const money = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n)
@@ -106,7 +106,7 @@ function ImportFlow({ accounts, onClose, onSaved }: { accounts: ImportTarget[]; 
       const data = await mutate<Result>(`/api/accounts/${accountId}/positions/import`, { body: { rows, replace } })
       setResult(data)
       if (data.imported > 0) onSaved()
-      if (data.failed.length === 0 && data.notTried.length === 0) toast(`Imported ${plural(data.imported, "position")}.`, "success")
+      if (data.failed.length === 0 && data.pending.length === 0) toast(`Imported ${plural(data.imported, "position")}.`, "success")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't import.")
     } finally {
@@ -116,29 +116,29 @@ function ImportFlow({ accounts, onClose, onSaved }: { accounts: ImportTarget[]; 
 
   // Step 3: what happened.
   if (result) {
-    const problems = result.failed.length + result.notTried.length
     return (
       <div className="space-y-4">
         <p className="text-sm">
           <span className="font-semibold">{plural(result.imported, "position")} imported.</span>
           {result.removed > 0 ? ` ${plural(result.removed, "old position")} removed.` : ""}
         </p>
-        {problems > 0 ? (
+        {result.pending.length > 0 ? (
+          <p className="rounded-xl border p-3 text-sm text-muted-foreground">
+            {plural(result.pending.length, "holding")} {result.pending.length === 1 ? "is" : "are"} waiting for a price and will fill in within a few minutes:{" "}
+            <span className="font-mono text-foreground">{result.pending.join(", ")}</span>
+          </p>
+        ) : null}
+        {result.failed.length > 0 ? (
           <div className="space-y-2 rounded-xl border p-3 text-sm">
-            <p className="font-medium">{plural(problems, "holding")} didn’t go in</p>
+            <p className="font-medium">{plural(result.failed.length, "holding")} couldn’t be added</p>
             <ul className="max-h-40 space-y-1 overflow-auto text-xs text-muted-foreground">
               {result.failed.map((f) => (
                 <li key={f.symbol}>
                   <span className="font-mono font-semibold text-foreground">{f.symbol}</span>: {f.reason}
                 </li>
               ))}
-              {result.notTried.length > 0 ? (
-                <li>
-                  Prices are rate-limited right now. Import these again in a minute:{" "}
-                  <span className="font-mono text-foreground">{result.notTried.join(", ")}</span>
-                </li>
-              ) : null}
             </ul>
+            <p className="text-xs text-muted-foreground">Mutual funds and some other products can’t be priced yet. Everything else went in.</p>
           </div>
         ) : null}
         <div className="flex justify-end">

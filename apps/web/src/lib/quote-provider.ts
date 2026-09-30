@@ -50,7 +50,14 @@ export interface QuoteProvider {
  * The default (`auto`) uses every source that has keys, in order: Alpaca (one
  * call for many tickers), then Finnhub for whatever it couldn't price.
  */
-export function createQuoteProvider(env: Record<string, string | undefined>, fetchImpl: typeof fetch = fetch, now: () => Date = () => new Date()): QuoteProvider | null {
+export function createQuoteProvider(
+  env: Record<string, string | undefined>,
+  fetchImpl: typeof fetch = fetch,
+  now: () => Date = () => new Date(),
+  // `anyAge` keeps the last trade however old it is. Live refreshes want only recent
+  // trades; pricing a ticker for the first time (an import) wants the best price there is.
+  { anyAge = false }: { anyAge?: boolean } = {},
+): QuoteProvider | null {
   const name = (env.QUOTE_PROVIDER ?? "auto").trim().toLowerCase()
 
   const alpaca = () => (env.ALPACA_API_KEY && env.ALPACA_API_SECRET ? createAlpacaProvider({ keyId: env.ALPACA_API_KEY, secret: env.ALPACA_API_SECRET, fetchImpl }) : null)
@@ -60,7 +67,7 @@ export function createQuoteProvider(env: Record<string, string | undefined>, fet
     case "auto": {
       const list = [alpaca(), finnhub()].filter((p): p is QuoteProvider => p !== null)
       if (list.length === 0) return null
-      return list.length === 1 ? list[0]! : createCompositeProvider(list, (quote) => acceptQuote(quote, now()))
+      return list.length === 1 ? list[0]! : createCompositeProvider(list, (quote) => anyAge || acceptQuote(quote, now()))
     }
     case "alpaca":
       return alpaca()

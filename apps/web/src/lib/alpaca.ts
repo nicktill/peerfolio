@@ -12,7 +12,7 @@
 
 import type { Quote, QuoteProvider, QuoteResult } from "./quote-provider.ts"
 
-const BASE_URL = "https://data.alpaca.markets"
+const BASE_URL = process.env.ALPACA_DATA_URL ?? "https://data.alpaca.markets"
 
 /** US-listed symbols only; crypto (`X:BTCUSD`) and anything malformed is skipped. */
 const SYMBOL = /^[A-Z][A-Z0-9]{0,5}(\.[A-Z0-9]{1,2})?$/

@@ -2,6 +2,7 @@
 
 import { SessionProvider } from "next-auth/react"
 import { ThemeProvider } from "next-themes"
+import { ConfirmProvider } from "@web/components/ui/confirm"
 import { ToastProvider } from "@web/components/ui/toast"
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -12,7 +13,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
         the light-then-dark flash the old useEffect-based provider caused.
       */}
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-        <ToastProvider>{children}</ToastProvider>
+        <ToastProvider>
+          <ConfirmProvider>{children}</ConfirmProvider>
+        </ToastProvider>
       </ThemeProvider>
     </SessionProvider>
   )

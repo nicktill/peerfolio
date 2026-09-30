@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/car
 import { EmptyState } from "@web/components/ui/empty-state"
 import { Segmented } from "@web/components/ui/segmented"
 import { Skeleton, SkeletonRow } from "@web/components/ui/skeleton"
+import { useConfirm } from "@web/components/ui/confirm"
 import { useToast } from "@web/components/ui/toast"
 import { RaceChart } from "@web/components/charts/race-chart"
 import { StandingRow, type Standing } from "@web/components/leagues/standing-row"
@@ -26,6 +27,7 @@ type LeagueResponse = {
 export default function LeaguePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const { toast } = useToast()
+  const confirm = useConfirm()
   const [range, setRange] = useState<Range>("1M")
   const [copied, setCopied] = useState(false)
 
@@ -63,7 +65,13 @@ export default function LeaguePage({ params }: { params: Promise<{ id: string }>
   }
 
   async function leave() {
-    if (!window.confirm("Leave this league?")) return
+    const ok = await confirm({
+      title: "Leave this league?",
+      description: "You'll disappear from its standings. You can rejoin with the invite link.",
+      confirmLabel: "Leave league",
+      tone: "danger",
+    })
+    if (!ok) return
     try {
       await mutate(`/api/leagues/${id}/leave`)
       window.location.href = "/leagues"
