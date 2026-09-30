@@ -6,6 +6,8 @@
  * Free of database and framework imports so the tests can run it directly.
  */
 
+import { createAlpacaProvider } from "./alpaca.ts"
+import { createCompositeProvider } from "./composite-provider.ts"
 import { createFinnhubProvider } from "./finnhub.ts"
 import { isUsMarketOpen } from "./market-hours.ts"
 
@@ -39,15 +41,29 @@ export interface QuoteProvider {
 }
 
 /**
- * The provider named by `QUOTE_PROVIDER` (default `finnhub`), or null when live
- * prices are off or not configured. Null is a normal state: everything then
- * falls back to daily closes.
+ * The provider named by `QUOTE_PROVIDER`, or null when live prices are off or
+ * nothing is configured. Null is a normal state: everything then falls back to
+ * daily closes.
+ *
+ * The default (`auto`) uses every source that has keys, in order: Alpaca (one
+ * call for many tickers), then Finnhub for whatever it couldn't price.
  */
-export function createQuoteProvider(env: Record<string, string | undefined>, fetchImpl: typeof fetch = fetch): QuoteProvider | null {
-  const name = (env.QUOTE_PROVIDER ?? "finnhub").trim().toLowerCase()
+export function createQuoteProvider(env: Record<string, string | undefined>, fetchImpl: typeof fetch = fetch, now: () => Date = () => new Date()): QuoteProvider | null {
+  const name = (env.QUOTE_PROVIDER ?? "auto").trim().toLowerCase()
+
+  const alpaca = () => (env.ALPACA_API_KEY && env.ALPACA_API_SECRET ? createAlpacaProvider({ keyId: env.ALPACA_API_KEY, secret: env.ALPACA_API_SECRET, fetchImpl }) : null)
+  const finnhub = () => (env.FINNHUB_API_KEY ? createFinnhubProvider({ apiKey: env.FINNHUB_API_KEY, fetchImpl }) : null)
+
   switch (name) {
+    case "auto": {
+      const list = [alpaca(), finnhub()].filter((p): p is QuoteProvider => p !== null)
+      if (list.length === 0) return null
+      return list.length === 1 ? list[0]! : createCompositeProvider(list, (quote) => acceptQuote(quote, now()))
+    }
+    case "alpaca":
+      return alpaca()
     case "finnhub":
-      return env.FINNHUB_API_KEY ? createFinnhubProvider({ apiKey: env.FINNHUB_API_KEY, fetchImpl }) : null
+      return finnhub()
     case "off":
     case "none":
       return null

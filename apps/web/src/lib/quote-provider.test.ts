@@ -56,8 +56,23 @@ describe("acceptQuote", () => {
 })
 
 describe("createQuoteProvider", () => {
-  it("builds Finnhub by default when a key is present", () => {
+  it("uses Finnhub alone when it is the only key", () => {
     assert.equal(createQuoteProvider({ FINNHUB_API_KEY: "k" })?.name, "finnhub")
+  })
+
+  it("uses Alpaca alone when it is the only key, and needs both halves of the key", () => {
+    assert.equal(createQuoteProvider({ ALPACA_API_KEY: "i", ALPACA_API_SECRET: "s" })?.name, "alpaca")
+    assert.equal(createQuoteProvider({ ALPACA_API_KEY: "i" }), null)
+  })
+
+  it("combines every configured source, Alpaca first", () => {
+    assert.equal(createQuoteProvider({ ALPACA_API_KEY: "i", ALPACA_API_SECRET: "s", FINNHUB_API_KEY: "k" })?.name, "alpaca+finnhub")
+  })
+
+  it("can be pinned to one source", () => {
+    const env = { ALPACA_API_KEY: "i", ALPACA_API_SECRET: "s", FINNHUB_API_KEY: "k" }
+    assert.equal(createQuoteProvider({ ...env, QUOTE_PROVIDER: "finnhub" })?.name, "finnhub")
+    assert.equal(createQuoteProvider({ ...env, QUOTE_PROVIDER: "alpaca" })?.name, "alpaca")
   })
 
   it("is off without a key, so everything falls back to daily closes", () => {
