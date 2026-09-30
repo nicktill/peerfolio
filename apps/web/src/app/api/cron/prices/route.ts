@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { assertCronAuthorized, withPublic } from "@web/lib/api"
 import { refreshLivePrices } from "@web/lib/live-quotes"
-import { refreshStalePrices } from "@web/lib/positions"
+import { refreshSecurityMetadata, refreshStalePrices } from "@web/lib/positions"
 
 export const maxDuration = 60
 
@@ -25,7 +25,9 @@ export const GET = withPublic<unknown>(async (request) => {
   // No per-instance throttle here: the schedule is the throttle.
   const closes = await refreshStalePrices({ minIntervalMinutes: 0, recheckMinutes: 10 })
 
+  const metadata = await refreshSecurityMetadata().catch(() => ({ checked: 0 }))
+
   const liveBroken = "error" in live || ("claimed" in live && (live.claimed ?? 0) > 0 && live.refreshed === 0)
-  console.log("[cron] prices", JSON.stringify({ live, closes }))
-  return NextResponse.json({ healthy: !liveBroken, live, closes }, { status: liveBroken ? 500 : 200 })
+  console.log("[cron] prices", JSON.stringify({ live, closes, metadata }))
+  return NextResponse.json({ healthy: !liveBroken, live, closes, metadata }, { status: liveBroken ? 500 : 200 })
 })

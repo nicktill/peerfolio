@@ -43,6 +43,13 @@
       "when": 1790729231687,
       "tag": "0005_previous_close",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790737000227,
+      "tag": "0006_security_metadata",
+      "breakpoints": true
     }
   ]
 }

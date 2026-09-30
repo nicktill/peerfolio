@@ -167,6 +167,8 @@ export const securities = pgTable("securities", {
    * null because the institution already reports their value.
    */
   marketTicker: text("market_ticker"),
+  /** Metadata retries are independent of price freshness. */
+  metadataCheckedAt: timestamp("metadata_checked_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 })
 

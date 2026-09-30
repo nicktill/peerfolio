@@ -1,0 +1,1 @@
+ALTER TABLE "securities" ADD COLUMN "metadata_checked_at" timestamp with time zone;
