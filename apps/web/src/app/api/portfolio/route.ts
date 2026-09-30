@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { and, asc, eq, gte } from "drizzle-orm"
+import { and, asc, eq, gte, min } from "drizzle-orm"
 import { db, holdings, accounts, plaidItems, portfolioSnapshots, securities } from "@web/db"
 import { withUser } from "@web/lib/api"
 import { scheduleLiveRefresh } from "@web/lib/live-quotes"
@@ -73,6 +73,9 @@ export const GET = withUser<unknown>(async (userId, request) => {
         : eq(portfolioSnapshots.userId, userId),
     )
     .orderBy(asc(portfolioSnapshots.date))
+
+  // Where tracking began, whatever the range: it decides which ranges have enough history behind them.
+  const [firstRow] = await db.select({ first: min(portfolioSnapshots.date) }).from(portfolioSnapshots).where(eq(portfolioSnapshots.userId, userId))
 
   let totalAssets = 0
   let totalLiabilities = 0
@@ -229,6 +232,8 @@ export const GET = withUser<unknown>(async (userId, request) => {
     },
     /** Two snapshots is the minimum for any return to exist. */
     hasHistory: points.length >= 2,
+    /** The first day we tracked this portfolio (YYYY-MM-DD), or null. */
+    firstDate: firstRow?.first ?? null,
     /** Plaid-backed portfolios are the only ones eligible for the public board. */
     isVerified,
   })

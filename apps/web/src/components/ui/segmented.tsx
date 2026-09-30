@@ -16,14 +16,14 @@ export function Segmented<T extends string>({
   className,
   label,
 }: {
-  options: readonly T[] | readonly { value: T; label: string }[]
+  options: readonly T[] | readonly { value: T; label: string; disabled?: boolean; title?: string }[]
   value: T
   onChange: (value: T) => void
   size?: "sm" | "default"
   className?: string
   label: string
 }) {
-  const items = options.map((o) => (typeof o === "string" ? { value: o, label: o } : o))
+  const items = options.map((o) => (typeof o === "string" ? { value: o, label: o, disabled: false, title: undefined } : { disabled: false, title: undefined, ...o }))
   const { containerRef, rect, ready } = useSlidingIndicator<HTMLDivElement>(value)
   const buttons = useRef<Record<string, HTMLButtonElement | null>>({})
 
@@ -32,8 +32,9 @@ export function Segmented<T extends string>({
     const step = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0
     if (!step) return
     e.preventDefault()
-    const at = items.findIndex((i) => i.value === value)
-    const next = items[(at + step + items.length) % items.length]!
+    const enabled = items.filter((i) => !i.disabled)
+    const at = enabled.findIndex((i) => i.value === value)
+    const next = enabled[(at + step + enabled.length) % enabled.length]!
     onChange(next.value)
     buttons.current[next.value]?.focus()
   }
@@ -55,12 +56,15 @@ export function Segmented<T extends string>({
             type="button"
             role="radio"
             aria-checked={selected}
+            disabled={item.disabled}
+            title={item.title}
             onClick={() => onChange(item.value)}
             className={cn(
               "press relative z-10 rounded-[6px] font-medium transition-colors",
               // Taller on touch screens, where 24px is too small a target.
               size === "sm" ? "min-h-8 px-2.5 py-1 text-xs sm:min-h-7 sm:px-2" : "min-h-9 px-3 py-1.5 text-sm sm:min-h-8",
               selected ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+              item.disabled && "cursor-not-allowed opacity-40 hover:text-muted-foreground",
             )}
           >
             {item.label}
