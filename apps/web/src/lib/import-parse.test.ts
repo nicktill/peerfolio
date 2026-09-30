@@ -153,3 +153,22 @@ it("keeps identically named accounts separate by account number", () => {
   const out = parseDelimited("Account Number,Account Name,Symbol,Quantity\n111,Individual,AAPL,2\n222,Individual,AAPL,3")!
   assert.deepEqual(out.rows.map(r => [r.account, r.quantity]), [["Individual (111)", 2], ["Individual (222)", 3]])
 })
+
+describe("copying from a retirement plan's web page", () => {
+  const page = [
+    "Symbol\tLast price\tCurrent value\tQuantity\tCost basis",
+    "66585Y356 LSV US LARGE CAP CIT\t$30.15\t$3,175.34\t104.866\t$2,904.55 $27.70 / Share",
+    "VWUAX\t$203.20\t$3,127.65\t15.392\t$2,904.70",
+  ].join("\n")
+
+  it("reads the fund name that follows the code in the symbol cell", () => {
+    const out = parseDelimited(page)!
+    assert.deepEqual(out.rows.map((r) => r.symbol), ["66585Y356", "VWUAX"])
+    assert.equal(out.rows[0]!.name, "LSV US LARGE CAP CIT")
+  })
+
+  it("reads a cost cell that carries words after the amount", () => {
+    const out = parseDelimited(page)!
+    assert.ok(Math.abs(out.rows[0]!.avgCost! - 2904.55 / 104.866) < 1e-9)
+  })
+})

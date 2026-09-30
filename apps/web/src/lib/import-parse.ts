@@ -36,6 +36,14 @@ export function toNumber(raw: string | undefined): number | null {
   return Number.isFinite(n) ? (negative ? -n : n) : null
 }
 
+/** The first amount in text like "$27.70 / Share", for cells that carry words after the number. */
+function leadingNumber(raw: string | undefined): number | null {
+  const m = raw ? /\(?-?\$?[\d,]*\.?\d+\)?/.exec(raw) : null
+  return m ? toNumber(m[0]) : null
+}
+
+const amount = (raw: string | undefined) => toNumber(raw) ?? leadingNumber(raw)
+
 /** CUSIP-shaped identifiers used by retirement plans; these are not market tickers. */
 export const isPlanIdentifier = (symbol: string) => /^[A-Z0-9]{8}[0-9]$/.test(symbol)
 
@@ -130,18 +138,26 @@ export function parseDelimited(text: string): ParseOutcome | null {
 
   for (const line of lines.slice(headerAt + 1)) {
     const cells = splitLine(line, delimiter)
-    const symbol = cleanSymbol(cells[cols.symbol])
+    // A web page's symbol cell can hold "66585Y356 LSV US LARGE CAP CIT": code first, name after.
+    const symbolCell = cells[cols.symbol]?.trim() ?? ""
+    let symbol = cleanSymbol(symbolCell)
+    let cellName: string | null = null
+    if (!symbol) {
+      const [first = "", ...rest] = symbolCell.split(/\s+/)
+      symbol = cleanSymbol(first)
+      if (symbol) cellName = rest.join(" ") || null
+    }
     const quantity = toNumber(cells[cols.quantity])
-    const name = cols.name >= 0 ? cells[cols.name]?.trim() || null : null
+    const name = (cols.name >= 0 ? cells[cols.name]?.trim() || null : null) ?? cellName
     if (!symbol || quantity == null || !(quantity > 0) || (name && /money market|cash & cash/i.test(name))) {
       // Trailing disclaimers and totals are normal in an export; only count rows that looked like data.
       if (cells[cols.symbol]?.trim()) skipped++
       continue
     }
 
-    let avg = cols.avg >= 0 ? toNumber(cells[cols.avg]) : null
+    let avg = cols.avg >= 0 ? amount(cells[cols.avg]) : null
     if (cols.total >= 0) {
-      const total = toNumber(cells[cols.total])
+      const total = amount(cells[cols.total])
       if (total != null && total > 0) avg = total / quantity
     }
     if (avg != null && !(avg > 0)) avg = null
@@ -154,9 +170,9 @@ export function parseDelimited(text: string): ParseOutcome | null {
       ? `${accountName} (${accountNumber || "unlabelled"})`
       : accountName || accountNumber || null
     // The price shown in the file, or its value divided by the shares.
-    let price = cols.price >= 0 ? toNumber(cells[cols.price]) : null
+    let price = cols.price >= 0 ? amount(cells[cols.price]) : null
     if ((price == null || !(price > 0)) && cols.value >= 0) {
-      const value = toNumber(cells[cols.value])
+      const value = amount(cells[cols.value])
       price = value != null && value > 0 ? value / quantity : null
     }
     add(rows, { symbol, quantity, avgCost: avg, name, kind: "stock", account, price: price != null && price > 0 ? price : null })
