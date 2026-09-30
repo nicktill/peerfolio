@@ -22,11 +22,11 @@ jobs:
     steps:
       - name: Call /api/cron/prices
         env:
-          APP_URL: ${{ secrets.PEERFOLIO_URL }}
+          APP_URL: ${{ vars.PEERFOLIO_URL || 'https://peerfolio.org' }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then
-            echo "Set the PEERFOLIO_URL and CRON_SECRET repository secrets." >&2
+          if [ -z "$CRON_SECRET" ]; then
+            echo "Set the CRON_SECRET repository secret." >&2
             exit 1
           fi
           curl --silent --show-error --fail-with-body --max-time 90 \
