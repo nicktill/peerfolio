@@ -132,10 +132,11 @@ async function enrichSecurityMetadata(securityId: string, marketTicker: string) 
 
 /** One reference request per cron run; never send provider requests for plan identifiers. */
 /**
- * Reference lookups per run. The provider's free plan allows a handful a minute and
- * runs are minutes apart, so a few per run clears the backlog without touching that.
+ * Reference lookups per run: one. The provider's free plan allows only a handful a
+ * minute and a rate-limited ticker waits a day for its retry, so the backlog is worked
+ * down by more runs (the schedule, and dashboard visits) rather than bigger ones.
  */
-const METADATA_PER_RUN = 3
+const METADATA_PER_RUN = 1
 
 export async function refreshSecurityMetadata() {
   if (!process.env.MASSIVE_API_KEY) return { checked: 0, attempted: 0, reason: "missing_key" as const }
