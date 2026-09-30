@@ -22,6 +22,7 @@ export const GET = withPublic<unknown>(async (request) => {
     ALPACA_API_KEY: process.env.ALPACA_API_KEY ? "set" : "MISSING",
     ALPACA_API_SECRET: process.env.ALPACA_API_SECRET ? "set" : "MISSING",
     MASSIVE_API_KEY: process.env.MASSIVE_API_KEY ? "set" : "MISSING",
+    TIINGO_API_KEY: process.env.TIINGO_API_KEY ? "set" : "MISSING",
     LIVE_QUOTE_REFRESH_SECONDS: process.env.LIVE_QUOTE_REFRESH_SECONDS ?? "(default 900)",
     LIVE_QUOTE_CALLS_PER_MINUTE: process.env.LIVE_QUOTE_CALLS_PER_MINUTE ?? "(default 40)",
   }
@@ -82,6 +83,20 @@ export const GET = withPublic<unknown>(async (request) => {
         })
       : { skipped: "no ALPACA_API_KEY / ALPACA_API_SECRET" }
 
+  const tiingo = process.env.TIINGO_API_KEY
+    ? await time(async () => {
+        const response = await fetch(`https://api.tiingo.com/tiingo/daily/${symbol.replace(".", "-")}/prices`, {
+          headers: { Authorization: `Token ${process.env.TIINGO_API_KEY}`, "Content-Type": "application/json" },
+          cache: "no-store",
+          signal: AbortSignal.timeout(8_000),
+        })
+        const text = await response.text()
+        if (!response.ok) return { status: response.status, body: text.slice(0, 160) }
+        const bar = (JSON.parse(text) as { date?: string; close?: number }[]).at(-1)
+        return { status: response.status, close: bar?.close, date: bar?.date?.slice(0, 10) ?? null }
+      })
+    : { skipped: "no TIINGO_API_KEY" }
+
   const massive = process.env.MASSIVE_API_KEY
     ? await time(async () => {
         const response = await fetch(`https://api.massive.com/v2/aggs/ticker/${symbol}/prev?adjusted=true`, {
@@ -96,5 +111,5 @@ export const GET = withPublic<unknown>(async (request) => {
       })
     : { skipped: "no MASSIVE_API_KEY" }
 
-  return NextResponse.json({ at: new Date().toISOString(), symbol, config, alpaca, finnhub, massive })
+  return NextResponse.json({ at: new Date().toISOString(), symbol, config, alpaca, finnhub, tiingo, massive })
 })
