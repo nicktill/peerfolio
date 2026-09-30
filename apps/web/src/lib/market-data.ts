@@ -136,9 +136,10 @@ export async function latestCloses(
       try {
         data = await get(`${market.path}/${date}?adjusted=true&include_otc=true`, fetchImpl)
       } catch (error) {
-        // Some plans withhold the current day until later. That is "not yet",
-        // not an outage: yesterday's close is still a correct answer.
-        const notYet = back === 0 && error instanceof MarketDataError && (error.status === 403 || error.status === 404)
+        // Some plans withhold the newest bars for a day or so. That is "not yet",
+        // not an outage: the day before is still a correct answer. (Real trouble,
+        // such as a bad key, fails every day, so it still surfaces further back.)
+        const notYet = back <= 1 && error instanceof MarketDataError && (error.status === 403 || error.status === 404)
         if (notYet) continue
         throw error
       }
