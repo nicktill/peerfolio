@@ -397,6 +397,51 @@
   50% { opacity: 0.45; transform: scale(0.8); }
 }
 
+/* League balance cards (components/fantasy/balance-cards.tsx). */
+.stat-card {
+  background-color: hsl(var(--background) / 0.7);
+  transition: box-shadow 0.25s ease, translate 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.stat-card:hover {
+  translate: 0 -2px;
+  box-shadow: var(--shadow-card);
+}
+/* Lit from the corner in the direction of the money. */
+.stat-card-up {
+  background-image: radial-gradient(16rem 8rem at 0% 0%, color-mix(in srgb, var(--gain) 16%, transparent), transparent 70%);
+  border-color: color-mix(in srgb, var(--gain) 28%, hsl(var(--border)));
+}
+.stat-card-down {
+  background-image: radial-gradient(16rem 8rem at 0% 0%, color-mix(in srgb, var(--loss) 14%, transparent), transparent 70%);
+  border-color: color-mix(in srgb, var(--loss) 28%, hsl(var(--border)));
+}
+.stat-card-cash {
+  background-image: radial-gradient(16rem 8rem at 100% 100%, color-mix(in srgb, var(--series-4) 12%, transparent), transparent 70%);
+  border-style: dashed;
+}
+.stat-card-cash-live {
+  border-color: color-mix(in srgb, var(--series-4) 45%, hsl(var(--border)));
+}
+.chip-cash {
+  background-color: color-mix(in srgb, var(--series-4) 22%, transparent);
+}
+/* Bars grow to their share once mounted. */
+.stat-bar {
+  transition: width 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.15s;
+}
+/* One soft band of light crossing the card: on arrival, and whenever its number changes. */
+.stat-sheen {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 35%, hsl(var(--foreground) / 0.08) 50%, transparent 65%);
+  translate: -100% 0;
+  animation: stat-sheen 1.3s cubic-bezier(0.22, 1, 0.36, 1) 0.35s both;
+}
+@keyframes stat-sheen {
+  to { translate: 100% 0; }
+}
+
 
 /* ==========================================================================
    Signed-in surfaces

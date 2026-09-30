@@ -29,6 +29,29 @@ const MIN_SHARES = 1e-8
 export const portfolioValue = (state: MemberState) =>
   state.cash + state.positions.reduce((sum, p) => sum + p.shares * p.price, 0)
 
+/**
+ * What "Your picks" shows for one position.
+ *
+ * `averageCost` comes only from the stored cost basis and share count, so it
+ * moves when shares are bought or sold and never with the live quote. Value and
+ * gain are the only things the live price feeds.
+ */
+export function positionStats(position: { shares: number; costBasis: number }, livePrice: number) {
+  const averageCost = position.shares > 0 ? position.costBasis / position.shares : 0
+  return {
+    averageCost,
+    value: position.shares * livePrice,
+    // (livePrice - averageCost) / averageCost, in percent.
+    gainPct: averageCost > 0 ? ((livePrice - averageCost) / averageCost) * 100 : 0,
+  }
+}
+
+/** How a member's total splits between cash on the bench and money in picks, in percent of the total. */
+export function cashSplit(value: number, cash: number) {
+  const cashPct = value > 0 ? Math.min(100, Math.max(0, (cash / value) * 100)) : 0
+  return { cashPct, investedPct: 100 - cashPct }
+}
+
 /** Return in percent against the league's starting cash. */
 export const returnPct = (value: number, startingCash: number) => {
   // Persisted share precision can introduce sub-cent valuation noise after a fill.
