@@ -15,6 +15,7 @@ import { plural } from "@web/lib/plural"
 import { useToast } from "@web/components/ui/toast"
 import { type AllocationSlice } from "@web/components/charts/allocation-bar"
 import { PerformanceChart } from "@web/components/charts/performance-chart"
+import { useMeasure } from "@web/lib/use-measure"
 import { AccountsCard, type AccountRow, type ItemRow } from "@web/components/dashboard/accounts-card"
 import { ConnectButton } from "@web/components/dashboard/connect-button"
 import { HoldingsTable, type HoldingRow } from "@web/components/dashboard/holdings-table"
@@ -60,6 +61,8 @@ export default function DashboardPage() {
   // Until someone picks a range themselves, show the longest one their history can fill.
   const pickedRange = useRef(false)
   const [hidden, setHidden] = useState(false)
+  // The accounts card's height at rest, so the return card can end level with it (and then stay put).
+  const [restHeight, setRestHeight] = useState<number | null>(null)
   const [syncing, setSyncing] = useState(false)
 
   const { data, loading, error, refetch } = useApi<PortfolioResponse>(`/api/portfolio?range=${range}`, [range], { refreshMs: liveRefreshMs(300_000) })
@@ -197,9 +200,9 @@ export default function DashboardPage() {
           </p>
 
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" onClick={() => setHidden(!hidden)}>
+            <Button variant="ghost" size="icon" onClick={() => setHidden(!hidden)} title={hidden ? "Show amounts" : "Hide amounts (returns stay visible)"}>
               {hidden ? <Eye className="h-4 w-4" aria-hidden /> : <EyeOff className="h-4 w-4" aria-hidden />}
-              <span className="sr-only">{hidden ? "Show balances" : "Hide balances"}</span>
+              <span className="sr-only">{hidden ? "Show amounts" : "Hide amounts"}</span>
             </Button>
             <Button variant="outline" size="sm" onClick={() => void sync()} loading={syncing}>
               {!syncing ? <RefreshCw aria-hidden /> : null}
@@ -209,7 +212,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          {data.today && !hidden ? (
+          {data.today ? (
             <span
               className={cn(
                 "numeric inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold",
@@ -217,7 +220,8 @@ export default function DashboardPage() {
               )}
             >
               {data.today.amount >= 0 ? <ArrowUpRight className="size-3.5" aria-hidden /> : <ArrowDownRight className="size-3.5" aria-hidden />}
-              {signedUsd(data.today.amount)} <span className="font-medium opacity-80">{formatPercent(data.today.percent)}</span>
+              {hidden ? null : <>{signedUsd(data.today.amount)} </>}
+              <span className={hidden ? "" : "font-medium opacity-80"}>{formatPercent(data.today.percent)}</span>
               <span className="font-medium opacity-80">{todayLabel}</span>
             </span>
           ) : null}
@@ -227,11 +231,11 @@ export default function DashboardPage() {
               Live · market open
             </span>
           ) : null}
-          {data.allTime && !hidden ? (
+          {data.allTime ? (
             <span className="text-xs text-muted-foreground" title={`Across the ${Math.round(data.allTime.coverage * 100)}% of your holdings that have an average cost`}>
               Since purchase{" "}
               <span className={cn("numeric font-semibold", data.allTime.amount >= 0 ? "text-gain-ink" : "text-loss-ink")}>
-                {signedUsd(data.allTime.amount)} ({formatPercent(data.allTime.percent, 0)})
+                {hidden ? formatPercent(data.allTime.percent, 0) : `${signedUsd(data.allTime.amount)} (${formatPercent(data.allTime.percent, 0)})`}
               </span>
             </span>
           ) : null}
@@ -240,7 +244,10 @@ export default function DashboardPage() {
 
       <Reveal index={1} className="grid items-start gap-6 [&>*]:min-w-0 lg:grid-cols-[minmax(0,1fr)_400px]">
         {/* Keep the return surface stable while account drawers open and close beside it. */}
-        <Card className={cn(data.hasHistory ? "lg:sticky lg:top-20" : "lg:h-[32rem]", "flex flex-col")}>
+        <Card
+          className={cn(data.hasHistory && "lg:sticky lg:top-20", restHeight ? "lg:h-[var(--rest-h)]" : !data.hasHistory && "lg:h-[32rem]", "flex flex-col")}
+          style={restHeight ? ({ "--rest-h": `${restHeight}px` } as React.CSSProperties) : undefined}
+        >
           <CardHeader className="flex-row items-start justify-between gap-3">
             <div className="min-w-0">
               <CardTitle>Return</CardTitle>
@@ -280,11 +287,10 @@ export default function DashboardPage() {
               />
             ) : null}
           </CardHeader>
-          <CardContent className={cn(!data.hasHistory && "flex flex-1 items-center justify-center")}>
+          <CardContent className={cn("flex min-h-0 flex-1 flex-col", !data.hasHistory && "items-center justify-center")}>
             {data.hasHistory ? (
-              <PerformanceChart
+              <FillChart
                 points={series}
-                height={340}
                 baseline={100}
                 onHover={setHoverIndex}
                 ariaLabel={`Time-weighted return over the last ${range}`}
@@ -301,7 +307,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <AccountsCard accounts={data.accounts} items={data.items} hidden={hidden} onChange={refetch} />
+        <AccountsCard accounts={data.accounts} items={data.items} hidden={hidden} onChange={refetch} onRestHeight={setRestHeight} />
       </Reveal>
 
       <Reveal index={2}>
@@ -312,6 +318,22 @@ export default function DashboardPage() {
           todayLabel={data.today?.asOf && !isToday ? formatDate(`${data.today.asOf}T12:00:00`, "short") : "Today"}
         />
       </Reveal>
+    </div>
+  )
+}
+
+/**
+ * The return chart, stretched to whatever room its card has. It sits in an
+ * absolutely positioned slot so the chart can't push the slot taller and feed
+ * back into its own size: the slot is as tall as the card leaves it.
+ */
+function FillChart(props: React.ComponentProps<typeof PerformanceChart> & { height?: never }) {
+  const { ref, height } = useMeasure<HTMLDivElement>()
+  return (
+    <div ref={ref} className="relative min-h-[340px] flex-1 lg:min-h-[220px]">
+      <div className="absolute inset-0">
+        <PerformanceChart {...props} height={Math.max(200, Math.floor(height) || 340)} />
+      </div>
     </div>
   )
 }

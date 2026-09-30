@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   AlertTriangle,
   BadgeDollarSign,
@@ -68,11 +68,18 @@ export function AccountsCard({
   items,
   hidden,
   onChange,
+  onRestHeight,
 }: {
   accounts: AccountRow[]
   items: ItemRow[]
   hidden: boolean
   onChange: () => void
+  /**
+   * The card's height as first laid out, for the return chart beside it to match.
+   * Reporting stops for good once someone opens or closes an account by hand, so the
+   * chart holds still while they do and never re-measures a card they've opened up.
+   */
+  onRestHeight?: (px: number) => void
 }) {
   const { toast } = useToast()
   const confirm = useConfirm()
@@ -84,7 +91,26 @@ export function AccountsCard({
   // short list; a person's own choice wins once they click.
   const [openById, setOpenById] = useState<Record<string, boolean>>(() => reconcileAccountExpansion({}, accounts))
   const isOpen = (a: AccountRow) => openById[a.id] ?? false
-  const toggle = (a: AccountRow) => setOpenById((prev) => ({ ...prev, [a.id]: !prev[a.id] }))
+  const toggle = (a: AccountRow) => {
+    toggledByHand.current = true
+    setOpenById((prev) => ({ ...prev, [a.id]: !prev[a.id] }))
+  }
+
+  const cardRef = useRef<HTMLDivElement>(null)
+  const toggledByHand = useRef(false)
+  const restHeightCallback = useRef(onRestHeight)
+  restHeightCallback.current = onRestHeight
+  useEffect(() => {
+    const card = cardRef.current
+    if (!card || typeof ResizeObserver === "undefined") return
+    const report = () => {
+      if (!toggledByHand.current) restHeightCallback.current?.(Math.round(card.getBoundingClientRect().height))
+    }
+    const observer = new ResizeObserver(report)
+    observer.observe(card)
+    report()
+    return () => observer.disconnect()
+  }, [])
 
   useEffect(() => {
     setOpenById((prev) => reconcileAccountExpansion(prev, accounts))
@@ -152,7 +178,7 @@ export function AccountsCard({
   }
 
   return (
-    <Card>
+    <Card ref={cardRef}>
       <CardHeader className="flex-row items-center justify-between">
         <CardTitle>Accounts</CardTitle>
         <span className="numeric text-sm text-muted-foreground">{accounts.length}</span>
@@ -251,7 +277,7 @@ export function AccountsCard({
                               {account.isLiability ? "−" : ""}
                               {formatCurrency(account.balance, { hidden, compact: true })}
                             </span>
-                            {expandable && !open && cost > 0 && !hidden ? (
+                            {expandable && !open && cost > 0 ? (
                               <Delta value={((worth - cost) / cost) * 100} size="sm" variant="plain" className="justify-end" />
                             ) : null}
                           </span>
