@@ -66,3 +66,8 @@ export async function tiingoFundCloses(
   }
   return out
 }
+
+/** Accept the existing production variable spelling while preferring the canonical name. */
+export function tiingoApiKey(env: Record<string, string | undefined>): string | undefined {
+  return env.TIINGO_API_KEY?.trim() || env.TTINGO_API_KEY?.trim() || undefined
+}

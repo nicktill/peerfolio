@@ -15,6 +15,7 @@ import { formatCurrency, formatRelativeTime } from "@web/lib/format"
 import { plural } from "@web/lib/plural"
 import { mutate } from "@web/lib/use-api"
 import { cn } from "@web/lib/utils"
+import { reconcileAccountExpansion } from "@web/lib/account-expansion"
 
 export type AccountRow = {
   id: string
@@ -49,9 +50,6 @@ const GROUP_LABELS: Record<string, string> = {
 
 const GROUP_ORDER = ["investment", "cash", "other", "credit", "loan"]
 
-/** Accounts holding more positions than this start collapsed. */
-const COLLAPSE_ABOVE = 5
-
 export function AccountsCard({
   accounts,
   items,
@@ -71,9 +69,13 @@ export function AccountsCard({
   const [highlightId, setHighlightId] = useState<string | null>(null)
   // Accounts with many positions start collapsed so a big portfolio stays a
   // short list; a person's own choice wins once they click.
-  const [openById, setOpenById] = useState<Record<string, boolean>>({})
-  const isOpen = (a: AccountRow) => openById[a.id] ?? (highlightId === a.id || (a.positions.length > 0 && a.positions.length <= COLLAPSE_ABOVE))
-  const toggle = (a: AccountRow) => setOpenById((prev) => ({ ...prev, [a.id]: !isOpen(a) }))
+  const [openById, setOpenById] = useState<Record<string, boolean>>(() => reconcileAccountExpansion({}, accounts))
+  const isOpen = (a: AccountRow) => openById[a.id] ?? false
+  const toggle = (a: AccountRow) => setOpenById((prev) => ({ ...prev, [a.id]: !prev[a.id] }))
+
+  useEffect(() => {
+    setOpenById((prev) => reconcileAccountExpansion(prev, accounts))
+  }, [accounts])
 
   useEffect(() => {
     if (!highlightId) return
@@ -249,7 +251,7 @@ export function AccountsCard({
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 shrink-0 opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
+                            className="h-8 w-8 shrink-0 opacity-100 transition-opacity sm:opacity-0 sm:focus-visible:opacity-100 sm:group-hover:opacity-100"
                             onClick={() => void removeManual(account.id, account.name)}
                             disabled={busyId === account.id}
                           >
@@ -261,14 +263,15 @@ export function AccountsCard({
                     )
                   })()}
 
-                  {account.source === "manual" && account.category === "investment" && isOpen(account) ? (
-                    <PositionsEditor
-                      id={`account-body-${account.id}`}
-                      accountId={account.id}
-                      positions={account.positions}
-                      hidden={hidden}
-                      onChange={onChange}
-                    />
+                  {account.source === "manual" && account.category === "investment" ? (
+                    <div id={`account-body-${account.id}`} hidden={!isOpen(account)}>
+                      <PositionsEditor
+                        accountId={account.id}
+                        positions={account.positions}
+                        hidden={hidden}
+                        onChange={onChange}
+                      />
+                    </div>
                   ) : null}
                 </li>
               ))}
@@ -309,6 +312,7 @@ export function AccountsCard({
           <AddAccountButton
             onCreated={(id) => {
               setHighlightId(id)
+              setOpenById((prev) => ({ ...prev, [id]: true }))
               onChange()
             }}
           />

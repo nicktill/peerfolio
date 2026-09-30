@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { parseDelimited, parseHoldingsText, parseLines, toNumber } from "./import-parse.ts"
+import { parseDelimited, parseHoldingsText, parseLines, normalizeRows, toNumber } from "./import-parse.ts"
 
 describe("toNumber", () => {
   it("reads money and quantities as written by brokers", () => {
@@ -23,7 +23,7 @@ describe("parseDelimited", () => {
     ].join("\n")
     const out = parseDelimited(csv)
     assert.ok(out)
-    assert.deepEqual(out.rows.map((r) => [r.symbol, r.quantity, r.avgCost]), [["AAPL", 12.045, 191.22], ["VOO", 37.084, 651.26]])
+    assert.deepEqual(out.rows.map((r) => [r.symbol, r.quantity, r.avgCost]), [["AAPL", 12.045, 2303.30 / 12.045], ["VOO", 37.084, 24151 / 37.084]])
     assert.equal(out.rows[0]!.name, "APPLE INC")
     assert.equal(out.warnings.length, 1)
   })
@@ -121,4 +121,35 @@ describe("prices in the file", () => {
     assert.equal(parseDelimited("Symbol,Quantity\nAAPL,3")!.rows[0]!.price, null)
     assert.equal(parseLines("AAPL 3 @ 150")!.rows[0]!.price, null)
   })
+})
+
+
+describe("retirement-plan identifiers and precise cost basis", () => {
+  it("keeps all four screenshot holdings and prefers total basis over rounded averages", () => {
+    const out = parseDelimited([
+      "Symbol,Description,Quantity,Last Price,Cost Basis Total,Average Cost Basis",
+      "66585Y356,LSV US LARGE CAP CIT,104.866,30.15,2904.55,27.70",
+      "84679P405,SP 500 INDEX PL CL D,8.583,367.27,2904.67,338.42",
+      "92202V120,VANGUARD TARGET 2065,1387.936,54.95,52479.97,37.81",
+      "VWUAX,VANG US GROWTH ADM,15.392,203.20,2904.70,188.71",
+    ].join("\n"))!
+    assert.equal(out.rows.length, 4)
+    assert.deepEqual(out.warnings, [])
+    assert.equal(out.rows[0]!.avgCost! * out.rows[0]!.quantity, 2904.55)
+    assert.deepEqual(normalizeRows(out.rows).rows, out.rows)
+    assert.deepEqual(out.rows.map(r => r.price), [30.15, 367.27, 54.95, 203.2])
+  })
+
+  it("still rejects arbitrary long symbols and totals", () => {
+    assert.deepEqual(normalizeRows([
+      {symbol: "NOTAFUND!", quantity: 1}, {symbol: "12345678", quantity: 1},
+      {symbol: "TOTAL", quantity: 1},
+    ]).rows, [])
+  })
+})
+
+
+it("keeps identically named accounts separate by account number", () => {
+  const out = parseDelimited("Account Number,Account Name,Symbol,Quantity\n111,Individual,AAPL,2\n222,Individual,AAPL,3")!
+  assert.deepEqual(out.rows.map(r => [r.account, r.quantity]), [["Individual (111)", 2], ["Individual (222)", 3]])
 })

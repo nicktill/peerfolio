@@ -36,6 +36,9 @@ export function toNumber(raw: string | undefined): number | null {
   return Number.isFinite(n) ? (negative ? -n : n) : null
 }
 
+/** CUSIP-shaped identifiers used by retirement plans; these are not market tickers. */
+export const isPlanIdentifier = (symbol: string) => /^[A-Z0-9]{8}[0-9]$/.test(symbol)
+
 const SYMBOL_OK = /^[A-Z][A-Z0-9]{0,5}([.\-/][A-Z0-9]{1,2})?$/
 
 /** Fidelity marks its money-market core position with `**`; totals and cash rows aren't holdings. */
@@ -44,7 +47,7 @@ const NOT_A_HOLDING = /^(cash|total|totals|pending|account total|account|balance
 function cleanSymbol(raw: string | undefined): string | null {
   if (!raw) return null
   const s = raw.trim().replace(/\*+$/, "").toUpperCase()
-  if (!SYMBOL_OK.test(s) || NOT_A_HOLDING.test(s)) return null
+  if ((!SYMBOL_OK.test(s) && !isPlanIdentifier(s)) || NOT_A_HOLDING.test(s)) return null
   return s.replace(/[-/]/g, ".")
 }
 
@@ -111,6 +114,16 @@ export function parseDelimited(text: string): ParseOutcome | null {
   }
   if (headerAt < 0) return null
 
+  // Identical account nicknames need their account numbers to stay separate.
+  const accountNumbers = new Map<string, Set<string>>()
+  if (cols.accountName >= 0 && cols.accountNumber >= 0) {
+    for (const line of lines.slice(headerAt + 1)) {
+      const cells = splitLine(line, delimiter)
+      const name = cells[cols.accountName]?.trim()
+      const number = cells[cols.accountNumber]?.trim()
+      if (name && number) accountNumbers.set(name, new Set([...(accountNumbers.get(name) ?? []), number]))
+    }
+  }
   const rows = new Map<string, ImportRow>()
   const warnings: string[] = []
   let skipped = 0
@@ -127,7 +140,7 @@ export function parseDelimited(text: string): ParseOutcome | null {
     }
 
     let avg = cols.avg >= 0 ? toNumber(cells[cols.avg]) : null
-    if (avg == null && cols.total >= 0) {
+    if (cols.total >= 0) {
       const total = toNumber(cells[cols.total])
       if (total != null && total > 0) avg = total / quantity
     }
@@ -135,7 +148,11 @@ export function parseDelimited(text: string): ParseOutcome | null {
 
     // The same ticker in two accounts stays two positions. Its account is the name when
     // the file has one, otherwise the number.
-    const account = (cols.accountName >= 0 ? cells[cols.accountName]?.trim() : "") || (cols.accountNumber >= 0 ? cells[cols.accountNumber]?.trim() : "") || null
+    const accountName = cols.accountName >= 0 ? cells[cols.accountName]?.trim() : ""
+    const accountNumber = cols.accountNumber >= 0 ? cells[cols.accountNumber]?.trim() : ""
+    const account = accountName && (accountNumbers.get(accountName)?.size ?? 0) > 1
+      ? `${accountName} (${accountNumber || "unlabelled"})`
+      : accountName || accountNumber || null
     // The price shown in the file, or its value divided by the shares.
     let price = cols.price >= 0 ? toNumber(cells[cols.price]) : null
     if ((price == null || !(price > 0)) && cols.value >= 0) {
@@ -146,7 +163,7 @@ export function parseDelimited(text: string): ParseOutcome | null {
   }
 
   if (rows.size === 0) return null
-  if (skipped > 0) warnings.push(`Skipped ${skipped} row${skipped === 1 ? "" : "s"} that weren't holdings (cash, totals or notes).`)
+  if (skipped > 0) warnings.push(`Couldn't import ${skipped} row${skipped === 1 ? "" : "s"} (cash, totals, notes or unrecognized holdings); check for missing positions.`)
   return finish(rows, warnings)
 }
 

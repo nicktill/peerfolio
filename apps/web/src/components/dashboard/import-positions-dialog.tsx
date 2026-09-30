@@ -8,6 +8,7 @@ import { useToast } from "@web/components/ui/toast"
 import { plural } from "@web/lib/plural"
 import { mutate } from "@web/lib/use-api"
 import { cn } from "@web/lib/utils"
+import { hasMultipleImportAccounts, duplicateImportDestination } from "@web/lib/import-flow"
 
 type Row = { symbol: string; quantity: number; avgCost: number | null; name: string | null; kind: "stock" | "crypto"; account: string | null; price: number | null }
 type Preview = { rows: Row[]; warnings: string[]; reader: "table" | "ai" }
@@ -54,6 +55,8 @@ export function ImportPositionsButton({
   label?: string
 }) {
   const [open, setOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const close = () => { if (!saving) setOpen(false) }
   if (accounts.length === 0) return null
   return (
     <>
@@ -63,14 +66,15 @@ export function ImportPositionsButton({
       </Button>
       <Dialog
         open={open}
-        onClose={() => setOpen(false)}
+        onClose={close}
         title="Import positions"
         description="Paste your holdings from your brokerage, or upload its CSV export. You’ll check them before anything is saved."
         className="sm:max-w-2xl"
       >
         <ImportFlow
           accounts={accounts}
-          onClose={() => setOpen(false)}
+          onSavingChange={setSaving}
+          onClose={close}
           onSaved={() => {
             onDone()
           }}
@@ -80,7 +84,7 @@ export function ImportPositionsButton({
   )
 }
 
-function ImportFlow({ accounts, onClose, onSaved }: { accounts: ImportTarget[]; onClose: () => void; onSaved: () => void }) {
+function ImportFlow({ accounts, onClose, onSaved, onSavingChange }: { accounts: ImportTarget[]; onClose: () => void; onSaved: () => void; onSavingChange: (saving: boolean) => void }) {
   const { toast } = useToast()
   const [accountId, setAccountId] = useState(accounts[0]!.id)
   const hasPositions = accounts.find((a) => a.id === accountId)?.hasPositions ?? false
@@ -100,7 +104,8 @@ function ImportFlow({ accounts, onClose, onSaved }: { accounts: ImportTarget[]; 
     for (const r of rows) out.set(r.account ?? "", [...(out.get(r.account ?? "") ?? []), r])
     return out
   }, [rows])
-  const multi = [...groups.keys()].filter(Boolean).length > 1
+  const multi = hasMultipleImportAccounts(preview?.rows ?? [])
+  const duplicateDestination = duplicateImportDestination([...groups.keys()], dest)
 
   async function read(source: string) {
     setError(null)
@@ -109,6 +114,8 @@ function ImportFlow({ accounts, onClose, onSaved }: { accounts: ImportTarget[]; 
       const data = await mutate<Preview>("/api/import/parse", { body: { text: source } })
       setPreview(data)
       setRows(data.rows)
+      setDest({})
+      setReplace(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't read that.")
     } finally {
@@ -121,19 +128,33 @@ function ImportFlow({ accounts, onClose, onSaved }: { accounts: ImportTarget[]; 
     event.target.value = ""
     if (!picked) return
     if (picked.size > 2_000_000) return setError("That file is too big. Export just your positions.")
-    const content = await picked.text()
-    setText(content)
-    await read(content)
+    try {
+      const content = await picked.text()
+      setText(content)
+      await read(content)
+    } catch {
+      setError("Couldn’t open that file. Try choosing it again.")
+    }
   }
 
   async function save() {
+    if (busy) return
+    if (replace && preview?.warnings.length) {
+      setError("This file has skipped or uncertain rows. Use add/update to keep existing holdings safe.")
+      return
+    }
+    if (multi && duplicateDestination) {
+      setError("Choose a different destination for each account in your file so one account’s holdings don’t overwrite another’s.")
+      return
+    }
     setError(null)
     setBusy(true)
+    onSavingChange(true)
     try {
       if (!multi) {
         const data = tidy(await mutate<Result>(`/api/accounts/${accountId}/positions/import`, { body: { rows, replace } }))
         setResult(data)
-        if (data.imported > 0) onSaved()
+        if (data.imported > 0 || data.removed > 0) onSaved()
         if (data.failed.length === 0 && data.pending.length === 0) toast(`Imported ${plural(data.imported, "position")}.`, "success")
         return
       }
@@ -141,28 +162,35 @@ function ImportFlow({ accounts, onClose, onSaved }: { accounts: ImportTarget[]; 
       // Several accounts: create the new ones, then import each group into its own account.
       const total: Result = { imported: 0, removed: 0, failed: [], pending: [], fromFile: [], created: 0 }
       for (const [label, groupRows] of groups) {
-        const choice = dest[label] ?? "new"
-        let id = choice
-        if (choice === "new") {
-          const made = await mutate<{ account: { id: string } }>("/api/accounts", {
-            body: { name: friendlyAccountName(label || "Imported account").slice(0, 60), category: "investment", balance: 0 },
-          })
-          id = made.account.id
-          total.created = (total.created ?? 0) + 1
+        try {
+          const choice = dest[label] ?? "new"
+          let id = choice
+          if (choice === "new") {
+            const made = await mutate<{ account: { id: string } }>("/api/accounts", {
+              body: { name: friendlyAccountName(label || "Imported account").slice(0, 60), category: "investment", balance: 0 },
+            })
+            id = made.account.id
+            setDest((current) => ({ ...current, [label]: id }))
+            total.created = (total.created ?? 0) + 1
+          }
+          const data = tidy(await mutate<Result>(`/api/accounts/${id}/positions/import`, { body: { rows: groupRows, replace: false } }))
+          total.imported += data.imported
+          total.failed.push(...data.failed.map((f) => ({ ...f, symbol: `${f.symbol} (${friendlyAccountName(label)})` })))
+          total.pending.push(...data.pending)
+          total.fromFile!.push(...(data.fromFile ?? []))
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : "Couldn’t import this account."
+          total.failed.push(...groupRows.map((row) => ({ symbol: `${row.symbol} (${friendlyAccountName(label || "Unlabelled")})`, reason })))
         }
-        const data = tidy(await mutate<Result>(`/api/accounts/${id}/positions/import`, { body: { rows: groupRows, replace: false } }))
-        total.imported += data.imported
-        total.failed.push(...data.failed.map((f) => ({ ...f, symbol: `${f.symbol} (${friendlyAccountName(label)})` })))
-        total.pending.push(...data.pending)
-        total.fromFile!.push(...(data.fromFile ?? []))
       }
       setResult(total)
-      if (total.imported > 0) onSaved()
+      if (total.imported > 0 || total.created) onSaved()
     } catch (err) {
-      // Accounts made before the failure stay; importing again adds to them rather than duplicating positions.
+      // A failed request leaves the preview available for review and retry.
       setError(err instanceof Error ? err.message : "Couldn't import.")
     } finally {
       setBusy(false)
+      onSavingChange(false)
     }
   }
 
@@ -172,18 +200,18 @@ function ImportFlow({ accounts, onClose, onSaved }: { accounts: ImportTarget[]; 
       <div className="space-y-4">
         <p className="text-sm">
           <span className="font-semibold">{plural(result.imported, "position")} imported</span>
-          {result.created ? ` into ${plural(result.created, "new account")}` : ""}.
+          .{result.created ? ` Created ${plural(result.created, "new account")}.` : ""}
           {result.removed > 0 ? ` ${plural(result.removed, "old position")} removed.` : ""}
         </p>
         {result.fromFile && result.fromFile.length > 0 ? (
           <p className="rounded-xl border p-3 text-sm text-muted-foreground">
-            {plural(result.fromFile.length, "holding")} (mostly mutual funds) {result.fromFile.length === 1 ? "isn’t" : "aren’t"} covered by any market data source, so {result.fromFile.length === 1 ? "it’s" : "they’re"} valued at the price in your file. To update
+            {plural(result.fromFile.length, "holding")} (mostly mutual funds) {result.fromFile.length === 1 ? "isn’t" : "aren’t"} priced by an available market data source during this import, so {result.fromFile.length === 1 ? "it’s" : "they’re"} valued at the price in your file. To update
             {result.fromFile.length === 1 ? " it" : " them"}, import a fresh file.
           </p>
         ) : null}
         {result.pending.length > 0 ? (
           <p className="rounded-xl border p-3 text-sm text-muted-foreground">
-            {plural(result.pending.length, "holding")} {result.pending.length === 1 ? "is" : "are"} waiting for a price and will fill in within a few minutes:{" "}
+            {plural(result.pending.length, "holding")} {result.pending.length === 1 ? "is" : "are"} waiting for a price. We’ll try available market data sources; some funds may need a fresh file:{" "}
             <span className="font-mono text-foreground">{result.pending.join(", ")}</span>
           </p>
         ) : null}
@@ -197,7 +225,7 @@ function ImportFlow({ accounts, onClose, onSaved }: { accounts: ImportTarget[]; 
                 </li>
               ))}
             </ul>
-            <p className="text-xs text-muted-foreground">Mutual funds and some other products can’t be priced yet. Everything else went in.</p>
+            <p className="text-xs text-muted-foreground">Review each error, check the destination account, and retry any missing holdings there. Accounts created during this import are kept.</p>
           </div>
         ) : null}
         <div className="flex justify-end">
@@ -216,7 +244,7 @@ function ImportFlow({ accounts, onClose, onSaved }: { accounts: ImportTarget[]; 
             {plural(rows.length, "holding")} found
             <span className="ml-2 text-xs font-normal text-muted-foreground">{preview.reader === "ai" ? "read by AI, please check" : "read from your table"}</span>
           </p>
-          <button type="button" className="text-xs text-muted-foreground underline-offset-2 hover:underline" onClick={() => { setPreview(null); setError(null) }}>
+          <button type="button" className="text-xs text-muted-foreground underline-offset-2 hover:underline" disabled={busy} onClick={() => { setPreview(null); setError(null) }}>
             Back
           </button>
         </div>
@@ -237,6 +265,7 @@ function ImportFlow({ accounts, onClose, onSaved }: { accounts: ImportTarget[]; 
                     {friendlyAccountName(label || "Unlabelled")} <span className="ml-1 text-xs font-normal text-muted-foreground">{plural(groupRows.length, "holding")}</span>
                   </p>
                   <select
+                    disabled={busy}
                     aria-label={`Where ${label || "these"} goes`}
                     value={dest[label] ?? "new"}
                     onChange={(e) => setDest({ ...dest, [label]: e.target.value })}
@@ -250,16 +279,21 @@ function ImportFlow({ accounts, onClose, onSaved }: { accounts: ImportTarget[]; 
                     ))}
                   </select>
                 </div>
-                <RowsTable rows={groupRows} onRemove={(r) => setRows(rows.filter((x) => x !== r))} />
+                <RowsTable disabled={busy} rows={groupRows} onRemove={(r) => setRows(rows.filter((x) => x !== r))} />
               </div>
             ))}
           </div>
         ) : (
           <div className="max-h-72 overflow-auto rounded-xl border">
-            <RowsTable rows={rows} onRemove={(r) => setRows(rows.filter((x) => x !== r))} />
+            <RowsTable disabled={busy} rows={rows} onRemove={(r) => setRows(rows.filter((x) => x !== r))} />
           </div>
         )}
 
+        {multi && duplicateDestination ? <p role="alert" className="text-sm text-loss-ink">Choose a different destination for each account to avoid overwriting holdings.</p> : null}
+
+        {!multi ? <p className="text-xs text-muted-foreground">Importing into <span className="font-medium text-foreground">{accounts.find((a) => a.id === accountId)?.name}</span>.</p> : null}
+
+        {hasPositions && !multi && preview.warnings.length > 0 ? <p className="text-xs text-muted-foreground">Replacement is unavailable because this file has skipped or uncertain rows. Add/update keeps your other holdings.</p> : null}
         {hasPositions && !multi ? (
           <fieldset className="space-y-2 text-sm">
             <legend className="sr-only">What to do with what’s already here</legend>
@@ -268,7 +302,7 @@ function ImportFlow({ accounts, onClose, onSaved }: { accounts: ImportTarget[]; 
               { value: true, label: "Make this account match the list", hint: "Anything not in the list is removed." },
             ].map((o) => (
               <label key={String(o.value)} className={cn("flex cursor-pointer items-start gap-3 rounded-xl border p-3", replace === o.value && "border-primary/60 bg-primary/5")}>
-                <input type="radio" name="mode" className="mt-1" checked={replace === o.value} onChange={() => setReplace(o.value)} />
+                <input disabled={busy || (o.value && preview.warnings.length > 0)} type="radio" name="mode" className="mt-1" checked={replace === o.value} onChange={() => setReplace(o.value)} />
                 <span>
                   <span className="block font-medium">{o.label}</span>
                   <span className="text-xs text-muted-foreground">{o.hint}</span>
@@ -281,8 +315,8 @@ function ImportFlow({ accounts, onClose, onSaved }: { accounts: ImportTarget[]; 
         {error ? <p role="alert" className="text-sm text-loss-ink">{error}</p> : null}
 
         <div className="flex justify-end gap-2">
-          <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button onClick={() => void save()} disabled={busy || rows.length === 0} loading={busy}>
+          <Button variant="ghost" disabled={busy} onClick={onClose}>Cancel</Button>
+          <Button onClick={() => void save()} disabled={busy || rows.length === 0 || (multi && duplicateDestination)} loading={busy}>
             Import {plural(rows.length, "position")}
           </Button>
         </div>
@@ -301,7 +335,7 @@ function ImportFlow({ accounts, onClose, onSaved }: { accounts: ImportTarget[]; 
           <select
             id="import-account"
             value={accountId}
-            onChange={(e) => setAccountId(e.target.value)}
+            onChange={(e) => { setAccountId(e.target.value); setReplace(false) }}
             className="h-10 w-full rounded-xl border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {accounts.map((a) => (
@@ -341,7 +375,7 @@ function ImportFlow({ accounts, onClose, onSaved }: { accounts: ImportTarget[]; 
           </Button>
         </div>
         <div className="flex gap-2">
-          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="ghost" disabled={busy} onClick={onClose}>Cancel</Button>
           <Button onClick={() => void read(text)} disabled={busy || text.trim().length < 3}>
             {busy ? <Loader2 className="animate-spin" aria-hidden /> : null}
             Read it
@@ -350,7 +384,7 @@ function ImportFlow({ accounts, onClose, onSaved }: { accounts: ImportTarget[]; 
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Nothing is saved until you confirm. Only tickers, share counts and average cost are used. Text that isn’t a plain table may be read by an AI model.
+        Nothing is saved until you confirm. Symbols, account labels, share counts, costs and file prices are used. Text that isn’t a plain table may be read by an AI model.
       </p>
     </div>
   )
@@ -407,7 +441,7 @@ function BrokerHelp() {
   )
 }
 
-function RowsTable({ rows, onRemove }: { rows: Row[]; onRemove: (row: Row) => void }) {
+function RowsTable({ rows, onRemove, disabled = false }: { rows: Row[]; onRemove: (row: Row) => void; disabled?: boolean }) {
   return (
     <table className="w-full text-sm">
       <thead className="sticky top-0 bg-card text-[11px] uppercase tracking-wide text-muted-foreground">
@@ -428,7 +462,7 @@ function RowsTable({ rows, onRemove }: { rows: Row[]; onRemove: (row: Row) => vo
             <td className="numeric px-3 py-2 text-right">{fmt(r.quantity)}</td>
             <td className="numeric px-3 py-2 text-right text-muted-foreground">{r.avgCost != null ? money(r.avgCost) : "—"}</td>
             <td className="pr-2 text-right">
-              <button type="button" className="rounded p-1 text-muted-foreground hover:bg-secondary hover:text-foreground" onClick={() => onRemove(r)}>
+              <button disabled={disabled} type="button" className="rounded p-1 text-muted-foreground hover:bg-secondary hover:text-foreground" onClick={() => onRemove(r)}>
                 <X className="size-3.5" aria-hidden />
                 <span className="sr-only">Leave out {r.symbol}</span>
               </button>

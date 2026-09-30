@@ -11,6 +11,7 @@ import { useToast } from "@web/components/ui/toast"
 import { formatCurrency, formatDate } from "@web/lib/format"
 import { mutate } from "@web/lib/use-api"
 import { cn } from "@web/lib/utils"
+import { averageCostInput, averageCostUpdate } from "@web/lib/position-edit"
 
 export type PositionRow = {
   id: string
@@ -205,7 +206,8 @@ function PositionForm({
   const [kind, setKind] = useState<Kind>(existing?.kind ?? "stock")
   const [symbol, setSymbol] = useState(existing?.ticker ?? "")
   const [shares, setShares] = useState(existing ? String(existing.quantity) : "")
-  const [avg, setAvg] = useState(existing?.costBasis ? (existing.costBasis / existing.quantity).toFixed(2) : "")
+  const [initialAvg] = useState(() => averageCostInput(existing))
+  const [avg, setAvg] = useState(initialAvg)
   const [lookup, setLookup] = useState<Lookup>(
     existing?.ticker
       ? { state: "found", quote: { symbol: existing.ticker, kind: existing.kind, name: existing.name, price: existing.price, asOf: existing.priceAsOf ?? "" } }
@@ -267,7 +269,7 @@ function PositionForm({
     setSaving(true)
     try {
       await mutate(`/api/accounts/${accountId}/positions`, {
-        body: { symbol: quote.symbol, kind: quote.kind, quantity: qty, avgCost: avgNum },
+        body: { symbol: quote.symbol, kind: quote.kind, quantity: qty, avgCost: averageCostUpdate(avg, existing ? initialAvg : undefined) },
       })
       onSaved(existing ? `Updated ${quote.symbol}.` : `Added ${formatQuantity(qty)} ${quote.symbol}.`)
     } catch (err) {
