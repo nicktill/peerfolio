@@ -1,3 +1,4 @@
+import { after } from "next/server"
 import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm"
 import { accounts, db, holdings, securities } from "@web/db"
 import { ApiError } from "@web/lib/api"
@@ -130,6 +131,12 @@ async function enrichSecurityMetadata(securityId: string, marketTicker: string) 
 }
 
 /** One reference request per cron run; never send provider requests for plan identifiers. */
+/**
+ * Reference lookups per run. The provider's free plan allows a handful a minute and
+ * runs are minutes apart, so a few per run clears the backlog without touching that.
+ */
+const METADATA_PER_RUN = 3
+
 export async function refreshSecurityMetadata() {
   if (!process.env.MASSIVE_API_KEY) return { checked: 0, attempted: 0, reason: "missing_key" as const }
   const candidates = await db.select({ id: securities.id, marketTicker: securities.marketTicker }).from(securities)
@@ -140,24 +147,51 @@ export async function refreshSecurityMetadata() {
       sql`(EXISTS (SELECT 1 FROM holdings h WHERE h.security_id = ${securities.id})
         OR EXISTS (SELECT 1 FROM fantasy_positions f WHERE f.security_id = ${securities.id}))`,
     ))
-    .orderBy(sql`${securities.metadataCheckedAt} ASC NULLS FIRST`, securities.id).limit(1)
+    .orderBy(sql`${securities.metadataCheckedAt} ASC NULLS FIRST`, securities.id).limit(METADATA_PER_RUN)
+  let checked = 0
   for (const security of candidates) {
     try {
       await enrichSecurityMetadata(security.id, security.marketTicker!)
+      checked++
     } catch (error) {
       // Retry failures later without delaying prices or permanently starving other tickers.
       await db.update(securities).set({ metadataCheckedAt: new Date(Date.now() - 6 * 86_400_000) }).where(eq(securities.id, security.id))
       console.error("[positions] metadata refresh failed:", error instanceof Error ? error.message : "unknown")
+      // A failure usually means a rate limit, so stop here and let the next run carry on.
       return {
-        checked: 0,
-        attempted: 1,
+        checked,
+        attempted: checked + 1,
         symbol: security.marketTicker,
         status: error instanceof MarketDataError ? error.status ?? null : null,
         reason: "provider_error" as const,
       }
     }
   }
-  return { checked: candidates.length, attempted: candidates.length, reason: candidates.length ? "updated" as const : "no_candidate" as const }
+  return { checked, attempted: candidates.length, reason: candidates.length ? "updated" as const : "no_candidate" as const }
+}
+
+let lastMetadataKick = 0
+
+/**
+ * Also works through the backlog when someone opens the dashboard, so types get
+ * corrected even when the scheduled job doesn't run. Throttled per server and
+ * run after the response, so a page load never waits on it.
+ */
+export function scheduleMetadataRefresh(minIntervalSeconds = 120) {
+  const now = Date.now()
+  if (now - lastMetadataKick < minIntervalSeconds * 1000) return
+  lastMetadataKick = now
+  try {
+    after(async () => {
+      try {
+        await refreshSecurityMetadata()
+      } catch (error) {
+        console.error("[positions] metadata refresh failed:", error instanceof Error ? error.message : "unknown")
+      }
+    })
+  } catch {
+    // Outside a request there's nothing to attach to; the next request will do it.
+  }
 }
 
 type PositionInput = { symbol: string; kind: AssetKind; quantity: number; avgCost?: number | null }

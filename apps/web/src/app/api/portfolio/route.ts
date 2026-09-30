@@ -1,10 +1,11 @@
+import { effectiveSecurityType } from "@web/lib/known-etfs"
 import { NextResponse } from "next/server"
 import { and, asc, eq, gte, min } from "drizzle-orm"
 import { db, holdings, accounts, plaidItems, portfolioSnapshots, securities } from "@web/db"
 import { withUser } from "@web/lib/api"
 import { scheduleLiveRefresh } from "@web/lib/live-quotes"
 import { allTimeGain, summarizeHoldings, todayChange, type PositionInput } from "@web/lib/dashboard-math"
-import { refreshStalePrices } from "@web/lib/positions"
+import { refreshStalePrices, scheduleMetadataRefresh } from "@web/lib/positions"
 import { buildLeagueStandings, listLeaguesForUser } from "@web/lib/social"
 import { isRange, rangeStart, timeWeightedReturn, withLivePoint, type Range } from "@web/lib/returns"
 
@@ -40,6 +41,7 @@ export const GET = withUser<unknown>(async (userId, request) => {
   // last night's. Throttled and never throws.
   await refreshStalePrices()
   scheduleLiveRefresh()
+  scheduleMetadataRefresh()
 
   const [accountRows, items, holdingRows] = await Promise.all([
     db.select().from(accounts).where(and(eq(accounts.userId, userId), eq(accounts.isActive, true))),
@@ -55,6 +57,7 @@ export const GET = withUser<unknown>(async (userId, request) => {
         ticker: securities.tickerSymbol,
         securityName: securities.name,
         securityType: securities.type,
+        metadataCheckedAt: securities.metadataCheckedAt,
         closePrice: securities.closePrice,
         closePriceAsOf: securities.closePriceAsOf,
         previousClose: securities.previousClose,
@@ -131,13 +134,17 @@ export const GET = withUser<unknown>(async (userId, request) => {
 
   const netWorth = totalAssets - totalLiabilities
 
+  // A ticker the provider hasn't classified yet reads as a stock; the known-ETF list covers that gap.
+  const typeOf = (h: { securityType: string | null; ticker: string | null; metadataCheckedAt: Date | null }) =>
+    effectiveSecurityType(h.securityType, h.ticker, h.metadataCheckedAt !== null)
+
   // Allocation prefers real security types and falls back to account buckets
   // for users whose institutions return no holdings.
   const allocationMap = new Map<string, number>()
   for (const h of holdingRows) {
     const value = n(h.institutionValue) || n(h.quantity) * n(h.closePrice)
     if (value <= 0) continue
-    const label = SECURITY_LABELS[h.securityType ?? "other"] ?? "Other"
+    const label = SECURITY_LABELS[typeOf(h) ?? "other"] ?? "Other"
     allocationMap.set(label, (allocationMap.get(label) ?? 0) + value)
   }
 
@@ -158,7 +165,7 @@ export const GET = withUser<unknown>(async (userId, request) => {
     securityId: h.securityId,
     ticker: h.ticker,
     name: h.securityName,
-    type: h.securityType,
+    type: typeOf(h),
     quantity: n(h.quantity),
     value: n(h.institutionValue) || n(h.quantity) * n(h.closePrice),
     costBasis: h.costBasis == null ? null : n(h.costBasis),
