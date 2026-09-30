@@ -169,8 +169,15 @@ export function PerformanceChart({
         </div>
       ) : null}
 
-      {active && showTooltip ? (
-        <div className="pointer-events-none absolute left-0 top-0 rounded-lg border bg-popover px-2.5 py-1.5 text-xs shadow-md">
+      {active && showTooltip && hoverIndex != null && geometry?.coords[hoverIndex] ? (
+        <div
+          className="pointer-events-none absolute z-10 w-[8.5rem] rounded-lg border bg-popover px-2.5 py-1.5 text-xs shadow-md"
+          style={{
+            // Above the hovered point, kept inside the chart's edges.
+            left: Math.min(Math.max(geometry.coords[hoverIndex]![0] - 68, 0), Math.max(width - 136, 0)),
+            top: Math.max(geometry.coords[hoverIndex]![1] - 58, 0),
+          }}
+        >
           <div className="text-muted-foreground">{formatDate(active.date)}</div>
           <div className="numeric mt-0.5 font-semibold">{valueFormatter(active.value)}</div>
         </div>
