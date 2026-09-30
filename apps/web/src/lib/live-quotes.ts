@@ -94,7 +94,7 @@ export async function refreshLivePrices({
   }
 
   if (result.rateLimited) console.warn(`[quotes] ${provider.name} rate limited us after ${result.quotes.size}/${claimed.length}`)
-  return { provider: provider.name, claimed: claimed.length, refreshed: updated.length, rejected, rejectedExample, rateLimited: result.rateLimited, failed: result.failed }
+  return { provider: provider.name, sources: result.sources, claimed: claimed.length, refreshed: updated.length, rejected, rejectedExample, rateLimited: result.rateLimited, failed: result.failed }
 }
 
 let warnedNoProvider = false
@@ -117,7 +117,8 @@ function logRun(run: Awaited<ReturnType<typeof refreshLivePrices>>) {
     run.failed ? `${run.failed} failed` : "",
     run.rejected ? `${run.rejected} rejected (${run.rejectedExample})` : "",
   ].filter(Boolean)
-  const line = `[quotes] ${run.provider}: refreshed ${run.refreshed}/${run.claimed}${problems.length ? ` · ${problems.join(", ")}` : ""}`
+  const split = run.sources && Object.keys(run.sources).length > 0 ? ` (${Object.entries(run.sources).map(([name, n]) => `${name} ${n}`).join(", ")})` : ""
+  const line = `[quotes] ${run.provider}: refreshed ${run.refreshed}/${run.claimed}${split}${problems.length ? ` · ${problems.join(", ")}` : ""}`
   if (run.refreshed === 0 || problems.length) console.warn(line)
   else console.info(line)
 }

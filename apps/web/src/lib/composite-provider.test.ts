@@ -32,6 +32,7 @@ describe("composite provider", () => {
     assert.deepEqual(first.asked, [["AAPL", "TLT", "XYZ", "NOPE"]])
     assert.deepEqual(second.asked, [["TLT", "XYZ", "NOPE"]])
     assert.equal(out.quotes.get("TLT")?.price, 88)
+    assert.deepEqual(out.sources, { alpaca: 1, finnhub: 2 })
     assert.deepEqual([...out.quotes.keys()].sort(), ["AAPL", "TLT", "XYZ"])
   })
 

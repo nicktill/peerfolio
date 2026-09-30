@@ -15,7 +15,7 @@ export function createCompositeProvider(providers: QuoteProvider[], accept: (quo
     name: providers.map((p) => p.name).join("+"),
 
     async getQuotes(marketTickers: string[]): Promise<QuoteResult> {
-      const result: QuoteResult = { quotes: new Map(), rateLimited: false, failed: 0 }
+      const result: QuoteResult = { quotes: new Map(), rateLimited: false, failed: 0, sources: {} }
       let remaining = [...new Set(marketTickers)]
 
       for (const provider of providers) {
@@ -24,7 +24,9 @@ export function createCompositeProvider(providers: QuoteProvider[], accept: (quo
         result.failed += answer.failed
 
         for (const [symbol, quote] of answer.quotes) {
-          if (accept(quote)) result.quotes.set(symbol, quote)
+          if (!accept(quote)) continue
+          result.quotes.set(symbol, quote)
+          result.sources![provider.name] = (result.sources![provider.name] ?? 0) + 1
         }
         remaining = remaining.filter((t) => !result.quotes.has(t))
 
