@@ -383,6 +383,26 @@ export const fantasyMembers = pgTable(
   ],
 )
 
+/** Lightweight cheering on fantasy standings. Membership ids keep reactions league-scoped. */
+export const fantasyReactions = pgTable(
+  "fantasy_reactions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    fromMemberId: uuid("from_member_id")
+      .notNull()
+      .references(() => fantasyMembers.id, { onDelete: "cascade" }),
+    toMemberId: uuid("to_member_id")
+      .notNull()
+      .references(() => fantasyMembers.id, { onDelete: "cascade" }),
+    emoji: text("emoji").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("fantasy_reactions_unique_idx").on(t.fromMemberId, t.toMemberId, t.emoji),
+    index("fantasy_reactions_target_idx").on(t.toMemberId),
+  ],
+)
+
 /** Current holdings per member. Priced from `securities`, like manual positions. */
 export const fantasyPositions = pgTable(
   "fantasy_positions",

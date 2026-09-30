@@ -5,6 +5,7 @@ import {
   fantasyLeagues,
   fantasyMembers,
   fantasyPositions,
+  fantasyReactions,
   fantasySnapshots,
   fantasyTrades,
   securities,
@@ -289,7 +290,7 @@ export async function loadFantasyLeague(userId: string, leagueId: string) {
     .where(eq(fantasyMembers.leagueId, leagueId))
   const memberIds = members.map((m) => m.id)
 
-  const [positions, snapshots, feed] = await Promise.all([
+  const [positions, snapshots, feed, reactionRows] = await Promise.all([
     loadPositions(memberIds),
     db
       .select({ memberId: fantasySnapshots.memberId, date: fantasySnapshots.date, value: fantasySnapshots.value })
@@ -297,12 +298,23 @@ export async function loadFantasyLeague(userId: string, leagueId: string) {
       .where(inArray(fantasySnapshots.memberId, memberIds))
       .orderBy(asc(fantasySnapshots.date)),
     loadFeed(leagueId),
+    db
+      .select({ toMemberId: fantasyReactions.toMemberId, emoji: fantasyReactions.emoji, count: sql<number>`count(*)::int` })
+      .from(fantasyReactions)
+      .where(inArray(fantasyReactions.toMemberId, memberIds))
+      .groupBy(fantasyReactions.toMemberId, fantasyReactions.emoji),
   ])
 
   const positionsBy = new Map<string, PositionRow[]>()
   for (const p of positions) positionsBy.set(p.memberId, [...(positionsBy.get(p.memberId) ?? []), p])
   const historyBy = new Map<string, { date: string; value: number }[]>()
   for (const s of snapshots) historyBy.set(s.memberId, [...(historyBy.get(s.memberId) ?? []), { date: s.date, value: n(s.value) }])
+  const reactionsByMember = new Map<string, Record<string, number>>()
+  for (const reaction of reactionRows) {
+    const bucket = reactionsByMember.get(reaction.toMemberId) ?? {}
+    bucket[reaction.emoji] = reaction.count
+    reactionsByMember.set(reaction.toMemberId, bucket)
+  }
 
   const standings: FantasyStanding[] = rankReturns(members
     .map((m) => {
@@ -336,7 +348,7 @@ export async function loadFantasyLeague(userId: string, leagueId: string) {
                 .sort((a, b) => b.weight - a.weight)
                 .slice(0, 5)
             : [],
-        reactions: {},
+        reactions: reactionsByMember.get(m.id) ?? {},
         isYou: m.userId === userId,
         value,
         cash,

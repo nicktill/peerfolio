@@ -50,6 +50,13 @@
       "when": 1790737000227,
       "tag": "0006_security_metadata",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790781171407,
+      "tag": "0007_fantasy_reactions",
+      "breakpoints": true
     }
   ]
 }
