@@ -251,8 +251,14 @@ export async function refreshStalePrices({ maxAgeHours = 6, minIntervalMinutes =
       }
     }
 
+    // A ticker that is behind and wasn't looked up this run (over the per-run call
+    // cap) is left alone, so it stays first in line for the next run instead of
+    // waiting out the recheck interval.
+    const skipped = new Set(behind.filter((s) => !closes.has(s.marketTicker!)).map((s) => s.id))
+
     let refreshed = 0
     for (const security of stale) {
+      if (skipped.has(security.id)) continue
       const found = closes.get(security.marketTicker!)
       // A close that isn't newer than what we hold (weekend, holiday, or a live
       // price from today) still counts as checked, but never replaces it.
