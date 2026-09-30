@@ -5,6 +5,7 @@ import { EyeOff } from "lucide-react"
 import { Avatar } from "@web/components/ui/avatar"
 import { Delta } from "@web/components/ui/delta"
 import { Sparkline } from "@web/components/ui/sparkline"
+import { TickerLogo } from "@web/components/ui/ticker-logo"
 import { cn } from "@web/lib/utils"
 import { plural } from "@web/lib/plural"
 
@@ -93,15 +94,7 @@ export function StandingRow({
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5 pl-[84px]">
         {standing.shareHoldings && standing.holdings.length > 0 ? (
-          standing.holdings.slice(0, 4).map((h) => (
-            <span
-              key={h.ticker}
-              className="numeric rounded-md bg-secondary px-1.5 py-0.5 text-[11px] font-medium"
-              title={`${h.name ?? h.ticker} — ${h.weight.toFixed(1)}% of their portfolio`}
-            >
-              {h.ticker} <span className="text-muted-foreground">{h.weight.toFixed(0)}%</span>
-            </span>
-          ))
+          standing.holdings.slice(0, 4).map((h) => <HoldingChip key={h.ticker} holding={h} />)
         ) : standing.shareHoldings ? (
           // Sharing is on but there's nothing to show yet (a new member who hasn't bought anything). Not the same as private.
           <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">Nothing held yet</span>
@@ -159,5 +152,24 @@ export function StandingRow({
         </div>
       </div>
     </li>
+  )
+}
+
+/**
+ * One of someone's top picks: its logo, ticker and share of their portfolio, with
+ * a soft fill behind it as wide as that share, so a 50% pick looks half full.
+ */
+function HoldingChip({ holding }: { holding: { ticker: string; name: string | null; weight: number } }) {
+  const fill = Math.min(100, Math.max(0, holding.weight))
+  return (
+    <span
+      className="numeric press inline-flex items-center gap-1.5 rounded-full border bg-secondary/60 py-0.5 pl-0.5 pr-2.5 text-[11px] font-medium transition-[transform,box-shadow] hover:-translate-y-px hover:shadow-sm"
+      style={{ backgroundImage: `linear-gradient(90deg, hsl(var(--primary) / 0.16) ${fill}%, transparent ${fill}%)` }}
+      title={`${holding.name ?? holding.ticker}: ${holding.weight.toFixed(1)}% of their portfolio`}
+    >
+      <TickerLogo symbol={holding.ticker} size="xs" className="rounded-full border-0 shadow-none" />
+      <span className="font-mono font-semibold">{holding.ticker}</span>
+      <span className="text-muted-foreground">{holding.weight.toFixed(0)}%</span>
+    </span>
   )
 }

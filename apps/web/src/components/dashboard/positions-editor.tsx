@@ -97,8 +97,8 @@ export function PositionsEditor({
                     <span className="truncate text-xs text-muted-foreground">{p.name}</span>
                   </p>
                   <p className="numeric truncate text-xs text-muted-foreground">
-                    {formatQuantity(p.quantity)} {p.kind === "crypto" ? "" : "sh"} · {p.price > 0 ? formatCurrency(p.price) : "getting a price…"}
-                    {p.costBasis ? ` · avg ${formatCurrency(p.costBasis / p.quantity)}` : ""}
+                    {hidden ? "••" : formatQuantity(p.quantity)} {p.kind === "crypto" ? "" : "sh"} · {p.price > 0 ? formatCurrency(p.price) : "getting a price…"}
+                    {p.costBasis && !hidden ? ` · avg ${formatCurrency(p.costBasis / p.quantity)}` : ""}
                   </p>
                 </button>
                 <div className="shrink-0 text-right">
@@ -129,15 +129,17 @@ export function PositionsEditor({
 
       {positions.length > 6 ? <p className="text-center text-[11px] text-muted-foreground">Scroll to see all {positions.length} positions</p> : null}
 
-      {withBasis.length > 0 && !hidden ? (
+      {withBasis.length > 0 ? (
         <div className="numeric flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl bg-secondary/60 px-3 py-2 text-xs text-muted-foreground">
-          <span>Cost {formatCurrency(totalCost)}</span>
+          {hidden ? null : <span>Cost {formatCurrency(totalCost)}</span>}
           <span className="inline-flex items-center gap-1">
             Total return
-            <span className={totalValueWithBasis >= totalCost ? "text-gain-ink" : "text-loss-ink"}>
-              {totalValueWithBasis >= totalCost ? "+" : "−"}
-              {formatCurrency(Math.abs(totalValueWithBasis - totalCost))}
-            </span>
+            {hidden ? null : (
+              <span className={totalValueWithBasis >= totalCost ? "text-gain-ink" : "text-loss-ink"}>
+                {totalValueWithBasis >= totalCost ? "+" : "−"}
+                {formatCurrency(Math.abs(totalValueWithBasis - totalCost))}
+              </span>
+            )}
             <Delta value={((totalValueWithBasis - totalCost) / totalCost) * 100} size="sm" />
           </span>
           {withBasis.length < positions.length ? <span>({withBasis.length} of {positions.length} with avg cost)</span> : null}

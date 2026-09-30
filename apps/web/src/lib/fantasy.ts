@@ -16,6 +16,7 @@ import { ApiError } from "@web/lib/api"
 import { generateInviteCode } from "@web/lib/crypto"
 import {
   applyTrade,
+  checkEndChange,
   findLedgerMismatches,
   isClosed,
   portfolioValue,
@@ -51,6 +52,37 @@ export async function createFantasyLeague(
     .returning()
   await db.insert(fantasyMembers).values({ leagueId: league!.id, userId, cash: input.startingCash.toString() })
   return league!
+}
+
+/**
+ * Changes how a league looks, or extends it. Owner only (whoever created it),
+ * and only while it's running: a finished league is frozen at its last standings.
+ * Starting cash and the pick cap are deliberately not editable, since changing
+ * them mid-season would be unfair to anyone already trading.
+ */
+export async function updateFantasyLeague(
+  userId: string,
+  leagueId: string,
+  patch: { name?: string; emoji?: string; accent?: string; endsAt?: Date | null },
+) {
+  const { league } = await requireFantasyMember(userId, leagueId)
+  if (league.ownerId !== userId) throw new ApiError("Only the league owner can edit it", 403)
+  if (isClosed(league.endsAt)) throw new ApiError("This league has finished, so it can't be edited", 409)
+  if (patch.endsAt !== undefined) {
+    const problem = checkEndChange(league.endsAt, patch.endsAt)
+    if (problem) throw new ApiError(problem, 422)
+  }
+
+  const values = {
+    ...(patch.name !== undefined && { name: patch.name }),
+    ...(patch.emoji !== undefined && { emoji: patch.emoji }),
+    ...(patch.accent !== undefined && { accent: patch.accent }),
+    ...(patch.endsAt !== undefined && { endsAt: patch.endsAt }),
+  }
+  if (Object.keys(values).length === 0) return { name: league.name, emoji: league.emoji, accent: league.accent, endsAt: league.endsAt }
+
+  const [updated] = await db.update(fantasyLeagues).set(values).where(eq(fantasyLeagues.id, leagueId)).returning()
+  return { name: updated!.name, emoji: updated!.emoji, accent: updated!.accent, endsAt: updated!.endsAt }
 }
 
 export async function joinFantasyLeague(userId: string, inviteCode: string) {
