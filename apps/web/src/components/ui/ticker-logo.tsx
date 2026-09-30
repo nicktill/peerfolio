@@ -23,13 +23,18 @@ export function TickerLogo({ symbol, kind = "stock", size = "md", className }: {
 
   return (
     <span
-      className={cn("relative grid shrink-0 place-items-center overflow-hidden rounded-xl font-mono font-bold ring-1 ring-border", SIZES[size], className)}
-      style={showImage ? { background: "white" } : { background: `hsl(${hue(s)} 70% 94%)`, color: `hsl(${hue(s)} 55% 32%)` }}
+      className={cn(
+        "relative grid shrink-0 place-items-center overflow-hidden rounded-xl border font-mono font-bold shadow-[0_1px_2px_hsl(0_0%_0%/0.18),inset_0_1px_0_hsl(0_0%_100%/0.55)]",
+        showImage ? "border-white/15 bg-gradient-to-br from-white via-zinc-50 to-zinc-200" : "border-border/70",
+        SIZES[size],
+        className,
+      )}
+      style={showImage ? undefined : { background: `linear-gradient(145deg, hsl(${hue(s)} 65% 96%), hsl(${hue(s)} 55% 89%))`, color: `hsl(${hue(s)} 55% 28%)` }}
       aria-hidden
     >
       {showImage ? (
         // eslint-disable-next-line @next/next/no-img-element -- proxied, already cached at the edge
-        <img src={`/api/market/logo/${encodeURIComponent(s)}`} alt="" className="size-full object-contain p-1" loading="lazy" onError={() => setFailed(true)} />
+        <img src={`/api/market/logo/${encodeURIComponent(s)}`} alt="" className="size-full object-contain p-1.5 drop-shadow-[0_1px_1px_rgb(0_0_0/0.08)]" loading="lazy" onError={() => setFailed(true)} />
       ) : (
         s.slice(0, 4)
       )}
