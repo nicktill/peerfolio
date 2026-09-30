@@ -73,6 +73,14 @@ cron. Set it up in whichever way suits your plan:
 
 The endpoint refuses without a matching `CRON_SECRET`, so it is safe to expose.
 
+**Prices.** `/api/cron/prices` refreshes live quotes and picks up the official
+close. `.github/workflows/prices.yml` calls it every 15 minutes during market
+hours and every 30 minutes after the close. Add one repository secret
+(Settings → Secrets and variables → Actions): `CRON_SECRET`, the same value as
+in Vercel. It calls `https://peerfolio.org` unless you set a `PEERFOLIO_URL`
+repository variable. A run
+turns red when it tried to refresh and nothing arrived.
+
 Before writing snapshots it reprices manual positions from the previous
 session's closes (`MASSIVE_API_KEY`). That's two market data calls a night, one
 for US stocks and ETFs and one for crypto, however many positions exist.

@@ -1,0 +1,36 @@
+name: Refresh prices
+
+# Vercel's free plan only allows one cron run a day, so GitHub calls the app's
+# price endpoint instead. Times are UTC; the market window is 9:30-16:00 ET
+# whether or not daylight saving is on. Runs can be a few minutes late.
+on:
+  schedule:
+    - cron: "*/15 13-21 * * 1-5" # market hours: live quotes every 15 minutes
+    - cron: "5,35 22-23 * * 1-5" # after the close: pick up the official close
+    - cron: "5,35 0-1 * * 2-6" #   (still the same evening in US time)
+    - cron: "15 10 * * 2-6" # early morning safety net for the previous close
+  workflow_dispatch: {}
+
+concurrency:
+  group: prices
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Call /api/cron/prices
+        env:
+          APP_URL: ${{ vars.PEERFOLIO_URL || 'https://peerfolio.org' }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "Set the CRON_SECRET repository secret." >&2
+            exit 1
+          fi
+          curl --silent --show-error --fail-with-body --max-time 90 \
+            --retry 2 --retry-delay 10 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "${APP_URL%/}/api/cron/prices"
+          echo
