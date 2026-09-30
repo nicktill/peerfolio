@@ -27,6 +27,8 @@ export type QuoteResult = {
   rateLimited: boolean
   /** Requests that failed for any other reason. */
   failed: number
+  /** How many quotes each source supplied, when several were combined. */
+  sources?: Record<string, number>
 }
 
 /**
