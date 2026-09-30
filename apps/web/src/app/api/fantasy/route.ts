@@ -2,11 +2,12 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { ApiError, readJson, withUser } from "@web/lib/api"
 import { createFantasyLeague, listFantasyLeaguesForUser } from "@web/lib/fantasy"
+import { ACCENT_KEYS, isLeagueEmoji } from "@web/lib/league-look"
 
 const CreateFantasyLeague = z.object({
   name: z.string().trim().min(2, "Name is too short").max(40, "Name is too long"),
-  emoji: z.string().trim().min(1).max(8).default("🏈"),
-  accent: z.enum(["emerald", "violet", "amber", "sky", "rose"]).default("emerald"),
+  emoji: z.string().refine(isLeagueEmoji, "Pick an icon from the list").default("🏈"),
+  accent: z.enum(ACCENT_KEYS).default("emerald"),
   startingCash: z.number().int().min(1_000).max(10_000_000).default(100_000),
   maxPositionPct: z.number().int().min(5).max(100).nullable().default(null),
   /** ISO timestamp, or null for a league that never ends. */

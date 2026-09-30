@@ -1,11 +1,12 @@
 "use client"
 
-import { use, useState } from "react"
+import { use, useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, Check, Clock, Infinity as Forever, Link2 } from "lucide-react"
+import { ArrowLeft, Check, ChevronDown, Clock, Infinity as Forever, Link2, Pencil } from "lucide-react"
 import { initialsFor } from "@web/components/ui/avatar"
 import { RaceChart } from "@web/components/charts/race-chart"
 import { StandingRow } from "@web/components/leagues/standing-row"
+import { EditLeagueDialog } from "@web/components/fantasy/edit-league-dialog"
 import { CashStat, PortfolioStat } from "@web/components/fantasy/balance-cards"
 import { TradePanel } from "@web/components/fantasy/trade-panel"
 import { TradeFeed, type FeedItem } from "@web/components/fantasy/trade-feed"
@@ -13,6 +14,7 @@ import { timeLeft } from "@web/components/fantasy/time-left"
 import { Button } from "@web/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card"
 import { useRankBaseline } from "@web/components/fantasy/use-rank-baseline"
+import { AnimatedNumber } from "@web/components/ui/animated-number"
 import { Delta } from "@web/components/ui/delta"
 import { LeaguePageSkeleton } from "@web/components/skeletons"
 import { revealStyle } from "@web/components/motion/reveal"
@@ -20,6 +22,8 @@ import type { Standing } from "@web/components/leagues/standing-row"
 import { formatCurrency } from "@web/lib/format"
 import { describeMovement, rankMovement } from "@web/lib/rank-change"
 import { liveRefreshMs } from "@web/lib/live-refresh"
+import { accentFor } from "@web/lib/league-look"
+import { visibleStandings } from "@web/lib/standings-window"
 import { mutate, useApi } from "@web/lib/use-api"
 import { useToast } from "@web/components/ui/toast"
 
@@ -31,6 +35,8 @@ type LeagueData = {
     id: string
     name: string
     emoji: string
+    accent: string
+    isOwner: boolean
     inviteCode: string
     startingCash: number
     maxPositionPct: number | null
@@ -50,6 +56,8 @@ const CLOSED_REFRESH_MS = 60_000
 export default function FantasyLeaguePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const { toast } = useToast()
+  const [editing, setEditing] = useState(false)
+  const [showAllStandings, setShowAllStandings] = useState(false)
   const { data, error, loading, refetch } = useApi<LeagueData>(`/api/fantasy/${id}`, [], { refreshMs: liveRefreshMs(CLOSED_REFRESH_MS) })
   const rankBefore = useRankBaseline(id, data?.you.rank ?? null)
 
@@ -69,6 +77,7 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
 
   const { league, standings, you, feed } = data
   const moved = rankMovement(rankBefore, you.rank)
+  const standingsView = visibleStandings(standings, { expanded: showAllStandings })
 
   return (
     <div className="space-y-6">
@@ -78,7 +87,7 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
 
       <header className="reveal relative overflow-hidden rounded-3xl border bg-card p-5 sm:p-7" style={revealStyle(0)}>
         <div className="hero-grid absolute inset-0 opacity-60" aria-hidden />
-        <div className="absolute -left-10 -top-20 size-56 rounded-full bg-primary/15 blur-3xl" aria-hidden />
+        <div className={`absolute -left-10 -top-20 size-56 rounded-full blur-3xl ${accentFor(league.accent).glow}`} aria-hidden />
         <div className="relative flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-center gap-3">
             <span className="text-4xl" aria-hidden>{league.emoji}</span>
@@ -94,7 +103,15 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
               </p>
             </div>
           </div>
-          <InviteButton code={league.inviteCode} />
+          <div className="flex items-center gap-2">
+            {league.isOwner && !league.isClosed ? (
+              <Button variant="outline" size="sm" className="rounded-full" onClick={() => setEditing(true)}>
+                <Pencil aria-hidden />
+                Edit league
+              </Button>
+            ) : null}
+            <InviteButton code={league.inviteCode} />
+          </div>
         </div>
 
         <dl className="relative mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -118,6 +135,10 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
           <CashStat cash={you.cash} value={you.value} />
         </dl>
       </header>
+
+      {league.isOwner && !league.isClosed ? (
+        <EditLeagueDialog league={league} open={editing} onClose={() => setEditing(false)} onSaved={refetch} />
+      ) : null}
 
       {league.isClosed ? <Podium standings={standings} /> : null}
 
@@ -144,10 +165,21 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
             </CardHeader>
             <CardContent>
               <ul className="divide-y">
-                {standings.map((s) => (
+                {standingsView.rows.map((s) => (
                   <StandingRow key={s.userId} standing={s} onReact={react} showSource={false} />
                 ))}
               </ul>
+              {standingsView.hidden > 0 || showAllStandings ? (
+                <button
+                  type="button"
+                  onClick={() => setShowAllStandings((v) => !v)}
+                  aria-expanded={showAllStandings}
+                  className="press mt-2 inline-flex w-full items-center justify-center gap-1 rounded-lg py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                >
+                  {showAllStandings ? "Show fewer" : `Show all ${standings.length}`}
+                  <ChevronDown className={`size-3.5 transition-transform ${showAllStandings ? "rotate-180" : ""}`} aria-hidden />
+                </button>
+              ) : null}
             </CardContent>
           </Card>
         </div>
@@ -191,6 +223,21 @@ function InviteButton({ code }: { code: string }) {
 }
 
 function Holdings({ positions }: { positions: Position[] }) {
+  // A row flashes when you've just bought or sold it, so the trade visibly lands here.
+  const before = useRef<Map<string, number> | null>(null)
+  const [flash, setFlash] = useState<ReadonlySet<string>>(new Set())
+  useEffect(() => {
+    const now = new Map(positions.map((p) => [p.ticker, p.shares]))
+    const prev = before.current
+    before.current = now
+    if (!prev) return
+    const changed = positions.filter((p) => prev.get(p.ticker) !== p.shares).map((p) => p.ticker)
+    if (changed.length === 0) return
+    setFlash(new Set(changed))
+    const timer = setTimeout(() => setFlash(new Set()), 1900)
+    return () => clearTimeout(timer)
+  }, [positions])
+
   return (
     <Card>
       <CardHeader>
@@ -202,12 +249,14 @@ function Holdings({ positions }: { positions: Position[] }) {
         ) : (
           <ul className="divide-y">
             {positions.map((p) => (
-              <li key={p.ticker} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
+              <li key={p.ticker} className={`-mx-2 flex items-center gap-3 rounded-lg px-2 py-2.5 first:pt-2.5 last:pb-2.5 ${flash.has(p.ticker) ? "pick-flash" : ""}`}>
                 <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-secondary font-mono text-[11px] font-bold">
                   {p.ticker.slice(0, 4)}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="numeric text-sm font-medium">{formatCurrency(p.value)}</p>
+                  <p className="numeric text-sm font-medium">
+                    <AnimatedNumber value={p.value} format={formatCurrency} />
+                  </p>
                   <p className="numeric truncate text-xs text-muted-foreground">
                     {p.shares.toLocaleString(undefined, { maximumFractionDigits: 4 })} sh @ {formatCurrency(p.averageCost)} avg
                   </p>

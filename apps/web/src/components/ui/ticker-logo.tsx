@@ -1,9 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { cn } from "@web/lib/utils"
 
-const SIZES = { sm: "size-8 text-[10px]", md: "size-10 text-[11px]", lg: "size-12 text-xs" }
+const SIZES = { xs: "size-[18px] text-[6px]", sm: "size-8 text-[10px]", md: "size-10 text-[11px]", lg: "size-12 text-xs" }
+
+/** A small logo needs a thinner inset than a big one, or there is no logo left. */
+const IMAGE_PAD: Record<keyof typeof SIZES, string> = { xs: "p-[2px]", sm: "p-1.5", md: "p-1.5", lg: "p-1.5" }
 
 /** Stable hue per ticker so a monogram looks the same everywhere. */
 function hue(symbol: string) {
@@ -18,6 +21,12 @@ function hue(symbol: string) {
  */
 export function TickerLogo({ symbol, kind = "stock", size = "md", className }: { symbol: string; kind?: "stock" | "crypto"; size?: keyof typeof SIZES; className?: string }) {
   const [failed, setFailed] = useState(false)
+  const image = useRef<HTMLImageElement>(null)
+  // An image that failed before this component hydrated never fires onError here, so look once it has mounted.
+  useEffect(() => {
+    const el = image.current
+    if (el?.complete && el.naturalWidth === 0) setFailed(true)
+  }, [])
   const s = symbol.toUpperCase()
   const showImage = kind === "stock" && !failed
 
@@ -34,9 +43,9 @@ export function TickerLogo({ symbol, kind = "stock", size = "md", className }: {
     >
       {showImage ? (
         // eslint-disable-next-line @next/next/no-img-element -- proxied, already cached at the edge
-        <img src={`/api/market/logo/${encodeURIComponent(s)}`} alt="" className="size-full object-contain p-1.5 drop-shadow-[0_1px_1px_rgb(0_0_0/0.08)]" loading="lazy" onError={() => setFailed(true)} />
+        <img ref={image} src={`/api/market/logo/${encodeURIComponent(s)}`} alt="" className={cn("size-full object-contain drop-shadow-[0_1px_1px_rgb(0_0_0/0.08)]", IMAGE_PAD[size])} loading="lazy" onError={() => setFailed(true)} />
       ) : (
-        s.slice(0, 4)
+        s.slice(0, size === "xs" ? 2 : 4)
       )}
     </span>
   )

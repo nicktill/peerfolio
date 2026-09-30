@@ -135,7 +135,7 @@ export function HoldingsTable({
               {slices.map((s, i) => (
                 <span key={s.name} className="inline-flex items-center gap-1.5">
                   <span className="size-2 rounded-[2px]" style={{ backgroundColor: colorForIndex(i) }} aria-hidden />
-                  {s.name} <b className="numeric font-semibold text-foreground">{hidden ? "••" : `${s.percent.toFixed(0)}%`}</b>
+                  {s.name} <b className="numeric font-semibold text-foreground">{`${s.percent.toFixed(0)}%`}</b>
                 </span>
               ))}
             </p>
@@ -158,7 +158,7 @@ export function HoldingsTable({
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold">{h.ticker ?? h.name ?? "Position"}</p>
                   <p className="truncate text-xs text-muted-foreground">
-                    <span className="md:hidden">{h.gainPercent != null && !hidden ? <span className={tone(h.gainPercent)}>{formatPercent(h.gainPercent, 1)} · </span> : null}</span>
+                    <span className="md:hidden">{h.gainPercent != null ? <span className={tone(h.gainPercent)}>{formatPercent(h.gainPercent, 1)} · </span> : null}</span>
                     {h.name ?? ""}
                     {h.positions > 1 ? ` · ${h.positions} accounts` : ""}
                   </p>
@@ -166,7 +166,7 @@ export function HoldingsTable({
               </div>
 
               <div className="hidden items-center gap-3 md:flex">
-                <span className="numeric w-11 text-sm">{hidden ? "••" : `${h.weight.toFixed(1)}%`}</span>
+                <span className="numeric w-11 text-sm">{`${h.weight.toFixed(1)}%`}</span>
                 <span className="h-1 flex-1 rounded-full bg-muted">
                   <span className="block h-1 rounded-full bg-muted-foreground/70" style={{ width: `${Math.max((h.weight / maxWeight) * 100, 2)}%` }} />
                 </span>
@@ -182,7 +182,7 @@ export function HoldingsTable({
               <div className="hidden text-right md:block">
                 {h.todayPercent != null ? (
                   <>
-                    <p className={cn("numeric text-sm font-semibold", tone(h.todayPercent))}>{hidden ? "••" : formatPercent(h.todayPercent, 2)}</p>
+                    <p className={cn("numeric text-sm font-semibold", tone(h.todayPercent))}>{formatPercent(h.todayPercent, 2)}</p>
                     <p className={cn("numeric text-xs", tone(h.todayAmount))}>{h.todayAmount != null ? signed(h.todayAmount, hidden) : ""}</p>
                   </>
                 ) : (
@@ -193,7 +193,7 @@ export function HoldingsTable({
               <div className="hidden text-right md:block">
                 {h.gainPercent != null ? (
                   <>
-                    <p className={cn("numeric text-sm font-semibold", tone(h.gainPercent))}>{hidden ? "••" : formatPercent(h.gainPercent, 1)}</p>
+                    <p className={cn("numeric text-sm font-semibold", tone(h.gainPercent))}>{formatPercent(h.gainPercent, 1)}</p>
                     <p className="numeric text-xs text-muted-foreground">{h.gainAmount != null ? signed(h.gainAmount, hidden) : ""}</p>
                   </>
                 ) : (

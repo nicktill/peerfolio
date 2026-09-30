@@ -1,15 +1,16 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { Button } from "@web/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card"
 import { useToast } from "@web/components/ui/toast"
+import { TradeReceipt, type Receipt } from "@web/components/fantasy/trade-receipt"
 import { formatCurrency } from "@web/lib/format"
 import { checkTradeInput, estimateShares, sanitizeAmount } from "@web/lib/trade-input"
 import { mutate } from "@web/lib/use-api"
 import { cn } from "@web/lib/utils"
 
-type Held = { ticker: string; shares: number; value: number }
+type Held = { ticker: string; shares: number; value: number; averageCost: number }
 type Quote = { symbol: string; name: string | null; price: number; asOf: string; live?: boolean }
 type Lookup =
   | { state: "idle" }
@@ -30,6 +31,8 @@ export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: 
   const [amount, setAmount] = useState("")
   const [pending, setPending] = useState(false)
   const [burst, setBurst] = useState(0)
+  const [receipt, setReceipt] = useState<Receipt | null>(null)
+  const closeReceipt = useCallback(() => setReceipt(null), [])
   const [touched, setTouched] = useState(false)
   const [lookup, setLookup] = useState<Lookup>({ state: "idle" })
 
@@ -80,9 +83,14 @@ export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: 
     try {
       const body = side === "buy" ? { side, symbol: ticker, amount: check.value } : { side, symbol: ticker, shares: check.value }
       const result = await mutate<{ ticker: string; shares: number; price: number }>(`/api/fantasy/${leagueId}/trade`, { body })
-      const verb = side === "buy" ? "Bought" : "Sold"
-      toast(`${verb} ${fmtShares(result.shares)} ${result.ticker} at ${formatCurrency(result.price)}`, "success")
+      // The receipt is the confirmation (it speaks to screen readers too), so success needs no toast.
+      setReceipt({ id: Date.now(), side, ticker: result.ticker, shares: result.shares, price: result.price, averageCost: held?.averageCost ?? null, isNew: !held })
       if (side === "buy") setBurst((b) => b + 1)
+      try {
+        navigator.vibrate?.(side === "buy" ? 18 : [12, 40, 12])
+      } catch {
+        // No haptics here; nothing to do.
+      }
       setAmount("")
       setTouched(false)
       onTraded()
@@ -96,6 +104,7 @@ export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: 
   return (
     <Card className="relative overflow-visible">
       {burst > 0 ? <Burst key={burst} /> : null}
+      {receipt ? <TradeReceipt receipt={receipt} onDone={closeReceipt} /> : null}
       <CardHeader className="flex-row items-center justify-between">
         <CardTitle>Make a move</CardTitle>
         <div className="flex rounded-full border p-0.5 text-xs font-medium" role="tablist">
