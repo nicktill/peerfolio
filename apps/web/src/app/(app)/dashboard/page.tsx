@@ -42,7 +42,6 @@ type PortfolioResponse = {
   isVerified: boolean
 }
 
-const RANGE_DAYS: Record<Range, number> = { "1W": 7, "1M": 30, "3M": 90, "6M": 180, "1Y": 365, ALL: 0 }
 const RANGE_NAMES: Record<Range, string> = { "1W": "week", "1M": "month", "3M": "3 months", "6M": "6 months", "1Y": "year", ALL: "period" }
 const usd = (v: number) => `$${new Intl.NumberFormat("en-US").format(v)}`
 /** Signed dollars: cents while the amount is small, whole dollars once it isn't. */
@@ -130,12 +129,9 @@ export default function DashboardPage() {
 
   const available = rangeAvailability(data.firstDate, marketToday())
   const unlockIn = rangeUnlockDays(data.firstDate, marketToday())
-  const rangeOptions = RANGES.map((r) => ({
-    value: r,
-    label: r,
-    disabled: !available[r],
-    title: available[r] ? undefined : `Unlocks in ${plural(unlockIn[r], "day")}. Peerfolio has tracked you for ${plural(RANGE_DAYS[r] - unlockIn[r], "day")}; this view needs ${plural(RANGE_DAYS[r], "day")}.`,
-  }))
+  // Only ranges the history can fill are offered; locked ones are described in the
+  // line under the title instead of sitting there greyed out.
+  const rangeOptions = RANGES.filter((r) => available[r]).map((r) => ({ value: r, label: r }))
   const nextRange = RANGES.filter((r) => !available[r]).sort((a, b) => unlockIn[a] - unlockIn[b])[0]
   const windowCoversAll = range === "ALL" || !available[range]
   const points = data.performance.series
@@ -238,13 +234,14 @@ export default function DashboardPage() {
 
       <Reveal index={1} className="grid items-start gap-6 [&>*]:min-w-0 lg:grid-cols-[minmax(0,1fr)_400px]">
         {/* Sticks while a long accounts list scrolls past beside it. */}
-        <Card className="lg:sticky lg:top-20">
+        {/* With a chart it sticks beside a long accounts list; empty, it fills the row so it doesn't look cut off. */}
+        <Card className={cn(data.hasHistory ? "lg:sticky lg:top-20" : "lg:h-full lg:self-stretch", "flex flex-col")}>
           <CardHeader className="flex-row items-start justify-between gap-3">
             <div className="min-w-0">
               <CardTitle>Return</CardTitle>
               <p className="mt-1 text-xs text-muted-foreground">
                 Since you started tracking. Deposits and withdrawals don’t count.
-                {nextRange ? ` ${nextRange} unlocks in ${plural(unlockIn[nextRange], "day")}.` : ""}
+                {nextRange ? ` More views unlock as your history grows: ${nextRange} in ${plural(unlockIn[nextRange], "day")}.` : ""}
               </p>
               {data.hasHistory ? (
                 <div className="mt-3 flex items-baseline gap-3">
@@ -261,20 +258,22 @@ export default function DashboardPage() {
                 </div>
               ) : null}
             </div>
-            <Segmented<Range>
-              options={rangeOptions}
-              value={range}
-              onChange={(r) => {
-                pickedRange.current = true
-                setHoverIndex(null)
-                setRange(r)
-              }}
-              size="sm"
-              label="Time range"
-              className="shrink-0"
-            />
+            {rangeOptions.length > 1 ? (
+              <Segmented<Range>
+                options={rangeOptions}
+                value={range}
+                onChange={(r) => {
+                  pickedRange.current = true
+                  setHoverIndex(null)
+                  setRange(r)
+                }}
+                size="sm"
+                label="Time range"
+                className="shrink-0"
+              />
+            ) : null}
           </CardHeader>
-          <CardContent>
+          <CardContent className={cn(!data.hasHistory && "flex flex-1 items-center justify-center")}>
             {data.hasHistory ? (
               <PerformanceChart
                 points={series}
