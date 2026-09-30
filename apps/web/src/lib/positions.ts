@@ -4,6 +4,7 @@ import { ApiError } from "@web/lib/api"
 import { latestCompletedSession } from "@web/lib/market-hours"
 import { previousCloseOnUpdate } from "@web/lib/price-write"
 import { createQuoteProvider, quoteDate } from "@web/lib/quote-provider"
+import { tiingoFundCloses } from "@web/lib/tiingo"
 import { staleHeldSecurities } from "@web/lib/stale-prices"
 import {
   displaySymbol,
@@ -192,18 +193,7 @@ async function primePrices(rows: { marketTicker: string; kind: AssetKind; name?:
       for (const row of missing) {
         const close = closes.get(row.marketTicker)
         if (!close) continue
-        await db
-          .insert(securities)
-          .values({
-            id: `mkt:${row.marketTicker}`,
-            tickerSymbol: displaySymbol(row.marketTicker),
-            name: row.name ?? null,
-            type: row.kind === "crypto" ? "cryptocurrency" : "equity",
-            marketTicker: row.marketTicker,
-            closePrice: close.price.toString(),
-            closePriceAsOf: close.asOf,
-          })
-          .onConflictDoNothing()
+        await storeFirstPrice({ marketTicker: row.marketTicker, kind: row.kind, name: row.name, price: close.price, asOf: close.asOf })
         priced.add(`mkt:${row.marketTicker}`)
       }
 
@@ -216,19 +206,21 @@ async function primePrices(rows: { marketTicker: string; kind: AssetKind; name?:
       for (const row of rest) {
         const quote = quotes?.quotes.get(row.marketTicker)
         if (!quote) continue
-        await db
-          .insert(securities)
-          .values({
-            id: `mkt:${row.marketTicker}`,
-            tickerSymbol: displaySymbol(row.marketTicker),
-            name: row.name ?? null,
-            type: row.kind === "crypto" ? "cryptocurrency" : "equity",
-            marketTicker: row.marketTicker,
-            closePrice: quote.price.toString(),
-            closePriceAsOf: quoteDate(quote),
-          })
-          .onConflictDoNothing()
+        await storeFirstPrice({ marketTicker: row.marketTicker, kind: row.kind, name: row.name, price: quote.price, asOf: quoteDate(quote) })
         priced.add(`mkt:${row.marketTicker}`)
+      }
+
+      // Mutual funds are on none of those, but Tiingo publishes their daily price.
+      const funds = rest.filter((r) => r.kind === "stock" && !quotes?.quotes.has(r.marketTicker)).slice(0, MAX_FUND_LOOKUPS_PER_IMPORT)
+      const tiingoKey = process.env.TIINGO_API_KEY
+      if (funds.length > 0 && tiingoKey) {
+        const answer = await tiingoFundCloses(funds.map((r) => r.marketTicker), { apiKey: tiingoKey })
+        for (const row of funds) {
+          const close = answer.closes.get(row.marketTicker)
+          if (!close) continue
+          await storeFirstPrice({ marketTicker: row.marketTicker, kind: row.kind, name: row.name, price: close.price, asOf: close.asOf, type: "mutual_fund" })
+          priced.add(`mkt:${row.marketTicker}`)
+        }
       }
     }
 
@@ -246,28 +238,32 @@ async function primePrices(rows: { marketTicker: string; kind: AssetKind; name?:
 }
 
 /**
- * Stores a price we were handed (dated as of the latest finished session) for a security
- * nothing else can price. Fills a blank price only; a real market price is never replaced.
+ * Stores the first price a security gets. It fills a blank price and never replaces
+ * one that is already there, so a real market price can't be overwritten by a weaker source.
  */
-async function priceFromFile(marketTicker: string, kind: AssetKind, name: string | null | undefined, price: number) {
-  const asOf = latestCompletedSession(new Date())
+async function storeFirstPrice(p: { marketTicker: string; kind: AssetKind; name?: string | null; price: number; asOf: string; type?: string }) {
   await db
     .insert(securities)
     .values({
-      id: `mkt:${marketTicker}`,
-      tickerSymbol: displaySymbol(marketTicker),
-      name: name ?? null,
-      type: kind === "crypto" ? "cryptocurrency" : "equity",
-      marketTicker,
-      closePrice: price.toString(),
-      closePriceAsOf: asOf,
+      id: `mkt:${p.marketTicker}`,
+      tickerSymbol: displaySymbol(p.marketTicker),
+      name: p.name ?? null,
+      type: p.type ?? (p.kind === "crypto" ? "cryptocurrency" : "equity"),
+      marketTicker: p.marketTicker,
+      closePrice: p.price.toString(),
+      closePriceAsOf: p.asOf,
     })
     .onConflictDoUpdate({
       target: securities.id,
-      set: { closePrice: price.toString(), closePriceAsOf: asOf, updatedAt: new Date() },
+      set: { closePrice: p.price.toString(), closePriceAsOf: p.asOf, type: p.type ?? sql`${securities.type}`, updatedAt: new Date() },
       setWhere: isNull(securities.closePrice),
     })
 }
+
+/** Fund prices are looked up one ticker per request on a small free allowance, so an import asks for only this many. */
+const MAX_FUND_LOOKUPS_PER_IMPORT = 30
+/** ...and the catch-up job only this many per run. */
+const MAX_FUND_LOOKUPS_PER_RUN = 8
 
 /** How many tickers one import may look up one by one; the provider's free plan allows only a handful a minute. */
 const MAX_SINGLE_LOOKUPS = 4
@@ -316,7 +312,7 @@ export async function importPositions(accountId: string, userId: string, rows: I
   for (const row of usable) {
     const id = `mkt:${row.marketTicker}`
     if (priced.has(id) || !row.price || !(row.price > 0)) continue
-    await priceFromFile(row.marketTicker, row.kind, row.name, row.price)
+    await storeFirstPrice({ marketTicker: row.marketTicker, kind: row.kind, name: row.name, price: row.price, asOf: latestCompletedSession(new Date()), type: "mutual_fund" })
     priced.add(id)
     result.fromFile.push(row.symbol)
   }
@@ -447,7 +443,7 @@ export async function refreshStalePrices({ maxAgeHours = 6, minIntervalMinutes =
     // new official close is picked up shortly after it's published, not hours later.
     const catchUp = { expectedDate: latestCompletedSession(new Date(now)), recheckBefore: new Date(now - recheckMinutes * 60_000) }
     const stale = await db
-      .select({ id: securities.id, marketTicker: securities.marketTicker, asOf: securities.closePriceAsOf })
+      .select({ id: securities.id, marketTicker: securities.marketTicker, asOf: securities.closePriceAsOf, type: securities.type })
       .from(securities)
       .where(staleHeldSecurities(cutoff, catchUp))
       // Least recently checked first, so the per-ticker fallback below rotates through everything.
@@ -467,10 +463,27 @@ export async function refreshStalePrices({ maxAgeHours = 6, minIntervalMinutes =
       }
     }
 
+    // Mutual funds: none of the sources above carry them, Tiingo publishes their daily price
+    // (the free allowance is small, so a few per run; the rest wait for the next one).
+    const behindSession = (s: { asOf: string | null }) => !s.asOf || s.asOf.slice(0, 10) < catchUp.expectedDate
+    const fundBacklog = stale.filter((s) => s.type === "mutual_fund" && !closes.has(s.marketTicker!) && behindSession(s))
+    const fundsNow = fundBacklog.slice(0, MAX_FUND_LOOKUPS_PER_RUN)
+    const tiingoKey = process.env.TIINGO_API_KEY
+    if (fundsNow.length > 0 && tiingoKey) {
+      const answer = await tiingoFundCloses(fundsNow.map((s) => s.marketTicker!), { apiKey: tiingoKey })
+      for (const fund of fundsNow) {
+        const close = answer.closes.get(fund.marketTicker!)
+        if (close) closes.set(fund.marketTicker!, close)
+      }
+    }
+    const fundsWaiting = new Set(fundBacklog.slice(tiingoKey ? MAX_FUND_LOOKUPS_PER_RUN : 0).map((s) => s.id))
+
     // The whole-market bars can trail a finished session by a day on some plans. The
     // per-ticker "previous close" doesn't, so use it for a few tickers per run (the
     // provider's free tier allows a handful of calls a minute); later runs do the rest.
     const behind = stale.filter((s) => {
+      // Funds were handled above; the single-ticker lookup here can't price them.
+      if (s.type === "mutual_fund") return false
       const have = closes.get(s.marketTicker!)?.asOf ?? s.asOf
       return !have || have.slice(0, 10) < catchUp.expectedDate
     })
@@ -491,7 +504,7 @@ export async function refreshStalePrices({ maxAgeHours = 6, minIntervalMinutes =
     // waiting out the recheck interval.
     // Ones we did look up but that came back empty (an unknown ticker, a fund the provider
     // doesn't cover) are marked checked and go to the back, so they can't hog every run.
-    const skipped = new Set(behind.filter((s) => !closes.has(s.marketTicker!) && !attempted.has(s.id)).map((s) => s.id))
+    const skipped = new Set([...behind.filter((s) => !closes.has(s.marketTicker!) && !attempted.has(s.id)).map((s) => s.id), ...fundsWaiting])
 
     let refreshed = 0
     for (const security of stale) {
