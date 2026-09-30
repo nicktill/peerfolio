@@ -85,7 +85,7 @@ export function PositionsEditor({
   return (
     <div id={id} className="space-y-3 border-t pt-3">
       {positions.length > 0 ? (
-        <ul className="-mx-2 max-h-72 space-y-0.5 overflow-y-auto overscroll-contain pr-1 [scrollbar-color:var(--muted-foreground)_transparent] [scrollbar-width:thin]">
+        <ul className="-mx-2 max-h-60 space-y-0.5 overflow-y-auto overscroll-contain pr-1 [scrollbar-color:var(--muted-foreground)_transparent] [scrollbar-width:thin]">
           {positions.map((p) => {
             const gain = p.costBasis ? p.value - p.costBasis : null
             return (
