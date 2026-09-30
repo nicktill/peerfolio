@@ -8,6 +8,7 @@ import { Delta } from "@web/components/ui/delta"
 import { useToast } from "@web/components/ui/toast"
 import { ConnectButton } from "@web/components/dashboard/connect-button"
 import { AddAccountButton } from "@web/components/dashboard/add-account-dialog"
+import { ImportPositionsButton } from "@web/components/dashboard/import-positions-dialog"
 import { PositionsEditor, type PositionRow } from "@web/components/dashboard/positions-editor"
 import { formatCurrency, formatRelativeTime } from "@web/lib/format"
 import { plural } from "@web/lib/plural"
@@ -124,6 +125,16 @@ export function AccountsCard({
       <CardHeader className="flex-row items-center justify-between">
         <CardTitle>Accounts</CardTitle>
         <span className="numeric text-sm text-muted-foreground">{accounts.length}</span>
+        <div className="ml-auto">
+          <ImportPositionsButton
+            accounts={accounts
+              .filter((a) => a.source === "manual" && a.category === "investment")
+              .map((a) => ({ id: a.id, name: a.name, hasPositions: a.positions.length > 0 }))}
+            onDone={onChange}
+            variant="ghost"
+            label="Import positions"
+          />
+        </div>
       </CardHeader>
 
       <CardContent className="space-y-5">
