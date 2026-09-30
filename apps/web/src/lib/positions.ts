@@ -4,7 +4,8 @@ import { ApiError } from "@web/lib/api"
 import { latestCompletedSession } from "@web/lib/market-hours"
 import { previousCloseOnUpdate } from "@web/lib/price-write"
 import { createQuoteProvider, quoteDate } from "@web/lib/quote-provider"
-import { tiingoFundCloses } from "@web/lib/tiingo"
+import { isPlanIdentifier } from "@web/lib/import-parse"
+import { tiingoApiKey, tiingoFundCloses } from "@web/lib/tiingo"
 import { staleHeldSecurities } from "@web/lib/stale-prices"
 import {
   displaySymbol,
@@ -158,7 +159,17 @@ async function writeHolding(accountId: string, userId: string, securityId: strin
 
 /** Adds a position, or replaces the quantity if the account already holds it. */
 export async function setPosition(accountId: string, userId: string, input: PositionInput) {
-  await upsertPosition(accountId, userId, input)
+  const symbol = input.symbol.trim().toUpperCase()
+  if (input.kind === "stock" && isPlanIdentifier(symbol)) {
+    const id = `file:${accountId}:${symbol}`
+    const security = await db.query.securities.findFirst({ where: eq(securities.id, id) })
+    if (!security?.closePrice) throw new ApiError("Import this plan holding with its price from your brokerage first", 404)
+    await writeHolding(accountId, userId, id, input)
+    await db.update(holdings).set({ institutionValue: (input.quantity * Number(security.closePrice)).toFixed(4) })
+      .where(and(eq(holdings.accountId, accountId), eq(holdings.securityId, id)))
+  } else {
+    await upsertPosition(accountId, userId, input)
+  }
   await revalue(accountId)
 }
 
@@ -212,7 +223,7 @@ async function primePrices(rows: { marketTicker: string; kind: AssetKind; name?:
 
       // Mutual funds are on none of those, but Tiingo publishes their daily price.
       const funds = rest.filter((r) => r.kind === "stock" && !quotes?.quotes.has(r.marketTicker)).slice(0, MAX_FUND_LOOKUPS_PER_IMPORT)
-      const tiingoKey = process.env.TIINGO_API_KEY
+      const tiingoKey = tiingoApiKey(process.env)
       if (funds.length > 0 && tiingoKey) {
         const answer = await tiingoFundCloses(funds.map((r) => r.marketTicker), { apiKey: tiingoKey })
         for (const row of funds) {
@@ -297,8 +308,37 @@ async function ensureUnpriced(marketTicker: string, kind: AssetKind, name: strin
 export async function importPositions(accountId: string, userId: string, rows: ImportRowInput[], { replace }: { replace: boolean }): Promise<ImportResult> {
   const result: ImportResult = { imported: 0, removed: 0, fromFile: [], failed: [], pending: [] }
 
+  const keptSecurityIds = new Set<string>()
   const usable: (ImportRowInput & { marketTicker: string })[] = []
   for (const row of rows) {
+    const symbol = row.symbol.trim().toUpperCase()
+    if (row.kind === "stock" && isPlanIdentifier(symbol)) {
+      // Plan identifiers are not exchange tickers. Scope file prices to this account
+      // so another person's import cannot change this holding's valuation.
+      if (!row.price || !Number.isFinite(row.price) || row.price <= 0) {
+        result.failed.push({ symbol, reason: "This plan holding needs a price in the file. Include Last Price or Current Value." })
+        continue
+      }
+      try {
+        const id = `file:${accountId}:${symbol}`
+        await db.insert(securities).values({
+          id, tickerSymbol: symbol, name: row.name ?? null, type: "fund",
+          closePrice: row.price.toString(),
+          // No market ticker/date: only a new statement can update this valuation.
+        }).onConflictDoUpdate({ target: securities.id, set: {
+          name: row.name ?? sql`${securities.name}`, closePrice: row.price.toString(), updatedAt: new Date(),
+        } })
+        await writeHolding(accountId, userId, id, row)
+        await db.update(holdings).set({ institutionValue: (row.quantity * row.price).toFixed(4) })
+          .where(and(eq(holdings.accountId, accountId), eq(holdings.securityId, id)))
+        keptSecurityIds.add(id)
+        result.imported++
+        result.fromFile.push(symbol)
+      } catch {
+        result.failed.push({ symbol, reason: "Couldn't save this plan holding. Try importing it again." })
+      }
+      continue
+    }
     const marketTicker = toMarketTicker(row.symbol, row.kind)
     if (marketTicker) usable.push({ ...row, marketTicker })
     else result.failed.push({ symbol: row.symbol, reason: `Doesn't look like a ${row.kind === "crypto" ? "coin" : "ticker"}` })
@@ -319,7 +359,6 @@ export async function importPositions(accountId: string, userId: string, rows: I
 
   // One provider hiccup must not cost the rest of the list: a ticker we can't
   // price right now is still saved, and gets its price shortly.
-  const keptSecurityIds = new Set<string>()
   let singleLookups = 0
   for (const row of usable) {
     const input = { symbol: row.symbol, kind: row.kind, quantity: row.quantity, avgCost: row.avgCost ?? undefined }
@@ -468,7 +507,7 @@ export async function refreshStalePrices({ maxAgeHours = 6, minIntervalMinutes =
     const behindSession = (s: { asOf: string | null }) => !s.asOf || s.asOf.slice(0, 10) < catchUp.expectedDate
     const fundBacklog = stale.filter((s) => s.type === "mutual_fund" && !closes.has(s.marketTicker!) && behindSession(s))
     const fundsNow = fundBacklog.slice(0, MAX_FUND_LOOKUPS_PER_RUN)
-    const tiingoKey = process.env.TIINGO_API_KEY
+    const tiingoKey = tiingoApiKey(process.env)
     if (fundsNow.length > 0 && tiingoKey) {
       const answer = await tiingoFundCloses(fundsNow.map((s) => s.marketTicker!), { apiKey: tiingoKey })
       for (const fund of fundsNow) {

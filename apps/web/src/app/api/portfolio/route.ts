@@ -14,6 +14,7 @@ const LIABILITY = new Set(["credit", "loan"])
 
 /** Human labels for the allocation ring, keyed by Plaid security type. */
 const SECURITY_LABELS: Record<string, string> = {
+  fund: "Plan funds",
   equity: "Stocks",
   etf: "ETFs",
   mutual_fund: "Mutual funds",

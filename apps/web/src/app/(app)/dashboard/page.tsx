@@ -85,7 +85,7 @@ export default function DashboardPage() {
 
   if (loading && !data) return <DashboardSkeleton />
 
-  if (error) {
+  if (error && !data) {
     return (
       <Card>
         <CardContent className="pt-5">
@@ -146,6 +146,12 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {error ? (
+        <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3 text-sm text-muted-foreground">
+          <p>Couldn’t refresh your portfolio. Showing the last loaded balances.</p>
+          <Button variant="outline" size="sm" onClick={() => void refetch()}>Try again</Button>
+        </div>
+      ) : null}
       <Reveal index={0} className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-sm font-medium text-muted-foreground">Net worth</h1>

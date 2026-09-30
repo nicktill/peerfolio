@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { assertCronAuthorized, withPublic } from "@web/lib/api"
 
+import { tiingoApiKey } from "@web/lib/tiingo"
+
 export const maxDuration = 30
 
 /**
@@ -16,13 +18,14 @@ export const GET = withPublic<unknown>(async (request) => {
   assertCronAuthorized(request)
   const symbol = (new URL(request.url).searchParams.get("symbol") ?? "AAPL").toUpperCase().replace(/[^A-Z.]/g, "").slice(0, 8) || "AAPL"
 
+  const tiingoKey = tiingoApiKey(process.env)
   const config = {
     QUOTE_PROVIDER: process.env.QUOTE_PROVIDER ?? "(unset, defaults to finnhub)",
     FINNHUB_API_KEY: process.env.FINNHUB_API_KEY ? "set" : "MISSING",
     ALPACA_API_KEY: process.env.ALPACA_API_KEY ? "set" : "MISSING",
     ALPACA_API_SECRET: process.env.ALPACA_API_SECRET ? "set" : "MISSING",
     MASSIVE_API_KEY: process.env.MASSIVE_API_KEY ? "set" : "MISSING",
-    TIINGO_API_KEY: process.env.TIINGO_API_KEY ? "set" : "MISSING",
+    TIINGO_API_KEY: tiingoKey ? "set" : "MISSING",
     LIVE_QUOTE_REFRESH_SECONDS: process.env.LIVE_QUOTE_REFRESH_SECONDS ?? "(default 900)",
     LIVE_QUOTE_CALLS_PER_MINUTE: process.env.LIVE_QUOTE_CALLS_PER_MINUTE ?? "(default 40)",
   }
@@ -83,10 +86,10 @@ export const GET = withPublic<unknown>(async (request) => {
         })
       : { skipped: "no ALPACA_API_KEY / ALPACA_API_SECRET" }
 
-  const tiingo = process.env.TIINGO_API_KEY
+  const tiingo = tiingoKey
     ? await time(async () => {
         const response = await fetch(`https://api.tiingo.com/tiingo/daily/${symbol.replace(".", "-")}/prices`, {
-          headers: { Authorization: `Token ${process.env.TIINGO_API_KEY}`, "Content-Type": "application/json" },
+          headers: { Authorization: `Token ${tiingoKey}`, "Content-Type": "application/json" },
           cache: "no-store",
           signal: AbortSignal.timeout(8_000),
         })
