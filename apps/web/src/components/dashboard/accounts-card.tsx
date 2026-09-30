@@ -5,6 +5,7 @@ import { AlertTriangle, ChevronDown, Landmark, RefreshCw, Trash2 } from "lucide-
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card"
 import { Button } from "@web/components/ui/button"
 import { Delta } from "@web/components/ui/delta"
+import { useConfirm } from "@web/components/ui/confirm"
 import { useToast } from "@web/components/ui/toast"
 import { ConnectButton } from "@web/components/dashboard/connect-button"
 import { AddAccountButton } from "@web/components/dashboard/add-account-dialog"
@@ -63,6 +64,7 @@ export function AccountsCard({
   onChange: () => void
 }) {
   const { toast } = useToast()
+  const confirm = useConfirm()
   const [busyId, setBusyId] = useState<string | null>(null)
   // A just-created account is scrolled into view and briefly outlined, so the
   // eye lands where the next step (adding holdings) is.
@@ -91,7 +93,13 @@ export function AccountsCard({
   const needsAttention = items.filter((i) => i.status === "needs_reauth" || i.status === "error")
 
   async function disconnect(itemId: string, name: string) {
-    if (!window.confirm(`Disconnect ${name}? This removes its accounts and history stops updating.`)) return
+    const ok = await confirm({
+      title: `Disconnect ${name}?`,
+      description: "Its accounts are removed from Peerfolio and their history stops updating. You can connect it again later.",
+      confirmLabel: "Disconnect",
+      tone: "danger",
+    })
+    if (!ok) return
 
     setBusyId(itemId)
     try {
@@ -106,7 +114,15 @@ export function AccountsCard({
   }
 
   async function removeManual(id: string, name: string) {
-    if (!window.confirm(`Remove ${name}?`)) return
+    const account = accounts.find((a) => a.id === id)
+    const count = account?.positions.length ?? 0
+    const ok = await confirm({
+      title: `Remove ${name}?`,
+      description: `${count > 0 ? `This deletes the account and its ${count === 1 ? "position" : `${count} positions`}. ` : "This deletes the account. "}Your history treats the drop as money taken out, not a loss, so your return isn't affected.`,
+      confirmLabel: "Remove account",
+      tone: "danger",
+    })
+    if (!ok) return
 
     setBusyId(id)
     try {

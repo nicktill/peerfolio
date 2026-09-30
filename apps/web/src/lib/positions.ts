@@ -3,6 +3,7 @@ import { accounts, db, holdings, securities } from "@web/db"
 import { ApiError } from "@web/lib/api"
 import { latestCompletedSession } from "@web/lib/market-hours"
 import { previousCloseOnUpdate } from "@web/lib/price-write"
+import { createQuoteProvider, quoteDate } from "@web/lib/quote-provider"
 import { staleHeldSecurities } from "@web/lib/stale-prices"
 import {
   displaySymbol,
@@ -125,7 +126,12 @@ async function upsertPosition(accountId: string, userId: string, input: Position
   if (!marketTicker) throw new ApiError(`${input.symbol} doesn't look like a ${input.kind === "crypto" ? "coin" : "ticker"}`)
 
   const { securityId } = await ensurePriced(marketTicker, input.kind)
+  await writeHolding(accountId, userId, securityId, input)
+  return { securityId, marketTicker }
+}
 
+/** Saves the holding for a security that already exists, priced or not. */
+async function writeHolding(accountId: string, userId: string, securityId: string, input: PositionInput) {
   // An average cost sets the basis; leaving it out keeps the existing average
   // per share, so changing the share count doesn't invent a gain.
   const existing = await db.query.holdings.findFirst({
@@ -147,8 +153,6 @@ async function upsertPosition(accountId: string, userId: string, input: Position
       target: [holdings.accountId, holdings.securityId],
       set: { quantity: input.quantity.toString(), costBasis, updatedAt: new Date() },
     })
-
-  return { securityId, marketTicker }
 }
 
 /** Adds a position, or replaces the quantity if the account already holds it. */
@@ -161,9 +165,10 @@ export type ImportRowInput = PositionInput & { name?: string | null }
 export type ImportResult = {
   imported: number
   removed: number
+  /** Tickers we couldn't add, with why (for example not found). */
   failed: { symbol: string; reason: string }[]
-  /** Rows not attempted because the price provider asked us to slow down. */
-  notTried: string[]
+  /** Added without a price yet (the provider was busy); they're priced within minutes and count once they are. */
+  pending: string[]
 }
 
 /**
@@ -172,11 +177,12 @@ export type ImportResult = {
  * Tickers it doesn't return fall through to the per-ticker lookup (and its
  * clear "couldn't find" error) later. Never throws.
  */
-async function primePrices(rows: { marketTicker: string; kind: AssetKind; name?: string | null }[]) {
+async function primePrices(rows: { marketTicker: string; kind: AssetKind; name?: string | null }[]): Promise<Set<string>> {
+  const priced = new Set<string>()
   try {
     const ids = rows.map((r) => `mkt:${r.marketTicker}`)
     const known = await db.select({ id: securities.id, name: securities.name, price: securities.closePrice }).from(securities).where(inArray(securities.id, ids))
-    const priced = new Set(known.filter((k) => k.price != null).map((k) => k.id))
+    for (const k of known) if (k.price != null) priced.add(k.id)
 
     const missing = rows.filter((r) => !priced.has(`mkt:${r.marketTicker}`))
     if (missing.length > 0) {
@@ -196,6 +202,31 @@ async function primePrices(rows: { marketTicker: string; kind: AssetKind; name?:
             closePriceAsOf: close.asOf,
           })
           .onConflictDoNothing()
+        priced.add(`mkt:${row.marketTicker}`)
+      }
+
+      // Whatever the daily bars didn't cover (funds, recent listings) goes to the live-price
+      // sources, which take many tickers per request and far more requests per minute than
+      // the one-ticker-at-a-time lookup. Last trade is fine here: the catch-up replaces it
+      // with the official close.
+      const rest = missing.filter((r) => !closes.has(r.marketTicker))
+      const quotes = rest.length > 0 ? await createQuoteProvider(process.env, fetch, undefined, { anyAge: true })?.getQuotes(rest.map((r) => r.marketTicker)) : undefined
+      for (const row of rest) {
+        const quote = quotes?.quotes.get(row.marketTicker)
+        if (!quote) continue
+        await db
+          .insert(securities)
+          .values({
+            id: `mkt:${row.marketTicker}`,
+            tickerSymbol: displaySymbol(row.marketTicker),
+            name: row.name ?? null,
+            type: row.kind === "crypto" ? "cryptocurrency" : "equity",
+            marketTicker: row.marketTicker,
+            closePrice: quote.price.toString(),
+            closePriceAsOf: quoteDate(quote),
+          })
+          .onConflictDoNothing()
+        priced.add(`mkt:${row.marketTicker}`)
       }
     }
 
@@ -209,6 +240,31 @@ async function primePrices(rows: { marketTicker: string; kind: AssetKind; name?:
   } catch (error) {
     console.error("[positions] price priming failed:", error instanceof Error ? error.message : error)
   }
+  return priced
+}
+
+/** How many tickers one import may look up one by one; the provider's free plan allows only a handful a minute. */
+const MAX_SINGLE_LOOKUPS = 4
+
+/**
+ * A security row with no price yet. The price catch-up finds it (it has no date),
+ * so the ticker is priced within minutes instead of the import failing.
+ */
+async function ensureUnpriced(marketTicker: string, kind: AssetKind, name: string | null | undefined) {
+  const id = `mkt:${marketTicker}`
+  await db
+    .insert(securities)
+    .values({
+      id,
+      tickerSymbol: displaySymbol(marketTicker),
+      name: name ?? null,
+      type: kind === "crypto" ? "cryptocurrency" : "equity",
+      marketTicker,
+      // Old on purpose, so the next catch-up picks it up straight away.
+      updatedAt: new Date(Date.now() - 86_400_000),
+    })
+    .onConflictDoNothing()
+  return id
 }
 
 /**
@@ -217,7 +273,7 @@ async function primePrices(rows: { marketTicker: string; kind: AssetKind; name?:
  * ticker can never leave an account half-emptied.
  */
 export async function importPositions(accountId: string, userId: string, rows: ImportRowInput[], { replace }: { replace: boolean }): Promise<ImportResult> {
-  const result: ImportResult = { imported: 0, removed: 0, failed: [], notTried: [] }
+  const result: ImportResult = { imported: 0, removed: 0, failed: [], pending: [] }
 
   const usable: (ImportRowInput & { marketTicker: string })[] = []
   for (const row of rows) {
@@ -226,25 +282,49 @@ export async function importPositions(accountId: string, userId: string, rows: I
     else result.failed.push({ symbol: row.symbol, reason: `Doesn't look like a ${row.kind === "crypto" ? "coin" : "ticker"}` })
   }
 
-  await primePrices(usable)
+  const priced = await primePrices(usable)
 
+  // One provider hiccup must not cost the rest of the list: a ticker we can't
+  // price right now is still saved, and gets its price shortly.
   const keptSecurityIds = new Set<string>()
-  for (let i = 0; i < usable.length; i++) {
-    const row = usable[i]!
+  let singleLookups = 0
+  for (const row of usable) {
+    const input = { symbol: row.symbol, kind: row.kind, quantity: row.quantity, avgCost: row.avgCost ?? undefined }
+    const securityId = `mkt:${row.marketTicker}`
     try {
-      const { securityId } = await upsertPosition(accountId, userId, { symbol: row.symbol, kind: row.kind, quantity: row.quantity, avgCost: row.avgCost ?? undefined })
+      if (priced.has(securityId)) {
+        await writeHolding(accountId, userId, securityId, input)
+      } else if (singleLookups < MAX_SINGLE_LOOKUPS) {
+        singleLookups++
+        await upsertPosition(accountId, userId, input)
+      } else {
+        await ensureUnpriced(row.marketTicker, row.kind, row.name)
+        await writeHolding(accountId, userId, securityId, input)
+        result.pending.push(row.symbol)
+      }
       keptSecurityIds.add(securityId)
       result.imported++
     } catch (error) {
-      if (error instanceof ApiError && error.status === 429) {
-        result.notTried = usable.slice(i).map((r) => r.symbol)
-        break
+      if (error instanceof ApiError && error.status === 404) {
+        // The provider looked and this ticker isn't there: a real answer.
+        result.failed.push({ symbol: row.symbol, reason: error.message })
+      } else {
+        // Anything else (busy, down, a network blip) is the provider's problem, not the
+        // ticker's: save the holding and price it shortly.
+        try {
+          await ensureUnpriced(row.marketTicker, row.kind, row.name)
+          await writeHolding(accountId, userId, securityId, input)
+          keptSecurityIds.add(securityId)
+          result.imported++
+          result.pending.push(row.symbol)
+        } catch {
+          result.failed.push({ symbol: row.symbol, reason: "Couldn't add it" })
+        }
       }
-      result.failed.push({ symbol: row.symbol, reason: error instanceof ApiError ? error.message : "Couldn't add it" })
     }
   }
 
-  if (replace && result.failed.length === 0 && result.notTried.length === 0) {
+  if (replace && result.failed.length === 0) {
     const current = await db.select({ id: holdings.id, securityId: holdings.securityId }).from(holdings).where(eq(holdings.accountId, accountId))
     const stale = current.filter((h) => !keptSecurityIds.has(h.securityId)).map((h) => h.id)
     if (stale.length > 0) {
@@ -339,6 +419,17 @@ export async function refreshStalePrices({ maxAgeHours = 6, minIntervalMinutes =
 
     const closes = await latestCloses(stale.map((s) => s.marketTicker!))
 
+    // Securities still without any price (just imported) go to the live-price sources first:
+    // many tickers per request, no per-minute squeeze, and the official close replaces it later.
+    const unpriced = stale.filter((s) => !s.asOf && !closes.has(s.marketTicker!))
+    if (unpriced.length > 0) {
+      const quotes = await createQuoteProvider(process.env, fetch, undefined, { anyAge: true })?.getQuotes(unpriced.map((s) => s.marketTicker!))
+      for (const security of unpriced) {
+        const quote = quotes?.quotes.get(security.marketTicker!)
+        if (quote) closes.set(security.marketTicker!, { price: quote.price, asOf: quoteDate(quote) })
+      }
+    }
+
     // The whole-market bars can trail a finished session by a day on some plans. The
     // per-ticker "previous close" doesn't, so use it for a few tickers per run (the
     // provider's free tier allows a handful of calls a minute); later runs do the rest.
@@ -346,7 +437,9 @@ export async function refreshStalePrices({ maxAgeHours = 6, minIntervalMinutes =
       const have = closes.get(s.marketTicker!)?.asOf ?? s.asOf
       return !have || have.slice(0, 10) < catchUp.expectedDate
     })
+    const attempted = new Set<string>()
     for (const security of behind.slice(0, PREVIOUS_CLOSE_CALLS_PER_RUN)) {
+      attempted.add(security.id)
       try {
         const close = await previousClose(security.marketTicker!)
         if (close) closes.set(security.marketTicker!, close)
@@ -359,7 +452,9 @@ export async function refreshStalePrices({ maxAgeHours = 6, minIntervalMinutes =
     // A ticker that is behind and wasn't looked up this run (over the per-run call
     // cap) is left alone, so it stays first in line for the next run instead of
     // waiting out the recheck interval.
-    const skipped = new Set(behind.filter((s) => !closes.has(s.marketTicker!)).map((s) => s.id))
+    // Ones we did look up but that came back empty (an unknown ticker, a fund the provider
+    // doesn't cover) are marked checked and go to the back, so they can't hog every run.
+    const skipped = new Set(behind.filter((s) => !closes.has(s.marketTicker!) && !attempted.has(s.id)).map((s) => s.id))
 
     let refreshed = 0
     for (const security of stale) {

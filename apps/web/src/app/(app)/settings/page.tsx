@@ -8,6 +8,7 @@ import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card"
 import { Skeleton } from "@web/components/ui/skeleton"
+import { useConfirm } from "@web/components/ui/confirm"
 import { useToast } from "@web/components/ui/toast"
 import { cacheClear } from "@web/lib/api-cache"
 import { mutate, useApi } from "@web/lib/use-api"
@@ -19,6 +20,7 @@ type MeResponse = {
 
 export default function SettingsPage() {
   const { toast } = useToast()
+  const confirm = useConfirm()
   const { data, loading, refetch } = useApi<MeResponse>("/api/me")
 
   const [handle, setHandle] = useState("")
@@ -47,9 +49,12 @@ export default function SettingsPage() {
   }
 
   async function deleteAccount() {
-    const confirmed = window.confirm(
-      "Delete your account? This disconnects every linked institution and permanently deletes your history, leagues you're alone in, and profile. It can't be undone.",
-    )
+    const confirmed = await confirm({
+      title: "Delete your account?",
+      description: "This disconnects every linked institution and permanently deletes your history, leagues you're alone in, and your profile. It can't be undone.",
+      confirmLabel: "Delete my account",
+      tone: "danger",
+    })
     if (!confirmed) return
 
     setDeleting(true)

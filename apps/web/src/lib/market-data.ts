@@ -8,7 +8,7 @@
  * Free of database imports so the tests can exercise it with a stubbed fetch.
  */
 
-const BASE_URL = "https://api.massive.com"
+const BASE_URL = process.env.MASSIVE_BASE_URL ?? "https://api.massive.com"
 
 /** How far back to look for a trading day: covers a weekend plus a holiday. */
 const MAX_LOOKBACK_DAYS = 5
