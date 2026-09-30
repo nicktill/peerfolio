@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { defaultRange, rangeAvailability, rangeStart, timeWeightedReturn, withLivePoint } from "./ranges.ts"
+import { defaultRange, rangeAvailability, rangeStart, rangeUnlockDays, timeWeightedReturn, withLivePoint } from "./ranges.ts"
 
 const point = (date: string, investableAssets: number, netFlows = 0) => ({
   date,
@@ -171,5 +171,15 @@ describe("defaultRange", () => {
     assert.equal(defaultRange("2026-09-27", "2026-09-30"), "ALL")
     assert.equal(defaultRange("2026-08-01", "2026-09-30"), "1M")
     assert.equal(defaultRange(null, "2026-09-30"), "ALL")
+  })
+})
+
+describe("rangeUnlockDays", () => {
+  it("counts the days left until each range has enough history", () => {
+    const left = rangeUnlockDays("2026-09-27", "2026-09-30")
+    assert.equal(left["1W"], 4)
+    assert.equal(left["1M"], 27)
+    assert.equal(left.ALL, 0)
+    assert.equal(rangeUnlockDays("2026-01-01", "2026-09-30")["1Y"], 365 - 272)
   })
 })

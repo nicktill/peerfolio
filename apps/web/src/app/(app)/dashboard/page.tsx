@@ -24,7 +24,7 @@ import { isUsMarketOpen } from "@web/lib/market-hours"
 import { cn } from "@web/lib/utils"
 import { liveRefreshMs } from "@web/lib/live-refresh"
 import { mutate, useApi } from "@web/lib/use-api"
-import { defaultRange, rangeAvailability, RANGES, type Range } from "@web/lib/ranges"
+import { defaultRange, rangeAvailability, rangeUnlockDays, RANGES, type Range } from "@web/lib/ranges"
 
 type PortfolioResponse = {
   summary: { totalAssets: number; totalLiabilities: number; netWorth: number; investableAssets: number }
@@ -42,6 +42,7 @@ type PortfolioResponse = {
   isVerified: boolean
 }
 
+const RANGE_DAYS: Record<Range, number> = { "1W": 7, "1M": 30, "3M": 90, "6M": 180, "1Y": 365, ALL: 0 }
 const RANGE_NAMES: Record<Range, string> = { "1W": "week", "1M": "month", "3M": "3 months", "6M": "6 months", "1Y": "year", ALL: "period" }
 const usd = (v: number) => `$${new Intl.NumberFormat("en-US").format(v)}`
 /** Signed dollars: cents while the amount is small, whole dollars once it isn't. */
@@ -128,7 +129,14 @@ export default function DashboardPage() {
   const series = data.performance.series.map((p) => ({ date: p.date, value: p.indexed }))
 
   const available = rangeAvailability(data.firstDate, marketToday())
-  const rangeOptions = RANGES.map((r) => ({ value: r, label: r, disabled: !available[r], title: available[r] ? undefined : "Unlocks once you've been tracked that long" }))
+  const unlockIn = rangeUnlockDays(data.firstDate, marketToday())
+  const rangeOptions = RANGES.map((r) => ({
+    value: r,
+    label: r,
+    disabled: !available[r],
+    title: available[r] ? undefined : `Unlocks in ${plural(unlockIn[r], "day")}. Peerfolio has tracked you for ${plural(RANGE_DAYS[r] - unlockIn[r], "day")}; this view needs ${plural(RANGE_DAYS[r], "day")}.`,
+  }))
+  const nextRange = RANGES.filter((r) => !available[r]).sort((a, b) => unlockIn[a] - unlockIn[b])[0]
   const windowCoversAll = range === "ALL" || !available[range]
   const points = data.performance.series
   const shown = hoverIndex != null ? points[hoverIndex] : points[points.length - 1]
@@ -234,7 +242,10 @@ export default function DashboardPage() {
           <CardHeader className="flex-row items-start justify-between gap-3">
             <div className="min-w-0">
               <CardTitle>Return</CardTitle>
-              <p className="mt-1 text-xs text-muted-foreground">Since you started tracking. Deposits and withdrawals don’t count.</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Since you started tracking. Deposits and withdrawals don’t count.
+                {nextRange ? ` ${nextRange} unlocks in ${plural(unlockIn[nextRange], "day")}.` : ""}
+              </p>
               {data.hasHistory ? (
                 <div className="mt-3 flex items-baseline gap-3">
                   <span className={cn("numeric font-display text-4xl font-semibold leading-none", shownPercent >= 0 ? "text-gain-ink" : "text-loss-ink")}>
