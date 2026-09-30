@@ -4,7 +4,7 @@ import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { AppNav } from "@web/components/app-nav"
-import { GridField } from "@web/components/grid-field"
+import { AppBackground } from "@web/components/backgrounds/app-background"
 
 /**
  * The signed-in frame: nav and the page.
@@ -26,7 +26,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="app-bg min-h-screen">
-      <GridField />
+      <AppBackground />
       <AppNav />
       {/* Bottom padding clears the mobile tab bar. */}
       <main className="mx-auto max-w-6xl px-4 pb-24 pt-6 sm:pb-12">{children}</main>
