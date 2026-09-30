@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { tiingoFundCloses } from "./tiingo.ts"
+import { tiingoApiKey, tiingoFundCloses } from "./tiingo.ts"
 
 function stub(reply: (ticker: string) => { status?: number; body?: unknown } | "throw") {
   const requests: { url: URL; headers: Headers }[] = []
@@ -42,4 +42,12 @@ describe("tiingo fund closes", () => {
     assert.deepEqual([...out.unknown], ["FXAIX"])
     assert.equal(requests.length, 1)
   })
+})
+
+
+it("accepts the deployed key spelling and prefers the canonical key", () => {
+  assert.equal(tiingoApiKey({ TTINGO_API_KEY: "legacy" }), "legacy")
+  assert.equal(tiingoApiKey({ TIINGO_API_KEY: "canonical", TTINGO_API_KEY: "legacy" }), "canonical")
+  assert.equal(tiingoApiKey({ TIINGO_API_KEY: " ", TTINGO_API_KEY: " legacy " }), "legacy")
+  assert.equal(tiingoApiKey({}), undefined)
 })
