@@ -1,8 +1,9 @@
-import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm"
+import { and, eq, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm"
 import { accounts, db, holdings, securities } from "@web/db"
 import { ApiError } from "@web/lib/api"
 import { latestCompletedSession } from "@web/lib/market-hours"
 import { previousCloseOnUpdate } from "@web/lib/price-write"
+import { isCusip } from "@web/lib/import-parse"
 import { createQuoteProvider, quoteDate } from "@web/lib/quote-provider"
 import { tiingoFundCloses } from "@web/lib/tiingo"
 import { staleHeldSecurities } from "@web/lib/stale-prices"
@@ -180,14 +181,25 @@ export type ImportResult = {
  * Tickers it doesn't return fall through to the per-ticker lookup (and its
  * clear "couldn't find" error) later. Never throws.
  */
-async function primePrices(rows: { marketTicker: string; kind: AssetKind; name?: string | null }[]): Promise<Set<string>> {
+async function primePrices(rows: { marketTicker: string; kind: AssetKind; name?: string | null }[]): Promise<{ priced: Set<string>; refreshable: Set<string> }> {
   const priced = new Set<string>()
+  // Funds whose stored price is older than the last finished session: a file with a newer price may replace it.
+  const refreshable = new Set<string>()
   try {
     const ids = rows.map((r) => `mkt:${r.marketTicker}`)
-    const known = await db.select({ id: securities.id, name: securities.name, price: securities.closePrice }).from(securities).where(inArray(securities.id, ids))
-    for (const k of known) if (k.price != null) priced.add(k.id)
+    const known = await db
+      .select({ id: securities.id, name: securities.name, price: securities.closePrice, type: securities.type, asOf: securities.closePriceAsOf })
+      .from(securities)
+      .where(inArray(securities.id, ids))
+    const expected = latestCompletedSession(new Date())
+    for (const k of known) {
+      if (k.price == null) continue
+      priced.add(k.id)
+      if (k.type === "mutual_fund" && (!k.asOf || k.asOf.slice(0, 10) < expected)) refreshable.add(k.id)
+    }
 
-    const missing = rows.filter((r) => !priced.has(`mkt:${r.marketTicker}`))
+    // Codes without a ticker can't be looked up anywhere; they are valued from the file.
+    const missing = rows.filter((r) => !priced.has(`mkt:${r.marketTicker}`) && !isCusip(r.marketTicker))
     if (missing.length > 0) {
       const closes = await latestCloses(missing.map((r) => r.marketTicker))
       for (const row of missing) {
@@ -234,14 +246,14 @@ async function primePrices(rows: { marketTicker: string; kind: AssetKind; name?:
   } catch (error) {
     console.error("[positions] price priming failed:", error instanceof Error ? error.message : error)
   }
-  return priced
+  return { priced, refreshable }
 }
 
 /**
  * Stores the first price a security gets. It fills a blank price and never replaces
  * one that is already there, so a real market price can't be overwritten by a weaker source.
  */
-async function storeFirstPrice(p: { marketTicker: string; kind: AssetKind; name?: string | null; price: number; asOf: string; type?: string }) {
+async function storeFirstPrice(p: { marketTicker: string; kind: AssetKind; name?: string | null; price: number; asOf: string; type?: string; replaceOlder?: boolean }) {
   await db
     .insert(securities)
     .values({
@@ -256,7 +268,7 @@ async function storeFirstPrice(p: { marketTicker: string; kind: AssetKind; name?
     .onConflictDoUpdate({
       target: securities.id,
       set: { closePrice: p.price.toString(), closePriceAsOf: p.asOf, type: p.type ?? sql`${securities.type}`, updatedAt: new Date() },
-      setWhere: isNull(securities.closePrice),
+      setWhere: p.replaceOlder ? or(isNull(securities.closePrice), lt(securities.closePriceAsOf, p.asOf)) : isNull(securities.closePrice),
     })
 }
 
@@ -299,20 +311,21 @@ export async function importPositions(accountId: string, userId: string, rows: I
 
   const usable: (ImportRowInput & { marketTicker: string })[] = []
   for (const row of rows) {
-    const marketTicker = toMarketTicker(row.symbol, row.kind)
+    const marketTicker = toMarketTicker(row.symbol, row.kind) ?? (row.kind === "stock" && isCusip(row.symbol) ? row.symbol.trim().toUpperCase() : null)
     if (marketTicker) usable.push({ ...row, marketTicker })
     else result.failed.push({ symbol: row.symbol, reason: `Doesn't look like a ${row.kind === "crypto" ? "coin" : "ticker"}` })
   }
 
-  const priced = await primePrices(usable)
+  const { priced, refreshable } = await primePrices(usable)
 
   // No market data source prices a mutual fund (the free plans of Massive, Alpaca and
   // Finnhub all decline). The file itself says what each one is worth, so use that for
   // anything still unpriced, rather than leaving it out of the total.
   for (const row of usable) {
     const id = `mkt:${row.marketTicker}`
-    if (priced.has(id) || !row.price || !(row.price > 0)) continue
-    await storeFirstPrice({ marketTicker: row.marketTicker, kind: row.kind, name: row.name, price: row.price, asOf: latestCompletedSession(new Date()), type: "mutual_fund" })
+    if (!row.price || !(row.price > 0)) continue
+    if (priced.has(id) && !refreshable.has(id)) continue
+    await storeFirstPrice({ marketTicker: row.marketTicker, kind: row.kind, name: row.name, price: row.price, asOf: latestCompletedSession(new Date()), type: "mutual_fund", replaceOlder: true })
     priced.add(id)
     result.fromFile.push(row.symbol)
   }
@@ -324,6 +337,11 @@ export async function importPositions(accountId: string, userId: string, rows: I
   for (const row of usable) {
     const input = { symbol: row.symbol, kind: row.kind, quantity: row.quantity, avgCost: row.avgCost ?? undefined }
     const securityId = `mkt:${row.marketTicker}`
+    // A code with no ticker and no price in the file can't be valued by anything.
+    if (isCusip(row.marketTicker) && !priced.has(securityId)) {
+      result.failed.push({ symbol: row.symbol, reason: "No ticker to look up and no price in the file, so it can't be valued" })
+      continue
+    }
     try {
       if (priced.has(securityId)) {
         await writeHolding(accountId, userId, securityId, input)
@@ -466,7 +484,7 @@ export async function refreshStalePrices({ maxAgeHours = 6, minIntervalMinutes =
     // Mutual funds: none of the sources above carry them, Tiingo publishes their daily price
     // (the free allowance is small, so a few per run; the rest wait for the next one).
     const behindSession = (s: { asOf: string | null }) => !s.asOf || s.asOf.slice(0, 10) < catchUp.expectedDate
-    const fundBacklog = stale.filter((s) => s.type === "mutual_fund" && !closes.has(s.marketTicker!) && behindSession(s))
+    const fundBacklog = stale.filter((s) => s.type === "mutual_fund" && !isCusip(s.marketTicker!) && !closes.has(s.marketTicker!) && behindSession(s))
     const fundsNow = fundBacklog.slice(0, MAX_FUND_LOOKUPS_PER_RUN)
     const tiingoKey = process.env.TIINGO_API_KEY
     if (fundsNow.length > 0 && tiingoKey) {

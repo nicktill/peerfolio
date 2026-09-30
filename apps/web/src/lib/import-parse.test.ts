@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { parseDelimited, parseHoldingsText, parseLines, toNumber } from "./import-parse.ts"
+import { isCusip, parseDelimited, parseHoldingsText, parseLines, toNumber } from "./import-parse.ts"
 
 describe("toNumber", () => {
   it("reads money and quantities as written by brokers", () => {
@@ -120,5 +120,33 @@ describe("prices in the file", () => {
   it("has no price when the file doesn't show one", () => {
     assert.equal(parseDelimited("Symbol,Quantity\nAAPL,3")!.rows[0]!.price, null)
     assert.equal(parseLines("AAPL 3 @ 150")!.rows[0]!.price, null)
+  })
+})
+
+describe("funds with no ticker (401k web page)", () => {
+  const page = [
+    "Symbol\tLast price\tCurrent value\tQuantity\tCost basis",
+    "66585Y356 LSV US LARGE CAP CIT\t$30.15\t$3,175.34\t104.866\t$2,904.55 $27.70 / Share",
+    "84679P405\t$367.27\t$3,157.52\t8.583\t$2,904.67",
+    "VWUAX\t$203.20\t$3,127.65\t15.392\t$2,904.70",
+    "Account total\t\t$85,796.99\t\t",
+  ].join("\n")
+
+  it("keeps rows identified by a nine-character code, and reads the name out of the symbol cell", () => {
+    const out = parseDelimited(page)!
+    assert.deepEqual(out.rows.map((r) => r.symbol), ["66585Y356", "84679P405", "VWUAX"])
+    assert.equal(out.rows[0]!.name, "LSV US LARGE CAP CIT")
+    assert.equal(out.rows[0]!.price, 30.15)
+  })
+
+  it("reads a cost that carries trailing words", () => {
+    const out = parseDelimited(page)!
+    assert.ok(Math.abs(out.rows[0]!.avgCost! - 2904.55 / 104.866) < 1e-9)
+  })
+
+  it("only treats a code as one when it has a digit and is exactly nine characters", () => {
+    assert.equal(isCusip("66585Y356"), true)
+    assert.equal(isCusip("ABCDEFGHI"), false)
+    assert.equal(isCusip("VWUAX"), false)
   })
 })

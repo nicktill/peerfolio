@@ -1,3 +1,4 @@
+import { isCusip } from "@web/lib/import-parse"
 import { and, desc, eq, inArray, sql } from "drizzle-orm"
 import { db, holdings, leagueMembers, leagues, reactions, securities, users } from "@web/db"
 import { ApiError } from "@web/lib/api"
@@ -30,7 +31,8 @@ export async function loadSharedHoldings(userIds: string[], limit = 5): Promise<
 
   const byUser = new Map<string, { ticker: string; name: string | null; value: number }[]>()
   for (const row of rows) {
-    if (!row.ticker || row.value <= 0) continue
+    // Funds known only by a code (401(k) trusts) have no ticker worth showing to a league.
+    if (!row.ticker || isCusip(row.ticker) || row.value <= 0) continue
     const list = byUser.get(row.userId) ?? []
     list.push({ ticker: row.ticker, name: row.name, value: row.value })
     byUser.set(row.userId, list)
