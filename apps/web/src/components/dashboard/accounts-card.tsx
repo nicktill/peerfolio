@@ -1,7 +1,20 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { AlertTriangle, ChevronDown, Landmark, RefreshCw, Trash2 } from "lucide-react"
+import {
+  AlertTriangle,
+  BadgeDollarSign,
+  BriefcaseBusiness,
+  ChartNoAxesCombined,
+  ChevronDown,
+  CreditCard,
+  DollarSign,
+  Landmark,
+  RefreshCw,
+  ReceiptText,
+  Trash2,
+  type LucideIcon,
+} from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card"
 import { Button } from "@web/components/ui/button"
 import { Delta } from "@web/components/ui/delta"
@@ -213,7 +226,11 @@ export function AccountsCard({
                           disabled={!expandable}
                           className="flex min-w-0 flex-1 items-center gap-3 rounded-md text-left disabled:cursor-default"
                         >
-                          <InstitutionMark logo={account.institutionLogo} name={account.institutionName} />
+                          <InstitutionMark
+                            logo={account.institutionLogo}
+                            name={account.institutionName}
+                            fallback={accountMark(account)}
+                          />
 
                           <span className="min-w-0 flex-1">
                             <span className="flex items-center gap-1.5">
@@ -326,25 +343,40 @@ export function AccountsCard({
 function InstitutionMark({
   logo,
   name,
+  fallback: Fallback = Landmark,
   size = "md",
 }: {
   logo: string | null
   name: string
+  fallback?: LucideIcon
   size?: "sm" | "md"
 }) {
   const box = size === "sm" ? "h-7 w-7" : "h-9 w-9"
 
   return (
-    <span className={cn("flex shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-card", box)}>
+    <span className={cn("flex shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border/80 bg-gradient-to-br from-secondary to-background shadow-sm", box)}>
       {logo ? (
         // Plaid returns institution logos as base64 data URIs, so there is no
         // remote host for next/image to optimise.
         // eslint-disable-next-line @next/next/no-img-element
         <img src={logo} alt="" className="h-full w-full object-contain p-1" />
       ) : (
-        <Landmark className="h-4 w-4 text-muted-foreground" aria-hidden />
+        <Fallback className="h-4 w-4 text-primary" strokeWidth={1.8} aria-hidden />
       )}
       <span className="sr-only">{name}</span>
     </span>
   )
+}
+
+/** Manual accounts have no institution artwork, so their icon describes what the account does. */
+function accountMark(account: AccountRow): LucideIcon {
+  if (account.category === "cash") return DollarSign
+  if (account.category === "credit") return CreditCard
+  if (account.category === "loan") return ReceiptText
+  if (account.category !== "investment") return Landmark
+
+  const label = `${account.name} ${account.institutionName}`.toLowerCase()
+  if (/pension|annuity/.test(label)) return BadgeDollarSign
+  if (/401|403|457|employer|workplace/.test(label)) return BriefcaseBusiness
+  return ChartNoAxesCombined
 }
