@@ -302,8 +302,8 @@ function PositionForm({
 
       {/* Ticker, with a live preview of what it resolves to */}
       <div className="space-y-2">
-        <label className="text-xs font-medium text-muted-foreground" htmlFor={`ticker-${accountId}`}>
-          Ticker
+        <label className="text-sm font-medium text-foreground" htmlFor={`ticker-${accountId}`}>
+          Enter a ticker symbol
         </label>
         <div
           className={cn(
@@ -318,6 +318,7 @@ function PositionForm({
               id={`ticker-${accountId}`}
               value={symbol}
               disabled={!!existing}
+              autoFocus={!existing}
               onChange={(e) => {
                 requestId.current++
                 setSymbol(e.target.value.toUpperCase())
@@ -325,10 +326,10 @@ function PositionForm({
                 if (lookup.state !== "idle") setLookup({ state: "idle" })
               }}
               onBlur={() => void resolve(symbol)}
-              placeholder={kind === "crypto" ? "BTC" : "AAPL"}
+              placeholder={kind === "crypto" ? "Type a coin symbol, e.g. BTC" : "Type a ticker, e.g. AAPL or VTI"}
               autoCapitalize="characters"
               autoComplete="off"
-              className="w-full bg-transparent font-mono text-base font-semibold uppercase outline-none placeholder:font-sans placeholder:font-normal placeholder:normal-case placeholder:text-muted-foreground disabled:opacity-100"
+              className="w-full rounded-lg border border-border/80 bg-background/70 px-3 py-2 font-mono text-base font-semibold uppercase outline-none transition-colors placeholder:font-sans placeholder:font-normal placeholder:normal-case placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:border-transparent disabled:bg-transparent disabled:px-0 disabled:opacity-100"
               aria-invalid={lookup.state === "missing"}
               aria-describedby={`ticker-status-${accountId}`}
             />
@@ -341,7 +342,7 @@ function PositionForm({
                     ? null
                     : kind === "crypto"
                       ? "Coin symbol, e.g. BTC or ETH"
-                      : "Stock or ETF symbol, e.g. AAPL or VTI"}
+                      : "Start typing the symbol shown by your brokerage."}
             </p>
           </div>
         </div>
