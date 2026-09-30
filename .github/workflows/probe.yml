@@ -1,0 +1,29 @@
+name: Probe price providers
+
+# Manual only. Asks each price provider one live question from the deployed app
+# and prints what came back, so "does this provider work in production?" has an
+# answer. Optional input: a ticker symbol.
+on:
+  workflow_dispatch:
+    inputs:
+      symbol:
+        description: Ticker to ask about
+        default: AAPL
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Call /api/cron/probe
+        env:
+          APP_URL: ${{ vars.PEERFOLIO_URL || 'https://www.peerfolio.org' }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SYMBOL: ${{ inputs.symbol }}
+        run: |
+          code=$(curl --silent --show-error --max-time 40 -o response.json -w '%{http_code}' \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "${APP_URL%/}/api/cron/probe?symbol=${SYMBOL:-AAPL}")
+          cat response.json
+          echo
+          [ "$code" = "200" ] || { echo "Expected HTTP 200, got $code" >&2; exit 1; }
