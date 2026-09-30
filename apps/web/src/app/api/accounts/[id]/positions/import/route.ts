@@ -17,6 +17,8 @@ const Body = z.object({
         quantity: z.number().finite().positive().max(1e12),
         avgCost: z.number().finite().positive().max(1e9).nullable().optional(),
         name: z.string().trim().max(80).nullable().optional(),
+        /** The price the source showed; used only when no market data source can price the ticker. */
+        price: z.number().finite().positive().max(1e9).nullable().optional(),
       }),
     )
     .min(1, "Nothing to import")

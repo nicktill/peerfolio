@@ -161,10 +161,12 @@ export async function setPosition(accountId: string, userId: string, input: Posi
   await revalue(accountId)
 }
 
-export type ImportRowInput = PositionInput & { name?: string | null }
+export type ImportRowInput = PositionInput & { name?: string | null; price?: number | null }
 export type ImportResult = {
   imported: number
   removed: number
+  /** Priced from the file itself because no market data source knows them (mutual funds). */
+  fromFile: string[]
   /** Tickers we couldn't add, with why (for example not found). */
   failed: { symbol: string; reason: string }[]
   /** Added without a price yet (the provider was busy); they're priced within minutes and count once they are. */
@@ -243,6 +245,30 @@ async function primePrices(rows: { marketTicker: string; kind: AssetKind; name?:
   return priced
 }
 
+/**
+ * Stores a price we were handed (dated as of the latest finished session) for a security
+ * nothing else can price. Fills a blank price only; a real market price is never replaced.
+ */
+async function priceFromFile(marketTicker: string, kind: AssetKind, name: string | null | undefined, price: number) {
+  const asOf = latestCompletedSession(new Date())
+  await db
+    .insert(securities)
+    .values({
+      id: `mkt:${marketTicker}`,
+      tickerSymbol: displaySymbol(marketTicker),
+      name: name ?? null,
+      type: kind === "crypto" ? "cryptocurrency" : "equity",
+      marketTicker,
+      closePrice: price.toString(),
+      closePriceAsOf: asOf,
+    })
+    .onConflictDoUpdate({
+      target: securities.id,
+      set: { closePrice: price.toString(), closePriceAsOf: asOf, updatedAt: new Date() },
+      setWhere: isNull(securities.closePrice),
+    })
+}
+
 /** How many tickers one import may look up one by one; the provider's free plan allows only a handful a minute. */
 const MAX_SINGLE_LOOKUPS = 4
 
@@ -273,7 +299,7 @@ async function ensureUnpriced(marketTicker: string, kind: AssetKind, name: strin
  * ticker can never leave an account half-emptied.
  */
 export async function importPositions(accountId: string, userId: string, rows: ImportRowInput[], { replace }: { replace: boolean }): Promise<ImportResult> {
-  const result: ImportResult = { imported: 0, removed: 0, failed: [], pending: [] }
+  const result: ImportResult = { imported: 0, removed: 0, fromFile: [], failed: [], pending: [] }
 
   const usable: (ImportRowInput & { marketTicker: string })[] = []
   for (const row of rows) {
@@ -283,6 +309,17 @@ export async function importPositions(accountId: string, userId: string, rows: I
   }
 
   const priced = await primePrices(usable)
+
+  // No market data source prices a mutual fund (the free plans of Massive, Alpaca and
+  // Finnhub all decline). The file itself says what each one is worth, so use that for
+  // anything still unpriced, rather than leaving it out of the total.
+  for (const row of usable) {
+    const id = `mkt:${row.marketTicker}`
+    if (priced.has(id) || !row.price || !(row.price > 0)) continue
+    await priceFromFile(row.marketTicker, row.kind, row.name, row.price)
+    priced.add(id)
+    result.fromFile.push(row.symbol)
+  }
 
   // One provider hiccup must not cost the rest of the list: a ticker we can't
   // price right now is still saved, and gets its price shortly.
