@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { rangeStart, timeWeightedReturn, withLivePoint } from "./ranges.ts"
+import { defaultRange, rangeAvailability, rangeStart, timeWeightedReturn, withLivePoint } from "./ranges.ts"
 
 const point = (date: string, investableAssets: number, netFlows = 0) => ({
   date,
@@ -142,5 +142,34 @@ describe("withLivePoint", () => {
     assert.deepEqual(withLivePoint([], live, "2026-01-02"), [])
     const future = [point("2026-01-05", 1000)]
     assert.deepEqual(withLivePoint(future, live, "2026-01-02"), future)
+  })
+})
+
+describe("rangeAvailability", () => {
+  it("only offers ALL before there is any history", () => {
+    const a = rangeAvailability(null, "2026-09-30")
+    assert.deepEqual(Object.entries(a).filter(([, on]) => on).map(([r]) => r), ["ALL"])
+  })
+
+  it("unlocks a range once tracking has lasted its length", () => {
+    const threeDays = rangeAvailability("2026-09-27", "2026-09-30")
+    assert.equal(threeDays["1W"], false)
+    assert.equal(threeDays.ALL, true)
+
+    const tenDays = rangeAvailability("2026-09-20", "2026-09-30")
+    assert.equal(tenDays["1W"], true)
+    assert.equal(tenDays["1M"], false)
+
+    const twoMonths = rangeAvailability("2026-07-30", "2026-09-30")
+    assert.equal(twoMonths["1M"], true)
+    assert.equal(twoMonths["3M"], false)
+  })
+})
+
+describe("defaultRange", () => {
+  it("is ALL for young history and 1M once a month exists", () => {
+    assert.equal(defaultRange("2026-09-27", "2026-09-30"), "ALL")
+    assert.equal(defaultRange("2026-08-01", "2026-09-30"), "1M")
+    assert.equal(defaultRange(null, "2026-09-30"), "ALL")
   })
 })

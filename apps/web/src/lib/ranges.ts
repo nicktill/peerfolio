@@ -21,6 +21,29 @@ export function rangeStart(range: Range, from = new Date()): string | null {
   return d.toISOString().slice(0, 10)
 }
 
+const DAY_MS = 86_400_000
+
+/** Whole days from one YYYY-MM-DD date to another. */
+const daysBetween = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY_MS)
+
+/**
+ * Which ranges have enough history behind them to mean what they say. A range
+ * is available once tracking has lasted at least its length; ALL always is. A
+ * "1M" view of two days of data would be the same line as "1W" with a
+ * misleading label.
+ */
+export function rangeAvailability(firstDate: string | null, today: string): Record<Range, boolean> {
+  const tracked = firstDate ? Math.max(0, daysBetween(firstDate, today)) : 0
+  const out = { ALL: true } as Record<Range, boolean>
+  for (const range of RANGES) if (range !== "ALL") out[range] = tracked >= DAYS[range]
+  return out
+}
+
+/** The longest available range up to one month, or ALL while history is younger than that. */
+export function defaultRange(firstDate: string | null, today: string): Range {
+  return rangeAvailability(firstDate, today)["1M"] ? "1M" : "ALL"
+}
+
 export type SnapshotPoint = {
   date: string
   netWorth: number

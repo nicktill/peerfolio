@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { ArrowDownRight, ArrowUpRight, Eye, EyeOff, RefreshCw, ShieldCheck, Sparkles, Wallet } from "lucide-react"
 import { Badge } from "@web/components/ui/badge"
@@ -11,6 +11,7 @@ import { Segmented } from "@web/components/ui/segmented"
 import { Reveal } from "@web/components/motion/reveal"
 import { DashboardSkeleton } from "@web/components/skeletons"
 import { AnimatedNumber } from "@web/components/ui/animated-number"
+import { plural } from "@web/lib/plural"
 import { useToast } from "@web/components/ui/toast"
 import { type AllocationSlice } from "@web/components/charts/allocation-bar"
 import { PerformanceChart } from "@web/components/charts/performance-chart"
@@ -23,7 +24,7 @@ import { isUsMarketOpen } from "@web/lib/market-hours"
 import { cn } from "@web/lib/utils"
 import { liveRefreshMs } from "@web/lib/live-refresh"
 import { mutate, useApi } from "@web/lib/use-api"
-import { RANGES, type Range } from "@web/lib/ranges"
+import { defaultRange, rangeAvailability, RANGES, type Range } from "@web/lib/ranges"
 
 type PortfolioResponse = {
   summary: { totalAssets: number; totalLiabilities: number; netWorth: number; investableAssets: number }
@@ -37,9 +38,11 @@ type PortfolioResponse = {
   history: { date: string; netWorth: number; investableAssets: number }[]
   performance: { percent: number; days: number; range: Range; series: { date: string; indexed: number }[] }
   hasHistory: boolean
+  firstDate: string | null
   isVerified: boolean
 }
 
+const RANGE_NAMES: Record<Range, string> = { "1W": "week", "1M": "month", "3M": "3 months", "6M": "6 months", "1Y": "year", ALL: "period" }
 const usd = (v: number) => `$${new Intl.NumberFormat("en-US").format(v)}`
 /** Signed dollars: cents while the amount is small, whole dollars once it isn't. */
 const signedUsd = (v: number) => {
@@ -54,10 +57,18 @@ export default function DashboardPage() {
   const { toast } = useToast()
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
   const [range, setRange] = useState<Range>("1M")
+  // Until someone picks a range themselves, show the longest one their history can fill.
+  const pickedRange = useRef(false)
   const [hidden, setHidden] = useState(false)
   const [syncing, setSyncing] = useState(false)
 
   const { data, loading, error, refetch } = useApi<PortfolioResponse>(`/api/portfolio?range=${range}`, [range], { refreshMs: liveRefreshMs(300_000) })
+
+  useEffect(() => {
+    if (!data || pickedRange.current) return
+    const wanted = defaultRange(data.firstDate, marketToday())
+    if (wanted !== range) setRange(wanted)
+  }, [data, range])
 
   async function sync() {
     setSyncing(true)
@@ -116,6 +127,9 @@ export default function DashboardPage() {
   // percentage told two different stories six pixels apart.
   const series = data.performance.series.map((p) => ({ date: p.date, value: p.indexed }))
 
+  const available = rangeAvailability(data.firstDate, marketToday())
+  const rangeOptions = RANGES.map((r) => ({ value: r, label: r, disabled: !available[r], title: available[r] ? undefined : "Unlocks once you've been tracked that long" }))
+  const windowCoversAll = range === "ALL" || !available[range]
   const points = data.performance.series
   const shown = hoverIndex != null ? points[hoverIndex] : points[points.length - 1]
   const shownPercent = shown ? shown.indexed - 100 : data.performance.percent
@@ -227,12 +241,27 @@ export default function DashboardPage() {
                     {formatPercent(shownPercent)}
                   </span>
                   <span className="text-sm text-muted-foreground">
-                    {hoverIndex != null && shown ? formatDate(shown.date) : `over ${data.performance.days} days`}
+                    {hoverIndex != null && shown
+                      ? formatDate(shown.date)
+                      : windowCoversAll && data.firstDate
+                        ? `since ${formatDate(`${data.firstDate}T12:00:00`)} · ${plural(data.performance.days, "day")} tracked`
+                        : `last ${RANGE_NAMES[range]}`}
                   </span>
                 </div>
               ) : null}
             </div>
-            <Segmented options={RANGES} value={range} onChange={(r) => { setHoverIndex(null); setRange(r) }} size="sm" label="Time range" className="shrink-0" />
+            <Segmented<Range>
+              options={rangeOptions}
+              value={range}
+              onChange={(r) => {
+                pickedRange.current = true
+                setHoverIndex(null)
+                setRange(r)
+              }}
+              size="sm"
+              label="Time range"
+              className="shrink-0"
+            />
           </CardHeader>
           <CardContent>
             {data.hasHistory ? (
