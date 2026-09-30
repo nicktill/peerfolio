@@ -19,6 +19,7 @@ import {
   findLedgerMismatches,
   isClosed,
   portfolioValue,
+  positionStats,
   raceSeries,
   replayLedger,
   returnPct,
@@ -362,8 +363,7 @@ export async function loadFantasyLeague(userId: string, leagueId: string) {
     shares: p.shares,
     price: p.price,
     priceAsOf: p.priceAsOf,
-    value: p.shares * p.price,
-    gainPct: p.costBasis > 0 ? ((p.shares * p.price) / p.costBasis - 1) * 100 : 0,
+    ...positionStats(p, p.price),
   }))
 
   const you = standings.find((s) => s.isYou)!

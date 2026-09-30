@@ -3,8 +3,10 @@ import { describe, it } from "node:test"
 import {
   applyStored,
   applyTrade,
+  cashSplit,
   findLedgerMismatches,
   portfolioValue,
+  positionStats,
   raceSeries,
   replayLedger,
   returnPct,
@@ -173,6 +175,93 @@ describe("returns since purchase (worked examples)", () => {
     direct.move({ A: 12, B: 19 })
     churned.move({ A: 12, B: 19 })
     cents(churned.value, direct.value)
+  })
+})
+
+describe("average cost on your picks", () => {
+  const stats = (m: Member, id: string) => {
+    void m.value // re-marks positions to the current price
+    const p = m.state.positions.find((x) => x.securityId === id)!
+    return positionStats(p, m.prices[id]!)
+  }
+
+  it("is what you paid per share, and does not follow the live price", () => {
+    const m = new Member({ PLTR: 200 })
+    m.buy("PLTR", 50_000) // 250 shares at 200
+    assert.ok(Math.abs(stats(m, "PLTR").averageCost - 200) < 1e-6)
+
+    for (const price of [150, 200, 260, 1_000]) {
+      m.move({ PLTR: price })
+      const s = stats(m, "PLTR")
+      assert.ok(Math.abs(s.averageCost - 200) < 1e-6, `average cost drifted to ${s.averageCost} at ${price}`)
+      assert.ok(Math.abs(s.value - 250 * price) < 0.01)
+      assert.ok(Math.abs(s.gainPct - (price / 200 - 1) * 100) < 1e-6)
+    }
+  })
+
+  it("gain is (live - average cost) / average cost", () => {
+    const m = new Member({ NVDA: 230.55 })
+    m.buy("NVDA", 25_000)
+    m.move({ NVDA: 236.15 })
+    const s = stats(m, "NVDA")
+    assert.ok(Math.abs(s.gainPct - ((236.15 - 230.55) / 230.55) * 100) < 1e-6)
+  })
+
+  it("a partial sale, at a gain or a loss, leaves the average cost where it was", () => {
+    const m = new Member({ NVDA: 100 })
+    m.buy("NVDA", 100_000)
+    m.move({ NVDA: 125 })
+    m.sell("NVDA", 400)
+    assert.ok(Math.abs(stats(m, "NVDA").averageCost - 100) < 1e-6, "selling at a gain must not raise the average cost")
+    m.move({ NVDA: 60 })
+    m.sell("NVDA", 100)
+    assert.ok(Math.abs(stats(m, "NVDA").averageCost - 100) < 1e-6, "selling at a loss must not lower it either")
+  })
+
+  it("buying more blends the average by what each lot cost", () => {
+    const m = new Member({ AAPL: 100 })
+    m.buy("AAPL", 10_000) // 100 sh at 100
+    m.move({ AAPL: 200 })
+    m.buy("AAPL", 20_000) // 100 sh at 200
+    assert.ok(Math.abs(stats(m, "AAPL").averageCost - 150) < 1e-6)
+    m.move({ AAPL: 165 })
+    assert.ok(Math.abs(stats(m, "AAPL").gainPct - 10) < 1e-6)
+  })
+
+  it("selling one pick at a gain to buy another doesn't touch either average cost", () => {
+    const m = new Member({ SPY: 500, NVDA: 100 })
+    m.buy("SPY", 50_000)
+    m.buy("NVDA", 25_000)
+    m.move({ SPY: 550, NVDA: 90 })
+    m.sell("SPY", 40) // bank part of a +10% winner
+    m.buy("NVDA", 10_000) // add to a loser at the lower price
+    const spy = stats(m, "SPY")
+    assert.ok(Math.abs(spy.averageCost - 500) < 1e-6)
+    assert.ok(Math.abs(spy.gainPct - 10) < 1e-6)
+    const nvda = stats(m, "NVDA") // 250 sh at 100, then 111.11 sh at 90
+    assert.ok(Math.abs(nvda.averageCost - 35_000 / (250 + 10_000 / 90)) < 1e-6)
+    assert.ok(nvda.averageCost < 100 && nvda.averageCost > 90)
+  })
+
+  it("does not divide by zero for an empty position", () => {
+    assert.deepEqual(positionStats({ shares: 0, costBasis: 0 }, 50), { averageCost: 0, value: 0, gainPct: 0 })
+  })
+})
+
+describe("cash vs picks split", () => {
+  it("always adds up to 100%", () => {
+    for (const [value, cash] of [[100_604, 0], [100_000, 25_000], [50_000, 50_000], [99_999.99, 0.01]] as const) {
+      const s = cashSplit(value, cash)
+      assert.ok(Math.abs(s.cashPct + s.investedPct - 100) < 1e-9)
+    }
+    assert.equal(cashSplit(100_604, 0).investedPct, 100)
+    assert.equal(cashSplit(100_000, 25_000).cashPct, 25)
+  })
+
+  it("stays inside 0-100 for an empty or odd book", () => {
+    assert.deepEqual(cashSplit(0, 0), { cashPct: 0, investedPct: 100 })
+    assert.equal(cashSplit(100, 150).cashPct, 100)
+    assert.equal(cashSplit(100, -5).cashPct, 0)
   })
 })
 
