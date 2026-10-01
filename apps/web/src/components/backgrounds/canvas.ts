@@ -75,3 +75,26 @@ export function gutterCols(w: number) {
   const ox = gridOffsetX(w)
   return Math.max(0, Math.floor((edge - ox) / CELL))
 }
+
+/** Today's direction for the mood-aware backgrounds. Drafts read ?mood=; the app will pass the real daily change. */
+export const moodFromUrl = (): "up" | "down" => (new URLSearchParams(window.location.search).get("mood") === "down" ? "down" : "up")
+
+/** "#1baf7a" -> [27, 175, 122] */
+export function hexRgb(hex: string): [number, number, number] {
+  const h = hex.replace("#", "")
+  const n = parseInt(h.length === 3 ? h.split("").map((c) => c + c).join("") : h, 16)
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+}
+
+/** Side margins as pixel ranges, with the whole-cell columns each one holds. */
+export function gutters(w: number) {
+  const g = gutterCols(w)
+  const ox = gridOffsetX(w)
+  const cols = Math.ceil((w - ox) / CELL)
+  return {
+    g,
+    cols,
+    left: { from: 1, to: g }, // column 0 is partly off-screen
+    right: { from: cols - g, to: cols - 1 },
+  }
+}

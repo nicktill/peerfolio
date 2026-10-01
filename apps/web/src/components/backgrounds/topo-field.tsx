@@ -1,13 +1,17 @@
 "use client"
 
 import { useEffect, useRef } from "react"
-import { fitCanvas, prefersStill, readTheme, strokeGrid, watchTheme } from "./canvas"
+import { fitCanvas, moodFromUrl, prefersStill, readTheme, strokeGrid, watchTheme } from "./canvas"
 
 /**
  * DRAFT: topographic. Contour lines of a slowly shifting landscape drift over
  * the faint checker grid, like a survey map laid on graph paper. Every fifth
  * line is an index contour in brand green. The cursor raises a hill that the
  * lines flow around, and it settles back when the cursor leaves.
+ *
+ * The lines take the day's mood: gain green when you're up, loss red when
+ * you're down, and the terrain drifts the same way (rising or sinking). It also
+ * scrolls with the page at a slower rate, so the map feels laid under the content.
  *
  * Marching squares on a coarse field, only for the levels each cell crosses,
  * at 20fps: calm motion doesn't need more.
@@ -24,6 +28,8 @@ export function TopoField() {
     if (!canvas || !ctx) return
 
     let theme = readTheme()
+    const up = moodFromUrl() === "up"
+    let scroll = window.scrollY
     let size = fitCanvas(canvas, ctx)
     let nx = 0
     let ny = 0
@@ -40,7 +46,8 @@ export function TopoField() {
     const sample = (t: number) => {
       const s = 0.0042
       for (let j = 0; j < ny; j++) {
-        const y = j * STEP
+        // Parallax with the page, plus a slow drift in the day's direction.
+        const y = j * STEP + scroll * 0.35 + (up ? 1 : -1) * t * 140
         for (let i = 0; i < nx; i++) {
           const x = i * STEP
           // A few crossing waves at different scales read as terrain, and drift apart slowly.
@@ -51,7 +58,7 @@ export function TopoField() {
             Math.sin((x * 0.8 - y * 1.1) * s * 1.9 - t * 0.9) * 0.35
           if (hill.amp > 0.01) {
             const dx = x - hill.x
-            const dy = y - hill.y
+            const dy = j * STEP - hill.y
             v += hill.amp * Math.exp(-(dx * dx + dy * dy) / (2 * 150 * 150))
           }
           field[j * nx + i] = v
@@ -94,13 +101,14 @@ export function TopoField() {
         }
       }
 
+      // Both line weights carry the mood colour, so light and dark read the same.
+      const tone = up ? theme.gain : theme.loss
       ctx.lineWidth = 1
-      ctx.globalAlpha = theme.dark ? 0.11 : 0.09
-      ctx.strokeStyle = theme.fg
+      ctx.globalAlpha = theme.dark ? 0.13 : 0.16
+      ctx.strokeStyle = tone
       ctx.stroke(minor)
-      ctx.lineWidth = 1.25
-      ctx.globalAlpha = theme.dark ? 0.35 : 0.28
-      ctx.strokeStyle = theme.brand
+      ctx.lineWidth = 1.4
+      ctx.globalAlpha = theme.dark ? 0.38 : 0.42
       ctx.stroke(index)
       ctx.globalAlpha = 1
     }
@@ -129,7 +137,7 @@ export function TopoField() {
       hill.x += (hill.tx - hill.x) * 0.15
       hill.y += (hill.ty - hill.y) * 0.15
       hill.amp += (hill.targetAmp - hill.amp) * 0.08
-      sample((now - start) / 9000)
+      sample((now - start) / 24000)
       draw()
     }
 
@@ -144,14 +152,17 @@ export function TopoField() {
       hill.targetAmp = 1.6
     }
     const onLeave = () => (hill.targetAmp = 0)
+    const onScroll = () => (scroll = window.scrollY)
     const stop = watchTheme(() => (theme = readTheme()))
     window.addEventListener("resize", alloc)
     window.addEventListener("pointermove", onMove, { passive: true })
+    window.addEventListener("scroll", onScroll, { passive: true })
     document.addEventListener("pointerleave", onLeave)
     frame = requestAnimationFrame(tick)
     return () => {
       cancelAnimationFrame(frame)
       stop()
+      window.removeEventListener("scroll", onScroll)
       window.removeEventListener("resize", alloc)
       window.removeEventListener("pointermove", onMove)
       document.removeEventListener("pointerleave", onLeave)

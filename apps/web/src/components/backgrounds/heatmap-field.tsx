@@ -1,31 +1,31 @@
 "use client"
 
 import { useEffect, useRef } from "react"
-import { CELL, fitCanvas, gridOffsetX, prefersStill, readTheme, strokeGrid, watchTheme } from "./canvas"
+import { CELL, fitCanvas, gridOffsetX, gutters, prefersStill, readTheme, strokeGrid, watchTheme } from "./canvas"
 
 /**
- * DRAFT: a market heatmap made of the checkerboard itself. Positions become
- * blocks snapped to the 48px grid, sized by weight and tinted by today's move
- * (deeper colour, bigger move). Faint by default; the block under the cursor
- * brightens and shows its label, and every so often one block "ticks" as if a
- * price just printed.
+ * DRAFT: a market heatmap that lives in the side margins. Positions become
+ * soft tiles snapped to the checker grid, sized by weight and barely tinted by
+ * the day's move; each carries its company logo (the app's logo proxy, with the
+ * same monogram fallback as TickerLogo). Hovering a tile warms it, brings the
+ * logo to full colour and shows the move. Nothing sits behind the content.
  *
- * Tickers and moves are illustrative for now; wired up, these would be the
- * league's combined holdings or the viewer's own positions.
+ * Tickers and moves are illustrative; wired up these would be the viewer's
+ * positions or the league's combined holdings.
  */
 type Item = { t: string; w: number; c: number }
 
-const MARKET: Item[] = [
-  { t: "MSFT", w: 30, c: 0.1 }, { t: "AAPL", w: 28, c: 2.57 }, { t: "NVDA", w: 26, c: -1.89 }, { t: "GOOG", w: 20, c: -1.17 },
-  { t: "AMZN", w: 18, c: -1.63 }, { t: "META", w: 12, c: -3.14 }, { t: "AVGO", w: 11, c: -2.39 }, { t: "TSLA", w: 10, c: -0.91 },
-  { t: "BRK.B", w: 9, c: 1.38 }, { t: "LLY", w: 9, c: 6.98 }, { t: "JPM", w: 8, c: 0.3 }, { t: "V", w: 7, c: -0.44 },
-  { t: "WMT", w: 6, c: 0.51 }, { t: "XOM", w: 6, c: 1.08 }, { t: "JNJ", w: 5, c: 0.67 }, { t: "MA", w: 5, c: -1.12 },
-  { t: "COST", w: 5, c: 1.18 }, { t: "HD", w: 5, c: 0.42 }, { t: "ABBV", w: 4, c: -6.93 }, { t: "ORCL", w: 4, c: -4.61 },
-  { t: "KO", w: 4, c: 0.22 }, { t: "PEP", w: 3, c: 2.74 }, { t: "AMD", w: 3, c: -14.6 }, { t: "PLTR", w: 3, c: -9.96 },
-  { t: "CVX", w: 3, c: 0.88 }, { t: "MRK", w: 3, c: 2.54 }, { t: "DIS", w: 2, c: 1.72 }, { t: "NFLX", w: 2, c: -0.13 },
-  { t: "CAT", w: 2, c: 1.7 }, { t: "GE", w: 2, c: -0.6 }, { t: "UNH", w: 2, c: -1.85 }, { t: "IBM", w: 2, c: 0.4 },
-  { t: "MU", w: 2, c: -3.63 }, { t: "GS", w: 2, c: -3.03 }, { t: "VZ", w: 1, c: 0.9 }, { t: "T", w: 1, c: 1.1 },
-  { t: "INTC", w: 1, c: -0.89 }, { t: "HOOD", w: 1, c: -3.2 }, { t: "SBUX", w: 1, c: 0.7 }, { t: "PFE", w: 1, c: 0.2 },
+const LEFT: Item[] = [
+  { t: "MSFT", w: 30, c: 0.1 }, { t: "NVDA", w: 26, c: -1.89 }, { t: "AMZN", w: 18, c: -1.63 }, { t: "AVGO", w: 11, c: -2.39 },
+  { t: "BRK.B", w: 9, c: 1.38 }, { t: "JPM", w: 8, c: 0.3 }, { t: "WMT", w: 6, c: 0.51 }, { t: "JNJ", w: 5, c: 0.67 },
+  { t: "COST", w: 5, c: 1.18 }, { t: "ABBV", w: 4, c: -2.93 }, { t: "KO", w: 4, c: 0.22 }, { t: "AMD", w: 3, c: -3.6 },
+  { t: "CVX", w: 3, c: 0.88 }, { t: "NFLX", w: 2, c: -0.13 }, { t: "GE", w: 2, c: -0.6 }, { t: "MU", w: 2, c: -1.63 },
+]
+const RIGHT: Item[] = [
+  { t: "AAPL", w: 28, c: 2.57 }, { t: "GOOG", w: 20, c: -1.17 }, { t: "META", w: 12, c: -3.14 }, { t: "TSLA", w: 10, c: -0.91 },
+  { t: "LLY", w: 9, c: 4.98 }, { t: "V", w: 7, c: -0.44 }, { t: "XOM", w: 6, c: 1.08 }, { t: "MA", w: 5, c: -1.12 },
+  { t: "HD", w: 5, c: 0.42 }, { t: "ORCL", w: 4, c: -2.61 }, { t: "PEP", w: 3, c: 1.74 }, { t: "PLTR", w: 3, c: 3.96 },
+  { t: "MRK", w: 3, c: 2.54 }, { t: "DIS", w: 2, c: 1.72 }, { t: "CAT", w: 2, c: 1.7 }, { t: "IBM", w: 2, c: 0.4 },
 ]
 
 type Block = Item & { x: number; y: number; w2: number; h2: number; flash: number; hover: number }
@@ -56,6 +56,12 @@ function layout(items: Item[], x: number, y: number, w: number, h: number, out: 
   }
 }
 
+const hue = (s: string) => {
+  let h = 0
+  for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360
+  return h
+}
+
 export function HeatmapField() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -68,75 +74,100 @@ export function HeatmapField() {
     let size = { w: 0, h: 0 }
     let blocks: Block[] = []
     let pointer: { x: number; y: number } | null = null
+    const logos = new Map<string, HTMLImageElement | null>()
+
+    const logo = (t: string) => {
+      if (!logos.has(t)) {
+        logos.set(t, null)
+        const img = new Image()
+        img.onload = () => logos.set(t, img)
+        img.src = `/api/market/logo/${encodeURIComponent(t)}`
+      }
+      return logos.get(t) ?? null
+    }
 
     const build = () => {
       size = fitCanvas(canvas, ctx)
-      const cols = Math.ceil((size.w - gridOffsetX(size.w)) / CELL)
+      const { g, left, right } = gutters(size.w)
       const rows = Math.ceil(size.h / CELL)
       blocks = []
-      layout([...MARKET].sort((p, q) => q.w - p.w), 0, 0, cols, rows, blocks)
+      if (g < 3) return
+      // One treemap per margin, a row of breathing room above and below.
+      layout([...LEFT].sort((p, q) => q.w - p.w), left.from, 1, left.to - left.from + 1, rows - 2, blocks)
+      layout([...RIGHT].sort((p, q) => q.w - p.w), right.from, 1, right.to - right.from + 1, rows - 2, blocks)
     }
 
-    const draw = (now: number) => {
+    const draw = () => {
       const { w, h } = size
       const ox = gridOffsetX(w)
-      // Labels stay out of the content column, where they'd sit under page text.
-      const contentLeft = (w - Math.min(w, 1184)) / 2
       ctx.clearRect(0, 0, w, h)
+      strokeGrid(ctx, w, h, theme.fg, theme.dark ? 0.065 : 0.06)
 
       for (const b of blocks) {
-        const px = ox + b.x * CELL
-        const py = b.y * CELL
-        const bw = b.w2 * CELL
-        const bh = b.h2 * CELL
-        // Intensity follows the size of the move, like a real heatmap, but capped low.
-        const strength = Math.min(1, Math.abs(b.c) / 4)
-        const base = theme.glow * (theme.dark ? 0.35 + strength * 0.9 : 0.25 + strength * 0.7)
-        ctx.globalAlpha = Math.min(0.5, base + b.hover * 0.12 + b.flash * 0.18)
+        const px = ox + b.x * CELL + 3
+        const py = b.y * CELL + 3
+        const bw = b.w2 * CELL - 6
+        const bh = b.h2 * CELL - 6
+        // Tint follows the size of the move, but stays a whisper either way.
+        const strength = Math.min(1, Math.abs(b.c) / 3)
+        const tint = (theme.dark ? 0.05 : 0.06) + strength * (theme.dark ? 0.07 : 0.08)
+        ctx.globalAlpha = tint + b.hover * 0.1 + b.flash * 0.06
         ctx.fillStyle = b.c >= 0 ? theme.gain : theme.loss
-        ctx.fillRect(px + 2, py + 2, bw - 3, bh - 3)
+        ctx.beginPath()
+        ctx.roundRect(px, py, bw, bh, 8)
+        ctx.fill()
 
-        // Labels only where there's room, and quieter than any real text on the page.
+        if (b.w2 < 2 || b.h2 < 2) continue
+        // The logo chip, sized to the tile, quiet until hovered.
+        const s = Math.min(40, Math.max(22, Math.min(bw, bh) * 0.32))
         const cx = px + bw / 2
-        if (b.w2 >= 2 && b.h2 >= 2 && (cx < contentLeft || cx > w - contentLeft)) {
-          const fs = Math.max(11, Math.min(46, bw / (b.t.length * 0.9), bh * 0.3))
-          ctx.globalAlpha = (theme.dark ? 0.16 : 0.13) + b.hover * 0.35 + b.flash * 0.15
-          ctx.fillStyle = theme.fg
+        const cy = py + bh / 2 - (b.hover > 0.05 ? 10 * b.hover : 0)
+        const img = logo(b.t)
+        ctx.globalAlpha = (theme.dark ? 0.32 : 0.42) + b.hover * 0.58
+        ctx.save()
+        ctx.beginPath()
+        ctx.roundRect(cx - s / 2, cy - s / 2, s, s, s * 0.28)
+        ctx.clip()
+        if (img) {
+          ctx.fillStyle = "#fff"
+          ctx.fillRect(cx - s / 2, cy - s / 2, s, s)
+          if (b.hover < 0.5) ctx.filter = "grayscale(1)"
+          ctx.drawImage(img, cx - s / 2 + 4, cy - s / 2 + 4, s - 8, s - 8)
+          ctx.filter = "none"
+        } else {
+          const hh = hue(b.t)
+          ctx.fillStyle = theme.dark ? `hsl(${hh}, 25%, 22%)` : `hsl(${hh}, 55%, 92%)`
+          ctx.fillRect(cx - s / 2, cy - s / 2, s, s)
+          ctx.fillStyle = theme.dark ? `hsl(${hh}, 45%, 75%)` : `hsl(${hh}, 55%, 30%)`
+          ctx.font = `700 ${Math.round(s * (b.t.length > 3 ? 0.26 : 0.32))}px ${theme.mono}`
           ctx.textAlign = "center"
           ctx.textBaseline = "middle"
-          ctx.font = `600 ${fs}px ${theme.mono}`
-          ctx.fillText(b.t, px + bw / 2, py + bh / 2 - fs * 0.35)
-          ctx.font = `500 ${Math.max(10, fs * 0.42)}px ${theme.mono}`
-          ctx.fillText(`${b.c >= 0 ? "+" : ""}${b.c.toFixed(2)}%`, px + bw / 2, py + bh / 2 + fs * 0.45)
+          ctx.fillText(b.t.slice(0, 4), cx, cy + 1)
+        }
+        ctx.restore()
+
+        // The move appears under the logo on hover.
+        if (b.hover > 0.05) {
+          ctx.globalAlpha = b.hover * 0.85
+          ctx.fillStyle = b.c >= 0 ? theme.gain : theme.loss
+          ctx.font = `600 12px ${theme.mono}`
+          ctx.textAlign = "center"
+          ctx.textBaseline = "middle"
+          ctx.fillText(`${b.t}  ${b.c >= 0 ? "+" : ""}${b.c.toFixed(2)}%`, cx, cy + s / 2 + 14)
         }
       }
-
-      strokeGrid(ctx, w, h, theme.fg, theme.dark ? 0.07 : 0.06)
-      // Block outlines a touch heavier than the grid, so the treemap reads as shapes.
-      ctx.globalAlpha = theme.dark ? 0.16 : 0.12
-      ctx.strokeStyle = theme.dark ? "#000" : "#fff"
-      ctx.lineWidth = 2
-      for (const b of blocks) ctx.strokeRect(ox + b.x * CELL + 1, b.y * CELL + 1, b.w2 * CELL - 1, b.h2 * CELL - 1)
       ctx.globalAlpha = 1
-      void now
     }
 
     build()
     if (prefersStill()) {
-      draw(0)
+      draw()
       const onResize = () => {
         build()
-        draw(0)
+        draw()
       }
       window.addEventListener("resize", onResize)
-      const stop = watchTheme(() => {
-        theme = readTheme()
-        draw(0)
-      })
-      return () => {
-        stop()
-        window.removeEventListener("resize", onResize)
-      }
+      return () => window.removeEventListener("resize", onResize)
     }
 
     let frame = 0
@@ -147,26 +178,23 @@ export function HeatmapField() {
       if (now - last < 33) return
       const dt = last ? Math.min(now - last, 100) : 16
       last = now
-
-      // A price prints somewhere: one block brightens and its move nudges.
-      if (now - lastTick > 1400) {
+      // A price prints now and then: one tile warms briefly and its move nudges.
+      if (now - lastTick > 2200 && blocks.length) {
         lastTick = now
-        const b = blocks[Math.floor(Math.random() * blocks.length)]
-        if (b) {
-          b.flash = 1
-          b.c = Math.round((b.c + (Math.random() - 0.5) * 0.3) * 100) / 100
-        }
+        const b = blocks[Math.floor(Math.random() * blocks.length)]!
+        b.flash = 1
+        b.c = Math.round((b.c + (Math.random() - 0.5) * 0.2) * 100) / 100
       }
       const ox = gridOffsetX(size.w)
       for (const b of blocks) {
-        b.flash *= Math.exp(-dt / 700)
+        b.flash *= Math.exp(-dt / 900)
         const inside =
           pointer &&
           pointer.x >= ox + b.x * CELL && pointer.x < ox + (b.x + b.w2) * CELL &&
           pointer.y >= b.y * CELL && pointer.y < (b.y + b.h2) * CELL
-        b.hover += ((inside ? 1 : 0) - b.hover) * Math.min(1, dt / 160)
+        b.hover += ((inside ? 1 : 0) - b.hover) * Math.min(1, dt / 180)
       }
-      draw(now)
+      draw()
     }
 
     const onMove = (e: PointerEvent) => {
@@ -187,5 +215,5 @@ export function HeatmapField() {
     }
   }, [])
 
-  return <canvas ref={canvasRef} aria-hidden className="bg-gutters pointer-events-none fixed inset-0 -z-10" />
+  return <canvas ref={canvasRef} aria-hidden className="pointer-events-none fixed inset-0 -z-10" />
 }

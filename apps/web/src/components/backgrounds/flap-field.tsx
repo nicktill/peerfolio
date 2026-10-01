@@ -1,24 +1,47 @@
 "use client"
 
 import { useEffect, useRef } from "react"
-import { CELL, fitCanvas, gridOffsetX, gutterCols, prefersStill, readTheme, strokeGrid, watchTheme } from "./canvas"
+import { CELL, fitCanvas, gridOffsetX, gutters, prefersStill, readTheme, strokeGrid, watchTheme } from "./canvas"
 
 /**
- * DRAFT: a split-flap board, like the departures board in an old station. Each
- * grid cell is a tile. Every couple of seconds a short message clatters in
- * down the side margins (a ticker and its move, or league news), holds, then
- * flips back to blank. Tiles under the cursor flutter through a few letters
- * and settle. Tickers and news are illustrative until wired to the league.
+ * DRAFT: an old exchange quote board hung in each side margin. Rows of
+ * split-flap tiles show a ticker, an arrow and the day's move. Every couple of
+ * seconds one row updates and its tiles clatter through the alphabet in order,
+ * left to right, the way the electromechanical boards did: the top flap folds
+ * down over the split, then the bottom flap falls into place.
+ *
+ * Tiles are half a grid cell wide, two per checker cell, one row per cell, so
+ * the board sits exactly on the background grid. Quotes are illustrative.
  */
-const CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-.%#"
-type Tone = "fg" | "gain" | "loss" | "brand"
-type Tile = { ch: string; target: string; flipUntil: number; tone: Tone; next: number }
+const CHARSET = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.+-▲▼"
+const STEP_MS = 64
+const MAX_STEPS = 9
+const TILE_W = CELL / 2
 
-const MESSAGES: [string, string, Tone][] = [
-  ["NVDA", "+2.1", "gain"], ["AAPL", "-0.4", "loss"], ["VTI", "+0.3", "gain"], ["MSFT", "+0.9", "gain"],
-  ["TSLA", "-1.9", "loss"], ["MAYA", "#1", "brand"], ["WK 4", "FRI", "brand"], ["YOU", "UP 2", "gain"],
-  ["QQQ", "+0.5", "gain"], ["BND", "-0.1", "loss"], ["SAM", "#3", "brand"], ["PLTR", "+3.4", "gain"],
+type Tone = "fg" | "gain" | "loss"
+type Tile = { cur: string; next: string; target: string; steps: number; stepAt: number; tone: Tone }
+type Quote = { t: string; c: number }
+type Row = { tiles: Tile[]; quote: Quote }
+type Board = { col: number; row: number; width: number; rows: Row[]; title: string }
+
+const POOL: Quote[] = [
+  { t: "NVDA", c: 2.14 }, { t: "AAPL", c: -0.42 }, { t: "MSFT", c: 0.88 }, { t: "VTI", c: 0.31 }, { t: "TSLA", c: -1.92 },
+  { t: "AMZN", c: 1.06 }, { t: "META", c: -3.14 }, { t: "QQQ", c: 0.54 }, { t: "VOO", c: 0.29 }, { t: "PLTR", c: 3.41 },
+  { t: "HOOD", c: -3.2 }, { t: "GOOG", c: -1.17 }, { t: "BND", c: -0.05 }, { t: "LLY", c: 4.98 }, { t: "JPM", c: 0.3 },
+  { t: "COST", c: 1.18 }, { t: "AMD", c: -2.6 }, { t: "VXUS", c: 0.17 }, { t: "NFLX", c: -0.13 }, { t: "XOM", c: 1.08 },
 ]
+
+/** "NVDA ▲2.14" fitted to the tiles available. */
+function format(q: Quote, width: number) {
+  const arrow = q.c >= 0 ? "▲" : "▼"
+  const t = q.t.padEnd(4).slice(0, 4)
+  const mag = Math.abs(q.c)
+  if (width >= 10) return `${t} ${arrow}${mag.toFixed(2).slice(0, 4).padStart(4)}`
+  if (width >= 8) return `${t}${arrow}${mag.toFixed(1).padStart(3)}`
+  return `${t}${arrow}`.slice(0, width)
+}
+
+const toneAt = (q: Quote, i: number) => (i < 4 ? "fg" : q.c >= 0 ? "gain" : "loss") as Tone
 
 export function FlapField() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -30,59 +53,80 @@ export function FlapField() {
 
     let theme = readTheme()
     let size = { w: 0, h: 0 }
-    let cols = 0
-    let rows = 0
-    let tiles: (Tile | null)[] = []
+    let boards: Board[] = []
     let pointer: { x: number; y: number } | null = null
-    let lastCell = -1
-    const live: { cells: number[]; until: number }[] = []
-    let msgIndex = 0
+    let poolAt = 0
 
-    const build = () => {
+    const setRow = (row: Row, q: Quote, now: number) => {
+      row.quote = q
+      const text = format(q, row.tiles.length)
+      row.tiles.forEach((tile, i) => {
+        const target = text[i] ?? " "
+        tile.tone = toneAt(q, i)
+        if (target === tile.target && tile.steps === 0) return
+        tile.target = target
+        // Real boards run through the drum in order; start a few flaps back so it never drags.
+        const from = CHARSET.indexOf(tile.cur)
+        const to = CHARSET.indexOf(target)
+        const dist = (to - from + CHARSET.length) % CHARSET.length
+        if (dist > MAX_STEPS) tile.cur = CHARSET[(to - MAX_STEPS + CHARSET.length) % CHARSET.length]!
+        tile.steps = Math.min(dist, MAX_STEPS)
+        tile.stepAt = now + i * 45
+        tile.next = CHARSET[(CHARSET.indexOf(tile.cur) + 1) % CHARSET.length]!
+      })
+    }
+
+    const build = (now: number) => {
       size = fitCanvas(canvas, ctx)
-      cols = Math.ceil((size.w - gridOffsetX(size.w)) / CELL)
-      rows = Math.ceil(size.h / CELL)
-      tiles = new Array(cols * rows).fill(null)
-      live.length = 0
+      const { g, left, right } = gutters(size.w)
+      const rowsAvail = Math.floor(size.h / CELL)
+      boards = []
+      if (g < 4) return
+      const width = Math.min(10, (g - 1) * 2)
+      const count = Math.min(12, rowsAvail - 4)
+      const make = (col: number, title: string): Board => ({
+        col,
+        row: 2,
+        width,
+        title,
+        rows: Array.from({ length: count }, () => ({
+          quote: { t: "", c: 0 },
+          tiles: Array.from({ length: width }, () => ({ cur: " ", next: " ", target: " ", steps: 0, stepAt: 0, tone: "fg" as Tone })),
+        })),
+      })
+      // Hug the content: left board right-aligned in its margin, right board left-aligned.
+      const span = Math.ceil(width / 2)
+      boards.push(make(left.to - span + 1, "MOVERS"))
+      boards.push(make(right.from, "THE GROUP CHAT"))
+      // Opening cascade: every row flips in from blank, top to bottom.
+      boards.forEach((b, bi) =>
+        b.rows.forEach((r, ri) => setRow(r, POOL[(poolAt++) % POOL.length]!, now + 200 + ri * 140 + bi * 70)),
+      )
     }
 
-    const tone = (t: Tone) => (t === "gain" ? theme.gain : t === "loss" ? theme.loss : t === "brand" ? theme.brand : theme.fg)
+    const color = (tone: Tone) => (tone === "gain" ? theme.gain : tone === "loss" ? theme.loss : theme.fg)
 
-    const setTile = (i: number, target: string, t: Tone, now: number, spin: number) => {
-      const tile = tiles[i] ?? { ch: " ", target: " ", flipUntil: 0, tone: t, next: 0 }
-      tile.target = target
-      tile.tone = t
-      tile.flipUntil = now + spin
-      tiles[i] = tile
-    }
-
-    // Place a two-line message where a side margin is free; fall back to anywhere.
-    const spawn = (now: number) => {
-      const [top, bottom, t] = MESSAGES[msgIndex++ % MESSAGES.length]!
-      const width = Math.max(top.length, bottom.length)
-      const g = gutterCols(size.w)
-      const useGutter = g >= width
-      for (let attempt = 0; attempt < 12; attempt++) {
-        const left = Math.random() < 0.5
-        const col = useGutter
-          ? // Column 0 is partly off-screen, so the left margin starts at column 1.
-            left ? 1 + Math.floor(Math.random() * Math.max(1, g - width)) : cols - g + Math.floor(Math.random() * (g - width + 1))
-          : Math.floor(Math.random() * Math.max(1, cols - width))
-        const row = 2 + Math.floor(Math.random() * Math.max(1, rows - 4))
-        const cells: number[] = []
-        for (let r = 0; r < 2; r++) for (let c = 0; c < width; c++) cells.push((row + r) * cols + col + c)
-        const clash = cells.some((i) => i >= tiles.length || live.some((m) => m.cells.includes(i) || m.cells.includes(i - cols) || m.cells.includes(i + cols)))
-        if (clash) continue
-        cells.forEach((i, k) => {
-          const r = Math.floor(k / width)
-          const c = k % width
-          const word = r === 0 ? top : bottom
-          const ch = word[c] ?? " "
-          setTile(i, ch, r === 0 ? "fg" : t, now, 350 + c * 110 + r * 180)
-        })
-        live.push({ cells, until: now + 6500 })
-        return
+    /** One half of a glyph, squashed toward the split by `scale` (1 = flat on the tile). */
+    const half = (ch: string, x: number, y: number, top: boolean, scale: number, tone: Tone, alpha: number) => {
+      if (scale <= 0.01) return
+      const mid = y + CELL / 2
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(x + 2, top ? y + 5 : mid, TILE_W - 4, CELL / 2 - 5)
+      ctx.clip()
+      ctx.translate(0, mid)
+      ctx.scale(1, scale)
+      ctx.translate(0, -mid)
+      // Flap face.
+      ctx.globalAlpha = theme.dark ? 0.06 : 0.07
+      ctx.fillStyle = theme.fg
+      ctx.fillRect(x + 2, top ? y + 5 : mid, TILE_W - 4, CELL / 2 - 5)
+      if (ch !== " ") {
+        ctx.globalAlpha = alpha
+        ctx.fillStyle = color(tone)
+        ctx.fillText(ch, x + TILE_W / 2, mid + 1)
       }
+      ctx.restore()
     }
 
     const draw = (now: number) => {
@@ -93,85 +137,114 @@ export function FlapField() {
 
       ctx.textAlign = "center"
       ctx.textBaseline = "middle"
-      ctx.font = `600 26px ${theme.mono}`
-      for (let i = 0; i < tiles.length; i++) {
-        const tile = tiles[i]
-        if (!tile) continue
-        const flipping = now < tile.flipUntil
-        if (!flipping && tile.target === " ") {
-          tiles[i] = null
-          continue
-        }
-        const col = i % cols
-        const row = (i - col) / cols
-        const x = ox + col * CELL
-        const y = row * CELL
+      const glyph = theme.dark ? 0.44 : 0.42
 
-        // The tile itself: a slightly raised card with the split across its middle.
-        ctx.globalAlpha = theme.dark ? 0.07 : 0.045
-        ctx.fillStyle = theme.fg
+      for (const b of boards) {
+        const bx = ox + b.col * CELL
+        const by = b.row * CELL
+        const bw = Math.ceil(b.width / 2) * CELL
+        const bh = b.rows.length * CELL
+
+        // The board's housing and its nameplate.
+        ctx.globalAlpha = theme.dark ? 0.35 : 0.035
+        ctx.fillStyle = theme.dark ? "#000" : theme.fg
         ctx.beginPath()
-        ctx.roundRect(x + 4, y + 4, CELL - 8, CELL - 8, 5)
+        ctx.roundRect(bx - 6, by - 30, bw + 12, bh + 40, 10)
         ctx.fill()
-        ctx.globalAlpha = theme.dark ? 0.12 : 0.08
-        ctx.fillRect(x + 4, y + CELL / 2 - 0.5, CELL - 8, 1)
+        ctx.globalAlpha = theme.dark ? 0.1 : 0.08
+        ctx.strokeStyle = theme.fg
+        ctx.lineWidth = 1
+        ctx.stroke()
+        ctx.globalAlpha = theme.dark ? 0.42 : 0.4
+        ctx.fillStyle = theme.fg
+        ctx.font = `600 10px ${theme.mono}`
+        ctx.textAlign = "left"
+        ctx.fillText(b.title.split("").join(" "), bx + 4, by - 15)
+        ctx.textAlign = "center"
 
-        if (flipping && now >= tile.next) {
-          tile.ch = CHARS[Math.floor(Math.random() * CHARS.length)]!
-          tile.next = now + 70
-        } else if (!flipping) tile.ch = tile.target
-
-        // Mid-flip the glyph squashes toward the split, which is what sells the flap.
-        const squash = flipping ? 0.35 + 0.65 * Math.abs(Math.cos((now / 70) * Math.PI)) : 1
-        ctx.globalAlpha = (flipping ? 0.28 : 0.42) * (theme.dark ? 1 : 0.85)
-        ctx.fillStyle = tone(tile.tone)
-        ctx.save()
-        ctx.translate(x + CELL / 2, y + CELL / 2)
-        ctx.scale(1, squash)
-        ctx.fillText(tile.ch, 0, 1)
-        ctx.restore()
+        ctx.font = `600 ${Math.round(CELL * 0.48)}px ${theme.mono}`
+        b.rows.forEach((row, ri) => {
+          const y = by + ri * CELL
+          const hot = pointer && pointer.x >= bx && pointer.x < bx + bw && pointer.y >= y && pointer.y < y + CELL
+          if (hot) {
+            ctx.globalAlpha = theme.dark ? 0.06 : 0.04
+            ctx.fillStyle = theme.fg
+            ctx.fillRect(bx - 4, y + 2, bw + 8, CELL - 4)
+          }
+          row.tiles.forEach((tile, ti) => {
+            const x = bx + ti * TILE_W
+            const p = tile.steps > 0 && now >= tile.stepAt ? Math.min(1, (now - tile.stepAt) / STEP_MS) : 0
+            if (p === 0) {
+              half(tile.cur, x, y, true, 1, tile.tone, glyph)
+              half(tile.cur, x, y, false, 1, tile.tone, glyph)
+            } else if (p < 0.5) {
+              // The old top flap folds down, revealing the new top behind it.
+              half(tile.next, x, y, true, 1, tile.tone, glyph)
+              half(tile.cur, x, y, false, 1, tile.tone, glyph)
+              half(tile.cur, x, y, true, 1 - p * 2, tile.tone, glyph)
+            } else {
+              // The new bottom flap falls into place over the old bottom.
+              half(tile.next, x, y, true, 1, tile.tone, glyph)
+              half(tile.cur, x, y, false, 1, tile.tone, glyph)
+              half(tile.next, x, y, false, (p - 0.5) * 2, tile.tone, glyph)
+            }
+            // The split, a hairline in the background colour.
+            ctx.globalAlpha = theme.dark ? 0.8 : 0.5
+            ctx.fillStyle = theme.dark ? "#000" : "#fff"
+            ctx.fillRect(x + 2, y + CELL / 2 - 0.5, TILE_W - 4, 1)
+          })
+        })
       }
       ctx.globalAlpha = 1
     }
 
-    build()
+    const advance = (now: number) => {
+      for (const b of boards)
+        for (const r of b.rows)
+          for (const tile of r.tiles) {
+            if (tile.steps > 0 && now >= tile.stepAt + STEP_MS) {
+              tile.cur = tile.next
+              tile.steps -= 1
+              tile.stepAt += STEP_MS
+              tile.next = CHARSET[(CHARSET.indexOf(tile.cur) + 1) % CHARSET.length]!
+            }
+          }
+    }
+
+    build(performance.now())
     if (prefersStill()) {
-      spawn(0)
-      spawn(0)
-      tiles.forEach((t) => t && (t.flipUntil = 0))
-      draw(1)
+      for (const b of boards)
+        for (const r of b.rows)
+          for (const t of r.tiles) {
+            t.cur = t.target
+            t.steps = 0
+          }
+      draw(0)
       return () => undefined
     }
 
     let frame = 0
     let last = 0
-    let lastSpawn = 0
+    let lastUpdate = performance.now() + 2500
     const tick = (now: number) => {
       frame = requestAnimationFrame(tick)
-      if (now - last < 33) return
+      if (now - last < 16) return
       last = now
-      if (now - lastSpawn > 2200 && live.length < 6) {
-        lastSpawn = now
-        spawn(now)
+      // Every couple of seconds a quote changes: sometimes the move, sometimes a new ticker.
+      if (now - lastUpdate > 1800 && boards.length) {
+        lastUpdate = now
+        const b = boards[Math.floor(Math.random() * boards.length)]!
+        const r = b.rows[Math.floor(Math.random() * b.rows.length)]!
+        // A new ticker never duplicates one already on this board.
+        const onBoard = new Set(b.rows.map((x) => x.quote.t))
+        const fresh = POOL.filter((p) => !onBoard.has(p.t))
+        const q =
+          Math.random() < 0.6 || fresh.length === 0
+            ? { t: r.quote.t, c: Math.round((r.quote.c + (Math.random() - 0.5) * 0.8) * 100) / 100 }
+            : fresh[Math.floor(Math.random() * fresh.length)]!
+        setRow(r, q, now)
       }
-      for (let k = live.length - 1; k >= 0; k--) {
-        const m = live[k]!
-        if (now > m.until) {
-          m.cells.forEach((i, n) => setTile(i, " ", "fg", now, 250 + (n % 5) * 90))
-          live.splice(k, 1)
-        }
-      }
-      // The cursor riffles the tiles it passes over.
-      if (pointer) {
-        const col = Math.floor((pointer.x - gridOffsetX(size.w)) / CELL)
-        const row = Math.floor(pointer.y / CELL)
-        const i = row * cols + col
-        if (i !== lastCell && col >= 0 && col < cols && row >= 0 && row < rows) {
-          lastCell = i
-          const busy = live.some((m) => m.cells.includes(i))
-          if (!busy) setTile(i, " ", "brand", now, 420)
-        }
-      }
+      advance(now)
       draw(now)
     }
 
@@ -179,15 +252,16 @@ export function FlapField() {
       if (e.pointerType === "mouse") pointer = { x: e.clientX, y: e.clientY }
     }
     const onLeave = () => (pointer = null)
+    const onResize = () => build(performance.now())
     const stop = watchTheme(() => (theme = readTheme()))
-    window.addEventListener("resize", build)
+    window.addEventListener("resize", onResize)
     window.addEventListener("pointermove", onMove, { passive: true })
     document.addEventListener("pointerleave", onLeave)
     frame = requestAnimationFrame(tick)
     return () => {
       cancelAnimationFrame(frame)
       stop()
-      window.removeEventListener("resize", build)
+      window.removeEventListener("resize", onResize)
       window.removeEventListener("pointermove", onMove)
       document.removeEventListener("pointerleave", onLeave)
     }
