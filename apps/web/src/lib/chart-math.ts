@@ -105,3 +105,57 @@ export function groupName(names: string[], maxChars: number): string {
   const joined = names.join(" · ")
   return joined.length <= maxChars ? joined : `${names.length} tied`
 }
+
+/**
+ * A smooth SVG path through points with increasing x, as a monotone cubic
+ * (Fritsch-Carlson). Unlike a plain spline it never overshoots: between two
+ * readings the curve stays between them, and a flat stretch stays flat, so the
+ * smoothing can't invent a dip or a peak that the data doesn't have.
+ */
+export function monotonePath(points: readonly (readonly [number, number])[]): string {
+  const n = points.length
+  if (n === 0) return ""
+  const f = (v: number) => v.toFixed(2)
+  const [x0, y0] = points[0]!
+  if (n === 1) return `M${f(x0)},${f(y0)}`
+  if (n === 2) return `M${f(x0)},${f(y0)} L${f(points[1]![0])},${f(points[1]![1])}`
+
+  const dx: number[] = []
+  const slope: number[] = []
+  for (let i = 0; i < n - 1; i++) {
+    const w = points[i + 1]![0] - points[i]![0]
+    dx.push(w)
+    slope.push(w === 0 ? 0 : (points[i + 1]![1] - points[i]![1]) / w)
+  }
+
+  const tangent = new Array<number>(n)
+  tangent[0] = slope[0]!
+  tangent[n - 1] = slope[n - 2]!
+  for (let i = 1; i < n - 1; i++) tangent[i] = slope[i - 1]! * slope[i]! <= 0 ? 0 : (slope[i - 1]! + slope[i]!) / 2
+
+  // Limit each tangent so no segment's curve leaves the range of its two ends.
+  for (let i = 0; i < n - 1; i++) {
+    if (slope[i] === 0) {
+      tangent[i] = 0
+      tangent[i + 1] = 0
+      continue
+    }
+    const a = tangent[i]! / slope[i]!
+    const b = tangent[i + 1]! / slope[i]!
+    const s = a * a + b * b
+    if (s > 9) {
+      const tau = 3 / Math.sqrt(s)
+      tangent[i] = tau * a * slope[i]!
+      tangent[i + 1] = tau * b * slope[i]!
+    }
+  }
+
+  let d = `M${f(x0)},${f(y0)}`
+  for (let i = 0; i < n - 1; i++) {
+    const [xa, ya] = points[i]!
+    const [xb, yb] = points[i + 1]!
+    const w = dx[i]! / 3
+    d += ` C${f(xa + w)},${f(ya + tangent[i]! * w)} ${f(xb - w)},${f(yb - tangent[i + 1]! * w)} ${f(xb)},${f(yb)}`
+  }
+  return d
+}
