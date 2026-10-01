@@ -13,6 +13,10 @@
       "outputs": [
         ".next/**",
         "!.next/cache/**"
+      ],
+      "env": [
+        "ENABLE_DEV_LOGIN",
+        "VERCEL_ENV"
       ]
     },
     "lint": {

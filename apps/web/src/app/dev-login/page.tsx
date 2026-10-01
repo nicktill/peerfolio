@@ -2,6 +2,10 @@ import { notFound } from "next/navigation"
 import { devLoginAllowed } from "@web/lib/dev-login"
 import { DevLoginForm } from "./dev-login-form"
 
+// Decided per request, not frozen at build: the build step can't see every
+// environment variable, and this guard must reflect the deployment it runs in.
+export const dynamic = "force-dynamic"
+
 /**
  * Sign in as a seeded user without an OAuth app.
  *
