@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { groupEndLabels, groupName, niceTicks, pointIndexAt, spreadLabels, tickDigits, xAt } from "./chart-math.ts"
+import { groupEndLabels, groupName, monotonePath, niceTicks, pointIndexAt, spreadLabels, tickDigits, xAt } from "./chart-math.ts"
 
 describe("niceTicks", () => {
   it("picks round values and always includes 0 when it's in range", () => {
@@ -127,5 +127,45 @@ describe("groupName", () => {
   it("joins names that fit and falls back to a count when they don't", () => {
     assert.equal(groupName(["You", "Andri"], 12), "You · Andri")
     assert.equal(groupName(["Bennett", "Andri", "Sam"], 12), "3 tied")
+  })
+})
+
+describe("monotonePath", () => {
+  /** Every number in the path, grouped as [x, y] pairs after the leading command letters. */
+  const pairs = (d: string) => [...d.matchAll(/(-?\d+\.?\d*),(-?\d+\.?\d*)/g)].map((m) => [Number(m[1]), Number(m[2])] as const)
+
+  it("is empty for nothing and a bare move for one point", () => {
+    assert.equal(monotonePath([]), "")
+    assert.equal(monotonePath([[5, 7]]), "M5.00,7.00")
+  })
+
+  it("is a straight line between two points, since there is nothing to smooth", () => {
+    assert.equal(monotonePath([[0, 10], [100, 50]]), "M0.00,10.00 L100.00,50.00")
+  })
+
+  it("passes through every point", () => {
+    const pts = [[0, 50], [10, 30], [20, 35], [30, 10]] as const
+    const ends = pairs(monotonePath(pts)).filter((_, i) => i % 3 === 0 || i === 0)
+    // M + one end per curve segment: the ends are every third pair after the first.
+    const d = monotonePath(pts)
+    for (const [x, y] of pts) assert.ok(d.includes(`${x.toFixed(2)},${y.toFixed(2)}`), `missing ${x},${y}`)
+    assert.equal(ends.length > 0, true)
+  })
+
+  it("never overshoots: control points stay between the two readings of their segment", () => {
+    // A sharp step would make an ordinary spline ring above and below it.
+    const pts = [[0, 100], [10, 100], [20, 40], [30, 40], [40, 90], [50, 20]] as const
+    const p = pairs(monotonePath(pts))
+    for (let seg = 0; seg < pts.length - 1; seg++) {
+      const lo = Math.min(pts[seg]![1], pts[seg + 1]![1])
+      const hi = Math.max(pts[seg]![1], pts[seg + 1]![1])
+      // Each curve segment contributes its two control points.
+      for (const [, y] of [p[1 + seg * 3]!, p[2 + seg * 3]!]) assert.ok(y >= lo - 1e-6 && y <= hi + 1e-6, `segment ${seg}: ${y} outside ${lo}..${hi}`)
+    }
+  })
+
+  it("keeps a flat stretch flat", () => {
+    const p = pairs(monotonePath([[0, 20], [10, 20], [20, 20], [30, 5]]))
+    assert.ok(p.slice(1, 7).every(([, y]) => y === 20))
   })
 })

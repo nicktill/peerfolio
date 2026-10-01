@@ -3,15 +3,15 @@
 import { useId, useMemo, useState } from "react"
 import { cn } from "@web/lib/utils"
 import { useMeasure } from "@web/lib/use-measure"
-import { niceTicks, tickDigits } from "@web/lib/chart-math"
+import { monotonePath, niceTicks, tickDigits } from "@web/lib/chart-math"
 import { formatCurrency, formatDate, formatPercent } from "@web/lib/format"
 import { indexedDomain } from "@web/lib/return-display"
 
 export type PerformancePoint = { date: string; value: number }
 
 const PAD = { top: 12, right: 0, bottom: 22, left: 0 }
-/** Room for the percentage labels down the left edge. */
-const INDEXED_PAD = { top: 14, right: 8, bottom: 22, left: 46 }
+/** Room for the percentage labels down the right edge. */
+const INDEXED_PAD = { top: 14, right: 54, bottom: 22, left: 6 }
 /** With this few points, mark each one so a short history doesn't read as a bare diagonal. */
 const MARK_EACH_UNDER = 9
 
@@ -79,7 +79,10 @@ export function PerformanceChart({
     const y = (v: number) => pad.top + innerH - ((v - lo) / (hi - lo)) * innerH
 
     const coords = points.map((p, i) => [x(i), y(p.value)] as const)
-    const line = coords.map(([cx, cy], i) => `${i === 0 ? "M" : "L"}${cx.toFixed(2)},${cy.toFixed(2)}`).join(" ")
+    // Indexed returns are drawn as a smooth curve; it passes through every reading and never overshoots one.
+    const line = indexed
+      ? monotonePath(coords)
+      : coords.map(([cx, cy], i) => `${i === 0 ? "M" : "L"}${cx.toFixed(2)},${cy.toFixed(2)}`).join(" ")
     // Indexed returns wash toward the 0% line, so the tint is the gap between
     // where you are and where you started. Other series fill down to the axis.
     const floorY = indexed ? y(baseline ?? 100) : height - pad.bottom
@@ -143,11 +146,11 @@ export function PerformanceChart({
                       y1={ty}
                       y2={ty}
                       className="stroke-border"
-                      strokeOpacity={zero ? 1 : 0.55}
+                      strokeOpacity={zero ? 1 : 0.6}
                       strokeWidth={1}
-                      strokeDasharray={zero ? "4 4" : undefined}
+                      strokeDasharray="4 5"
                     />
-                    <text x={pad.left - 8} y={ty} textAnchor="end" dominantBaseline="middle" className="fill-muted-foreground numeric" fontSize={11}>
+                    <text x={pad.left + geometry.innerW + 10} y={ty} textAnchor="start" dominantBaseline="middle" className="fill-muted-foreground numeric" fontSize={11}>
                       {zero ? "0%" : formatPercent(t, geometry.digits)}
                     </text>
                   </g>
@@ -177,7 +180,7 @@ export function PerformanceChart({
               d={geometry.line}
               fill="none"
               stroke={stroke}
-              strokeWidth={2}
+              strokeWidth={indexed ? 2.5 : 2}
               strokeLinecap="round"
               strokeLinejoin="round"
             />
@@ -188,8 +191,16 @@ export function PerformanceChart({
                   if (!last && geometry.coords.length >= MARK_EACH_UNDER) return null
                   return (
                     <g key={i}>
-                      {last ? <circle cx={cx} cy={cy} r={9} fill={stroke} opacity={0.16} /> : null}
-                      <circle cx={cx} cy={cy} r={last ? 4.5 : 3} fill={stroke} stroke="hsl(var(--card))" strokeWidth={2} />
+                      {last ? <circle cx={cx} cy={cy} r={10} fill={stroke} opacity={0.16} /> : null}
+                      {/* The latest point is a ring, the earlier ones solid dots. */}
+                      <circle
+                        cx={cx}
+                        cy={cy}
+                        r={last ? 5 : 3}
+                        fill={last ? "hsl(var(--card))" : stroke}
+                        stroke={last ? stroke : "hsl(var(--card))"}
+                        strokeWidth={last ? 2.5 : 2}
+                      />
                     </g>
                   )
                 })
