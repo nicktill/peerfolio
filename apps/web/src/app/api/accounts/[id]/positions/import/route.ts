@@ -3,6 +3,7 @@ import { z } from "zod"
 import { investableTotal, writeDailySnapshot } from "@web/lib/plaid-sync"
 import { ApiError, readJson, withUser } from "@web/lib/api"
 import { importPositions, requireManualAccount } from "@web/lib/positions"
+import { recordAccountEvent } from "@web/lib/account-events"
 
 export const maxDuration = 60
 
@@ -41,6 +42,18 @@ export const POST = withUser<Ctx>(async (userId, request, { params }) => {
   const before = await investableTotal(userId)
   const result = await importPositions(id, userId, parsed.data.rows, { replace: parsed.data.replace })
   await writeDailySnapshot(userId, (await investableTotal(userId)) - before)
+  await recordAccountEvent(userId, before, {
+    action: "positions_imported",
+    accountId: id,
+    accountName: account.name,
+    detail: {
+      rows: parsed.data.rows.length,
+      replace: parsed.data.replace,
+      imported: result.imported,
+      removed: result.removed,
+      failed: result.failed.length,
+    },
+  })
 
   return NextResponse.json(result, { status: 200 })
 })

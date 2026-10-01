@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { defaultRange, rangeAvailability, rangeStart, rangeUnlockDays, timeWeightedReturn, withLivePoint } from "./ranges.ts"
+import { defaultRange, rangeAvailability, rangeStart, keepsEntryValue, rangeUnlockDays, timeWeightedReturn, withLivePoint } from "./ranges.ts"
 
 const point = (date: string, investableAssets: number, netFlows = 0) => ({
   date,
@@ -181,5 +181,25 @@ describe("rangeUnlockDays", () => {
     assert.equal(left["1M"], 27)
     assert.equal(left.ALL, 0)
     assert.equal(rangeUnlockDays("2026-01-01", "2026-09-30")["1Y"], 365 - 272)
+  })
+})
+
+describe("keepsEntryValue", () => {
+  it("protects the first day's entry value from a market-only write", () => {
+    assert.equal(keepsEntryValue("2026-01-01", "2026-01-01", 0), true)
+  })
+
+  it("lets an edit that moves cash re-baseline the first day", () => {
+    assert.equal(keepsEntryValue("2026-01-01", "2026-01-01", 5000), false)
+  })
+
+  it("lets every later day take the close, and a brand-new user get a row", () => {
+    assert.equal(keepsEntryValue("2026-01-01", "2026-01-02", 0), false)
+    assert.equal(keepsEntryValue(null, "2026-01-01", 0), false)
+  })
+
+  it("counts the first day's move on the second day", () => {
+    // Entered at 1000 on day one; the close and the next close are 1010 and 1020.
+    close(timeWeightedReturn([point("2026-01-01", 1000, 1000), point("2026-01-02", 1020)]).percent, 2)
   })
 })

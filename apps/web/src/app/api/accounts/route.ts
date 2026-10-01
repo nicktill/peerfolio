@@ -4,6 +4,7 @@ import { z } from "zod"
 import { accounts, db } from "@web/db"
 import { investableTotal, writeDailySnapshot } from "@web/lib/plaid-sync"
 import { ApiError, readJson, withUser } from "@web/lib/api"
+import { recordAccountEvent } from "@web/lib/account-events"
 
 /**
  * Manual accounts.
@@ -61,6 +62,12 @@ export const POST = withUser<unknown>(async (userId, request) => {
     .returning()
 
   await writeDailySnapshot(userId, (await investableTotal(userId)) - before)
+  await recordAccountEvent(userId, before, {
+    action: "account_created",
+    accountId: account!.id,
+    accountName: account!.name,
+    detail: { category: rest.category, balance },
+  })
 
   return NextResponse.json({ account: { id: account!.id } }, { status: 201 })
 })

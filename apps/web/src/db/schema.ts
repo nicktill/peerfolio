@@ -3,6 +3,7 @@ import {
   date,
   index,
   integer,
+  jsonb,
   numeric,
   pgEnum,
   pgTable,
@@ -235,6 +236,34 @@ export const portfolioSnapshots = pgTable(
     uniqueIndex("snapshots_user_date_idx").on(t.userId, t.date),
     index("snapshots_date_idx").on(t.date),
   ],
+)
+
+/**
+ * Append-only record of changes people make to their own manual accounts: an
+ * account added, edited or removed, a position set, imported or removed.
+ *
+ * Snapshots only keep a day's final value and its net flow, so without this a
+ * balance that drops to zero can't be explained after the fact. `accountId` has
+ * no foreign key on purpose: the history must outlive a deleted account.
+ */
+export const accountEvents = pgTable(
+  "account_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    accountId: uuid("account_id"),
+    accountName: text("account_name"),
+    /** account_created, account_updated, account_deleted, position_set, positions_imported, position_removed */
+    action: text("action").notNull(),
+    /** Investable total across all accounts just before and just after the change. */
+    investableBefore: numeric("investable_before", { precision: 20, scale: 4 }).notNull(),
+    investableAfter: numeric("investable_after", { precision: 20, scale: 4 }).notNull(),
+    detail: jsonb("detail").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("account_events_user_idx").on(t.userId, t.createdAt)],
 )
 
 /* ------------------------------------------------------------------ *
