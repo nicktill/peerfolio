@@ -4,6 +4,7 @@ import GoogleProvider from "next-auth/providers/google"
 import { getServerSession } from "next-auth"
 import { eq } from "drizzle-orm"
 import { db, users } from "@web/db"
+import { devLoginAllowed } from "@web/lib/dev-login"
 
 /**
  * Seeds a handle from the display name, never the email.
@@ -47,12 +48,12 @@ async function upsertUser(profile: { email: string; name?: string | null; image?
 /**
  * Sign in as a seeded user without configuring an OAuth app.
  *
- * Behind two independent locks — a non-production build *and* an explicit
- * opt-in flag — because a provider that trusts an email with no password is a
+ * Behind two independent locks — a local or Vercel-preview build *and* an
+ * explicit opt-in flag (see lib/dev-login.ts) — because a provider that trusts an email with no password is a
  * full account takeover if it ever ships. It also only matches users that
  * already exist, so it can't be used to mint new accounts.
  */
-const devLoginEnabled = process.env.NODE_ENV !== "production" && process.env.ENABLE_DEV_LOGIN === "true"
+const devLoginEnabled = devLoginAllowed()
 
 const devLoginProvider = CredentialsProvider({
   id: "dev-login",

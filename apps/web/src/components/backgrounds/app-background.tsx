@@ -13,7 +13,8 @@ import { TopoField } from "./topo-field"
 
 /**
  * DRAFT: the signed-in background, plus a small "lab" panel for comparing the
- * candidates. The panel shows in local development, or anywhere with ?lab=1.
+ * candidates. The panel shows in local development and on Vercel previews, or
+ * anywhere with ?lab=1.
  * Choices live in the URL (?bg=, &mood=) so a view can be shared, and in
  * localStorage so the last pick survives a reload. Once one design is chosen
  * this collapses to that single component and the panel goes away.
@@ -75,7 +76,8 @@ export function AppBackground() {
     const m = (params.get("mood") as Mood | null) ?? saved.mood ?? "up"
     setChoice(pick)
     setMood(m === "down" ? "down" : "up")
-    setLab(process.env.NODE_ENV !== "production" || params.get("lab") === "1")
+    // Local dev and Vercel previews show the panel; production only with ?lab=1.
+    setLab(process.env.NODE_ENV !== "production" || process.env.NEXT_PUBLIC_VERCEL_ENV === "preview" || params.get("lab") === "1")
     apply(pick, m === "down" ? "down" : "up")
     setVersion((v) => v + 1)
   }, [])
