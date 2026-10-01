@@ -1,27 +1,22 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { CandleField } from "./candle-field"
 import { DepthField } from "./depth-field"
-import { FlapField } from "./flap-field"
+import { GlyphField } from "./glyph-field"
 import { GridField, type GridMood } from "./grid-field"
-import { HeatmapField } from "./heatmap-field"
-import { MosaicField } from "./mosaic-field"
+import { HorizonField } from "./horizon-field"
 import { TopoField } from "./topo-field"
 
 /**
  * DRAFT: picks the signed-in background while we compare options.
- *   ?bg=grid (default; with ?grid=a|b|c and, for b, &mood=up|down)
- *   ?bg=heat  market heatmap on the grid
- *   ?bg=topo  topographic contours
- *   ?bg=flap  exchange board (split-flap)
- *   ?bg=candles  market mood as candlesticks (&mood=up|down)
- *   ?bg=depth  order books in the margins (&mood=up|down)
- *   ?bg=mosaic  aurora through the grid (&mood=up|down)
- * topo also takes &mood=up|down.
+ *   ?bg=grid    (default) with ?grid=a|b|c; b is the market mood (&mood=up|down)
+ *   ?bg=topo    topographic contours (&mood=up|down)
+ *   ?bg=depth   order books in the margins (&mood=up|down)
+ *   ?bg=glyph   market glyphs lit by colour blooms (&mood=up|down)
+ *   ?bg=horizon perspective floor and a ridge drawn from your returns (&mood=up|down)
  * Once one is chosen this collapses to that single component.
  */
-const CHOICES = ["grid", "heat", "topo", "flap", "candles", "depth", "mosaic"] as const
+const CHOICES = ["grid", "topo", "depth", "glyph", "horizon"] as const
 type Choice = (typeof CHOICES)[number]
 
 export function AppBackground() {
@@ -31,11 +26,9 @@ export function AppBackground() {
     if (CHOICES.includes(bg as Choice)) setChoice(bg as Choice)
   }, [])
 
-  if (choice === "heat") return <HeatmapField />
   if (choice === "topo") return <TopoField />
-  if (choice === "flap") return <FlapField />
-  if (choice === "candles") return <CandleField />
   if (choice === "depth") return <DepthField />
-  if (choice === "mosaic") return <MosaicField />
+  if (choice === "glyph") return <GlyphField />
+  if (choice === "horizon") return <HorizonField />
   return <GridField mood={"a" as GridMood} />
 }

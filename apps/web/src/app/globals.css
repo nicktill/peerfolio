@@ -260,14 +260,14 @@
   mask-image: linear-gradient(#000, #000 35%, rgb(0 0 0 / 0.45));
 }
 
-/* Heatmap background: full strength in the side margins, much quieter behind the
-   centred content column so page headers and numbers keep their contrast. */
+/* Glyph background: full strength in the side margins, faint behind the centred
+   content column so page headers and numbers keep their contrast. */
 .bg-gutters {
   mask-image: linear-gradient(
     90deg,
     #000 calc(50% - 38rem),
-    rgb(0 0 0 / 0.28) calc(50% - 33rem),
-    rgb(0 0 0 / 0.28) calc(50% + 33rem),
+    rgb(0 0 0 / 0.15) calc(50% - 33rem),
+    rgb(0 0 0 / 0.15) calc(50% + 33rem),
     #000 calc(50% + 38rem)
   );
 }

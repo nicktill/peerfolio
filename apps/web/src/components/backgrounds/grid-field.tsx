@@ -9,7 +9,8 @@ import { useEffect, useRef } from "react"
  *
  * DRAFT: three moods, switchable with ?grid=a|b|c while we choose.
  *   a  alive    cells kindle and fade on their own; the cursor leaves a trail
- *   b  market   sparks rise (you're up today) or sink (you're down) in gain/loss ink
+ *   b  market   single cells rise (you're up today) or sink (you're down) in
+ *               gain/loss ink, leaving a short fading trail; nothing else moves
  *   c  stadium  a diagonal wave sweeps the board like a scoreboard; clicks ripple out
  *
  * Cheap by construction: capped at 30fps, paused in background tabs, and with
@@ -158,7 +159,8 @@ export function GridField({ mood: initialMood = "a" }: { mood?: GridMood }) {
       for (let i = 0; i < energy.length; i++) energy[i]! *= decay
 
       // Ambient kindling, like the landing page's lit cells but never the same twice.
-      const target = Math.round((cols * rows) / (mood === "a" ? 55 : 110))
+      // The market mood is only its sparks, so it skips this.
+      const target = mood === "b" ? 0 : Math.round((cols * rows) / (mood === "a" ? 55 : 110))
       if (pulses.length < target && now - lastSpawn > 220) {
         lastSpawn = now
         pulses.push({ i: Math.floor(Math.random() * cols * rows), start: now, dur: 4000 + Math.random() * 3000 })
@@ -176,7 +178,7 @@ export function GridField({ mood: initialMood = "a" }: { mood?: GridMood }) {
 
       if (mood === "b") {
         // Sparks climb when you're up today and sink when you're down.
-        if (now - lastSpark > 650) {
+        if (now - lastSpark > 520) {
           lastSpark = now
           sparks.push({ col: Math.floor(Math.random() * cols), row: up ? rows : -1, next: now })
         }
@@ -227,7 +229,7 @@ export function GridField({ mood: initialMood = "a" }: { mood?: GridMood }) {
       }
 
       // The cursor warms the cells around it; they cool slowly after it leaves.
-      if (pointer) {
+      if (pointer && mood !== "b") {
         const { col, row } = cellAt(pointer.x, pointer.y)
         for (let dr = -2; dr <= 2; dr++) {
           for (let dc = -2; dc <= 2; dc++) {
