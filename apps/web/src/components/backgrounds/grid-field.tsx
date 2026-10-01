@@ -7,10 +7,11 @@ import { useEffect, useRef } from "react"
  * signed-in app. Same 48px grid and the same lit cells, drawn on one canvas so
  * cells can react to the cursor, to clicks and to the market.
  *
- * DRAFT: three moods, switchable with ?grid=a|b|c while we choose.
+ * DRAFT: three moods, picked by the \`mood\` prop (the background lab passes it).
  *   a  alive    cells kindle and fade on their own; the cursor leaves a trail
  *   b  market   single cells rise (you're up today) or sink (you're down) in
- *               gain/loss ink, leaving a short fading trail; nothing else moves
+ *               gain/loss ink with a short fading trail, over the landing
+ *               page's quiet blinking cells; nothing follows the cursor
  *   c  stadium  a diagonal wave sweeps the board like a scoreboard; clicks ripple out
  *
  * Cheap by construction: capped at 30fps, paused in background tabs, and with
@@ -39,8 +40,7 @@ export function GridField({ mood: initialMood = "a" }: { mood?: GridMood }) {
     if (!canvas || !ctx) return
 
     const params = new URLSearchParams(window.location.search)
-    const param = params.get("grid")
-    const mood: GridMood = param === "a" || param === "b" || param === "c" ? param : initialMood
+    const mood: GridMood = initialMood
     // Market mood direction; the dashboard will feed this from today's change.
     const up = params.get("mood") !== "down"
     const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches
@@ -159,8 +159,7 @@ export function GridField({ mood: initialMood = "a" }: { mood?: GridMood }) {
       for (let i = 0; i < energy.length; i++) energy[i]! *= decay
 
       // Ambient kindling, like the landing page's lit cells but never the same twice.
-      // The market mood is only its sparks, so it skips this.
-      const target = mood === "b" ? 0 : Math.round((cols * rows) / (mood === "a" ? 55 : 110))
+      const target = Math.round((cols * rows) / (mood === "a" ? 55 : mood === "b" ? 70 : 110))
       if (pulses.length < target && now - lastSpawn > 220) {
         lastSpawn = now
         pulses.push({ i: Math.floor(Math.random() * cols * rows), start: now, dur: 4000 + Math.random() * 3000 })

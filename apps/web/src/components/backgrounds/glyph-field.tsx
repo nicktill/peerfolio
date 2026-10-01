@@ -4,19 +4,26 @@ import { useEffect, useRef } from "react"
 import { fitCanvas, hexRgb, moodFromUrl, prefersStill, readTheme, watchTheme } from "./canvas"
 
 /**
- * DRAFT: a field of tiny market glyphs ($ % + − ▲ ▼ digits) lit from behind
- * by slow colour blooms, like light shining through a printed ticker sheet.
- * Glyphs in the light glow in the bloom's colour and shimmer as they re-print;
- * glyphs outside it stay a faint grey texture. The palette follows the day
- * (greens and blues up, reds and violets down), the cursor carries a lamp
- * that scrambles the glyphs it passes, and the blooms scroll with the page.
+ * DRAFT: a field of tiny market glyphs lit from behind by slow colour blooms,
+ * like light coming through a printed ticker sheet.
  *
- * Fast path: glyphs are stamped from a pre-rendered white atlas, then coloured
- * in one pass by stretching a tiny colour map over them ("source-in"), and the
- * same map, blurred, is laid underneath as the haze.
+ * The light shades the type, the way ASCII art does: where it's dim the sheet
+ * shows only fine marks (. : ,), where it's bright the glyphs get denser
+ * (+ = %), and at the hot cores they are the heaviest ($ # ▲), glowing almost
+ * white in the dark theme and deeply saturated in the light one. Glyphs in the
+ * light keep re-printing, every few seconds a scan band sweeps down the sheet
+ * and refreshes it like a quote board, and the cursor carries a lamp that
+ * scrambles what it passes. Palette follows the day: greens and blues up,
+ * reds and violets down.
+ *
+ * Fast path: glyphs are stamped from a pre-rendered white atlas, coloured in
+ * one pass by stretching a tiny colour map over them ("source-in"), and a
+ * blurrier copy of that map is laid underneath as the haze.
  */
-const PITCH = 15
-const GLYPHS = "0123456789$%+-.,:#=*/<>()▲▼"
+const PITCH = 14
+// Ordered light to heavy; the light level picks a band of this ramp.
+const RAMP = [".,:'", "-+:=;", "+=*%<>/", "%$#▲▼&@"]
+const ALL = RAMP.join("")
 
 type Bloom = { ax: number; ay: number; px: number; py: number; ph: number; r: number; rgb: [number, number, number] }
 
@@ -34,29 +41,33 @@ export function GlyphField() {
     let scroll = window.scrollY
     const lamp = { x: -999, y: -999, tx: -999, ty: -999, s: 0, ts: 0 }
 
-    // Atlas: every glyph once, in white, at device resolution.
     const dpr = Math.min(window.devicePixelRatio || 1, 2)
     const atlas = document.createElement("canvas")
     const actx = atlas.getContext("2d")!
     const makeAtlas = () => {
-      atlas.width = GLYPHS.length * PITCH * dpr
+      atlas.width = ALL.length * PITCH * dpr
       atlas.height = PITCH * dpr
       actx.setTransform(dpr, 0, 0, dpr, 0, 0)
       actx.clearRect(0, 0, atlas.width, atlas.height)
       actx.fillStyle = "#fff"
-      actx.font = `500 11px ${theme.mono}`
+      actx.font = `600 10.5px ${theme.mono}`
       actx.textAlign = "center"
       actx.textBaseline = "middle"
-      for (let i = 0; i < GLYPHS.length; i++) actx.fillText(GLYPHS[i]!, i * PITCH + PITCH / 2, PITCH / 2 + 0.5)
+      for (let i = 0; i < ALL.length; i++) actx.fillText(ALL[i]!, i * PITCH + PITCH / 2, PITCH / 2 + 0.5)
     }
     makeAtlas()
+    const bandStart = RAMP.map((_, b) => RAMP.slice(0, b).join("").length)
+    const pick = (band: number) => bandStart[band]! + Math.floor(Math.random() * RAMP[band]!.length)
 
-    // The colour map: one pixel per glyph cell.
+    // Colour map at glyph resolution, plus a quarter-size copy for the haze.
     const map = document.createElement("canvas")
     const mctx = map.getContext("2d")!
+    const haze = document.createElement("canvas")
+    const hctx = haze.getContext("2d")!
     let cols = 0
     let rows = 0
-    let cells = new Uint8Array(0)
+    let glyph = new Uint8Array(0)
+    let band = new Uint8Array(0)
     let image: ImageData | null = null
     const alloc = () => {
       size = fitCanvas(canvas, ctx)
@@ -64,9 +75,12 @@ export function GlyphField() {
       rows = Math.ceil(size.h / PITCH)
       map.width = cols
       map.height = rows
+      haze.width = Math.max(1, Math.ceil(cols / 5))
+      haze.height = Math.max(1, Math.ceil(rows / 5))
       image = mctx.createImageData(cols, rows)
-      cells = new Uint8Array(cols * rows)
-      for (let i = 0; i < cells.length; i++) cells[i] = Math.floor(Math.random() * GLYPHS.length)
+      glyph = new Uint8Array(cols * rows)
+      band = new Uint8Array(cols * rows)
+      for (let i = 0; i < glyph.length; i++) glyph[i] = pick(0)
     }
     alloc()
 
@@ -77,36 +91,42 @@ export function GlyphField() {
     }
     let colors = palette()
     const blooms: Bloom[] = colors.map((rgb, i) => ({
-      ax: [0.32, 0.38, 0.28][i]!,
-      ay: [0.22, 0.3, 0.26][i]!,
-      px: 46 + i * 19,
-      py: 63 + i * 11,
+      ax: [0.3, 0.36, 0.26][i]!,
+      ay: [0.22, 0.28, 0.24][i]!,
+      px: 48 + i * 19,
+      py: 66 + i * 11,
       ph: i * 2.1,
-      r: [0.26, 0.2, 0.17][i]!,
+      r: [0.24, 0.19, 0.16][i]!,
       rgb,
     }))
-    const grey = () => (theme.dark ? [150, 150, 145] : [90, 90, 85])
 
-    const frame = (t: number, shimmer: boolean) => {
+    const frame = (t: number, live: boolean) => {
       const { w, h } = size
+      const dark = theme.dark
       const diag = Math.hypot(w, h)
       const shift = scroll * 0.3
+      // The light breathes a little, so the sheet never looks frozen.
+      const breathe = 0.92 + 0.08 * Math.sin(t * 0.4)
       const centres = blooms.map((b) => ({
         x: w * (0.55 + b.ax * Math.sin((t / b.px) * 2 * Math.PI + b.ph)),
         y: h * (0.45 + b.ay * Math.sin((t / b.py) * 2 * Math.PI + b.ph * 1.3)) - shift,
         r2: (b.r * diag) ** 2,
         rgb: b.rgb,
       }))
-      const [gr, gg, gb] = grey()
+      // A scan band sweeps down every 9s, re-printing and briefly lifting what it crosses.
+      const scanPeriod = 9
+      const scanY = ((t % scanPeriod) / scanPeriod) * (h + 240) - 120
+      const grey = dark ? [140, 140, 136] : [120, 118, 112]
       const data = image!.data
-      const base = theme.dark ? 0.1 : 0.09
-      const lit = theme.dark ? 0.75 : 0.5
+      const base = dark ? 0.09 : 0.1
+      const lit = dark ? 0.85 : 0.6
 
       ctx.clearRect(0, 0, w, h)
       for (let row = 0; row < rows; row++) {
+        const y = row * PITCH + PITCH / 2
+        const scan = Math.max(0, 1 - Math.abs(y - scanY) / 70)
         for (let col = 0; col < cols; col++) {
           const x = col * PITCH + PITCH / 2
-          const y = row * PITCH + PITCH / 2
           let wsum = 0
           let r = 0
           let g = 0
@@ -124,37 +144,58 @@ export function GlyphField() {
           if (lamp.s > 0.01) {
             const dx = x - lamp.x
             const dy = y - lamp.y
-            lampW = lamp.s * Math.exp(-(dx * dx + dy * dy) / (130 * 130))
+            lampW = lamp.s * Math.exp(-(dx * dx + dy * dy) / (120 * 120))
           }
           const i = row * cols + col
-          const k = Math.min(1, wsum + lampW * 0.8)
-          // Colour: the bloom's hue where lit, fading to quiet grey where it isn't.
-          const mix = Math.min(1, k * 1.4)
-          const cr = wsum > 0.001 ? r / wsum : gr
-          const cg = wsum > 0.001 ? g / wsum : gg
-          const cb = wsum > 0.001 ? b / wsum : gb
-          data[i * 4] = gr + (cr - gr) * mix
-          data[i * 4 + 1] = gg + (cg - gg) * mix
-          data[i * 4 + 2] = gb + (cb - gb) * mix
+          const k = Math.min(1, (wsum * breathe + lampW * 0.7) * (1 + scan * 0.35))
+
+          // Hue from the blooms; grey where they don't reach; a hot core where they're strongest.
+          const mix = Math.min(1, k * 1.5)
+          const cr = wsum > 0.001 ? r / wsum : grey[0]!
+          const cg = wsum > 0.001 ? g / wsum : grey[1]!
+          const cb = wsum > 0.001 ? b / wsum : grey[2]!
+          let pr = grey[0]! + (cr - grey[0]!) * mix
+          let pg = grey[1]! + (cg - grey[1]!) * mix
+          let pb = grey[2]! + (cb - grey[2]!) * mix
+          const hot = Math.max(0, (k - 0.7) / 0.3)
+          if (dark) {
+            pr += (255 - pr) * hot * 0.55
+            pg += (255 - pg) * hot * 0.55
+            pb += (255 - pb) * hot * 0.55
+          } else {
+            // On paper the core deepens instead of whitening.
+            pr *= 1 - hot * 0.35
+            pg *= 1 - hot * 0.35
+            pb *= 1 - hot * 0.35
+          }
+          data[i * 4] = pr
+          data[i * 4 + 1] = pg
+          data[i * 4 + 2] = pb
           data[i * 4 + 3] = Math.round(k * 255)
 
-          // Glyphs re-print where the light is, faster under the lamp.
-          if (shimmer && Math.random() < k * 0.025 + lampW * 0.25) cells[i] = Math.floor(Math.random() * GLYPHS.length)
+          // The light level chooses how heavy the type is; changing band re-prints the glyph.
+          const want = k < 0.12 ? 0 : k < 0.35 ? 1 : k < 0.65 ? 2 : 3
+          if (want !== band[i] || (live && Math.random() < k * 0.02 + lampW * 0.3 + scan * 0.12)) {
+            band[i] = want
+            glyph[i] = pick(want)
+          }
           ctx.globalAlpha = base + k * k * lit
-          const gIdx = cells[i]!
-          ctx.drawImage(atlas, gIdx * PITCH * dpr, 0, PITCH * dpr, PITCH * dpr, col * PITCH, row * PITCH, PITCH, PITCH)
+          ctx.drawImage(atlas, glyph[i]! * PITCH * dpr, 0, PITCH * dpr, PITCH * dpr, col * PITCH, row * PITCH, PITCH, PITCH)
         }
       }
       mctx.putImageData(image!, 0, 0)
+      hctx.clearRect(0, 0, haze.width, haze.height)
+      hctx.imageSmoothingEnabled = true
+      hctx.drawImage(map, 0, 0, haze.width, haze.height)
 
-      // Colour the white glyphs in one pass, then lay the blurred map beneath as haze.
       ctx.globalAlpha = 1
       ctx.imageSmoothingEnabled = true
       ctx.globalCompositeOperation = "source-in"
       ctx.drawImage(map, 0, 0, cols, rows, 0, 0, cols * PITCH, rows * PITCH)
+      // The haze sits under the type: a soft glow in the dark, a colour wash on paper.
       ctx.globalCompositeOperation = "destination-over"
-      ctx.globalAlpha = theme.dark ? 0.24 : 0.1
-      ctx.drawImage(map, 0, 0, cols, rows, 0, 0, cols * PITCH, rows * PITCH)
+      ctx.globalAlpha = dark ? 0.3 : 0.16
+      ctx.drawImage(haze, 0, 0, haze.width, haze.height, -PITCH * 2, -PITCH * 2, cols * PITCH + PITCH * 4, rows * PITCH + PITCH * 4)
       ctx.globalCompositeOperation = "source-over"
       ctx.globalAlpha = 1
     }
