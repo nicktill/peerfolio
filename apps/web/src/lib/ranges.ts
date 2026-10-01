@@ -152,6 +152,18 @@ export function withLivePoint(
   return [...points, { date: today, ...live, netFlows: 0 }]
 }
 
+/**
+ * Whether a snapshot write must leave an existing row alone. The row from the
+ * day tracking began holds the value you entered, and that value is the
+ * baseline every return is measured from. A write that records no cash flow
+ * (the nightly job, a sync) is only market movement, and letting it overwrite
+ * that row would move the baseline to the close and erase the day's return.
+ * The movement still counts: the next day's row is measured against the entry.
+ */
+export function keepsEntryValue(firstDate: string | null, when: string, externalFlow: number): boolean {
+  return externalFlow === 0 && firstDate === when
+}
+
 const round2 = (n: number) => Math.round(n * 100) / 100
 
 /** Downsamples an indexed series to at most `max` points, always keeping the ends. */
