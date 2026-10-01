@@ -5,6 +5,7 @@ import { accounts, db } from "@web/db"
 import { investableTotal, writeDailySnapshot } from "@web/lib/plaid-sync"
 import { ApiError, readJson, withUser } from "@web/lib/api"
 import { accountHasPositions, requireManualAccount } from "@web/lib/positions"
+import { recordAccountEvent } from "@web/lib/account-events"
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -17,7 +18,7 @@ const UpdateAccount = z.object({
 
 export const PATCH = withUser<Ctx>(async (userId, request, { params }) => {
   const { id } = await params
-  await requireManualAccount(userId, id)
+  const account = await requireManualAccount(userId, id)
 
   const before = await investableTotal(userId)
   const parsed = UpdateAccount.safeParse(await readJson(request))
@@ -42,17 +43,33 @@ export const PATCH = withUser<Ctx>(async (userId, request, { params }) => {
   // Re-stamp today so an updated balance shows immediately. The delta counts
   // as a flow: a typed-in number can't be distinguished from a correction.
   await writeDailySnapshot(userId, (await investableTotal(userId)) - before)
+  await recordAccountEvent(userId, before, {
+    action: "account_updated",
+    accountId: id,
+    accountName: rest.name ?? account.name,
+    detail: {
+      ...rest,
+      balanceBefore: balance !== undefined ? Number(account.currentBalance ?? 0) : undefined,
+      balanceAfter: balance,
+    },
+  })
 
   return NextResponse.json({ ok: true })
 })
 
 export const DELETE = withUser<Ctx>(async (userId, _request, { params }) => {
   const { id } = await params
-  await requireManualAccount(userId, id)
+  const account = await requireManualAccount(userId, id)
 
   const beforeDelete = await investableTotal(userId)
   await db.delete(accounts).where(eq(accounts.id, id))
   await writeDailySnapshot(userId, (await investableTotal(userId)) - beforeDelete)
+  await recordAccountEvent(userId, beforeDelete, {
+    action: "account_deleted",
+    accountId: id,
+    accountName: account.name,
+    detail: { category: account.category, balance: Number(account.currentBalance ?? 0) },
+  })
 
   return NextResponse.json({ ok: true })
 })

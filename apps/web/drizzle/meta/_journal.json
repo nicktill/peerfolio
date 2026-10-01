@@ -57,6 +57,13 @@
       "when": 1790781171407,
       "tag": "0007_fantasy_reactions",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790816428086,
+      "tag": "0008_account_events",
+      "breakpoints": true
     }
   ]
 }

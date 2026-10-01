@@ -1,8 +1,9 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm"
+import { and, desc, eq, inArray, min, sql } from "drizzle-orm"
 import type { AccountBase, Holding as PlaidHolding, Security as PlaidSecurity } from "plaid"
 import { db, holdings, accounts, plaidItems, portfolioSnapshots, securities } from "@web/db"
 import { decrypt } from "@web/lib/crypto"
 import { getPlaidClient, isReauthRequired, plaidErrorCode } from "@web/lib/plaid"
+import { keepsEntryValue } from "@web/lib/ranges"
 import { categorizeAccount, type AccountCategory } from "@web/lib/account-category"
 
 export { categorizeAccount, type AccountCategory }
@@ -267,6 +268,12 @@ export async function writeDailySnapshot(userId: string, externalFlow = 0, when:
   }
 
   const isVerified = rows.length > 0 && !sawManual
+  const totals = { totalAssets, totalLiabilities, netWorth: totalAssets - totalLiabilities, investableAssets, isVerified }
+
+  // The first day's row is the entry value, the baseline for every return. A
+  // pure market write must not overwrite it with the close (see keepsEntryValue).
+  const [first] = await db.select({ date: min(portfolioSnapshots.date) }).from(portfolioSnapshots).where(eq(portfolioSnapshots.userId, userId))
+  if (keepsEntryValue(first?.date ?? null, when, externalFlow)) return totals
 
   await db
     .insert(portfolioSnapshots)
@@ -292,7 +299,7 @@ export async function writeDailySnapshot(userId: string, externalFlow = 0, when:
       },
     })
 
-  return { totalAssets, totalLiabilities, netWorth: totalAssets - totalLiabilities, investableAssets, isVerified }
+  return totals
 }
 
 /**
