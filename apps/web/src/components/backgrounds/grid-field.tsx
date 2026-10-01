@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef } from "react"
+import { cursorOff } from "./canvas"
 
 /**
  * The landing page's graph paper, grown into a living background for the
@@ -242,6 +243,7 @@ export function GridField({ mood: initialMood = "a" }: { mood?: GridMood }) {
     }
 
     const onMove = (event: PointerEvent) => {
+      if (cursorOff()) return
       if (event.pointerType === "mouse") pointer = { x: event.clientX, y: event.clientY }
     }
     const onLeave = () => (pointer = null)
@@ -268,4 +270,13 @@ export function GridField({ mood: initialMood = "a" }: { mood?: GridMood }) {
   }, [initialMood])
 
   return <canvas ref={canvasRef} aria-hidden className="grid-field pointer-events-none fixed inset-0 -z-10" />
+}
+
+/** The two grid designs offered in Settings, as standalone components for lazy loading. */
+export function AliveGrid() {
+  return <GridField mood="a" />
+}
+
+export function MarketGrid() {
+  return <GridField mood="b" />
 }

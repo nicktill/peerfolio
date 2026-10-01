@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { signOut } from "next-auth/react"
 import { ExternalLink, Globe, Lock, LogOut, ShieldCheck, Trash2 } from "lucide-react"
+import { BackgroundPicker } from "@web/components/background-picker"
 import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card"
@@ -84,6 +85,15 @@ export default function SettingsPage() {
         <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">Settings</h1>
         <p className="mt-1 text-sm text-muted-foreground">{data.user.email}</p>
       </header>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Background</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <BackgroundPicker />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

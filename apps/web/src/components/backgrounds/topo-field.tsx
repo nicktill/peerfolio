@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef } from "react"
-import { fitCanvas, moodFromUrl, prefersStill, readTheme, strokeGrid, watchTheme } from "./canvas"
+import { fitCanvas, moodFromUrl, prefersStill, readTheme, strokeGrid, watchTheme, cursorOff } from "./canvas"
 
 /**
  * DRAFT: topographic. Contour lines of a slowly shifting landscape drift over
@@ -142,6 +142,7 @@ export function TopoField() {
     }
 
     const onMove = (e: PointerEvent) => {
+      if (cursorOff()) return
       if (e.pointerType !== "mouse") return
       if (hill.amp < 0.05) {
         hill.x = e.clientX

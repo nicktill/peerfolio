@@ -98,3 +98,6 @@ export function gutters(w: number) {
     right: { from: cols - g, to: cols - 1 },
   }
 }
+
+/** True when the viewer turned "Interactive" off: designs keep moving but ignore the cursor. */
+export const cursorOff = () => document.documentElement.dataset.bgStill === "1"

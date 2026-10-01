@@ -272,19 +272,10 @@
   );
 }
 
-/* Atmosphere background (atmosphere-field.tsx): the low-res gas is blurred and
-   stretched by the GPU, and a fine grain sits on top so the gradients feel like
-   pigment, not a screen. */
-.atmosphere-gas {
-  filter: blur(56px) saturate(1.15);
-}
-.atmosphere-grain {
-  opacity: 0.09;
-  mix-blend-mode: overlay;
-  background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .5 0 0 0 0 .5 0 0 0 0 .5 0 0 0 1 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>") 0 0 / 180px;
-}
-.dark .atmosphere-grain {
-  opacity: 0.14;
+/* "Classic" background: the app's original quiet dot grid, fading below the first screen. */
+.classic-dots {
+  background: radial-gradient(hsl(var(--foreground) / var(--dot-o)) 1px, transparent 1.3px) 0 0 / 22px 22px;
+  mask-image: linear-gradient(#000 0, #000 240px, transparent 640px);
 }
 
 /* The hero preview starts tipped back and a little small, and settles flat as it

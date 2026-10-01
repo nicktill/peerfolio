@@ -13,15 +13,20 @@ Design exploration for the signed-in app's background, plus landing-page polish.
   - `atmosphere-field`: Atmosphere
   - `orbit-field`: Orbit
   - `spine-field`: Spine
-- `app-background.tsx` renders the chosen one and a **Background lab** panel (bottom right): pick a design and an up/down day. The panel shows in local dev and on Vercel previews, or anywhere with `?lab=1`.
+- **Settings → Background** lets each viewer pick their own background. The choices are Classic (today's dots, the default), Alive grid, Market mood, Topographic, Order book, Glyph field, Horizon and Orbit.
+- There is also an **Interactive** switch. When it's off, the designs keep their slow motion but ignore the cursor.
+- The choice is saved in the browser (`lib/background-pref.ts`).
+- `app-background.tsx` lazy-loads only the chosen design, so the others never download. Classic is plain CSS.
+- Atmosphere and Spine were dropped.
 - Favourites so far: Topographic, Market mood (with blinking cells), Glyph field (dark), Horizon, Atmosphere, Order book.
-- Still to do: pick one, wire real data (daily change → mood, real returns → Horizon ridges), remove the lab.
+- Still to do: wire real data in (daily change → mood, real returns → Horizon ridges, league → Orbit).
+- Status: parked. It's kept on this branch to revisit later and is not merged.
 - Design reference prompt: `docs/design/ui-style-prompt.md`.
 
 ## See the demo
 Preview for this branch, behind your Vercel login:
 https://peerfolio-git-feat-background-lab-nicktills-projects.vercel.app/dev-login
-Sign in as `nick` (fake demo data) and use the lab panel.
+Sign in as `nick` (fake demo data), then go to Settings → Background.
 
 How it is isolated from production:
 - **Database:** a separate Neon project, `peerfolio-preview-demo` (id `young-bonus-91729396`), seeded with fake users. Production data was never copied into it.

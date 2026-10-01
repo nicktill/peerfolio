@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef } from "react"
-import { fitCanvas, hexRgb, moodFromUrl, prefersStill, readTheme, watchTheme } from "./canvas"
+import { fitCanvas, hexRgb, moodFromUrl, prefersStill, readTheme, watchTheme, cursorOff } from "./canvas"
 
 /**
  * DRAFT: a field of tiny market glyphs lit from behind by slow colour blooms,
@@ -219,6 +219,7 @@ export function GlyphField() {
     }
 
     const onMove = (e: PointerEvent) => {
+      if (cursorOff()) return
       if (e.pointerType !== "mouse") return
       if (lamp.s < 0.05) {
         lamp.x = e.clientX

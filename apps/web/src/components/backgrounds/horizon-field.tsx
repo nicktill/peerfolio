@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef } from "react"
-import { CELL, fitCanvas, moodFromUrl, prefersStill, readTheme, watchTheme } from "./canvas"
+import { CELL, fitCanvas, moodFromUrl, prefersStill, readTheme, watchTheme, cursorOff } from "./canvas"
 
 /**
  * DRAFT: Horizon. Your market as a landscape at the edge of the day.
@@ -270,6 +270,7 @@ export function HorizonField() {
     }
 
     const onMove = (e: PointerEvent) => {
+      if (cursorOff()) return
       if (e.pointerType === "mouse") cam.tx = (e.clientX / size.w - 0.5) * -70
     }
     const onScroll = () => {

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef } from "react"
-import { CELL, fitCanvas, gridOffsetX, gutters, moodFromUrl, prefersStill, readTheme, strokeGrid, watchTheme } from "./canvas"
+import { CELL, fitCanvas, gridOffsetX, gutters, moodFromUrl, prefersStill, readTheme, strokeGrid, watchTheme, cursorOff } from "./canvas"
 
 /**
  * DRAFT: Swiss-precise order books in the side margins. Each margin holds a
@@ -169,6 +169,7 @@ export function DepthField() {
     }
 
     const onMove = (e: PointerEvent) => {
+      if (cursorOff()) return
       if (e.pointerType === "mouse") pointer = { x: e.clientX, y: e.clientY }
     }
     const onLeave = () => (pointer = null)
