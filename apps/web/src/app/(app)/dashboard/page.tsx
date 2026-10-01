@@ -292,6 +292,7 @@ export default function DashboardPage() {
               <FillChart
                 points={series}
                 baseline={100}
+                indexed
                 onHover={setHoverIndex}
                 ariaLabel={`Time-weighted return over the last ${range}`}
                 valueFormatter={(v) => `${v >= 100 ? "+" : "−"}${Math.abs(v - 100).toFixed(2)}%`}
