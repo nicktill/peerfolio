@@ -474,6 +474,45 @@ export const fantasyTrades = pgTable(
   (t) => [index("fantasy_trades_league_created_idx").on(t.leagueId, t.createdAt)],
 )
 
+export const orderStatus = pgEnum("order_status", ["pending", "filled", "cancelled", "rejected"])
+
+/**
+ * Stock orders placed while the market is closed. The only price on file then
+ * is the last close, which extended-hours trading has already moved away from,
+ * so the order waits and fills at the first live price after the open.
+ * A pending buy's `amount` is set aside from the member's cash until it settles.
+ */
+export const fantasyOrders = pgTable(
+  "fantasy_orders",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    leagueId: uuid("league_id")
+      .notNull()
+      .references(() => fantasyLeagues.id, { onDelete: "cascade" }),
+    memberId: uuid("member_id")
+      .notNull()
+      .references(() => fantasyMembers.id, { onDelete: "cascade" }),
+    securityId: text("security_id")
+      .notNull()
+      .references(() => securities.id),
+    side: tradeSide("side").notNull(),
+    /** Dollars to spend, for a buy. */
+    amount: numeric("amount", { precision: 20, scale: 2 }),
+    /** Shares to sell. Null on a sell means everything held at the open. */
+    shares: numeric("shares", { precision: 24, scale: 8 }),
+    status: orderStatus("status").notNull().default("pending"),
+    /** Why it didn't fill, when rejected or cancelled by the system. */
+    reason: text("reason"),
+    tradeId: uuid("trade_id").references(() => fantasyTrades.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    settledAt: timestamp("settled_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("fantasy_orders_status_created_idx").on(t.status, t.createdAt),
+    index("fantasy_orders_member_idx").on(t.memberId, t.status),
+  ],
+)
+
 /** One value per member per day, written by the nightly job, for the race chart. */
 export const fantasySnapshots = pgTable(
   "fantasy_snapshots",

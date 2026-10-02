@@ -97,6 +97,9 @@ export async function refreshLivePrices({
   return { provider: provider.name, sources: result.sources, claimed: claimed.length, refreshed: updated.length, rejected, rejectedExample, rateLimited: result.rateLimited, failed: result.failed }
 }
 
+/** Whether a live price source is configured at all. Without one, stock trades can never fill. */
+export const hasLiveQuotes = () => createQuoteProvider(process.env) !== null
+
 let warnedNoProvider = false
 
 /**
@@ -152,8 +155,15 @@ export function scheduleLiveRefresh() {
  * price than the one people are valued at would show up as an instant gain or
  * loss, the one thing buying must never do. Requires the security row to exist
  * (call `ensurePriced` first).
+ *
+ * `printedAt` is the time of the trade behind the price, when it was fetched
+ * just now (not reused from storage); order fills use it to insist on a print
+ * made after the order was placed.
  */
-export async function ensureLivePrice(marketTicker: string, { maxAgeSeconds = 0, now = new Date() }: { maxAgeSeconds?: number; now?: Date } = {}) {
+export async function ensureLivePrice(
+  marketTicker: string,
+  { maxAgeSeconds = 0, now = new Date() }: { maxAgeSeconds?: number; now?: Date } = {},
+): Promise<{ price: number; asOf: string; printedAt?: string } | null> {
   try {
     if (!isUsMarketOpen(now)) return null
     const provider = createQuoteProvider(process.env)
@@ -180,7 +190,7 @@ export async function ensureLivePrice(marketTicker: string, { maxAgeSeconds = 0,
       .set({ previousClose: previousCloseOnUpdate(quoteDate(quote)), closePrice: quote.price.toString(), closePriceAsOf: quoteDate(quote), updatedAt: new Date() })
       .where(eq(securities.id, securityId))
     await revalueSecurities([securityId])
-    return { price: quote.price, asOf: quoteDate(quote) }
+    return { price: quote.price, asOf: quoteDate(quote), printedAt: quote.asOf }
   } catch (error) {
     console.error("[quotes] live price lookup failed:", error instanceof Error ? error.message : error)
     return null
