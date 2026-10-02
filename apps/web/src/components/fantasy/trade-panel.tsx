@@ -205,7 +205,7 @@ export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: 
           <Button type="submit" className="w-full" size="lg" loading={pending} variant={side === "sell" ? "outline" : "default"}>
             {side === "buy" ? "Buy 🚀" : "Sell 💸"}
           </Button>
-          <p className="text-[11px] leading-4 text-muted-foreground">Fills at the price shown: live while the market is open, otherwise the last close. Play money only.</p>
+          <p className="text-[11px] leading-4 text-muted-foreground">Stocks trade 9:30am to 4pm ET at the live price; crypto trades anytime. Play money only.</p>
         </form>
       </CardContent>
     </Card>
