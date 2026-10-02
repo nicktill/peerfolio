@@ -21,8 +21,13 @@ export function formatPercent(value: number, digits = 2): string {
 }
 
 
+/**
+ * A bare YYYY-MM-DD is a calendar day, not an instant. `new Date("2026-09-30")`
+ * is UTC midnight, which every US timezone renders as the day before, so those
+ * are read at local noon instead.
+ */
 export function formatDate(date: string | Date, style: "short" | "medium" = "medium"): string {
-  const d = typeof date === "string" ? new Date(date) : date
+  const d = typeof date === "string" ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(date) ? `${date}T12:00:00` : date) : date
   return new Intl.DateTimeFormat("en-US", {
     month: style === "short" ? "numeric" : "short",
     day: "numeric",
