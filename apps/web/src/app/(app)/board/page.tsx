@@ -17,6 +17,7 @@ import { mutate, useApi } from "@web/lib/use-api"
 import { RANGES, type Range } from "@web/lib/ranges"
 import { revealStyle } from "@web/components/motion/reveal"
 import { cn } from "@web/lib/utils"
+import { withShownWeights } from "@web/lib/percent-display"
 
 type Trader = {
   handle: string | null
@@ -149,13 +150,13 @@ export default function BoardPage() {
 
                   {trader.holdings.length > 0 ? (
                     <div className="mt-2 flex flex-wrap gap-1.5 pl-9">
-                      {trader.holdings.slice(0, 5).map((h) => (
+                      {withShownWeights(trader.holdings.slice(0, 5)).map((h) => (
                         <span
                           key={h.ticker}
                           className="numeric rounded-md bg-secondary px-1.5 py-0.5 text-[11px] font-medium"
                           title={`${h.name ?? h.ticker} — ${h.weight.toFixed(1)}% of their portfolio`}
                         >
-                          {h.ticker} <span className="text-muted-foreground">{h.weight.toFixed(0)}%</span>
+                          {h.ticker} <span className="text-muted-foreground">{h.shownWeight}%</span>
                         </span>
                       ))}
                     </div>
