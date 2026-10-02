@@ -253,8 +253,8 @@ export default function DashboardPage() {
               <CardTitle>Return</CardTitle>
               {data.hasHistory ? (
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Since you started tracking. Deposits and withdrawals don’t count.
-                  {nextRange ? ` ${nextRange} unlocks in ${plural(unlockIn[nextRange], "day")}.` : ""}
+                  How your investments have done since you added them here. Money you add or withdraw doesn’t count.
+                  {nextRange ? ` The ${nextRange} view unlocks in ${plural(unlockIn[nextRange], "day")}.` : ""}
                 </p>
               ) : null}
               {data.hasHistory ? (
@@ -266,7 +266,7 @@ export default function DashboardPage() {
                     {hoverIndex != null && shown
                       ? formatDate(shown.date)
                       : windowCoversAll && data.firstDate
-                        ? `since ${formatDate(`${data.firstDate}T12:00:00`)} · ${plural(data.performance.days, "day")} tracked`
+                        ? `since you added investments on ${formatDate(data.firstDate)} · ${plural(data.performance.days, "day")} tracked`
                         : `last ${RANGE_NAMES[range]}`}
                   </span>
                 </div>
