@@ -9,6 +9,7 @@ import { TickerLogo } from "@web/components/ui/ticker-logo"
 import { colorForIndex, type AllocationSlice } from "@web/components/charts/allocation-bar"
 import { formatCurrency, formatPercent } from "@web/lib/format"
 import { cn } from "@web/lib/utils"
+import { roundToTotal, withShownWeights } from "@web/lib/percent-display"
 
 export type HoldingRow = {
   securityId: string
@@ -40,6 +41,25 @@ const signed = (v: number, hidden: boolean) =>
   hidden ? "••••" : `${v > 0 ? "+" : v < 0 ? "−" : ""}${formatCurrency(Math.abs(v))}`
 
 const tone = (v: number | null) => (v == null || v === 0 ? "text-muted-foreground" : v > 0 ? "text-gain-ink" : "text-loss-ink")
+
+/**
+ * The line under a holding's value on phones, where there's no room for the
+ * Today and Total return columns: the metric the sort is on, with its percent
+ * and dollar amount from the same period. "Value" shows today's move.
+ */
+function MobileMetric({ h, sort, hidden }: { h: HoldingRow; sort: Sort; hidden: boolean }) {
+  const gain = sort === "gain"
+  const percent = gain ? h.gainPercent : h.todayPercent
+  const amount = gain ? h.gainAmount : h.todayAmount
+  if (percent == null && amount == null) {
+    return <p className="numeric text-xs text-muted-foreground md:hidden">{gain ? "no avg cost" : "—"}</p>
+  }
+  return (
+    <p className={cn("numeric text-xs md:hidden", tone(percent ?? amount))}>
+      {[percent != null ? formatPercent(percent, gain ? 1 : 2) : null, amount != null ? signed(amount, hidden) : null].filter(Boolean).join(" · ")}
+    </p>
+  )
+}
 
 /**
  * Every holding as one row per security (the same fund in two accounts is one
@@ -103,6 +123,9 @@ export function HoldingsTable({
   }
 
   const slices = allocation.slice(0, 5)
+  const shownSlices = roundToTotal(slices.map((s) => s.percent))
+  // Row weights are rounded together across every holding, so the column adds up to 100.0%.
+  const shownWeight = new Map(withShownWeights(holdings, 1).map((h) => [h.securityId, h.shownWeight]))
   const maxWeight = Math.max(...holdings.map((h) => h.weight), 1)
 
   return (
@@ -126,7 +149,7 @@ export function HoldingsTable({
       <CardContent id="holdings-body" hidden={!open}>
         {slices.length > 0 ? (
           <div className="mb-2">
-            <div className="flex h-1.5 w-full gap-0.5 overflow-hidden rounded-full" role="img" aria-label={slices.map((s) => `${s.name} ${s.percent.toFixed(0)} percent`).join(", ")}>
+            <div className="flex h-1.5 w-full gap-0.5 overflow-hidden rounded-full" role="img" aria-label={slices.map((s, i) => `${s.name} ${shownSlices[i]} percent`).join(", ")}>
               {slices.map((s, i) => (
                 <div key={s.name} className="h-full rounded-full" style={{ width: `${Math.max(s.percent, 1)}%`, backgroundColor: colorForIndex(i) }} />
               ))}
@@ -135,7 +158,7 @@ export function HoldingsTable({
               {slices.map((s, i) => (
                 <span key={s.name} className="inline-flex items-center gap-1.5">
                   <span className="size-2 rounded-[2px]" style={{ backgroundColor: colorForIndex(i) }} aria-hidden />
-                  {s.name} <b className="numeric font-semibold text-foreground">{`${s.percent.toFixed(0)}%`}</b>
+                  {s.name} <b className="numeric font-semibold text-foreground">{`${shownSlices[i]}%`}</b>
                 </span>
               ))}
             </p>
@@ -158,7 +181,6 @@ export function HoldingsTable({
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold">{h.ticker ?? h.name ?? "Position"}</p>
                   <p className="truncate text-xs text-muted-foreground">
-                    <span className="md:hidden">{h.gainPercent != null ? <span className={tone(h.gainPercent)}>{formatPercent(h.gainPercent, 1)} · </span> : null}</span>
                     {h.name ?? ""}
                     {h.positions > 1 ? ` · ${h.positions} accounts` : ""}
                   </p>
@@ -166,7 +188,7 @@ export function HoldingsTable({
               </div>
 
               <div className="hidden items-center gap-3 md:flex">
-                <span className="numeric w-11 text-sm">{`${h.weight.toFixed(1)}%`}</span>
+                <span className="numeric w-11 text-sm">{`${shownWeight.get(h.securityId) ?? h.weight.toFixed(1)}%`}</span>
                 <span className="h-1 flex-1 rounded-full bg-muted">
                   <span className="block h-1 rounded-full bg-muted-foreground/70" style={{ width: `${Math.max((h.weight / maxWeight) * 100, 2)}%` }} />
                 </span>
@@ -174,9 +196,7 @@ export function HoldingsTable({
 
               <div className="text-right">
                 <p className="numeric text-sm font-semibold">{formatCurrency(h.value, { hidden })}</p>
-                <p className={cn("numeric text-xs md:hidden", tone(h.todayAmount))}>
-                  {h.todayAmount != null ? signed(h.todayAmount, hidden) : "—"}
-                </p>
+                <MobileMetric h={h} sort={sort} hidden={hidden} />
               </div>
 
               <div className="hidden text-right md:block">

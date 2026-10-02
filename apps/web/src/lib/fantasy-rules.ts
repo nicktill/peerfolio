@@ -77,6 +77,12 @@ export function checkQueuedOrder(
 /** Smallest trade worth recording: a cent of cash or a hundred-millionth of a share. */
 const MIN_CASH = 0.01
 const MIN_SHARES = 1e-8
+/**
+ * A remainder smaller than this after a sale is closed out with it. Shared with
+ * the ledger replay so the stored book and the nightly check agree on whether a
+ * position still exists; anything this small rounds to 0 in the UI anyway.
+ */
+const DUST_SHARES = 1e-6
 
 export const portfolioValue = (state: MemberState) =>
   state.cash + state.positions.reduce((sum, p) => sum + p.shares * p.price, 0)
@@ -161,7 +167,7 @@ export function replayLedger(startingCash: number, trades: TradeRecord[]) {
       })
     }
   }
-  for (const [id, p] of positions) if (p.shares < 1e-6) positions.delete(id)
+  for (const [id, p] of positions) if (p.shares < DUST_SHARES) positions.delete(id)
   return { cash, positions }
 }
 
@@ -215,6 +221,35 @@ export function isClosed(endsAt: Date | null, now = new Date()) {
   return endsAt !== null && endsAt.getTime() <= now.getTime()
 }
 
+/** A finished league whose final snapshot never landed (a missed nightly run) gets this long to catch up. */
+const FINALIZE_WINDOW_DAYS = 3
+
+/** The UTC date of a league's last day. Its final value is the first nightly snapshot dated on or after it. */
+const endDate = (endsAt: Date) => endsAt.toISOString().slice(0, 10)
+
+const endedLongAgo = (endsAt: Date, now: Date) => now.getTime() - endsAt.getTime() > FINALIZE_WINDOW_DAYS * 86_400_000
+
+/**
+ * What a member is scored at. A running league uses the live value. A finished
+ * league uses its final snapshot, the first nightly one dated on or after the
+ * end date, so the last day's trades and price moves count. Until that lands
+ * the live value stands in: trading is closed by then, so only prices move.
+ * Leagues that ended before final snapshots existed keep their last snapshot.
+ */
+export function scoredValue(endsAt: Date | null, history: { date: string; value: number }[], liveValue: number, now = new Date()): number {
+  if (endsAt === null || !isClosed(endsAt, now)) return liveValue
+  const last = history.at(-1)
+  if (last && (last.date >= endDate(endsAt) || endedLongAgo(endsAt, now))) return last.value
+  return liveValue
+}
+
+/** Whether tonight's snapshot should include a member: every running league, plus a just-finished one until its final value is in. */
+export function wantsSnapshot(endsAt: Date | null, lastSnapshotDate: string | null, now = new Date()): boolean {
+  if (endsAt === null || !isClosed(endsAt, now)) return true
+  if (endedLongAgo(endsAt, now)) return false
+  return lastSnapshotDate === null || lastSnapshotDate < endDate(endsAt)
+}
+
 /**
  * Validates a trade and works out what it changes. Throws {@link TradeRejected}
  * with a message fit to show the person.
@@ -255,7 +290,7 @@ export function applyTrade(state: MemberState, trade: TradeRequest, rules: { max
   if (shares > held.shares + MIN_SHARES) throw new TradeRejected("You don't own that many shares")
 
   const remaining = held.shares - shares
-  const soldAll = remaining < MIN_SHARES
+  const soldAll = remaining < DUST_SHARES
   return {
     shares: soldAll ? held.shares : shares,
     cashDelta: (soldAll ? held.shares : shares) * trade.price,

@@ -30,8 +30,10 @@ import {
   reservedCash,
   returnPct,
   roundForStorage,
+  scoredValue,
   TradeRejected,
   type QueuedOrder,
+  wantsSnapshot,
   type LedgerMismatch,
   type MemberState,
 } from "@web/lib/fantasy-rules"
@@ -144,13 +146,15 @@ export async function listFantasyLeaguesForUser(userId: string) {
   scheduleLiveRefresh()
 
   const ids = rows.map((r) => r.league.id)
-  const [counts, values] = await Promise.all([
+  const memberIds = rows.map((r) => r.memberId)
+  const [counts, values, lastSnapshots] = await Promise.all([
     db
       .select({ leagueId: fantasyMembers.leagueId, count: sql<number>`count(*)::int` })
       .from(fantasyMembers)
       .where(inArray(fantasyMembers.leagueId, ids))
       .groupBy(fantasyMembers.leagueId),
-    memberValues(rows.map((r) => r.memberId)),
+    memberValues(memberIds),
+    latestSnapshots(memberIds),
   ])
   const countBy = new Map(counts.map((c) => [c.leagueId, c.count]))
 
@@ -162,7 +166,11 @@ export async function listFantasyLeaguesForUser(userId: string) {
     endsAt: league.endsAt,
     isClosed: isClosed(league.endsAt),
     memberCount: countBy.get(league.id) ?? 1,
-    yourReturn: returnPct(values.get(memberId) ?? n(league.startingCash), n(league.startingCash)),
+    // Scored the same way as the league page, so a finished league shows its final return here too.
+    yourReturn: returnPct(
+      scoredValue(league.endsAt, lastSnapshots.get(memberId) ?? [], values.get(memberId) ?? n(league.startingCash)),
+      n(league.startingCash),
+    ),
   }))
 }
 
@@ -195,6 +203,19 @@ async function loadPositions(memberIds: string[]): Promise<PositionRow[]> {
     price: n(r.price),
     priceAsOf: r.priceAsOf,
   }))
+}
+
+/** Each member's most recent snapshot, as a one-entry history (empty when there is none). */
+async function latestSnapshots(memberIds: string[]): Promise<Map<string, { date: string; value: number }[]>> {
+  const out = new Map<string, { date: string; value: number }[]>()
+  if (memberIds.length === 0) return out
+  const rows = await db
+    .selectDistinctOn([fantasySnapshots.memberId], { memberId: fantasySnapshots.memberId, date: fantasySnapshots.date, value: fantasySnapshots.value })
+    .from(fantasySnapshots)
+    .where(inArray(fantasySnapshots.memberId, memberIds))
+    .orderBy(fantasySnapshots.memberId, desc(fantasySnapshots.date))
+  for (const r of rows) out.set(r.memberId, [{ date: r.date, value: n(r.value) }])
+  return out
 }
 
 /** Current value (cash plus positions at the latest close) per member. */
@@ -552,9 +573,8 @@ export async function loadFantasyLeague(userId: string, leagueId: string) {
       const held = positionsBy.get(m.id) ?? []
       const cash = n(m.cash)
       const allHistory = historyBy.get(m.id) ?? []
-      // A finished league is scored at its last nightly value, not today's prices.
-      const frozen = isClosed(league.endsAt) ? allHistory.at(-1)?.value : undefined
-      const value = frozen ?? portfolioValue({ cash, positions: held })
+      // A finished league is scored at its final nightly value, not today's prices.
+      const value = scoredValue(league.endsAt, allHistory, portfolioValue({ cash, positions: held }))
       const invested = value - cash
       const history = (historyBy.get(m.id) ?? []).filter((h) => h.date !== today())
       // Everyone starts at 100 on day one; the last point is live.
@@ -708,15 +728,18 @@ async function loadFeed(leagueId: string, limit = 30): Promise<FeedItem[]> {
 }
 
 /**
- * Nightly: one value per member of every open league, after repricing. A
- * finished league keeps the snapshots it had, which is what freezes it.
+ * Nightly: one value per member of every open league, after repricing. A league
+ * that has just finished gets one more, its final value (taken after the end,
+ * so the last day counts); after that it keeps the snapshots it had, which is
+ * what freezes it.
  */
 export async function snapshotFantasy() {
-  const open = await db
+  const all = await db
     .select({ memberId: fantasyMembers.id, endsAt: fantasyLeagues.endsAt })
     .from(fantasyMembers)
     .innerJoin(fantasyLeagues, eq(fantasyMembers.leagueId, fantasyLeagues.id))
-  const ids = open.filter((m) => !isClosed(m.endsAt)).map((m) => m.memberId)
+  const last = await latestSnapshots(all.filter((m) => isClosed(m.endsAt)).map((m) => m.memberId))
+  const ids = all.filter((m) => wantsSnapshot(m.endsAt, last.get(m.memberId)?.[0]?.date ?? null)).map((m) => m.memberId)
   const values = await memberValues(ids)
   const date = today()
   for (const [memberId, value] of values) {
