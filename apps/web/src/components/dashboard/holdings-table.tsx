@@ -9,6 +9,7 @@ import { TickerLogo } from "@web/components/ui/ticker-logo"
 import { colorForIndex, type AllocationSlice } from "@web/components/charts/allocation-bar"
 import { formatCurrency, formatPercent } from "@web/lib/format"
 import { cn } from "@web/lib/utils"
+import { roundToTotal, withShownWeights } from "@web/lib/percent-display"
 
 export type HoldingRow = {
   securityId: string
@@ -103,6 +104,9 @@ export function HoldingsTable({
   }
 
   const slices = allocation.slice(0, 5)
+  const shownSlices = roundToTotal(slices.map((s) => s.percent))
+  // Row weights are rounded together across every holding, so the column adds up to 100.0%.
+  const shownWeight = new Map(withShownWeights(holdings, 1).map((h) => [h.securityId, h.shownWeight]))
   const maxWeight = Math.max(...holdings.map((h) => h.weight), 1)
 
   return (
@@ -126,7 +130,7 @@ export function HoldingsTable({
       <CardContent id="holdings-body" hidden={!open}>
         {slices.length > 0 ? (
           <div className="mb-2">
-            <div className="flex h-1.5 w-full gap-0.5 overflow-hidden rounded-full" role="img" aria-label={slices.map((s) => `${s.name} ${s.percent.toFixed(0)} percent`).join(", ")}>
+            <div className="flex h-1.5 w-full gap-0.5 overflow-hidden rounded-full" role="img" aria-label={slices.map((s, i) => `${s.name} ${shownSlices[i]} percent`).join(", ")}>
               {slices.map((s, i) => (
                 <div key={s.name} className="h-full rounded-full" style={{ width: `${Math.max(s.percent, 1)}%`, backgroundColor: colorForIndex(i) }} />
               ))}
@@ -135,7 +139,7 @@ export function HoldingsTable({
               {slices.map((s, i) => (
                 <span key={s.name} className="inline-flex items-center gap-1.5">
                   <span className="size-2 rounded-[2px]" style={{ backgroundColor: colorForIndex(i) }} aria-hidden />
-                  {s.name} <b className="numeric font-semibold text-foreground">{`${s.percent.toFixed(0)}%`}</b>
+                  {s.name} <b className="numeric font-semibold text-foreground">{`${shownSlices[i]}%`}</b>
                 </span>
               ))}
             </p>
@@ -166,7 +170,7 @@ export function HoldingsTable({
               </div>
 
               <div className="hidden items-center gap-3 md:flex">
-                <span className="numeric w-11 text-sm">{`${h.weight.toFixed(1)}%`}</span>
+                <span className="numeric w-11 text-sm">{`${shownWeight.get(h.securityId) ?? h.weight.toFixed(1)}%`}</span>
                 <span className="h-1 flex-1 rounded-full bg-muted">
                   <span className="block h-1 rounded-full bg-muted-foreground/70" style={{ width: `${Math.max((h.weight / maxWeight) * 100, 2)}%` }} />
                 </span>
