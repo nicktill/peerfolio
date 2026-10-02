@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import { Button } from "@web/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card"
 import { useToast } from "@web/components/ui/toast"
+import { TickerCombobox } from "@web/components/fantasy/ticker-combobox"
 import { TradeReceipt, type Receipt } from "@web/components/fantasy/trade-receipt"
 import { formatCurrency } from "@web/lib/format"
 import { checkTradeInput, estimateShares, sanitizeAmount } from "@web/lib/trade-input"
@@ -125,14 +126,10 @@ export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: 
       <CardContent>
         <form onSubmit={submit} className="space-y-3" noValidate>
           <div>
-            <input
-              aria-label="Ticker"
-              autoCapitalize="characters"
-              autoComplete="off"
-              spellCheck={false}
+            <TickerCombobox
               value={symbol}
-              onChange={(e) => setSymbol(e.target.value.toUpperCase().replace(/[^A-Z0-9.\-/]/g, "").slice(0, 12))}
-              placeholder="Ticker, e.g. NVDA"
+              onChange={setSymbol}
+              local={side === "sell" ? positions.map((p) => ({ symbol: p.ticker, name: null, detail: `You hold ${fmtShares(p.shares)} sh` })) : undefined}
               className="h-11 w-full rounded-xl border bg-background px-3 font-mono text-sm uppercase tracking-wide placeholder:font-sans placeholder:normal-case placeholder:tracking-normal"
             />
             <p className="numeric mt-1.5 min-h-4 text-xs text-muted-foreground" aria-live="polite">
