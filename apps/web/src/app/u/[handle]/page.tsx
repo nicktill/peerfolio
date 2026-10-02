@@ -18,6 +18,7 @@ import { PerformanceChart } from "@web/components/charts/performance-chart"
 import { mutate, useApi } from "@web/lib/use-api"
 import { RANGES, type Range } from "@web/lib/ranges"
 import { formatPercent } from "@web/lib/format"
+import { withShownWeights } from "@web/lib/percent-display"
 
 type ProfileResponse = {
   profile: {
@@ -180,7 +181,7 @@ export default function ProfilePage({ params }: { params: Promise<{ handle: stri
                 </CardHeader>
                 <CardContent>
                   <ul className="space-y-2.5">
-                    {data.holdings.map((holding) => (
+                    {withShownWeights(data.holdings).map((holding) => (
                       <li key={holding.ticker} className="flex items-center gap-3">
                         <span className="numeric flex h-9 w-12 shrink-0 items-center justify-center rounded-lg bg-secondary text-[11px] font-bold">
                           {holding.ticker.slice(0, 5)}
@@ -194,7 +195,7 @@ export default function ProfilePage({ params }: { params: Promise<{ handle: stri
                             />
                           </div>
                           <span className="numeric w-10 text-right text-xs font-medium">
-                            {holding.weight.toFixed(0)}%
+                            {holding.shownWeight}%
                           </span>
                         </div>
                       </li>
