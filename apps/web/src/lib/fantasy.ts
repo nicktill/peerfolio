@@ -33,6 +33,7 @@ import {
 } from "@web/lib/fantasy-rules"
 import { displaySymbol, toMarketTicker, type AssetKind } from "@web/lib/market-data"
 import { ensureLivePrice, scheduleLiveRefresh } from "@web/lib/live-quotes"
+import { isUsMarketOpen } from "@web/lib/market-hours"
 import { ensurePriced, refreshStalePrices } from "@web/lib/positions"
 
 /**
@@ -234,6 +235,13 @@ export async function placeTrade(
 
   const marketTicker = toMarketTicker(input.symbol, input.kind)
   if (!marketTicker) throw new ApiError(`${input.symbol} doesn't look like a ${input.kind === "crypto" ? "coin" : "ticker"}`)
+
+  // Off-hours the only price we have is a stored close, which can be hours (or a
+  // day) behind where the stock trades after hours. Filling buys or sells at it
+  // hands out free moves, so stock trades wait for the regular session.
+  if (input.kind === "stock" && !isUsMarketOpen(new Date())) {
+    throw new ApiError("The stock market is closed. Stock trades open again at 9:30am ET.", 409)
+  }
 
   // Outside the transaction: this may call the price providers.
   const closePriced = await ensurePriced(marketTicker, input.kind, { maxAgeHours: 20 })
