@@ -6,6 +6,8 @@
  * whether the trade is allowed and what it changes, then writes the result.
  */
 
+import { isUsMarketOpen } from "./market-hours.ts"
+
 export type Holding = { securityId: string; shares: number; costBasis: number; price: number }
 
 export type MemberState = { cash: number; positions: Holding[] }
@@ -21,6 +23,21 @@ export type TradeOutcome = {
 }
 
 export class TradeRejected extends Error {}
+
+export const STOCK_MARKET_CLOSED =
+  "The stock market is closed. Stock trades open again at 9:30am ET on the next trading day."
+
+/**
+ * Why a trade can't be placed at `now`, or null when it can. Outside the
+ * regular session the only stock price we have is the last close, and the
+ * real price keeps moving in extended hours, so filling there would hand out
+ * free gains (or losses) the moment the market reopens. Crypto trades around
+ * the clock.
+ */
+export function tradingHoursProblem(kind: "stock" | "crypto", now = new Date()): string | null {
+  if (kind === "crypto" || isUsMarketOpen(now)) return null
+  return STOCK_MARKET_CLOSED
+}
 
 /** Smallest trade worth recording: a cent of cash or a hundred-millionth of a share. */
 const MIN_CASH = 0.01

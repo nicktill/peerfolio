@@ -26,6 +26,7 @@ import {
   returnPct,
   roundForStorage,
   TradeRejected,
+  tradingHoursProblem,
   type LedgerMismatch,
   type MemberState,
 } from "@web/lib/fantasy-rules"
@@ -214,11 +215,17 @@ export async function placeTrade(
   const marketTicker = toMarketTicker(input.symbol, input.kind)
   if (!marketTicker) throw new ApiError(`${input.symbol} doesn't look like a ${input.kind === "crypto" ? "coin" : "ticker"}`)
 
+  // One clock for the hours check and the live lookup, so a trade placed as the
+  // bell rings can't pass the check and then miss the live price.
+  const now = new Date()
+  const closedReason = tradingHoursProblem(input.kind, now)
+  if (closedReason) throw new ApiError(closedReason, 409)
+
   // Outside the transaction: this may call the price providers.
   const closePriced = await ensurePriced(marketTicker, input.kind, { maxAgeHours: 20 })
-  // While the market is open, fill at the current price and store it for everyone,
-  // so the fill and every valuation agree and a buy can't show an instant gain.
-  const live = input.kind === "stock" ? await ensureLivePrice(marketTicker) : null
+  // Fill at the current price and store it for everyone, so the fill and every
+  // valuation agree and a buy can't show an instant gain.
+  const live = input.kind === "stock" ? await ensureLivePrice(marketTicker, { now }) : null
   const priced = live ? { ...closePriced, price: live.price, asOf: live.asOf } : closePriced
 
   return db.transaction(async (tx) => {

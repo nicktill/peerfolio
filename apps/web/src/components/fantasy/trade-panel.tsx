@@ -5,6 +5,7 @@ import { Button } from "@web/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card"
 import { useToast } from "@web/components/ui/toast"
 import { TradeReceipt, type Receipt } from "@web/components/fantasy/trade-receipt"
+import { STOCK_MARKET_CLOSED, tradingHoursProblem } from "@web/lib/fantasy-rules"
 import { formatCurrency } from "@web/lib/format"
 import { checkTradeInput, estimateShares, sanitizeAmount } from "@web/lib/trade-input"
 import { mutate } from "@web/lib/use-api"
@@ -23,7 +24,7 @@ const HYPE = ["NVDA", "TSLA", "AAPL", "PLTR", "GME", "SPY"]
 const fmtShares = (v: number) => v.toLocaleString(undefined, { maximumFractionDigits: 4 })
 const asOfLabel = (asOf: string) => new Date(`${asOf.slice(0, 10)}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric" })
 
-/** Buy by dollars, sell by shares. Fills at the price the form shows before you commit: live while the market is open, otherwise the last close. */
+/** Buy by dollars, sell by shares. Fills at the live price the form shows before you commit; stocks only trade while the market is open. */
 export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: string; cash: number; positions: Held[]; onTraded: () => void }) {
   const { toast } = useToast()
   const [side, setSide] = useState<"buy" | "sell">("buy")
@@ -40,6 +41,9 @@ export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: 
   const held = positions.find((p) => p.ticker === ticker)
   const check = checkTradeInput(side, ticker, amount, { cash, heldShares: held?.shares ?? null })
   const problem = touched && !check.ok ? check.message : null
+  // Worked out each render, so a page left open across 9:30 or 4:00 ET catches up on its next refresh.
+  // The server checks again; this just saves a pointless round trip.
+  const marketClosed = tradingHoursProblem("stock") !== null
 
   // Show what you'd be trading at before you commit. Debounced, and a slow
   // response for an old ticker can never overwrite the one on screen.
@@ -78,6 +82,7 @@ export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: 
     setTouched(true)
     if (!check.ok) return
     if (lookup.state === "missing") return
+    if (marketClosed) return
 
     setPending(true)
     try {
@@ -205,10 +210,12 @@ export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: 
                   </Quick>,
                 )}
           </div>
-          <Button type="submit" className="w-full" size="lg" loading={pending} variant={side === "sell" ? "outline" : "default"}>
-            {side === "buy" ? "Buy 🚀" : "Sell 💸"}
+          <Button type="submit" className="w-full" size="lg" loading={pending} disabled={marketClosed} variant={side === "sell" ? "outline" : "default"}>
+            {marketClosed ? "Market closed" : side === "buy" ? "Buy 🚀" : "Sell 💸"}
           </Button>
-          <p className="text-[11px] leading-4 text-muted-foreground">Fills at the price shown: live while the market is open, otherwise the last close. Play money only.</p>
+          <p className="text-[11px] leading-4 text-muted-foreground">
+            {marketClosed ? STOCK_MARKET_CLOSED : "Fills at the live price shown."} Play money only.
+          </p>
         </form>
       </CardContent>
     </Card>

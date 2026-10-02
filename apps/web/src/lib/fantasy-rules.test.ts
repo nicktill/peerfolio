@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { applyTrade, checkEndChange, isClosed, portfolioValue, returnPct, TradeRejected, type MemberState } from "./fantasy-rules.ts"
+import { applyTrade, checkEndChange, isClosed, portfolioValue, returnPct, STOCK_MARKET_CLOSED, TradeRejected, tradingHoursProblem, type MemberState } from "./fantasy-rules.ts"
 
 const fresh = (): MemberState => ({ cash: 100_000, positions: [] })
 const noCap = { maxPositionPct: null }
@@ -96,5 +96,34 @@ describe("changing a league's end date", () => {
   it("won't cut a league that has no end short by giving it one", () => {
     assert.match(checkEndChange(null, day(30), now)!, /no end date/)
     assert.equal(checkEndChange(null, null, now), null)
+  })
+})
+
+describe("tradingHoursProblem", () => {
+  it("lets stocks trade during the regular session", () => {
+    assert.equal(tradingHoursProblem("stock", new Date("2026-09-29T13:30:00Z")), null) // 9:30am ET
+    assert.equal(tradingHoursProblem("stock", new Date("2026-09-29T17:00:00Z")), null)
+  })
+
+  it("stops stock trades in extended hours, when only the stale close is on file", () => {
+    assert.equal(tradingHoursProblem("stock", new Date("2026-09-29T12:00:00Z")), STOCK_MARKET_CLOSED) // 8am ET pre-market
+    assert.equal(tradingHoursProblem("stock", new Date("2026-09-29T13:29:00Z")), STOCK_MARKET_CLOSED)
+    assert.equal(tradingHoursProblem("stock", new Date("2026-09-29T20:05:00Z")), STOCK_MARKET_CLOSED)
+    assert.equal(tradingHoursProblem("stock", new Date("2026-09-29T23:30:00Z")), STOCK_MARKET_CLOSED) // 7:30pm ET after hours
+    assert.equal(tradingHoursProblem("stock", new Date("2026-09-30T03:00:00Z")), STOCK_MARKET_CLOSED) // overnight
+  })
+
+  it("stops stock trades on weekends", () => {
+    assert.equal(tradingHoursProblem("stock", new Date("2026-10-03T15:00:00Z")), STOCK_MARKET_CLOSED)
+  })
+
+  it("follows New York time across daylight saving", () => {
+    assert.equal(tradingHoursProblem("stock", new Date("2026-12-15T14:29:00Z")), STOCK_MARKET_CLOSED)
+    assert.equal(tradingHoursProblem("stock", new Date("2026-12-15T14:30:00Z")), null)
+  })
+
+  it("never stops crypto, which trades around the clock", () => {
+    assert.equal(tradingHoursProblem("crypto", new Date("2026-09-29T23:30:00Z")), null)
+    assert.equal(tradingHoursProblem("crypto", new Date("2026-10-03T15:00:00Z")), null)
   })
 })
