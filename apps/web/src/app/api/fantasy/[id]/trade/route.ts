@@ -24,5 +24,7 @@ export const POST = withUser<Ctx>(async (userId, request, { params }) => {
   const { id } = await params
   const parsed = Trade.safeParse(await readJson(request))
   if (!parsed.success) throw new ApiError(parsed.error.issues[0]?.message ?? "Invalid trade")
-  return NextResponse.json(await placeTrade(userId, id, parsed.data), { status: 201 })
+  const result = await placeTrade(userId, id, parsed.data)
+  // 202 when the market is closed and the order waits for the open.
+  return NextResponse.json(result, { status: "queued" in result ? 202 : 201 })
 })

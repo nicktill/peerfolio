@@ -1,6 +1,18 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { applyTrade, checkEndChange, isClosed, portfolioValue, returnPct, STOCK_MARKET_CLOSED, TradeRejected, tradingHoursProblem, type MemberState } from "./fantasy-rules.ts"
+import {
+  applyTrade,
+  checkEndChange,
+  checkQueuedOrder,
+  fillsAtOpen,
+  isClosed,
+  MAX_PENDING_ORDERS,
+  portfolioValue,
+  reservedCash,
+  returnPct,
+  TradeRejected,
+  type MemberState,
+} from "./fantasy-rules.ts"
 
 const fresh = (): MemberState => ({ cash: 100_000, positions: [] })
 const noCap = { maxPositionPct: null }
@@ -99,31 +111,86 @@ describe("changing a league's end date", () => {
   })
 })
 
-describe("tradingHoursProblem", () => {
-  it("lets stocks trade during the regular session", () => {
-    assert.equal(tradingHoursProblem("stock", new Date("2026-09-29T13:30:00Z")), null) // 9:30am ET
-    assert.equal(tradingHoursProblem("stock", new Date("2026-09-29T17:00:00Z")), null)
+describe("fillsAtOpen", () => {
+  it("fills stocks now during the regular session", () => {
+    assert.equal(fillsAtOpen("stock", new Date("2026-09-29T13:30:00Z")), false) // 9:30am ET
+    assert.equal(fillsAtOpen("stock", new Date("2026-09-29T17:00:00Z")), false)
   })
 
-  it("stops stock trades in extended hours, when only the stale close is on file", () => {
-    assert.equal(tradingHoursProblem("stock", new Date("2026-09-29T12:00:00Z")), STOCK_MARKET_CLOSED) // 8am ET pre-market
-    assert.equal(tradingHoursProblem("stock", new Date("2026-09-29T13:29:00Z")), STOCK_MARKET_CLOSED)
-    assert.equal(tradingHoursProblem("stock", new Date("2026-09-29T20:05:00Z")), STOCK_MARKET_CLOSED)
-    assert.equal(tradingHoursProblem("stock", new Date("2026-09-29T23:30:00Z")), STOCK_MARKET_CLOSED) // 7:30pm ET after hours
-    assert.equal(tradingHoursProblem("stock", new Date("2026-09-30T03:00:00Z")), STOCK_MARKET_CLOSED) // overnight
+  it("queues stocks in extended hours, when only the stale close is on file", () => {
+    assert.equal(fillsAtOpen("stock", new Date("2026-09-29T12:00:00Z")), true) // 8am ET pre-market
+    assert.equal(fillsAtOpen("stock", new Date("2026-09-29T13:29:00Z")), true)
+    assert.equal(fillsAtOpen("stock", new Date("2026-09-29T20:05:00Z")), true)
+    assert.equal(fillsAtOpen("stock", new Date("2026-09-29T23:30:00Z")), true) // 7:30pm ET after hours
+    assert.equal(fillsAtOpen("stock", new Date("2026-09-30T03:00:00Z")), true) // overnight
   })
 
-  it("stops stock trades on weekends", () => {
-    assert.equal(tradingHoursProblem("stock", new Date("2026-10-03T15:00:00Z")), STOCK_MARKET_CLOSED)
+  it("queues stocks on weekends", () => {
+    assert.equal(fillsAtOpen("stock", new Date("2026-10-03T15:00:00Z")), true)
   })
 
   it("follows New York time across daylight saving", () => {
-    assert.equal(tradingHoursProblem("stock", new Date("2026-12-15T14:29:00Z")), STOCK_MARKET_CLOSED)
-    assert.equal(tradingHoursProblem("stock", new Date("2026-12-15T14:30:00Z")), null)
+    assert.equal(fillsAtOpen("stock", new Date("2026-12-15T14:29:00Z")), true)
+    assert.equal(fillsAtOpen("stock", new Date("2026-12-15T14:30:00Z")), false)
   })
 
-  it("never stops crypto, which trades around the clock", () => {
-    assert.equal(tradingHoursProblem("crypto", new Date("2026-09-29T23:30:00Z")), null)
-    assert.equal(tradingHoursProblem("crypto", new Date("2026-10-03T15:00:00Z")), null)
+  it("never queues crypto, which trades around the clock", () => {
+    assert.equal(fillsAtOpen("crypto", new Date("2026-09-29T23:30:00Z")), false)
+    assert.equal(fillsAtOpen("crypto", new Date("2026-10-03T15:00:00Z")), false)
+  })
+})
+
+describe("reservedCash", () => {
+  it("sets aside queued buys and ignores sells", () => {
+    assert.equal(reservedCash([{ side: "buy", amount: 1_000 }, { side: "sell", amount: null }, { side: "buy", amount: 250.5 }]), 1_250.5)
+    assert.equal(reservedCash([]), 0)
+  })
+})
+
+describe("checkQueuedOrder", () => {
+  const ctx = { availableCash: 10_000, heldShares: 10, queuedSellShares: 0, pendingCount: 0 } as const
+
+  it("queues a buy the set-aside cash still covers", () => {
+    assert.equal(checkQueuedOrder({ side: "buy", amount: 10_000 }, ctx), null)
+  })
+
+  it("won't spend cash already set aside for another queued buy", () => {
+    assert.match(checkQueuedOrder({ side: "buy", amount: 10_000.01 }, ctx) ?? "", /\$10,000\.00 to spend/)
+    assert.match(checkQueuedOrder({ side: "buy", amount: 1 }, { ...ctx, availableCash: -5 }) ?? "", /\$0\.00 to spend/)
+  })
+
+  it("queues a sell of shares held now", () => {
+    assert.equal(checkQueuedOrder({ side: "sell", shares: 10 }, ctx), null)
+    assert.equal(checkQueuedOrder({ side: "sell", shares: "all" }, ctx), null)
+  })
+
+  it("won't queue selling what you don't hold", () => {
+    assert.equal(checkQueuedOrder({ side: "sell", shares: 1 }, { ...ctx, heldShares: 0 }), "You don't own any of that yet")
+    assert.equal(checkQueuedOrder({ side: "sell", shares: 11 }, ctx), "You don't own that many shares")
+  })
+
+  it("counts sells already queued", () => {
+    assert.equal(checkQueuedOrder({ side: "sell", shares: 4 }, { ...ctx, queuedSellShares: 6 }), null)
+    assert.equal(checkQueuedOrder({ side: "sell", shares: 5 }, { ...ctx, queuedSellShares: 6 }), "That's more than you hold once your queued sells go through")
+    assert.equal(checkQueuedOrder({ side: "sell", shares: 1 }, { ...ctx, queuedSellShares: "all" }), "You've already queued selling all of it")
+  })
+
+  it("caps how many orders can wait", () => {
+    assert.match(checkQueuedOrder({ side: "buy", amount: 1 }, { ...ctx, pendingCount: MAX_PENDING_ORDERS }) ?? "", /Cancel one/)
+  })
+})
+
+describe("applyTrade: reserved cash", () => {
+  const state: MemberState = { cash: 10_000, positions: [] }
+  const buy = (amount: number) => ({ side: "buy" as const, securityId: "mkt:NVDA", price: 100, amount })
+
+  it("can't spend cash set aside for queued buys", () => {
+    assert.throws(() => applyTrade(state, buy(6_000), { maxPositionPct: null, reservedCash: 5_000 }), TradeRejected)
+    assert.equal(applyTrade(state, buy(5_000), { maxPositionPct: null, reservedCash: 5_000 }).shares, 50)
+  })
+
+  it("still measures the pick cap against the whole portfolio", () => {
+    // 40% of $10,000 is $4,000, even with $5,000 set aside.
+    assert.equal(applyTrade(state, buy(4_000), { maxPositionPct: 40, reservedCash: 5_000 }).shares, 40)
   })
 })

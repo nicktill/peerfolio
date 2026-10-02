@@ -11,6 +11,7 @@ import { CashStat, PortfolioStat } from "@web/components/fantasy/balance-cards"
 import { TradePanel } from "@web/components/fantasy/trade-panel"
 import { TradeFeed, type FeedItem } from "@web/components/fantasy/trade-feed"
 import { timeLeft } from "@web/components/fantasy/time-left"
+import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card"
 import { useRankBaseline } from "@web/components/fantasy/use-rank-baseline"
@@ -30,6 +31,20 @@ import { useToast } from "@web/components/ui/toast"
 /** `averageCost` is stored (trade-derived); `price` is the live quote. Value and gain are measured between them. */
 export type Position = { ticker: string; name: string | null; shares: number; averageCost: number; price: number; priceAsOf: string | null; value: number; gainPct: number }
 
+/** An order waiting for the open, or one the open turned down (`reason` says why). */
+type Order = {
+  id: string
+  side: "buy" | "sell"
+  ticker: string
+  name: string | null
+  amount: number | null
+  shares: number | null
+  price: number
+  status: "pending" | "rejected" | "cancelled"
+  reason: string | null
+  at: string
+}
+
 type LeagueData = {
   league: {
     id: string
@@ -44,7 +59,7 @@ type LeagueData = {
     isClosed: boolean
   }
   standings: (Standing & { value: number })[]
-  you: { cash: number; value: number; percent: number; rank: number; positions: Position[] }
+  you: { cash: number; value: number; percent: number; rank: number; positions: Position[]; orders: Order[] }
   feed: FeedItem[]
 }
 
@@ -60,6 +75,16 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
   const [showAllStandings, setShowAllStandings] = useState(false)
   const { data, error, loading, refetch } = useApi<LeagueData>(`/api/fantasy/${id}`, [], { refreshMs: liveRefreshMs(CLOSED_REFRESH_MS) })
   const rankBefore = useRankBaseline(id, data?.you.rank ?? null)
+
+  async function cancelOrder(orderId: string) {
+    try {
+      await mutate(`/api/fantasy/${id}/orders/${orderId}`, { method: "DELETE" })
+      await refetch()
+    } catch (error) {
+      toast(error instanceof Error ? error.message : "Couldn't cancel that order.", "error")
+      await refetch()
+    }
+  }
 
   async function react(toUserId: string, emoji: string) {
     try {
@@ -186,7 +211,7 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
 
         <aside className="reveal min-w-0 space-y-6" style={revealStyle(2)}>
           {!league.isClosed ? <TradePanel leagueId={league.id} cash={you.cash} positions={you.positions} onTraded={refetch} /> : null}
-          <Holdings positions={you.positions} />
+          <Holdings positions={you.positions} orders={you.orders} onCancel={league.isClosed ? undefined : cancelOrder} />
           <TradeFeed items={feed} />
         </aside>
       </div>
@@ -222,7 +247,9 @@ function InviteButton({ code }: { code: string }) {
   )
 }
 
-function Holdings({ positions }: { positions: Position[] }) {
+const fmtShares = (v: number) => v.toLocaleString(undefined, { maximumFractionDigits: 4 })
+
+function Holdings({ positions, orders, onCancel }: { positions: Position[]; orders: Order[]; onCancel?: (orderId: string) => void }) {
   // A row flashes when you've just bought or sold it, so the trade visibly lands here.
   const before = useRef<Map<string, number> | null>(null)
   const [flash, setFlash] = useState<ReadonlySet<string>>(new Set())
@@ -238,16 +265,39 @@ function Holdings({ positions }: { positions: Position[] }) {
     return () => clearTimeout(timer)
   }, [positions])
 
+  const pending = orders.filter((o) => o.status === "pending")
+  // A queued buy is yours already: it shows as a pick with the cash set aside, but no shares or average cost until the open sets the price.
+  const pendingBuys = pending.filter((o) => o.side === "buy")
+  const sellsBy = new Map<string, Order[]>()
+  for (const o of pending.filter((o) => o.side === "sell")) sellsBy.set(o.ticker, [...(sellsBy.get(o.ticker) ?? []), o])
+  const unfilled = orders.filter((o) => o.status !== "pending")
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Your picks</CardTitle>
       </CardHeader>
       <CardContent>
-        {positions.length === 0 ? (
+        {positions.length === 0 && pendingBuys.length === 0 ? (
           <p className="text-sm text-muted-foreground">Nothing yet. Cash doesn&apos;t win leagues.</p>
         ) : (
           <ul className="divide-y">
+            {pendingBuys.map((o) => (
+              <li key={o.id} className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-2.5 first:pt-2.5 last:pb-2.5">
+                <span className="grid size-9 shrink-0 place-items-center rounded-lg border border-dashed bg-secondary/50 font-mono text-[11px] font-bold">
+                  {o.ticker.slice(0, 4)}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="numeric text-sm font-medium">{formatCurrency(o.amount ?? 0)}</p>
+                  <p className="truncate text-xs text-muted-foreground">Buys at the open · no average cost yet</p>
+                  {o.price > 0 ? <p className="numeric truncate text-xs text-muted-foreground">Last {formatCurrency(o.price)}</p> : null}
+                </div>
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  <Badge variant="warning">Pending</Badge>
+                  {onCancel ? <CancelOrder onClick={() => onCancel(o.id)} /> : null}
+                </div>
+              </li>
+            ))}
             {positions.map((p) => (
               <li key={p.ticker} className={`-mx-2 flex items-center gap-3 rounded-lg px-2 py-2.5 first:pt-2.5 last:pb-2.5 ${flash.has(p.ticker) ? "pick-flash" : ""}`}>
                 <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-secondary font-mono text-[11px] font-bold">
@@ -258,17 +308,40 @@ function Holdings({ positions }: { positions: Position[] }) {
                     <AnimatedNumber value={p.value} format={formatCurrency} />
                   </p>
                   <p className="numeric truncate text-xs text-muted-foreground">
-                    {p.shares.toLocaleString(undefined, { maximumFractionDigits: 4 })} sh @ {formatCurrency(p.averageCost)} avg
+                    {fmtShares(p.shares)} sh @ {formatCurrency(p.averageCost)} avg
                   </p>
                   <p className="numeric truncate text-xs text-muted-foreground">Now {formatCurrency(p.price)}</p>
+                  {(sellsBy.get(p.ticker) ?? []).map((o) => (
+                    <p key={o.id} className="numeric flex items-center gap-2 truncate text-xs text-[--series-4]">
+                      Selling {o.shares === null ? "all" : `${fmtShares(o.shares)} sh`} at the open
+                      {onCancel ? <CancelOrder onClick={() => onCancel(o.id)} /> : null}
+                    </p>
+                  ))}
                 </div>
                 <Delta value={p.gainPct} size="sm" />
               </li>
             ))}
           </ul>
         )}
+        {unfilled.length > 0 ? (
+          <ul className="mt-3 space-y-1 border-t pt-3">
+            {unfilled.map((o) => (
+              <li key={o.id} className="text-xs text-muted-foreground">
+                Your queued {o.side} of {o.ticker} didn&apos;t go through: {o.reason}
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </CardContent>
     </Card>
+  )
+}
+
+function CancelOrder({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">
+      Cancel
+    </button>
   )
 }
 

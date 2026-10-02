@@ -24,19 +24,54 @@ export type TradeOutcome = {
 
 export class TradeRejected extends Error {}
 
-export const STOCK_MARKET_CLOSED =
-  "The stock market is closed. Stock trades open again at 9:30am ET on the next trading day."
+/**
+ * Whether a trade placed at `now` waits for the open instead of filling now.
+ * Outside the regular session the only stock price we have is the last close,
+ * and the real price keeps moving in extended hours, so filling there would
+ * hand out free gains (or losses) the moment the market reopens. Crypto trades
+ * around the clock.
+ */
+export function fillsAtOpen(kind: "stock" | "crypto", now = new Date()): boolean {
+  return kind === "stock" && !isUsMarketOpen(now)
+}
+
+/** Most orders one member may have waiting for the open. */
+export const MAX_PENDING_ORDERS = 20
+
+export type QueuedOrder = { side: "buy"; amount: number } | { side: "sell"; shares: number | "all" }
+
+/** Cash set aside for buys still waiting for the open. */
+export const reservedCash = (orders: { side: "buy" | "sell"; amount: number | null }[]) =>
+  orders.reduce((sum, o) => sum + (o.side === "buy" ? (o.amount ?? 0) : 0), 0)
+
+const dollars = (v: number) => v.toLocaleString("en-US", { style: "currency", currency: "USD" })
 
 /**
- * Why a trade can't be placed at `now`, or null when it can. Outside the
- * regular session the only stock price we have is the last close, and the
- * real price keeps moving in extended hours, so filling there would hand out
- * free gains (or losses) the moment the market reopens. Crypto trades around
- * the clock.
+ * Whether an order can be queued for the open, or why not. Checked against
+ * what's on file now; the fill checks again at the open, where cash, holdings
+ * and the pick cap are what count.
+ *
+ * `availableCash` already has queued buys taken out; `queuedSellShares` is what
+ * is already queued to sell of this ticker ("all" once a sell-everything is queued).
  */
-export function tradingHoursProblem(kind: "stock" | "crypto", now = new Date()): string | null {
-  if (kind === "crypto" || isUsMarketOpen(now)) return null
-  return STOCK_MARKET_CLOSED
+export function checkQueuedOrder(
+  order: QueuedOrder,
+  ctx: { availableCash: number; heldShares: number; queuedSellShares: number | "all"; pendingCount: number },
+): string | null {
+  if (ctx.pendingCount >= MAX_PENDING_ORDERS) return `You have ${MAX_PENDING_ORDERS} orders waiting for the open. Cancel one to queue another.`
+  if (order.side === "buy") {
+    if (!(order.amount >= MIN_CASH)) return "Enter an amount to buy"
+    if (order.amount > ctx.availableCash + 1e-6) return `You have ${dollars(Math.max(0, ctx.availableCash))} to spend after your queued buys`
+    return null
+  }
+  if (ctx.heldShares < MIN_SHARES) return "You don't own any of that yet"
+  if (ctx.queuedSellShares === "all") return "You've already queued selling all of it"
+  if (order.shares === "all") return null
+  if (!(order.shares >= MIN_SHARES)) return "Enter how many shares to sell"
+  if (ctx.queuedSellShares + order.shares > ctx.heldShares + MIN_SHARES) {
+    return ctx.queuedSellShares > 0 ? "That's more than you hold once your queued sells go through" : "You don't own that many shares"
+  }
+  return null
 }
 
 /** Smallest trade worth recording: a cent of cash or a hundred-millionth of a share. */
@@ -184,13 +219,15 @@ export function isClosed(endsAt: Date | null, now = new Date()) {
  * Validates a trade and works out what it changes. Throws {@link TradeRejected}
  * with a message fit to show the person.
  */
-export function applyTrade(state: MemberState, trade: TradeRequest, rules: { maxPositionPct: number | null }): TradeOutcome {
+export function applyTrade(state: MemberState, trade: TradeRequest, rules: { maxPositionPct: number | null; reservedCash?: number }): TradeOutcome {
   if (!(trade.price > 0)) throw new TradeRejected("No price for that ticker yet")
   const held = state.positions.find((p) => p.securityId === trade.securityId)
 
   if (trade.side === "buy") {
     if (!(trade.amount >= MIN_CASH)) throw new TradeRejected("Enter an amount to buy")
+    // Cash set aside for queued buys can't be spent twice; it still counts toward the total for the cap.
     if (trade.amount > state.cash + 1e-6) throw new TradeRejected("Not enough cash for that")
+    if (trade.amount > state.cash - (rules.reservedCash ?? 0) + 1e-6) throw new TradeRejected("Not enough cash for that once your queued buys are set aside")
 
     const shares = trade.amount / trade.price
     const nextShares = (held?.shares ?? 0) + shares
