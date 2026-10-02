@@ -64,6 +64,13 @@
       "when": 1790816428086,
       "tag": "0008_account_events",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790964955111,
+      "tag": "0009_fantasy_orders",
+      "breakpoints": true
     }
   ]
 }

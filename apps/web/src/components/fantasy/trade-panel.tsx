@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/car
 import { useToast } from "@web/components/ui/toast"
 import { TickerCombobox } from "@web/components/fantasy/ticker-combobox"
 import { TradeReceipt, type Receipt } from "@web/components/fantasy/trade-receipt"
+import { fillsAtOpen } from "@web/lib/fantasy-rules"
 import { formatCurrency } from "@web/lib/format"
 import { checkTradeInput, estimateShares, sanitizeAmount } from "@web/lib/trade-input"
 import { mutate } from "@web/lib/use-api"
@@ -24,7 +25,11 @@ const HYPE = ["NVDA", "TSLA", "AAPL", "PLTR", "GME", "SPY"]
 const fmtShares = (v: number) => v.toLocaleString(undefined, { maximumFractionDigits: 4 })
 const asOfLabel = (asOf: string) => new Date(`${asOf.slice(0, 10)}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric" })
 
-/** Buy by dollars, sell by shares. Fills at the price the form shows before you commit: live while the market is open, otherwise the last close. */
+/**
+ * Buy by dollars, sell by shares. While the market is open it fills at the live
+ * price the form shows; while it's closed the order queues and fills at the
+ * first live price after the open.
+ */
 export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: string; cash: number; positions: Held[]; onTraded: () => void }) {
   const { toast } = useToast()
   const [side, setSide] = useState<"buy" | "sell">("buy")
@@ -41,6 +46,9 @@ export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: 
   const held = positions.find((p) => p.ticker === ticker)
   const check = checkTradeInput(side, ticker, amount, { cash, heldShares: held?.shares ?? null })
   const problem = touched && !check.ok ? check.message : null
+  // Worked out each render, so a page left open across 9:30 or 4:00 ET catches up on its next refresh.
+  // Only a label: the server decides whether an order fills now or queues.
+  const queues = fillsAtOpen("stock")
 
   // Show what you'd be trading at before you commit. Debounced, and a slow
   // response for an old ticker can never overwrite the one on screen.
@@ -83,7 +91,19 @@ export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: 
     setPending(true)
     try {
       const body = side === "buy" ? { side, symbol: ticker, amount: check.value } : { side, symbol: ticker, shares: check.value }
-      const result = await mutate<{ ticker: string; shares: number; price: number }>(`/api/fantasy/${leagueId}/trade`, { body })
+      const result = await mutate<{ queued: true; why: "closed" | "no-live-price"; ticker: string } | { queued?: undefined; ticker: string; shares: number; price: number }>(`/api/fantasy/${leagueId}/trade`, { body })
+      if (result.queued) {
+        toast(
+          result.why === "closed"
+            ? `${side === "buy" ? "Buy" : "Sell"} of ${result.ticker} queued. It fills at the live price after the market opens.`
+            : `We couldn't get a live price for ${result.ticker} just now, so your ${side} is queued and fills as soon as we do.`,
+          "success",
+        )
+        setAmount("")
+        setTouched(false)
+        onTraded()
+        return
+      }
       // The receipt is the confirmation (it speaks to screen readers too), so success needs no toast.
       setReceipt({ id: Date.now(), side, ticker: result.ticker, shares: result.shares, price: result.price, averageCost: held?.averageCost ?? null, isNew: !held })
       if (side === "buy") setBurst((b) => b + 1)
@@ -175,7 +195,7 @@ export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: 
               {problem ? (
                 <span className="text-loss-ink">{problem}</span>
               ) : estimated !== null ? (
-                `≈ ${fmtShares(estimated)} shares of ${ticker}`
+                `≈ ${fmtShares(estimated)} shares of ${ticker}${queues ? " at the last close; the open sets the count" : ""}`
               ) : side === "buy" ? (
                 `${formatCurrency(cash)} available`
               ) : held ? (
@@ -203,9 +223,14 @@ export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: 
                 )}
           </div>
           <Button type="submit" className="w-full" size="lg" loading={pending} variant={side === "sell" ? "outline" : "default"}>
-            {side === "buy" ? "Buy 🚀" : "Sell 💸"}
+            {side === "buy" ? (queues ? "Queue buy 🕘" : "Buy 🚀") : queues ? "Queue sell 🕘" : "Sell 💸"}
           </Button>
-          <p className="text-[11px] leading-4 text-muted-foreground">Stocks trade 9:30am to 4pm ET at the live price; crypto trades anytime. Play money only.</p>
+          <p className="text-[11px] leading-4 text-muted-foreground">
+            {queues
+              ? "The market's closed, so this waits and fills at the live price after the 9:30am ET open. You can cancel it until then."
+              : "Fills at the live price shown."}{" "}
+            Play money only.
+          </p>
         </form>
       </CardContent>
     </Card>

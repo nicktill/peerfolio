@@ -6,6 +6,8 @@
  * whether the trade is allowed and what it changes, then writes the result.
  */
 
+import { isTradingSession } from "./market-hours.ts"
+
 export type Holding = { securityId: string; shares: number; costBasis: number; price: number }
 
 export type MemberState = { cash: number; positions: Holding[] }
@@ -21,6 +23,88 @@ export type TradeOutcome = {
 }
 
 export class TradeRejected extends Error {}
+
+/**
+ * Whether a stock trade placed at `now` waits for the open instead of filling
+ * now. Outside the regular session (nights, weekends, holidays, after an early
+ * close) the only stock price we have is stale, and the real price keeps moving
+ * in extended hours, so filling there would hand out free gains (or losses) to
+ * anyone watching a live feed.
+ */
+export function fillsAtOpen(kind: "stock" | "crypto", now = new Date()): boolean {
+  return kind === "stock" && !isTradingSession(now)
+}
+
+/**
+ * We only have daily crypto prices, never a live one, so every crypto fill
+ * would be at a price up to a day old while the coin trades around the clock.
+ */
+export const CRYPTO_UNAVAILABLE = "Crypto can't be traded in fantasy leagues yet: we don't have live crypto prices."
+
+/** An order that hasn't found a live price in this long is given up on (a halted or delisted stock). */
+export const ORDER_EXPIRY_DAYS = 7
+
+export type QueuedFillDecision = { action: "fill" } | { action: "wait" } | { action: "reject" | "cancel"; reason: string }
+
+/**
+ * What to do with one queued order at `now`, given the live price we just
+ * fetched (`printedAt` is when the trade behind it happened, or null with no
+ * live price). It fills only during the regular session and only at a print
+ * made after the order was placed, so nobody gets a price they could already
+ * see was out of date when they placed it.
+ */
+export function queuedFillDecision(
+  order: { createdAt: Date; leagueEndsAt: Date | null },
+  printedAt: Date | null,
+  now: Date,
+): QueuedFillDecision {
+  if (isClosed(order.leagueEndsAt, now)) return { action: "cancel", reason: "The league ended before this could fill" }
+  const fresh = isTradingSession(now) && printedAt !== null && printedAt.getTime() >= order.createdAt.getTime()
+  if (fresh) return { action: "fill" }
+  if (now.getTime() - order.createdAt.getTime() > ORDER_EXPIRY_DAYS * 86_400_000) {
+    return { action: "reject", reason: `There was no live price for ${ORDER_EXPIRY_DAYS} days, so it was dropped` }
+  }
+  return { action: "wait" }
+}
+
+/** Most orders one member may have waiting for the open. */
+export const MAX_PENDING_ORDERS = 20
+
+export type QueuedOrder = { side: "buy"; amount: number } | { side: "sell"; shares: number | "all" }
+
+/** Cash set aside for buys still waiting for the open. */
+export const reservedCash = (orders: { side: "buy" | "sell"; amount: number | null }[]) =>
+  orders.reduce((sum, o) => sum + (o.side === "buy" ? (o.amount ?? 0) : 0), 0)
+
+const dollars = (v: number) => v.toLocaleString("en-US", { style: "currency", currency: "USD" })
+
+/**
+ * Whether an order can be queued for the open, or why not. Checked against
+ * what's on file now; the fill checks again at the open, where cash, holdings
+ * and the pick cap are what count.
+ *
+ * `availableCash` already has queued buys taken out; `queuedSellShares` is what
+ * is already queued to sell of this ticker ("all" once a sell-everything is queued).
+ */
+export function checkQueuedOrder(
+  order: QueuedOrder,
+  ctx: { availableCash: number; heldShares: number; queuedSellShares: number | "all"; pendingCount: number },
+): string | null {
+  if (ctx.pendingCount >= MAX_PENDING_ORDERS) return `You have ${MAX_PENDING_ORDERS} orders waiting for the open. Cancel one to queue another.`
+  if (order.side === "buy") {
+    if (!(order.amount >= MIN_CASH)) return "Enter an amount to buy"
+    if (order.amount > ctx.availableCash + 1e-6) return `You have ${dollars(Math.max(0, ctx.availableCash))} to spend after your queued buys`
+    return null
+  }
+  if (ctx.heldShares < MIN_SHARES) return "You don't own any of that yet"
+  if (ctx.queuedSellShares === "all") return "You've already queued selling all of it"
+  if (order.shares === "all") return null
+  if (!(order.shares >= MIN_SHARES)) return "Enter how many shares to sell"
+  if (ctx.queuedSellShares + order.shares > ctx.heldShares + MIN_SHARES) {
+    return ctx.queuedSellShares > 0 ? "That's more than you hold once your queued sells go through" : "You don't own that many shares"
+  }
+  return null
+}
 
 /** Smallest trade worth recording: a cent of cash or a hundred-millionth of a share. */
 const MIN_CASH = 0.01
@@ -202,13 +286,15 @@ export function wantsSnapshot(endsAt: Date | null, lastSnapshotDate: string | nu
  * Validates a trade and works out what it changes. Throws {@link TradeRejected}
  * with a message fit to show the person.
  */
-export function applyTrade(state: MemberState, trade: TradeRequest, rules: { maxPositionPct: number | null }): TradeOutcome {
+export function applyTrade(state: MemberState, trade: TradeRequest, rules: { maxPositionPct: number | null; reservedCash?: number }): TradeOutcome {
   if (!(trade.price > 0)) throw new TradeRejected("No price for that ticker yet")
   const held = state.positions.find((p) => p.securityId === trade.securityId)
 
   if (trade.side === "buy") {
     if (!(trade.amount >= MIN_CASH)) throw new TradeRejected("Enter an amount to buy")
+    // Cash set aside for queued buys can't be spent twice; it still counts toward the total for the cap.
     if (trade.amount > state.cash + 1e-6) throw new TradeRejected("Not enough cash for that")
+    if (trade.amount > state.cash - (rules.reservedCash ?? 0) + 1e-6) throw new TradeRejected("Not enough cash for that once your queued buys are set aside")
 
     const shares = trade.amount / trade.price
     const nextShares = (held?.shares ?? 0) + shares
