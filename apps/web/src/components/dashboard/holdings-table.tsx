@@ -42,6 +42,25 @@ const signed = (v: number, hidden: boolean) =>
 const tone = (v: number | null) => (v == null || v === 0 ? "text-muted-foreground" : v > 0 ? "text-gain-ink" : "text-loss-ink")
 
 /**
+ * The line under a holding's value on phones, where there's no room for the
+ * Today and Total return columns: the metric the sort is on, with its percent
+ * and dollar amount from the same period. "Value" shows today's move.
+ */
+function MobileMetric({ h, sort, hidden }: { h: HoldingRow; sort: Sort; hidden: boolean }) {
+  const gain = sort === "gain"
+  const percent = gain ? h.gainPercent : h.todayPercent
+  const amount = gain ? h.gainAmount : h.todayAmount
+  if (percent == null && amount == null) {
+    return <p className="numeric text-xs text-muted-foreground md:hidden">{gain ? "no avg cost" : "—"}</p>
+  }
+  return (
+    <p className={cn("numeric text-xs md:hidden", tone(percent ?? amount))}>
+      {[percent != null ? formatPercent(percent, gain ? 1 : 2) : null, amount != null ? signed(amount, hidden) : null].filter(Boolean).join(" · ")}
+    </p>
+  )
+}
+
+/**
  * Every holding as one row per security (the same fund in two accounts is one
  * line), sortable by value, gain or today's move. The allocation mix is a thin
  * bar on top instead of a card of its own.
@@ -158,7 +177,6 @@ export function HoldingsTable({
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold">{h.ticker ?? h.name ?? "Position"}</p>
                   <p className="truncate text-xs text-muted-foreground">
-                    <span className="md:hidden">{h.gainPercent != null ? <span className={tone(h.gainPercent)}>{formatPercent(h.gainPercent, 1)} · </span> : null}</span>
                     {h.name ?? ""}
                     {h.positions > 1 ? ` · ${h.positions} accounts` : ""}
                   </p>
@@ -174,9 +192,7 @@ export function HoldingsTable({
 
               <div className="text-right">
                 <p className="numeric text-sm font-semibold">{formatCurrency(h.value, { hidden })}</p>
-                <p className={cn("numeric text-xs md:hidden", tone(h.todayAmount))}>
-                  {h.todayAmount != null ? signed(h.todayAmount, hidden) : "—"}
-                </p>
+                <MobileMetric h={h} sort={sort} hidden={hidden} />
               </div>
 
               <div className="hidden text-right md:block">
