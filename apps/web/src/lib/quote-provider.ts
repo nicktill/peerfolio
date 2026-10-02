@@ -9,7 +9,7 @@
 import { createAlpacaProvider } from "./alpaca.ts"
 import { createCompositeProvider } from "./composite-provider.ts"
 import { createFinnhubProvider } from "./finnhub.ts"
-import { isUsMarketOpen } from "./market-hours.ts"
+import { isSessionPrint, isUsMarketOpen } from "./market-hours.ts"
 
 export { isUsMarketOpen }
 
@@ -97,7 +97,11 @@ export function acceptQuote(quote: Quote | undefined, now: Date): quote is Quote
   if (!Number.isFinite(at)) return false
   const age = now.getTime() - at
   // A little clock skew into the future is fine; far more is a bad timestamp.
-  return age <= MAX_QUOTE_AGE_MS && age >= -5 * 60_000
+  if (age > MAX_QUOTE_AGE_MS || age < -5 * 60_000) return false
+  // Only regular-session prints are live. A pre-market or after-hours print can
+  // be recent and still far from where the stock opens, and a trade filled at
+  // one is the stale-price gap this exists to close.
+  return isSessionPrint(new Date(at))
 }
 
 /** The trading date a quote belongs to. The regular session never crosses a UTC midnight. */

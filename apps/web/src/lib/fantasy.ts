@@ -20,7 +20,9 @@ import {
   applyTrade,
   checkEndChange,
   checkQueuedOrder,
+  CRYPTO_UNAVAILABLE,
   fillsAtOpen,
+  queuedFillDecision,
   findLedgerMismatches,
   isClosed,
   portfolioValue,
@@ -38,8 +40,8 @@ import {
   type MemberState,
 } from "@web/lib/fantasy-rules"
 import { displaySymbol, toMarketTicker, type AssetKind } from "@web/lib/market-data"
-import { ensureLivePrice, scheduleLiveRefresh } from "@web/lib/live-quotes"
-import { isUsMarketOpen } from "@web/lib/market-hours"
+import { ensureLivePrice, hasLiveQuotes, scheduleLiveRefresh } from "@web/lib/live-quotes"
+import { isTradingSession } from "@web/lib/market-hours"
 import { ensurePriced, refreshStalePrices } from "@web/lib/positions"
 
 /**
@@ -327,32 +329,54 @@ export async function placeTrade(
   const marketTicker = toMarketTicker(input.symbol, input.kind)
   if (!marketTicker) throw new ApiError(`${input.symbol} doesn't look like a ${input.kind === "crypto" ? "coin" : "ticker"}`)
 
-  // Outside the transaction: this may call the price providers. It also proves the ticker exists.
-  const closePriced = await ensurePriced(marketTicker, input.kind, { maxAgeHours: 20 })
+  // Every fill needs a live price, and crypto only ever has a daily one.
+  if (input.kind === "crypto") throw new ApiError(CRYPTO_UNAVAILABLE, 422)
+  // Without a live source no order could ever fill, so don't take one.
+  if (!hasLiveQuotes()) throw new ApiError("Live prices aren't available right now, so stock trading is paused.", 503)
+
+  // Outside the transaction: for a ticker we've never priced this calls the
+  // providers, to prove it exists and create its price row. A stored close is
+  // never a fill price, so a known ticker needs no refresh (and a daily-price
+  // outage can't block trading).
+  const { securityId } = await ensurePriced(marketTicker, input.kind)
 
   // One clock for the hours check and the live lookup, so a trade placed as the
   // bell rings can't pass the check and then miss the live price.
   const now = new Date()
-  if (fillsAtOpen(input.kind, now)) return queueOrder(league.id, member.id, closePriced.securityId, marketTicker, input)
+  if (fillsAtOpen(input.kind, now)) return queueOrder(league.id, member.id, securityId, marketTicker, input, now, "closed")
 
-  // Fill at the current price and store it for everyone, so the fill and every
-  // valuation agree and a buy can't show an instant gain.
-  const live = input.kind === "stock" ? await ensureLivePrice(marketTicker, { now }) : null
-  const priced = live ? { ...closePriced, price: live.price, asOf: live.asOf } : closePriced
+  // Fill at a price printed in this session, fetched just now, and store it for
+  // everyone so the fill and every valuation agree and a buy can't show an
+  // instant gain. With no such price (an outage, a halt, an unlisted holiday)
+  // the order waits for one instead of falling back to an old close.
+  const live = await ensureLivePrice(marketTicker, { now })
+  if (!live) return queueOrder(league.id, member.id, securityId, marketTicker, input, now, "no-live-price")
 
   try {
     const { trade, shares } = await db.transaction((tx) =>
-      executeTrade(tx, { ...input, leagueId, memberId: member.id, maxPositionPct: league.maxPositionPct, securityId: priced.securityId, price: priced.price, asOf: priced.asOf }),
+      executeTrade(tx, { ...input, leagueId, memberId: member.id, maxPositionPct: league.maxPositionPct, securityId, price: live.price, asOf: live.asOf }),
     )
-    return { trade, ticker: displaySymbol(marketTicker), price: priced.price, priceAsOf: priced.asOf, shares }
+    return { trade, ticker: displaySymbol(marketTicker), price: live.price, priceAsOf: live.asOf, shares }
   } catch (error) {
     if (error instanceof TradeRejected) throw new ApiError(error.message, 422)
     throw error
   }
 }
 
-/** Puts a stock order in line for the open. Nothing moves until it fills; a buy's cash is set aside. */
-async function queueOrder(leagueId: string, memberId: string, securityId: string, marketTicker: string, order: QueuedOrder) {
+/**
+ * Puts a stock order in line for the next live price: after the open when the
+ * market is closed, or as soon as the provider answers when it didn't. Nothing
+ * moves until it fills; a buy's cash is set aside.
+ */
+async function queueOrder(
+  leagueId: string,
+  memberId: string,
+  securityId: string,
+  marketTicker: string,
+  order: QueuedOrder,
+  now: Date,
+  why: "closed" | "no-live-price",
+) {
   const queued = await db.transaction(async (tx) => {
     // Serializes this member's queueing and trading, so two quick orders can't both spend the same cash.
     const [locked] = await tx.execute<{ cash: string }>(sql`SELECT cash FROM fantasy_members WHERE id = ${memberId} FOR UPDATE`)
@@ -383,11 +407,13 @@ async function queueOrder(leagueId: string, memberId: string, securityId: string
         side: order.side,
         amount: order.side === "buy" ? order.amount.toFixed(2) : null,
         shares: order.side === "sell" && order.shares !== "all" ? order.shares.toString() : null,
+        // The same clock the fill compares prints against.
+        createdAt: now,
       })
       .returning()
     return row!
   })
-  return { queued: true as const, orderId: queued.id, ticker: displaySymbol(marketTicker), side: order.side }
+  return { queued: true as const, why, orderId: queued.id, ticker: displaySymbol(marketTicker), side: order.side }
 }
 
 /** Takes back an order that hasn't filled yet. */
@@ -407,16 +433,18 @@ export async function cancelOrder(userId: string, leagueId: string, orderId: str
 const MAX_FILLS_PER_RUN = 100
 
 /**
- * Fills orders queued while the market was closed, at the first live price
- * after the open. Each fill goes through the same checks as a trade placed
- * live, so one that no longer fits (not enough cash, over the pick cap, shares
- * sold meanwhile) is rejected with the reason. With no live price yet (a
- * holiday, an outage) orders simply wait. Safe to run from any number of
- * servers at once: each order is locked and re-checked before it fills.
+ * Settles orders that are waiting for a live price. During the regular session
+ * each ticker's price is fetched fresh, and an order fills only at a print made
+ * in the session after the order was placed (`queuedFillDecision`), so the
+ * first fill after the open is at a real opening-session trade, never at last
+ * night's close or a pre-market print. Each fill goes through the same checks
+ * as a trade placed live, so one that no longer fits (not enough cash, over the
+ * pick cap, shares sold meanwhile) is rejected with the reason. Orders in a
+ * finished league are cancelled and ones that never get a price expire, at any
+ * hour. Safe to run from any number of servers at once: each order is locked
+ * and re-checked before it settles, so it can't fill twice.
  */
 export async function fillQueuedOrders({ now = new Date() }: { now?: Date } = {}) {
-  if (!isUsMarketOpen(now)) return { skipped: "market closed" as const }
-
   const pending = await db
     .select({
       id: fantasyOrders.id,
@@ -426,6 +454,7 @@ export async function fillQueuedOrders({ now = new Date() }: { now?: Date } = {}
       side: fantasyOrders.side,
       amount: fantasyOrders.amount,
       shares: fantasyOrders.shares,
+      createdAt: fantasyOrders.createdAt,
       marketTicker: securities.marketTicker,
       endsAt: fantasyLeagues.endsAt,
       maxPositionPct: fantasyLeagues.maxPositionPct,
@@ -438,18 +467,25 @@ export async function fillQueuedOrders({ now = new Date() }: { now?: Date } = {}
     .limit(MAX_FILLS_PER_RUN)
   if (pending.length === 0) return { pending: 0, filled: 0, rejected: 0 }
 
-  // One live price per ticker, shared by every order for it (and stored for everyone's valuation).
-  const prices = new Map<string, { price: number; asOf: string } | null>()
-  for (const ticker of new Set(pending.map((o) => o.marketTicker).filter((t): t is string => !!t))) {
-    prices.set(ticker, await ensureLivePrice(ticker, { maxAgeSeconds: 60, now }))
+  // One fresh price per ticker, shared by every order for it (and stored for
+  // everyone's valuation). Never a stored one: its print time isn't known.
+  const prices = new Map<string, { price: number; asOf: string; printedAt?: string } | null>()
+  if (isTradingSession(now)) {
+    for (const ticker of new Set(pending.map((o) => o.marketTicker).filter((t): t is string => !!t))) {
+      prices.set(ticker, await ensureLivePrice(ticker, { now }))
+    }
   }
 
   let filled = 0
   let rejected = 0
   for (const order of pending) {
-    const live = order.marketTicker ? prices.get(order.marketTicker) : null
-    const ended = isClosed(order.endsAt, now)
-    if (!live && !ended) continue
+    const live = order.marketTicker ? prices.get(order.marketTicker) ?? null : null
+    const decision = queuedFillDecision(
+      { createdAt: order.createdAt, leagueEndsAt: order.endsAt },
+      live?.printedAt ? new Date(live.printedAt) : null,
+      now,
+    )
+    if (decision.action === "wait") continue
 
     const outcome = await db.transaction(async (tx) => {
       const [current] = await tx.execute<{ status: string }>(sql`SELECT status FROM fantasy_orders WHERE id = ${order.id} FOR UPDATE`)
@@ -457,8 +493,8 @@ export async function fillQueuedOrders({ now = new Date() }: { now?: Date } = {}
       const settle = (values: Partial<typeof fantasyOrders.$inferInsert>) =>
         tx.update(fantasyOrders).set({ ...values, settledAt: new Date() }).where(eq(fantasyOrders.id, order.id))
 
-      if (ended) {
-        await settle({ status: "cancelled", reason: "The league ended before the market opened" })
+      if (decision.action !== "fill") {
+        await settle({ status: decision.action === "cancel" ? "cancelled" : "rejected", reason: decision.reason })
         return "rejected" as const
       }
       const request: QueuedOrder =
@@ -494,7 +530,7 @@ export function scheduleOrderFills() {
     after(async () => {
       try {
         const run = await fillQueuedOrders()
-        if (!("skipped" in run) && (run.filled > 0 || run.rejected > 0)) console.info("[orders]", JSON.stringify(run))
+        if (run.filled > 0 || run.rejected > 0) console.info("[orders]", JSON.stringify(run))
       } catch (error) {
         console.error("[orders] filling queued orders failed:", error instanceof Error ? error.message : error)
       }

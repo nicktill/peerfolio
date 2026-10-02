@@ -6,7 +6,7 @@
  * whether the trade is allowed and what it changes, then writes the result.
  */
 
-import { isUsMarketOpen } from "./market-hours.ts"
+import { isTradingSession } from "./market-hours.ts"
 
 export type Holding = { securityId: string; shares: number; costBasis: number; price: number }
 
@@ -25,14 +25,46 @@ export type TradeOutcome = {
 export class TradeRejected extends Error {}
 
 /**
- * Whether a trade placed at `now` waits for the open instead of filling now.
- * Outside the regular session the only stock price we have is the last close,
- * and the real price keeps moving in extended hours, so filling there would
- * hand out free gains (or losses) the moment the market reopens. Crypto trades
- * around the clock.
+ * Whether a stock trade placed at `now` waits for the open instead of filling
+ * now. Outside the regular session (nights, weekends, holidays, after an early
+ * close) the only stock price we have is stale, and the real price keeps moving
+ * in extended hours, so filling there would hand out free gains (or losses) to
+ * anyone watching a live feed.
  */
 export function fillsAtOpen(kind: "stock" | "crypto", now = new Date()): boolean {
-  return kind === "stock" && !isUsMarketOpen(now)
+  return kind === "stock" && !isTradingSession(now)
+}
+
+/**
+ * We only have daily crypto prices, never a live one, so every crypto fill
+ * would be at a price up to a day old while the coin trades around the clock.
+ */
+export const CRYPTO_UNAVAILABLE = "Crypto can't be traded in fantasy leagues yet: we don't have live crypto prices."
+
+/** An order that hasn't found a live price in this long is given up on (a halted or delisted stock). */
+export const ORDER_EXPIRY_DAYS = 7
+
+export type QueuedFillDecision = { action: "fill" } | { action: "wait" } | { action: "reject" | "cancel"; reason: string }
+
+/**
+ * What to do with one queued order at `now`, given the live price we just
+ * fetched (`printedAt` is when the trade behind it happened, or null with no
+ * live price). It fills only during the regular session and only at a print
+ * made after the order was placed, so nobody gets a price they could already
+ * see was out of date when they placed it.
+ */
+export function queuedFillDecision(
+  order: { createdAt: Date; leagueEndsAt: Date | null },
+  printedAt: Date | null,
+  now: Date,
+): QueuedFillDecision {
+  if (isClosed(order.leagueEndsAt, now)) return { action: "cancel", reason: "The league ended before this could fill" }
+  const fresh = isTradingSession(now) && printedAt !== null && printedAt.getTime() >= order.createdAt.getTime()
+  if (fresh) return { action: "fill" }
+  if (now.getTime() - order.createdAt.getTime() > ORDER_EXPIRY_DAYS * 86_400_000) {
+    return { action: "reject", reason: `There was no live price for ${ORDER_EXPIRY_DAYS} days, so it was dropped` }
+  }
+  return { action: "wait" }
 }
 
 /** Most orders one member may have waiting for the open. */

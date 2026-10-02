@@ -91,9 +91,14 @@ export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: 
     setPending(true)
     try {
       const body = side === "buy" ? { side, symbol: ticker, amount: check.value } : { side, symbol: ticker, shares: check.value }
-      const result = await mutate<{ queued: true; ticker: string } | { queued?: undefined; ticker: string; shares: number; price: number }>(`/api/fantasy/${leagueId}/trade`, { body })
+      const result = await mutate<{ queued: true; why: "closed" | "no-live-price"; ticker: string } | { queued?: undefined; ticker: string; shares: number; price: number }>(`/api/fantasy/${leagueId}/trade`, { body })
       if (result.queued) {
-        toast(`${side === "buy" ? "Buy" : "Sell"} of ${result.ticker} queued. It fills at the live price after the market opens.`, "success")
+        toast(
+          result.why === "closed"
+            ? `${side === "buy" ? "Buy" : "Sell"} of ${result.ticker} queued. It fills at the live price after the market opens.`
+            : `We couldn't get a live price for ${result.ticker} just now, so your ${side} is queued and fills as soon as we do.`,
+          "success",
+        )
         setAmount("")
         setTouched(false)
         onTraded()

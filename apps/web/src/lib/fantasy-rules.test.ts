@@ -7,6 +7,8 @@ import {
   fillsAtOpen,
   isClosed,
   MAX_PENDING_ORDERS,
+  ORDER_EXPIRY_DAYS,
+  queuedFillDecision,
   portfolioValue,
   reservedCash,
   returnPct,
@@ -137,6 +139,53 @@ describe("fillsAtOpen", () => {
   it("never queues crypto, which trades around the clock", () => {
     assert.equal(fillsAtOpen("crypto", new Date("2026-09-29T23:30:00Z")), false)
     assert.equal(fillsAtOpen("crypto", new Date("2026-10-03T15:00:00Z")), false)
+  })
+})
+
+describe("fillsAtOpen: holidays and early closes", () => {
+  it("queues on market holidays and after an early close", () => {
+    assert.equal(fillsAtOpen("stock", new Date("2026-11-26T16:00:00Z")), true) // Thanksgiving
+    assert.equal(fillsAtOpen("stock", new Date("2026-11-27T18:30:00Z")), true) // 1:30pm after the early close
+    assert.equal(fillsAtOpen("stock", new Date("2026-11-27T17:30:00Z")), false)
+  })
+
+  it("queues in the minutes after 4pm, when only after-hours prints are new", () => {
+    assert.equal(fillsAtOpen("stock", new Date("2026-09-29T20:01:00Z")), true)
+  })
+})
+
+describe("queuedFillDecision", () => {
+  const placed = new Date("2026-10-01T23:30:00Z") // Thursday 7:30pm EDT
+  const order = { createdAt: placed, leagueEndsAt: null }
+  const open = new Date("2026-10-02T13:35:00Z") // Friday 9:35am EDT
+
+  it("fills during the session at a print made after the order", () => {
+    assert.deepEqual(queuedFillDecision(order, new Date("2026-10-02T13:30:10Z"), open), { action: "fill" })
+  })
+
+  it("waits rather than fill at a print from before the order was placed", () => {
+    // An order queued at 10:00 during an outage can't take a 9:58 print it could already see was old.
+    const during = { createdAt: new Date("2026-10-02T14:00:00Z"), leagueEndsAt: null }
+    assert.deepEqual(queuedFillDecision(during, new Date("2026-10-02T13:58:00Z"), new Date("2026-10-02T14:01:00Z")), { action: "wait" })
+    assert.deepEqual(queuedFillDecision(during, new Date("2026-10-02T14:00:30Z"), new Date("2026-10-02T14:01:00Z")), { action: "fill" })
+  })
+
+  it("waits with no live price, and outside the session whatever the price", () => {
+    assert.deepEqual(queuedFillDecision(order, null, open), { action: "wait" })
+    assert.deepEqual(queuedFillDecision(order, new Date("2026-10-02T23:00:00Z"), new Date("2026-10-02T23:01:00Z")), { action: "wait" })
+    assert.deepEqual(queuedFillDecision(order, new Date("2026-10-03T15:00:00Z"), new Date("2026-10-03T15:01:00Z")), { action: "wait" }) // Saturday
+  })
+
+  it("cancels when the league ends first, even with the market shut", () => {
+    const ending = { createdAt: placed, leagueEndsAt: new Date("2026-10-02T04:00:00Z") }
+    const decision = queuedFillDecision(ending, null, new Date("2026-10-02T05:00:00Z"))
+    assert.equal(decision.action, "cancel")
+  })
+
+  it("gives up after a week without a live price", () => {
+    const later = new Date(placed.getTime() + (ORDER_EXPIRY_DAYS + 1) * 86_400_000)
+    assert.equal(queuedFillDecision(order, null, later).action, "reject")
+    assert.equal(queuedFillDecision(order, null, new Date(placed.getTime() + 86_400_000)).action, "wait")
   })
 })
 

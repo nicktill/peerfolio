@@ -289,7 +289,7 @@ function Holdings({ positions, orders, onCancel }: { positions: Position[]; orde
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="numeric text-sm font-medium">{formatCurrency(o.amount ?? 0)}</p>
-                  <p className="truncate text-xs text-muted-foreground">Buys at the open · no average cost yet</p>
+                  <p className="truncate text-xs text-muted-foreground">Buys at the next live price · no average cost yet</p>
                   {o.price > 0 ? <p className="numeric truncate text-xs text-muted-foreground">Last {formatCurrency(o.price)}</p> : null}
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-1">
@@ -313,7 +313,7 @@ function Holdings({ positions, orders, onCancel }: { positions: Position[]; orde
                   <p className="numeric truncate text-xs text-muted-foreground">Now {formatCurrency(p.price)}</p>
                   {(sellsBy.get(p.ticker) ?? []).map((o) => (
                     <p key={o.id} className="numeric flex items-center gap-2 truncate text-xs text-[--series-4]">
-                      Selling {o.shares === null ? "all" : `${fmtShares(o.shares)} sh`} at the open
+                      Selling {o.shares === null ? "all" : `${fmtShares(o.shares)} sh`} at the next live price
                       {onCancel ? <CancelOrder onClick={() => onCancel(o.id)} /> : null}
                     </p>
                   ))}
