@@ -2,9 +2,10 @@ import { after } from "next/server"
 import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm"
 import { accounts, db, holdings, securities } from "@web/db"
 import { ApiError } from "@web/lib/api"
-import { latestCompletedSession } from "@web/lib/market-hours"
+import { isUsMarketOpen, latestCompletedSession } from "@web/lib/market-hours"
 import { previousCloseOnUpdate } from "@web/lib/price-write"
-import { createQuoteProvider, quoteDate } from "@web/lib/quote-provider"
+import { acceptSessionClose, createQuoteProvider, quoteDate } from "@web/lib/quote-provider"
+import { createFinnhubProvider } from "@web/lib/finnhub"
 import { isPlanIdentifier } from "@web/lib/import-parse"
 import { tiingoApiKey, tiingoFundCloses } from "@web/lib/tiingo"
 import { staleHeldSecurities } from "@web/lib/stale-prices"
@@ -87,10 +88,11 @@ export async function ensurePriced(marketTicker: string, kind: AssetKind, { maxA
       marketTicker,
       closePrice: close.price.toString(),
       closePriceAsOf: close.asOf,
+      closePriceFinal: true,
     })
     .onConflictDoUpdate({
       target: securities.id,
-      set: { previousClose: previousCloseOnUpdate(close.asOf), closePrice: close.price.toString(), closePriceAsOf: close.asOf, updatedAt: new Date() },
+      set: { previousClose: previousCloseOnUpdate(close.asOf), closePrice: close.price.toString(), closePriceAsOf: close.asOf, closePriceFinal: true, updatedAt: new Date() },
     })
 
   return { securityId, price: close.price, asOf: close.asOf, name: existing?.name ?? null }
@@ -338,10 +340,12 @@ async function storeFirstPrice(p: { marketTicker: string; kind: AssetKind; name?
       marketTicker: p.marketTicker,
       closePrice: p.price.toString(),
       closePriceAsOf: p.asOf,
+      // It may be a live last trade; the catch-up confirms it against the official close.
+      closePriceFinal: false,
     })
     .onConflictDoUpdate({
       target: securities.id,
-      set: { closePrice: p.price.toString(), closePriceAsOf: p.asOf, type: p.type ?? sql`${securities.type}`, updatedAt: new Date() },
+      set: { closePrice: p.price.toString(), closePriceAsOf: p.asOf, closePriceFinal: false, type: p.type ?? sql`${securities.type}`, updatedAt: new Date() },
       setWhere: isNull(securities.closePrice),
     })
 }
@@ -526,7 +530,7 @@ export async function repricePositions() {
     if (!close || !isNewerClose(close.asOf, security.asOf)) continue
     await db
       .update(securities)
-      .set({ previousClose: previousCloseOnUpdate(close.asOf), closePrice: close.price.toString(), closePriceAsOf: close.asOf, updatedAt: new Date() })
+      .set({ previousClose: previousCloseOnUpdate(close.asOf), closePrice: close.price.toString(), closePriceAsOf: close.asOf, closePriceFinal: true, updatedAt: new Date() })
       .where(eq(securities.id, security.id))
   }
 
@@ -538,6 +542,9 @@ let lastRefreshAttempt = 0
 
 /** Per-ticker closes fetched per catch-up run: stays under the provider's free per-minute limit. */
 const PREVIOUS_CLOSE_CALLS_PER_RUN = 4
+
+/** Session closes asked of Finnhub per catch-up run: under its 60 calls a minute, with room for live prices. */
+const SESSION_CLOSE_CALLS_PER_RUN = 50
 
 /**
  * Brings stored closes up to date when someone opens a page, so a balance never
@@ -557,14 +564,16 @@ export async function refreshStalePrices({ maxAgeHours = 6, minIntervalMinutes =
     // new official close is picked up shortly after it's published, not hours later.
     const catchUp = { expectedDate: latestCompletedSession(new Date(now)), recheckBefore: new Date(now - recheckMinutes * 60_000) }
     const stale = await db
-      .select({ id: securities.id, marketTicker: securities.marketTicker, asOf: securities.closePriceAsOf, type: securities.type })
+      .select({ id: securities.id, marketTicker: securities.marketTicker, asOf: securities.closePriceAsOf, final: securities.closePriceFinal, type: securities.type })
       .from(securities)
       .where(staleHeldSecurities(cutoff, catchUp))
       // Least recently checked first, so the per-ticker fallback below rotates through everything.
       .orderBy(securities.updatedAt)
-    if (stale.length === 0) return { refreshed: 0 }
+    if (stale.length === 0) return { refreshed: 0, awaitingClose: 0 }
 
     const closes = await latestCloses(stale.map((s) => s.marketTicker!))
+    // Tickers whose entry in `closes` is a live price rather than an official close.
+    const provisional = new Set<string>()
 
     // Securities still without any price (just imported) go to the live-price sources first:
     // many tickers per request, no per-minute squeeze, and the official close replaces it later.
@@ -573,7 +582,51 @@ export async function refreshStalePrices({ maxAgeHours = 6, minIntervalMinutes =
       const quotes = await createQuoteProvider(process.env, fetch, undefined, { anyAge: true })?.getQuotes(unpriced.map((s) => s.marketTicker!))
       for (const security of unpriced) {
         const quote = quotes?.quotes.get(security.marketTicker!)
-        if (quote) closes.set(security.marketTicker!, { price: quote.price, asOf: quoteDate(quote) })
+        if (!quote) continue
+        closes.set(security.marketTicker!, { price: quote.price, asOf: quoteDate(quote) })
+        provisional.add(security.marketTicker!)
+      }
+    }
+
+    // The newest price we have for a security: stored, or found above.
+    const newest = (s: (typeof stale)[number]) => {
+      const found = closes.get(s.marketTicker!)?.asOf
+      const stored = s.asOf
+      if (!found) return stored
+      return !stored || found.slice(0, 10) >= stored.slice(0, 10) ? found : stored
+    }
+
+    // Stocks that still lack the official close of the latest finished session: dated
+    // before it, or holding a live price from that day (whatever the last refresh before
+    // the close caught). The whole-market bars can't help with the second kind: they trail
+    // the session by a day on our plan, which is what left a 3pm price standing as the close.
+    const wantsClose = stale.filter((s) => {
+      if (s.type === "mutual_fund") return false
+      const found = closes.get(s.marketTicker!)
+      if (found && !provisional.has(s.marketTicker!) && found.asOf.slice(0, 10) >= catchUp.expectedDate) return false
+      const stored = s.asOf?.slice(0, 10)
+      return !stored || stored < catchUp.expectedDate || (stored === catchUp.expectedDate && !s.final)
+    })
+
+    // Once that session is over, Finnhub's quote is its last regular-session print: the
+    // consolidated close (the free Alpaca feed is IEX-only and can be off by cents). The
+    // calls share Finnhub's 60 a minute with live prices, so a capped batch per run, and a
+    // 429 stops it; the rest stay first in line for the next run. During the session the
+    // quote is today's price, never the close we want, so it isn't asked then.
+    const closeAsked = new Set<string>()
+    const finnhubKey = process.env.FINNHUB_API_KEY
+    const closeStep = wantsClose.length > 0 && !!finnhubKey && !isUsMarketOpen(new Date(now))
+    if (closeStep) {
+      const batch = wantsClose.slice(0, SESSION_CLOSE_CALLS_PER_RUN)
+      const result = await createFinnhubProvider({ apiKey: finnhubKey! }).getQuotes(batch.map((s) => s.marketTicker!))
+      for (const security of batch) {
+        const quote = result.quotes.get(security.marketTicker!)
+        if (acceptSessionClose(quote, catchUp.expectedDate)) {
+          closes.set(security.marketTicker!, { price: quote.price, asOf: catchUp.expectedDate })
+          provisional.delete(security.marketTicker!)
+        }
+        // Rate limited part way: which tickers were asked is unknown, so none count as checked.
+        if (!result.rateLimited) closeAsked.add(security.id)
       }
     }
 
@@ -598,7 +651,7 @@ export async function refreshStalePrices({ maxAgeHours = 6, minIntervalMinutes =
     const behind = stale.filter((s) => {
       // Funds were handled above; the single-ticker lookup here can't price them.
       if (s.type === "mutual_fund") return false
-      const have = closes.get(s.marketTicker!)?.asOf ?? s.asOf
+      const have = newest(s)
       return !have || have.slice(0, 10) < catchUp.expectedDate
     })
     const attempted = new Set<string>()
@@ -618,7 +671,18 @@ export async function refreshStalePrices({ maxAgeHours = 6, minIntervalMinutes =
     // waiting out the recheck interval.
     // Ones we did look up but that came back empty (an unknown ticker, a fund the provider
     // doesn't cover) are marked checked and go to the back, so they can't hog every run.
-    const skipped = new Set([...behind.filter((s) => !closes.has(s.marketTicker!) && !attempted.has(s.id)).map((s) => s.id), ...fundsWaiting])
+    const notAsked = (s: (typeof stale)[number]) => !attempted.has(s.id) && !closeAsked.has(s.id)
+    const stillWanted = (s: (typeof stale)[number]) => {
+      const found = closes.get(s.marketTicker!)
+      return !found || provisional.has(s.marketTicker!) || found.asOf.slice(0, 10) < catchUp.expectedDate
+    }
+    const skipped = new Set([
+      ...behind.filter((s) => !closes.has(s.marketTicker!) && notAsked(s)).map((s) => s.id),
+      // Only when the close lookup ran: then these were over its cap. Otherwise (market
+      // open, no key) they are marked checked and wait out the recheck interval.
+      ...(closeStep ? wantsClose.filter((s) => stillWanted(s) && notAsked(s)).map((s) => s.id) : []),
+      ...fundsWaiting,
+    ])
 
     let refreshed = 0
     for (const security of stale) {
@@ -627,14 +691,22 @@ export async function refreshStalePrices({ maxAgeHours = 6, minIntervalMinutes =
       // A close that isn't newer than what we hold (weekend, holiday, or a live
       // price from today) still counts as checked, but never replaces it.
       const close = found && isNewerClose(found.asOf, security.asOf) ? found : undefined
+      const final = !provisional.has(security.marketTicker!)
       await db
         .update(securities)
-        .set(close ? { previousClose: previousCloseOnUpdate(close.asOf), closePrice: close.price.toString(), closePriceAsOf: close.asOf, updatedAt: new Date() } : { updatedAt: new Date() })
+        .set(
+          close
+            ? { previousClose: previousCloseOnUpdate(close.asOf), closePrice: close.price.toString(), closePriceAsOf: close.asOf, closePriceFinal: final, updatedAt: new Date() }
+            : { updatedAt: new Date() },
+        )
         .where(eq(securities.id, security.id))
       if (close) refreshed++
     }
     if (refreshed > 0) await revalue()
-    return { refreshed }
+    // Stocks still without the latest session's official close after this run, so a
+    // response (and the cron's log) says how fresh prices really are, not just what was tried.
+    const awaitingClose = wantsClose.filter(stillWanted).length
+    return { refreshed, awaitingClose }
   } catch (error) {
     console.error("[positions] price refresh failed:", error instanceof Error ? error.message : error)
     // A failure shouldn't lock refreshing out for the whole interval: retry in a minute.

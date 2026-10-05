@@ -104,6 +104,18 @@ export function acceptQuote(quote: Quote | undefined, now: Date): quote is Quote
   return isSessionPrint(new Date(at))
 }
 
+/**
+ * Whether `quote` is the close of the session on `sessionDate`: a print from
+ * inside that session, asked for once it is over, so it is the session's last
+ * regular print. An after-hours print, or one from another day, is not.
+ */
+export function acceptSessionClose(quote: Quote | undefined, sessionDate: string): quote is Quote {
+  if (!quote || !Number.isFinite(quote.price) || !(quote.price > 0)) return false
+  const at = Date.parse(quote.asOf)
+  if (!Number.isFinite(at)) return false
+  return quoteDate(quote) === sessionDate && isSessionPrint(new Date(at))
+}
+
 /** The trading date a quote belongs to. The regular session never crosses a UTC midnight. */
 export function quoteDate(quote: Quote): string {
   return quote.asOf.slice(0, 10)

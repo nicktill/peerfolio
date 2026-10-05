@@ -59,6 +59,11 @@ describe("staleHeldSecurities catch-up", () => {
     assert.match(sql, /"updated_at" </)
   })
 
+  it("also picks up a live price from that same session, so the official close replaces it", () => {
+    assert.match(sql, /"securities"\."close_price_as_of" = \$\d+ and "securities"\."close_price_final" = \$\d+/i)
+    assert.ok(params.includes(false))
+  })
+
   it("still never sends a raw Date", () => {
     for (const param of params) assert.equal(param instanceof Date, false)
   })
