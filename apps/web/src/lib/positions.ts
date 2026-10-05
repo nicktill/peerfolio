@@ -1,5 +1,5 @@
 import { after } from "next/server"
-import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm"
+import { and, eq, inArray, isNotNull, isNull, lt, sql } from "drizzle-orm"
 import { accounts, db, holdings, securities } from "@web/db"
 import { ApiError } from "@web/lib/api"
 import { isUsMarketOpen, latestCompletedSession } from "@web/lib/market-hours"
@@ -19,6 +19,7 @@ import {
   tickerDetails,
   toMarketTicker,
   type AssetKind,
+  type Close,
 } from "@web/lib/market-data"
 
 /**
@@ -553,8 +554,22 @@ const SESSION_CLOSE_CALLS_PER_RUN = 50
  * and is throttled per server instance so page loads can't spend the provider's
  * free rate limit. Never throws: a stale price beats a broken page.
  */
-export async function refreshStalePrices({ maxAgeHours = 6, minIntervalMinutes = 10, recheckMinutes = 15 } = {}) {
-  const now = Date.now()
+/**
+ * What a catch-up run did. `awaitingClose` counts stocks still without the latest
+ * session's official close; `unconfirmed` is the part of those still holding a live
+ * price from that session, i.e. a close we know we don't have.
+ */
+export type CatchUpResult = { refreshed: number; awaitingClose?: number; unconfirmed?: number; failed?: boolean }
+
+export async function refreshStalePrices({
+  maxAgeHours = 6,
+  minIntervalMinutes = 10,
+  recheckMinutes = 15,
+  // The nightly job has just fetched the whole-market bars itself; asking again would
+  // spend the small free allowance twice within seconds.
+  wholeMarket = true,
+  now = Date.now(),
+} = {}): Promise<CatchUpResult> {
   if (now - lastRefreshAttempt < minIntervalMinutes * 60_000) return { refreshed: 0 }
   lastRefreshAttempt = now
 
@@ -569,9 +584,16 @@ export async function refreshStalePrices({ maxAgeHours = 6, minIntervalMinutes =
       .where(staleHeldSecurities(cutoff, catchUp))
       // Least recently checked first, so the per-ticker fallback below rotates through everything.
       .orderBy(securities.updatedAt)
-    if (stale.length === 0) return { refreshed: 0, awaitingClose: 0 }
+    if (stale.length === 0) return { refreshed: 0, awaitingClose: 0, unconfirmed: 0 }
 
-    const closes = await latestCloses(stale.map((s) => s.marketTicker!))
+    // A failed whole-market lookup (a 429 on the free plan, say) must not stop the
+    // per-ticker steps below: they are what confirm the latest session's closes.
+    const closes = wholeMarket
+      ? await latestCloses(stale.map((s) => s.marketTicker!)).catch((error: unknown) => {
+          console.error("[positions] whole-market closes failed:", error instanceof Error ? error.message : error)
+          return new Map<string, Close>()
+        })
+      : new Map<string, Close>()
     // Tickers whose entry in `closes` is a live price rather than an official close.
     const provisional = new Set<string>()
 
@@ -617,18 +639,36 @@ export async function refreshStalePrices({ maxAgeHours = 6, minIntervalMinutes =
     const finnhubKey = process.env.FINNHUB_API_KEY
     const closeStep = wantsClose.length > 0 && !!finnhubKey && !isUsMarketOpen(new Date(now))
     if (closeStep) {
-      const batch = wantsClose.slice(0, SESSION_CLOSE_CALLS_PER_RUN)
-      const result = await createFinnhubProvider({ apiKey: finnhubKey! }).getQuotes(batch.map((s) => s.marketTicker!))
+      // Claim the batch before asking, as live prices do: a server running this at the same
+      // moment skips tickers already claimed instead of asking Finnhub for them too, so the
+      // cap holds across servers. Claimed tickers wait out the recheck interval whatever the
+      // answer, which is also the shared cooldown after a 429.
+      const candidates = wantsClose.slice(0, SESSION_CLOSE_CALLS_PER_RUN)
+      const claimed = await db
+        .update(securities)
+        .set({ updatedAt: new Date() })
+        .where(and(inArray(securities.id, candidates.map((s) => s.id)), lt(securities.updatedAt, catchUp.recheckBefore)))
+        .returning({ id: securities.id })
+      for (const { id } of claimed) closeAsked.add(id)
+      const batch = candidates.filter((s) => closeAsked.has(s.id))
+      const result = batch.length > 0 ? await createFinnhubProvider({ apiKey: finnhubKey! }).getQuotes(batch.map((s) => s.marketTicker!)) : null
       for (const security of batch) {
-        const quote = result.quotes.get(security.marketTicker!)
+        const quote = result?.quotes.get(security.marketTicker!)
         if (acceptSessionClose(quote, catchUp.expectedDate)) {
           closes.set(security.marketTicker!, { price: quote.price, asOf: catchUp.expectedDate })
           provisional.delete(security.marketTicker!)
         }
-        // Rate limited part way: which tickers were asked is unknown, so none count as checked.
-        if (!result.rateLimited) closeAsked.add(security.id)
       }
     }
+
+    const stillWanted = (s: (typeof stale)[number]) => {
+      const found = closes.get(s.marketTicker!)
+      return !found || provisional.has(s.marketTicker!) || found.asOf.slice(0, 10) < catchUp.expectedDate
+    }
+    // Tickers this run is responsible for and still couldn't confirm. When the Finnhub step
+    // ran, only the ones it claimed: another server owns the rest, and the ones over the cap
+    // wait for the next run.
+    const unresolved = new Set(wantsClose.filter((s) => stillWanted(s) && (!closeStep || closeAsked.has(s.id))).map((s) => s.id))
 
     // Mutual funds: none of the sources above carry them, Tiingo publishes their daily price
     // (the free allowance is small, so a few per run; the rest wait for the next one).
@@ -648,11 +688,13 @@ export async function refreshStalePrices({ maxAgeHours = 6, minIntervalMinutes =
     // The whole-market bars can trail a finished session by a day on some plans. The
     // per-ticker "previous close" doesn't, so use it for a few tickers per run (the
     // provider's free tier allows a handful of calls a minute); later runs do the rest.
+    // Also a fallback for a live price Finnhub couldn't confirm: `/prev` carries the
+    // session's bar once it's published (by the next morning on our plan).
     const behind = stale.filter((s) => {
       // Funds were handled above; the single-ticker lookup here can't price them.
       if (s.type === "mutual_fund") return false
       const have = newest(s)
-      return !have || have.slice(0, 10) < catchUp.expectedDate
+      return !have || have.slice(0, 10) < catchUp.expectedDate || unresolved.has(s.id)
     })
     const attempted = new Set<string>()
     for (const security of behind.slice(0, PREVIOUS_CLOSE_CALLS_PER_RUN)) {
@@ -672,10 +714,6 @@ export async function refreshStalePrices({ maxAgeHours = 6, minIntervalMinutes =
     // Ones we did look up but that came back empty (an unknown ticker, a fund the provider
     // doesn't cover) are marked checked and go to the back, so they can't hog every run.
     const notAsked = (s: (typeof stale)[number]) => !attempted.has(s.id) && !closeAsked.has(s.id)
-    const stillWanted = (s: (typeof stale)[number]) => {
-      const found = closes.get(s.marketTicker!)
-      return !found || provisional.has(s.marketTicker!) || found.asOf.slice(0, 10) < catchUp.expectedDate
-    }
     const skipped = new Set([
       ...behind.filter((s) => !closes.has(s.marketTicker!) && notAsked(s)).map((s) => s.id),
       // Only when the close lookup ran: then these were over its cap. Otherwise (market
@@ -705,13 +743,28 @@ export async function refreshStalePrices({ maxAgeHours = 6, minIntervalMinutes =
     if (refreshed > 0) await revalue()
     // Stocks still without the latest session's official close after this run, so a
     // response (and the cron's log) says how fresh prices really are, not just what was tried.
-    const awaitingClose = wantsClose.filter(stillWanted).length
-    return { refreshed, awaitingClose }
+    const awaiting = wantsClose.filter(stillWanted)
+    // Counted in the database, not from this run's view: another server may have confirmed
+    // (or still be confirming) tickers this run left to it.
+    const [{ unconfirmed }] = await db
+      .select({ unconfirmed: sql<number>`count(*)::int` })
+      .from(securities)
+      .where(
+        and(
+          eq(securities.closePriceAsOf, catchUp.expectedDate),
+          eq(securities.closePriceFinal, false),
+          sql`${securities.marketTicker} NOT LIKE 'X:%'`,
+          sql`(EXISTS (SELECT 1 FROM holdings h WHERE h.security_id = ${securities.id})
+            OR EXISTS (SELECT 1 FROM fantasy_positions f WHERE f.security_id = ${securities.id}))`,
+        ),
+      )
+    if (unconfirmed > 0) console.warn(`[positions] ${unconfirmed} live price(s) from ${catchUp.expectedDate} still lack the official close`)
+    return { refreshed, awaitingClose: awaiting.length, unconfirmed }
   } catch (error) {
     console.error("[positions] price refresh failed:", error instanceof Error ? error.message : error)
     // A failure shouldn't lock refreshing out for the whole interval: retry in a minute.
     lastRefreshAttempt = now - (minIntervalMinutes - 1) * 60_000
-    return { refreshed: 0 }
+    return { refreshed: 0, failed: true }
   }
 }
 
