@@ -45,7 +45,7 @@ const shortName = (label: string, max = 9) => (label.length > max ? `${label.sli
  */
 export function RaceChart({
   series,
-  height = 240,
+  height: minHeight = 240,
   className,
   rich = false,
 }: {
@@ -86,6 +86,11 @@ export function RaceChart({
 
   const compact = width > 0 && width < 460
   const pad = { top: 14, right: rich ? (compact ? 96 : 152) : compact ? 60 : 88, bottom: 26, left: compact ? 44 : 46 }
+
+  // In the app every player gets a 22px avatar row at the line ends. With a big league the
+  // rows don't fit in the base height and get squashed or pushed off the chart, so the chart
+  // grows to give each player a row (capped, past which rows are squeezed together).
+  const height = rich ? Math.min(Math.max(minHeight, series.length * 26 + pad.top + pad.bottom + 12), 480) : minHeight
 
   const geometry = useMemo(() => {
     const usable = series
