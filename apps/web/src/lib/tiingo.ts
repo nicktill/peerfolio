@@ -8,7 +8,7 @@
  * framework imports so the tests can stub `fetch`.
  */
 
-import { providerFetch } from "./provider-fetch.ts"
+import { providerFetch, type ProviderFetch } from "./provider-fetch.ts"
 
 const BASE_URL = process.env.TIINGO_BASE_URL ?? "https://api.tiingo.com"
 
@@ -29,7 +29,7 @@ export type FundCloses = {
 
 export async function tiingoFundCloses(
   tickers: string[],
-  { apiKey, fetchImpl = providerFetch("tiingo"), timeoutMs = 8_000, baseUrl = BASE_URL }: { apiKey: string; fetchImpl?: typeof fetch; timeoutMs?: number; baseUrl?: string },
+  { apiKey, fetchImpl = providerFetch("tiingo"), timeoutMs = 8_000, baseUrl = BASE_URL }: { apiKey: string; fetchImpl?: ProviderFetch; timeoutMs?: number; baseUrl?: string },
 ): Promise<FundCloses> {
   const out: FundCloses = { closes: new Map(), unknown: new Set(), rateLimited: false, failed: 0 }
 
@@ -40,7 +40,8 @@ export async function tiingoFundCloses(
         // A header, not the URL, so the key doesn't end up in request logs.
         headers: { Authorization: `Token ${apiKey}`, "Content-Type": "application/json" },
         cache: "no-store",
-        signal: AbortSignal.timeout(timeoutMs),
+        // Starts when the request is sent, after any wait for budget.
+        timeoutMs,
       })
       if (response.status === 429) {
         out.rateLimited = true

@@ -32,10 +32,13 @@ describe("retryAfterSeconds", () => {
     assert.equal(retryAfterSeconds("Mon, 05 Oct 2026 23:01:30 GMT", now), 90)
   })
 
-  it("waits a minute when the header is missing or unreadable, and never less than a second or more than an hour", () => {
+  it("waits as long as the provider asks, however long", () => {
+    assert.equal(retryAfterSeconds("86400", now), 86400)
+  })
+
+  it("waits a minute when the header is missing or unreadable, and never less than a second", () => {
     assert.equal(retryAfterSeconds(null, now), 60)
     assert.equal(retryAfterSeconds("soon", now), 60)
     assert.equal(retryAfterSeconds("0", now), 1)
-    assert.equal(retryAfterSeconds("86400", now), 3600)
   })
 })

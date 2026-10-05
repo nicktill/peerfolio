@@ -555,11 +555,39 @@ const SESSION_CLOSE_CALLS_PER_RUN = 50
  * free rate limit. Never throws: a stale price beats a broken page.
  */
 /**
- * What a catch-up run did. `awaitingClose` counts stocks still without the latest
- * session's official close; `unconfirmed` is the part of those still holding a live
- * price from that session, i.e. a close we know we don't have.
+ * What a catch-up run did. `awaitingClose` counts the stocks this run looked at that
+ * still lack the latest session's official close. `unconfirmed` and `behind` cover
+ * every held stock, counted in the database (see `closeFreshness`).
  */
-export type CatchUpResult = { refreshed: number; awaitingClose?: number; unconfirmed?: number; failed?: boolean }
+export type CatchUpResult = { refreshed: number; awaitingClose?: number; unconfirmed?: number; behind?: number; failed?: boolean }
+
+/**
+ * How fresh held stock prices are, counted in the database rather than from one run's
+ * view, since another server may have confirmed (or still be confirming) what a run
+ * left to it, and a run may have had nothing eligible at all:
+ * - `unconfirmed`: live prices never replaced by an official close, from the latest
+ *   finished session or any before it. A close we know we don't have.
+ * - `behind`: official closes older than that session. On the day after a holiday
+ *   (which `latestCompletedSession` doesn't know) this counts everything, so it informs
+ *   rather than alarms.
+ */
+async function closeFreshness(expectedDate: string): Promise<{ unconfirmed: number; behind: number }> {
+  const [row] = await db
+    .select({
+      unconfirmed: sql<number>`(count(*) FILTER (WHERE NOT ${securities.closePriceFinal} AND ${securities.closePriceAsOf} <= ${expectedDate}::date))::int`,
+      behind: sql<number>`(count(*) FILTER (WHERE ${securities.closePriceFinal} AND ${securities.closePriceAsOf} < ${expectedDate}::date))::int`,
+    })
+    .from(securities)
+    .where(
+      and(
+        isNotNull(securities.marketTicker),
+        sql`${securities.marketTicker} NOT LIKE 'X:%'`,
+        sql`(EXISTS (SELECT 1 FROM holdings h WHERE h.security_id = ${securities.id})
+          OR EXISTS (SELECT 1 FROM fantasy_positions f WHERE f.security_id = ${securities.id}))`,
+      ),
+    )
+  return { unconfirmed: Number(row?.unconfirmed ?? 0), behind: Number(row?.behind ?? 0) }
+}
 
 export async function refreshStalePrices({
   maxAgeHours = 6,
@@ -584,7 +612,7 @@ export async function refreshStalePrices({
       .where(staleHeldSecurities(cutoff, catchUp))
       // Least recently checked first, so the per-ticker fallback below rotates through everything.
       .orderBy(securities.updatedAt)
-    if (stale.length === 0) return { refreshed: 0, awaitingClose: 0, unconfirmed: 0 }
+    if (stale.length === 0) return { refreshed: 0, awaitingClose: 0, ...(await closeFreshness(catchUp.expectedDate)) }
 
     // A failed whole-market lookup (a 429 on the free plan, say) must not stop the
     // per-ticker steps below: they are what confirm the latest session's closes.
@@ -756,23 +784,9 @@ export async function refreshStalePrices({
     if (refreshed > 0) await revalue()
     // Stocks still without the latest session's official close after this run, so a
     // response (and the cron's log) says how fresh prices really are, not just what was tried.
-    const awaiting = wantsClose.filter(stillWanted)
-    // Counted in the database, not from this run's view: another server may have confirmed
-    // (or still be confirming) tickers this run left to it.
-    const [{ unconfirmed }] = await db
-      .select({ unconfirmed: sql<number>`count(*)::int` })
-      .from(securities)
-      .where(
-        and(
-          eq(securities.closePriceAsOf, catchUp.expectedDate),
-          eq(securities.closePriceFinal, false),
-          sql`${securities.marketTicker} NOT LIKE 'X:%'`,
-          sql`(EXISTS (SELECT 1 FROM holdings h WHERE h.security_id = ${securities.id})
-            OR EXISTS (SELECT 1 FROM fantasy_positions f WHERE f.security_id = ${securities.id}))`,
-        ),
-      )
-    if (unconfirmed > 0) console.warn(`[positions] ${unconfirmed} live price(s) from ${catchUp.expectedDate} still lack the official close`)
-    return { refreshed, awaitingClose: awaiting.length, unconfirmed }
+    const freshness = await closeFreshness(catchUp.expectedDate)
+    if (freshness.unconfirmed > 0) console.warn(`[positions] ${freshness.unconfirmed} live price(s) up to ${catchUp.expectedDate} still lack the official close`)
+    return { refreshed, awaitingClose: wantsClose.filter(stillWanted).length, ...freshness }
   } catch (error) {
     console.error("[positions] price refresh failed:", error instanceof Error ? error.message : error)
     // A failure shouldn't lock refreshing out for the whole interval: retry in a minute.

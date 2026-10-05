@@ -10,6 +10,10 @@
  * here, which every provider adapter already treats as "stop and leave the rest for
  * the next run". A real 429 sets a cooldown that every server honors.
  *
+ * When the budget can't be checked (the database is unreachable, or its table
+ * missing), requests are refused like an empty budget: stored prices stay as they
+ * are rather than requests going out unmetered.
+ *
  * Free of database imports (the budget is loaded on first use) so the adapters that
  * default to this stay importable by the unit tests, which pass their own fetch.
  */
@@ -43,16 +47,19 @@ export function budgetFor(provider: ProviderName, env: Record<string, string | u
   return { perMinute: read("PER_MINUTE", DEFAULTS[provider].perMinute), burst: Math.max(1, read("BURST", DEFAULTS[provider].burst)) }
 }
 
-/** Seconds to wait from a Retry-After header (seconds or an HTTP date); a minute when absent or unreadable. */
+/**
+ * Seconds to wait from a Retry-After header (seconds or an HTTP date), as long as the
+ * provider asks; a minute when it is absent or unreadable, and never under a second.
+ */
 export function retryAfterSeconds(header: string | null, now = Date.now()): number {
   const DEFAULT = 60
   if (!header) return DEFAULT
   const seconds = /^\s*\d+\s*$/.test(header) ? Number(header) : (Date.parse(header) - now) / 1000
   if (!Number.isFinite(seconds)) return DEFAULT
-  return Math.min(3600, Math.max(1, Math.ceil(seconds)))
+  return Math.max(1, Math.ceil(seconds))
 }
 
-export type Take = { granted: boolean; waitSeconds: number }
+export type Take = { granted: boolean; waitSeconds: number; unavailable?: boolean }
 
 type Gate = {
   take(provider: ProviderName, budget: Budget): Promise<Take>
@@ -64,10 +71,18 @@ const loadGate = () =>
   (gate ??= import("./provider-budget.ts").then(
     (module) => module.gate,
     (error: unknown) => {
-      console.error("[budget] unavailable, requests go out unbudgeted:", error instanceof Error ? error.message : error)
+      console.error("[budget] unavailable, so no provider requests go out:", error instanceof Error ? error.message : error)
+      gate = undefined // try loading again next time
       return null
     },
   ))
+
+/**
+ * A request's options, plus `timeoutMs`: a timeout that starts when the request is
+ * sent, not when it was queued, so time spent waiting for budget doesn't use it up.
+ */
+export type ProviderInit = RequestInit & { timeoutMs?: number }
+export type ProviderFetch = (input: RequestInfo | URL, init?: ProviderInit) => Promise<Response>
 
 /** Marks a 429 as ours rather than the provider's, for logs and tests. */
 export const BUDGET_HEADER = "x-peerfolio-budget"
@@ -86,29 +101,32 @@ export function withProviderPatience<T>(ms: number, fn: () => Promise<T>): Promi
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 /** A fetch for `provider` that spends from its shared budget and honors its cooldowns. */
-export function providerFetch(provider: ProviderName): typeof fetch {
+export function providerFetch(provider: ProviderName): ProviderFetch {
+  const refuse = (waitSeconds: number, why: string) =>
+    new Response(JSON.stringify({ error: `${provider} ${why}; retry in ${Math.ceil(waitSeconds)}s` }), {
+      status: 429,
+      headers: { "content-type": "application/json", "retry-after": String(Math.ceil(waitSeconds)), [BUDGET_HEADER]: why },
+    })
+
   return async (input, init) => {
     const budgeted = await loadGate()
-    if (budgeted) {
-      const budget = budgetFor(provider)
-      for (;;) {
-        const take = await budgeted.take(provider, budget)
-        if (take.granted) break
-        const deadline = patience.getStore() ?? 0
-        const wait = take.waitSeconds * 1000 + 50
-        if (Date.now() + wait > deadline) {
-          return new Response(JSON.stringify({ error: `${provider} request budget spent; retry in ${Math.ceil(take.waitSeconds)}s` }), {
-            status: 429,
-            headers: { "content-type": "application/json", "retry-after": String(Math.ceil(take.waitSeconds)), [BUDGET_HEADER]: "spent" },
-          })
-        }
-        await sleep(wait)
-      }
+    if (!budgeted) return refuse(60, "request budget unavailable")
+    const budget = budgetFor(provider)
+    for (;;) {
+      const take = await budgeted.take(provider, budget)
+      if (take.granted) break
+      const deadline = patience.getStore() ?? 0
+      const wait = take.waitSeconds * 1000 + 50
+      if (Date.now() + wait > deadline) return refuse(take.waitSeconds, take.unavailable ? "request budget unavailable" : "request budget spent")
+      await sleep(wait)
     }
 
+    // The timeout starts now that the request is admitted.
+    const { timeoutMs, ...options } = init ?? {}
+    const signal = timeoutMs ? AbortSignal.timeout(timeoutMs) : options.signal
     // Looked up at call time, so a stub installed after this module loaded is used.
-    const response = await globalThis.fetch(input, init)
-    if (response.status === 429 && budgeted) {
+    const response = await globalThis.fetch(input, { ...options, signal })
+    if (response.status === 429) {
       const seconds = retryAfterSeconds(response.headers.get("retry-after"))
       console.warn(`[budget] ${provider} rate limited us; every server waits ${seconds}s`)
       await budgeted.cooldown(provider, seconds)

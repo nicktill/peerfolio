@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS holdings(id uuid PRIMARY KEY DEFAULT gen_random_uuid(
 CREATE TABLE IF NOT EXISTS fantasy_positions(security_id text);
 CREATE TABLE IF NOT EXISTS provider_budgets(provider text PRIMARY KEY, tokens double precision NOT NULL, refilled_at timestamptz NOT NULL DEFAULT now(), blocked_until timestamptz, last_granted boolean NOT NULL DEFAULT true);`);
 // One bundle for both services, so they share one module graph, as they do in the app.
-await build({stdin:{contents:"export * from './positions.ts'; export { ensureLivePrice } from './live-quotes.ts';",resolveDir:root+'/apps/web/src/lib',sourcefile:'entry.ts',loader:'ts'},outfile:path.join(temp,'services.cjs'),bundle:true,platform:'node',format:'cjs',nodePaths:[path.join(root,'node_modules')],tsconfig:root+'/apps/web/tsconfig.json',logLevel:'silent',plugins:[{name:'test-isolation',setup(b){
+await build({stdin:{contents:"export * from './positions.ts'; export { ensureLivePrice } from './live-quotes.ts'; export { withProviderPatience } from './provider-fetch.ts'; export { createFinnhubProvider } from './finnhub.ts';",resolveDir:root+'/apps/web/src/lib',sourcefile:'entry.ts',loader:'ts'},outfile:path.join(temp,'services.cjs'),bundle:true,platform:'node',format:'cjs',nodePaths:[path.join(root,'node_modules')],tsconfig:root+'/apps/web/tsconfig.json',logLevel:'silent',plugins:[{name:'test-isolation',setup(b){
 b.onResolve({filter:/^server-only$/},()=>({path:'server-only',namespace:'stub'}));
 b.onResolve({filter:/^@web\/lib\/api$/},()=>({path:'api',namespace:'stub'}));
 b.onLoad({filter:/.*/,namespace:'stub'},a=>({contents:a.path==='api'?'export class ApiError extends Error { constructor(message,status=400){super(message);this.status=status;} }':'',loader:'js'}));
@@ -40,7 +40,7 @@ process.env.DATABASE_URL = url;
 for (const key of Object.keys(process.env)) if (/API_KEY|API_SECRET|_PER_MINUTE|_BURST|QUOTE_PROVIDER/.test(key)) delete process.env[key];
 process.env.FINNHUB_API_KEY = 'test';
 process.env.MASSIVE_API_KEY = 'test';
-const { refreshStalePrices, importPositions, ensureLivePrice } = require(path.join(temp, 'services.cjs'));
+const { refreshStalePrices, importPositions, ensureLivePrice, withProviderPatience, createFinnhubProvider } = require(path.join(temp, 'services.cjs'));
 
 // Monday Oct 5, 2026. The catch-up runs at 7pm New York time, after the session; trades at 2pm, during it.
 const evening = Date.parse('2026-10-05T23:00:00Z');
@@ -51,7 +51,7 @@ const quote = (price, t) => ({ c: price, t: Math.floor(t / 1000) });
 
 let provider;
 const json = (body, status = 200, headers = {}) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...headers } });
-globalThis.fetch = async (input) => provider(String(input));
+globalThis.fetch = async (input, init) => provider(String(input), init);
 
 /** Seeds a clean database, sets the provider budgets, and records every request that reaches a provider. */
 async function scenario(name, { rows, respond, budgets = {} }) {
@@ -63,14 +63,15 @@ async function scenario(name, { rows, respond, budgets = {} }) {
   const [{ id: account }] = await db`INSERT INTO accounts(user_id,name) VALUES(${user},'A') RETURNING id`;
   for (const r of rows) {
     await db`INSERT INTO securities(id,ticker_symbol,type,close_price,close_price_as_of,close_price_final,previous_close,market_ticker,updated_at)
-      VALUES(${'mkt:' + r.ticker},${r.ticker},'equity',${r.price},${r.asOf ?? day},${r.final},${r.previousClose ?? null},${r.ticker},'2026-10-05T19:04:08Z')`;
+      VALUES(${'mkt:' + r.ticker},${r.ticker},'equity',${r.price},${r.asOf ?? day},${r.final},${r.previousClose ?? null},${r.ticker},${r.checkedAt ?? '2026-10-05T19:04:08Z'})`;
     await db`INSERT INTO holdings(account_id,user_id,security_id,quantity) VALUES(${account},${user},${'mkt:' + r.ticker},10)`;
   }
   const sent = { finnhub: [], massive: [], prev: 0, grouped: 0 };
-  provider = async (u) => {
+  provider = async (u, init) => {
     if (u.includes('finnhub.io')) {
       sent.finnhub.push({ at: Date.now(), symbol: new URL(u).searchParams.get('symbol') });
       await new Promise((r) => setTimeout(r, 20));
+      if (init?.signal?.aborted) throw new DOMException('The operation timed out.', 'TimeoutError');
     } else {
       sent.massive.push({ at: Date.now() });
       if (u.includes('/prev')) sent.prev++;
@@ -218,6 +219,60 @@ const noBars = (u, json) => (u.includes('/grouped/') ? json({}, 404) : json({ re
   assert.ok(released < evening - 15 * 60_000, 'the unanswered tickers go back to the front of the line');
   await Promise.all([catchUp(), ensureLivePrice('TRD1', { now: afternoon }), importPositions(account, user, [{ symbol: 'IMP9', kind: 'stock', quantity: 1 }], { replace: false })]);
   assert.equal(sent.finnhub.length, afterFirst, 'no request reaches Finnhub during its cooldown, by any path');
+}
+
+// 6. When the budget can't be checked (here, its table is gone), nothing goes out unmetered:
+//    the requests are refused and the stored prices stand.
+{
+  const { sent, stored } = await scenario('budget unavailable: requests refused, prices kept', {
+    rows: ['AAA', 'TRD1'].map((ticker) => ({ ticker, price: 50, final: false })),
+    respond: (u, json) => (u.includes('finnhub.io') ? json(quote(100.5, at4pm)) : noBars(u, json)),
+  });
+  await db.unsafe('ALTER TABLE provider_budgets RENAME TO provider_budgets_gone');
+  try {
+    await Promise.all([catchUp(), ensureLivePrice('TRD1', { now: afternoon })]);
+  } finally {
+    await db.unsafe('ALTER TABLE provider_budgets_gone RENAME TO provider_budgets');
+  }
+  assert.equal(sent.finnhub.length + sent.massive.length, 0, 'no request goes out without a budget check');
+  const rows = await stored();
+  assert.equal(rows.AAA.close_price, '50.000000');
+  assert.equal(rows.TRD1.close_price, '50.000000');
+}
+
+// 7. A request's timeout starts when it is sent, not while it waits for budget: a scheduled job
+//    that waits a second for a token still gets its full 300ms for the request itself.
+{
+  const { sent } = await scenario('timeout starts after the wait for budget', {
+    budgets: { FINNHUB_PER_MINUTE: '60', FINNHUB_BURST: '1' },
+    rows: [],
+    respond: (u, json) => json(quote(100.5, at4pm)),
+  });
+  await db`INSERT INTO provider_budgets(provider, tokens, refilled_at) VALUES('finnhub', 0, now())`;
+  const started = Date.now();
+  const result = await withProviderPatience(10_000, () => createFinnhubProvider({ apiKey: 'test', timeoutMs: 300 }).getQuotes(['AAA']));
+  assert.ok(Date.now() - started >= 900, 'it waited for the token');
+  assert.equal(sent.finnhub.length, 1);
+  assert.equal(result.failed, 0, 'the request was not timed out by the wait');
+  assert.equal(result.quotes.get('AAA')?.price, 100.5);
+}
+
+// 8. Freshness is counted across every held stock, even when a run has nothing to do: live prices
+//    never confirmed (this session's and older ones) and official closes from an older session.
+{
+  await scenario('freshness counted with no eligible work', {
+    rows: [
+      { ticker: 'LIVE', price: 50, final: false, checkedAt: '2026-10-05T22:59:00Z' },
+      { ticker: 'OLDLIVE', price: 50, final: false, asOf: '2026-10-02', checkedAt: '2026-10-05T22:59:00Z' },
+      { ticker: 'OLDCLOSE', price: 50, final: true, asOf: '2026-10-01', checkedAt: '2026-10-05T22:59:00Z' },
+      { ticker: 'FRESH', price: 50, final: true, checkedAt: '2026-10-05T22:59:00Z' },
+    ],
+    respond: (u, json) => json({}, 500),
+  });
+  const result = await catchUp();
+  assert.equal(result.refreshed, 0);
+  assert.equal(result.unconfirmed, 2, 'both live prices count, this session and an older one');
+  assert.equal(result.behind, 1);
 }
 
 await db.end();

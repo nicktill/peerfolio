@@ -11,7 +11,7 @@
  */
 
 import type { Quote, QuoteProvider, QuoteResult } from "./quote-provider.ts"
-import { providerFetch } from "./provider-fetch.ts"
+import { providerFetch, type ProviderFetch } from "./provider-fetch.ts"
 
 const BASE_URL = process.env.ALPACA_DATA_URL ?? "https://data.alpaca.markets"
 
@@ -40,7 +40,7 @@ export function createAlpacaProvider({
   keyId: string
   secret: string
   feed?: "iex" | "sip"
-  fetchImpl?: typeof fetch
+  fetchImpl?: ProviderFetch
   timeoutMs?: number
   baseUrl?: string
 }): QuoteProvider {
@@ -58,7 +58,8 @@ export function createAlpacaProvider({
             // Headers, not the URL, so the keys don't end up in request logs.
             headers: { "APCA-API-KEY-ID": keyId, "APCA-API-SECRET-KEY": secret },
             cache: "no-store",
-            signal: AbortSignal.timeout(timeoutMs),
+            // Starts when the request is sent, after any wait for budget.
+            timeoutMs,
           })
           if (response.status === 429) {
             result.rateLimited = true

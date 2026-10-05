@@ -34,9 +34,9 @@ async function take(provider: ProviderName, { perMinute, burst }: Budget): Promi
     const toNextToken = Math.max(0, 1 - Number(row.tokens)) / perSecond
     return { granted: false, waitSeconds: blockedFor + toNextToken }
   } catch (error) {
-    // The database being unreachable shouldn't take prices down with it.
-    console.error(`[budget] ${provider} budget check failed, letting the request through:`, error instanceof Error ? error.message : error)
-    return { granted: true, waitSeconds: 0 }
+    // Unmetered requests are what this exists to prevent: refuse, and the stored prices stand.
+    console.error(`[budget] ${provider} budget check failed, so the request doesn't go out:`, error instanceof Error ? error.message : error)
+    return { granted: false, waitSeconds: 15, unavailable: true }
   }
 }
 

@@ -47,7 +47,7 @@ export const GET = withPublic<unknown>(async (request) => {
         const response = await providerFetch("finnhub")(`https://finnhub.io/api/v1/quote?symbol=${symbol}`, {
           headers: { "X-Finnhub-Token": process.env.FINNHUB_API_KEY! },
           cache: "no-store",
-          signal: AbortSignal.timeout(8_000),
+          timeoutMs: 8_000,
         })
         const text = await response.text()
         if (!response.ok) return { status: response.status, body: text.slice(0, 160) }
@@ -71,7 +71,7 @@ export const GET = withPublic<unknown>(async (request) => {
           const response = await providerFetch("alpaca")(`https://data.alpaca.markets/v2/stocks/snapshots?symbols=${symbol}&feed=iex`, {
             headers: { "APCA-API-KEY-ID": process.env.ALPACA_API_KEY!, "APCA-API-SECRET-KEY": process.env.ALPACA_API_SECRET! },
             cache: "no-store",
-            signal: AbortSignal.timeout(8_000),
+            timeoutMs: 8_000,
           })
           const text = await response.text()
           if (!response.ok) return { status: response.status, body: text.slice(0, 160) }
@@ -94,7 +94,7 @@ export const GET = withPublic<unknown>(async (request) => {
         const response = await providerFetch("tiingo")(`https://api.tiingo.com/tiingo/daily/${symbol.replace(".", "-")}/prices`, {
           headers: { Authorization: `Token ${tiingoKey}`, "Content-Type": "application/json" },
           cache: "no-store",
-          signal: AbortSignal.timeout(8_000),
+          timeoutMs: 8_000,
         })
         const text = await response.text()
         if (!response.ok) return { status: response.status, body: text.slice(0, 160) }
@@ -108,7 +108,7 @@ export const GET = withPublic<unknown>(async (request) => {
         const response = await providerFetch("massive")(`https://api.massive.com/v2/aggs/ticker/${symbol}/prev?adjusted=true`, {
           headers: { Authorization: `Bearer ${process.env.MASSIVE_API_KEY}` },
           cache: "no-store",
-          signal: AbortSignal.timeout(8_000),
+          timeoutMs: 8_000,
         })
         const text = await response.text()
         if (!response.ok) return { status: response.status, body: text.slice(0, 160) }
