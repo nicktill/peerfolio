@@ -11,6 +11,7 @@
  */
 
 import type { Quote, QuoteProvider, QuoteResult } from "./quote-provider.ts"
+import { providerFetch } from "./provider-fetch.ts"
 
 const BASE_URL = process.env.ALPACA_DATA_URL ?? "https://data.alpaca.markets"
 
@@ -32,7 +33,7 @@ export function createAlpacaProvider({
   keyId,
   secret,
   feed = "iex",
-  fetchImpl = fetch,
+  fetchImpl = providerFetch("alpaca"),
   timeoutMs = 8_000,
   baseUrl = BASE_URL,
 }: {

@@ -52,7 +52,8 @@ export interface QuoteProvider {
  */
 export function createQuoteProvider(
   env: Record<string, string | undefined>,
-  fetchImpl: typeof fetch = fetch,
+  // Unset, each adapter spends from its own provider budget (see provider-fetch.ts).
+  fetchImpl?: typeof fetch,
   now: () => Date = () => new Date(),
   // `anyAge` keeps the last trade however old it is. Live refreshes want only recent
   // trades; pricing a ticker for the first time (an import) wants the best price there is.

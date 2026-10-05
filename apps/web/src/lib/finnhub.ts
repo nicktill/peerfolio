@@ -11,6 +11,7 @@
  */
 
 import type { Quote, QuoteProvider, QuoteResult } from "./quote-provider.ts"
+import { providerFetch } from "./provider-fetch.ts"
 
 const BASE_URL = "https://finnhub.io/api/v1"
 
@@ -19,7 +20,7 @@ const SYMBOL = /^[A-Z][A-Z0-9]{0,5}(\.[A-Z0-9]{1,2})?$/
 
 export function createFinnhubProvider({
   apiKey,
-  fetchImpl = fetch,
+  fetchImpl = providerFetch("finnhub"),
   concurrency = 4,
   timeoutMs = 5_000,
   baseUrl = BASE_URL,

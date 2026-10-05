@@ -8,6 +8,8 @@
  * framework imports so the tests can stub `fetch`.
  */
 
+import { providerFetch } from "./provider-fetch.ts"
+
 const BASE_URL = process.env.TIINGO_BASE_URL ?? "https://api.tiingo.com"
 
 /** Fund tickers are letters; share classes with a dot are written with a dash at Tiingo. */
@@ -27,7 +29,7 @@ export type FundCloses = {
 
 export async function tiingoFundCloses(
   tickers: string[],
-  { apiKey, fetchImpl = fetch, timeoutMs = 8_000, baseUrl = BASE_URL }: { apiKey: string; fetchImpl?: typeof fetch; timeoutMs?: number; baseUrl?: string },
+  { apiKey, fetchImpl = providerFetch("tiingo"), timeoutMs = 8_000, baseUrl = BASE_URL }: { apiKey: string; fetchImpl?: typeof fetch; timeoutMs?: number; baseUrl?: string },
 ): Promise<FundCloses> {
   const out: FundCloses = { closes: new Map(), unknown: new Set(), rateLimited: false, failed: 0 }
 

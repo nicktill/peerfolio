@@ -1,6 +1,7 @@
 import {
   boolean,
   date,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -177,6 +178,20 @@ export const securities = pgTable("securities", {
   /** Metadata retries are independent of price freshness. */
   metadataCheckedAt: timestamp("metadata_checked_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+})
+
+/**
+ * One row per price provider: a token bucket shared by every server, so all of
+ * them together stay inside the provider's allowance (see lib/provider-budget.ts).
+ */
+export const providerBudgets = pgTable("provider_budgets", {
+  provider: text("provider").primaryKey(),
+  tokens: doublePrecision("tokens").notNull(),
+  refilledAt: timestamp("refilled_at", { withTimezone: true }).notNull().defaultNow(),
+  /** Set from a provider's 429: no server asks it anything before then. */
+  blockedUntil: timestamp("blocked_until", { withTimezone: true }),
+  /** Whether the latest request for a token got one (an UPDATE can't return the row it replaced). */
+  lastGranted: boolean("last_granted").notNull().default(true),
 })
 
 export const holdings = pgTable(

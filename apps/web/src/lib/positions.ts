@@ -291,7 +291,7 @@ async function primePrices(rows: { marketTicker: string; kind: AssetKind; name?:
       // the one-ticker-at-a-time lookup. Last trade is fine here: the catch-up replaces it
       // with the official close.
       const rest = missing.filter((r) => !closes.has(r.marketTicker))
-      const quotes = rest.length > 0 ? await createQuoteProvider(process.env, fetch, undefined, { anyAge: true })?.getQuotes(rest.map((r) => r.marketTicker)) : undefined
+      const quotes = rest.length > 0 ? await createQuoteProvider(process.env, undefined, undefined, { anyAge: true })?.getQuotes(rest.map((r) => r.marketTicker)) : undefined
       for (const row of rest) {
         const quote = quotes?.quotes.get(row.marketTicker)
         if (!quote) continue
@@ -601,7 +601,7 @@ export async function refreshStalePrices({
     // many tickers per request, no per-minute squeeze, and the official close replaces it later.
     const unpriced = stale.filter((s) => !s.asOf && !closes.has(s.marketTicker!))
     if (unpriced.length > 0) {
-      const quotes = await createQuoteProvider(process.env, fetch, undefined, { anyAge: true })?.getQuotes(unpriced.map((s) => s.marketTicker!))
+      const quotes = await createQuoteProvider(process.env, undefined, undefined, { anyAge: true })?.getQuotes(unpriced.map((s) => s.marketTicker!))
       for (const security of unpriced) {
         const quote = quotes?.quotes.get(security.marketTicker!)
         if (!quote) continue
@@ -657,6 +657,19 @@ export async function refreshStalePrices({
         if (acceptSessionClose(quote, catchUp.expectedDate)) {
           closes.set(security.marketTicker!, { price: quote.price, asOf: catchUp.expectedDate })
           provisional.delete(security.marketTicker!)
+        }
+      }
+      // Cut short (budget spent, or a 429): the tickers without an answer may never have been
+      // asked. They go back to the front of the line rather than waiting out the recheck
+      // interval; the budget, not this, decides when anyone may ask again.
+      if (result?.rateLimited) {
+        const unanswered = batch.filter((s) => !result.quotes.has(s.marketTicker!)).map((s) => s.id)
+        if (unanswered.length > 0) {
+          await db
+            .update(securities)
+            .set({ updatedAt: new Date(catchUp.recheckBefore.getTime() - 1000) })
+            .where(inArray(securities.id, unanswered))
+          for (const id of unanswered) closeAsked.delete(id)
         }
       }
     }

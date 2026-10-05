@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { listSyncableUserIds, syncUser } from "@web/lib/plaid-sync"
 import { assertCronAuthorized, withPublic } from "@web/lib/api"
+import { withProviderPatience } from "@web/lib/provider-fetch"
 import { refreshStalePrices, repricePositions, type CatchUpResult } from "@web/lib/positions"
 import { checkFantasyIntegrity, snapshotFantasy } from "@web/lib/fantasy"
 
@@ -16,7 +17,11 @@ export const maxDuration = 300
  */
 export const GET = withPublic<unknown>(async (request) => {
   assertCronAuthorized(request)
+  // Tonight's snapshots need tonight's closes: wait for provider budget rather than skip (maxDuration is 300s).
+  return withProviderPatience(120_000, snapshot)
+})
 
+async function snapshot() {
   // Prices first, so tonight's snapshots carry the latest closes. If the market
   // data call fails, snapshots still go out at yesterday's prices: a flat day
   // is recoverable, a missing one isn't.
@@ -78,4 +83,4 @@ export const GET = withPublic<unknown>(async (request) => {
     "error" in pricing || (pricing.tickers > 0 && pricing.priced === 0) || !!pricing.failed || (pricing.unconfirmed ?? 0) > 0
   const healthy = !pricingBroken && !("error" in fantasy) && !integrityBroken && failures.length === 0
   return NextResponse.json({ healthy, pricing, fantasy, integrity, users: userIds.length, succeeded, failures }, { status: healthy ? 200 : 500 })
-})
+}
