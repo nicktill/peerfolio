@@ -49,6 +49,28 @@ describe("acceptQuote", () => {
     assert.equal(acceptQuote({ price: 10, asOf: "not a date" }, now), false)
   })
 
+  it("rejects a recent pre-market print at the open", () => {
+    // 9:35am EDT; the print is from 9:20am, inside the age limit but before the bell.
+    assert.equal(acceptQuote({ price: 10, asOf: "2026-09-29T13:20:00.000Z" }, new Date("2026-09-29T13:35:00Z")), false)
+    assert.equal(acceptQuote({ price: 10, asOf: "2026-09-29T13:30:05.000Z" }, new Date("2026-09-29T13:35:00Z")), true)
+  })
+
+  it("rejects an after-hours print but keeps the closing print", () => {
+    const at = new Date("2026-09-29T20:04:00Z") // 4:04pm EDT, inside the refresh grace
+    assert.equal(acceptQuote({ price: 10, asOf: "2026-09-29T20:00:20.000Z" }, at), true) // closing print
+    assert.equal(acceptQuote({ price: 10, asOf: "2026-09-29T20:03:00.000Z" }, at), false) // after hours
+  })
+
+  it("rejects prints after an early close", () => {
+    // Nov 27 2026 closes at 1pm EST; 1:20pm is after hours.
+    assert.equal(acceptQuote({ price: 10, asOf: "2026-11-27T18:20:00.000Z" }, new Date("2026-11-27T18:25:00Z")), false)
+    assert.equal(acceptQuote({ price: 10, asOf: "2026-11-27T17:55:00.000Z" }, new Date("2026-11-27T18:00:00Z")), true)
+  })
+
+  it("rejects anything printed on a market holiday", () => {
+    assert.equal(acceptQuote({ price: 10, asOf: "2026-11-26T16:00:00.000Z" }, new Date("2026-11-26T16:05:00Z")), false) // Thanksgiving
+  })
+
   it("rejects a timestamp far in the future but tolerates a little clock skew", () => {
     assert.equal(acceptQuote({ price: 10, asOf: "2026-09-29T17:02:00.000Z" }, now), true)
     assert.equal(acceptQuote({ price: 10, asOf: "2026-09-29T18:00:00.000Z" }, now), false)
