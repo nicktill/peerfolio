@@ -79,7 +79,7 @@ export async function refreshLivePrices({
     if (!isNewerClose(quoteDate(quote), row.close_price_as_of)) continue
     await db
       .update(securities)
-      .set({ previousClose: previousCloseOnUpdate(quoteDate(quote)), closePrice: quote.price.toString(), closePriceAsOf: quoteDate(quote), updatedAt: new Date() })
+      .set({ previousClose: previousCloseOnUpdate(quoteDate(quote)), closePrice: quote.price.toString(), closePriceAsOf: quoteDate(quote), closePriceFinal: false, updatedAt: new Date() })
       .where(eq(securities.id, row.id))
     updated.push(row.id)
   }
@@ -187,7 +187,7 @@ export async function ensureLivePrice(
 
     await db
       .update(securities)
-      .set({ previousClose: previousCloseOnUpdate(quoteDate(quote)), closePrice: quote.price.toString(), closePriceAsOf: quoteDate(quote), updatedAt: new Date() })
+      .set({ previousClose: previousCloseOnUpdate(quoteDate(quote)), closePrice: quote.price.toString(), closePriceAsOf: quoteDate(quote), closePriceFinal: false, updatedAt: new Date() })
       .where(eq(securities.id, securityId))
     await revalueSecurities([securityId])
     return { price: quote.price, asOf: quoteDate(quote), printedAt: quote.asOf }

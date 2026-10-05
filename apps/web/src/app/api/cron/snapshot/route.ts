@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { listSyncableUserIds, syncUser } from "@web/lib/plaid-sync"
 import { assertCronAuthorized, withPublic } from "@web/lib/api"
-import { repricePositions } from "@web/lib/positions"
+import { refreshStalePrices, repricePositions } from "@web/lib/positions"
 import { checkFantasyIntegrity, snapshotFantasy } from "@web/lib/fantasy"
 
 export const maxDuration = 300
@@ -23,6 +23,10 @@ export const GET = withPublic<unknown>(async (request) => {
   let pricing: Awaited<ReturnType<typeof repricePositions>> | { error: string }
   try {
     pricing = await repricePositions()
+    // The whole-market bars trail the session by a day on our plan, so a live price
+    // from this afternoon would otherwise go into tonight's snapshot as the close.
+    const closes = await refreshStalePrices({ minIntervalMinutes: 0, recheckMinutes: 0 })
+    pricing = { ...pricing, ...closes }
   } catch (error) {
     console.error("[cron] repricing failed", error)
     pricing = { error: error instanceof Error ? error.message : "unknown" }
