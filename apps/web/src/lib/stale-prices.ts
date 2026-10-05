@@ -1,4 +1,4 @@
-import { and, isNotNull, isNull, lt, or, sql } from "drizzle-orm"
+import { and, eq, isNotNull, isNull, lt, or, sql } from "drizzle-orm"
 import { securities } from "../db/schema.ts"
 
 /**
@@ -14,12 +14,21 @@ import { securities } from "../db/schema.ts"
  * trading day whose close should exist, and hasn't been checked since
  * `recheckBefore`. That's what lets a new official close be picked up within
  * minutes of it being published, instead of waiting out the whole cutoff.
+ * A live price dated that same day counts as behind too: it is whatever the
+ * last refresh before the close happened to catch, not the close itself.
  *
  * Kept free of the database client so the tests can import it.
  */
 export function staleHeldSecurities(cutoff: Date, catchUp?: { expectedDate: string; recheckBefore: Date }) {
   const behind = catchUp
-    ? and(or(isNull(securities.closePriceAsOf), lt(securities.closePriceAsOf, catchUp.expectedDate)), lt(securities.updatedAt, catchUp.recheckBefore))
+    ? and(
+        or(
+          isNull(securities.closePriceAsOf),
+          lt(securities.closePriceAsOf, catchUp.expectedDate),
+          and(eq(securities.closePriceAsOf, catchUp.expectedDate), eq(securities.closePriceFinal, false)),
+        ),
+        lt(securities.updatedAt, catchUp.recheckBefore),
+      )
     : undefined
   return and(
     isNotNull(securities.marketTicker),

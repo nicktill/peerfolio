@@ -157,6 +157,12 @@ export const securities = pgTable("securities", {
   closePrice: numeric("close_price", { precision: 20, scale: 6 }),
   closePriceAsOf: date("close_price_as_of"),
   /**
+   * Whether `closePrice` is the official close for `closePriceAsOf`. A live
+   * price taken during the session is not: the first catch-up after the close
+   * replaces it with the real one (see `staleHeldSecurities`).
+   */
+  closePriceFinal: boolean("close_price_final").notNull().default(true),
+  /**
    * The close before `closePrice`, kept when a newer price arrives. It is what
    * "today's change" is measured against; null until a second price has been seen.
    */

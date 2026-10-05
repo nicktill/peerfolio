@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { acceptQuote, createQuoteProvider, isUsMarketOpen, priceLabel, quoteDate } from "./quote-provider.ts"
+import { acceptQuote, acceptSessionClose, createQuoteProvider, isUsMarketOpen, priceLabel, quoteDate } from "./quote-provider.ts"
 import { latestCompletedSession } from "./market-hours.ts"
 
 describe("isUsMarketOpen", () => {
@@ -26,6 +26,31 @@ describe("isUsMarketOpen", () => {
   it("is closed overnight", () => {
     assert.equal(isUsMarketOpen(new Date("2026-09-29T03:00:00Z")), false)
     assert.equal(isUsMarketOpen(new Date("2026-09-29T22:30:00Z")), false) // when the nightly job runs
+  })
+})
+
+describe("acceptSessionClose", () => {
+  it("accepts the 4:00pm ET print as that session's close, however long ago it was", () => {
+    // What Finnhub answered for TSLA at 6:49pm ET on Oct 5, 2026: the consolidated close.
+    assert.equal(acceptSessionClose({ price: 378.73, asOf: "2026-10-05T20:00:00.000Z" }, "2026-10-05"), true)
+  })
+
+  it("accepts an earlier session print for a stock that stopped trading before the bell", () => {
+    assert.equal(acceptSessionClose({ price: 3.97, asOf: "2026-10-05T19:41:12.000Z" }, "2026-10-05"), true)
+  })
+
+  it("rejects an after-hours print, which is not the close", () => {
+    assert.equal(acceptSessionClose({ price: 379.1, asOf: "2026-10-05T21:15:00.000Z" }, "2026-10-05"), false)
+  })
+
+  it("rejects a print from another session, such as the previous close before today's is in", () => {
+    assert.equal(acceptSessionClose({ price: 370.59, asOf: "2026-10-02T20:00:00.000Z" }, "2026-10-05"), false)
+  })
+
+  it("rejects missing, zero and badly dated quotes", () => {
+    assert.equal(acceptSessionClose(undefined, "2026-10-05"), false)
+    assert.equal(acceptSessionClose({ price: 0, asOf: "2026-10-05T20:00:00.000Z" }, "2026-10-05"), false)
+    assert.equal(acceptSessionClose({ price: 10, asOf: "not a date" }, "2026-10-05"), false)
   })
 })
 
