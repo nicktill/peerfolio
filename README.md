@@ -29,12 +29,24 @@ Net worth, accounts and positions in one view. The return leaves deposits out.
 
 ![Portfolio page showing net worth, a one-month chart and linked accounts](docs/screenshots/portfolio.png)
 
-### Leagues
+Below it, every holding across every account rolled up into one list, with
+allocation, today's movers and the leagues you're in.
 
-A private group ranked on percentage return. Everyone is indexed to 100, so the
-chart compares rates of return, not who has more money.
+![Aggregated holdings table with weights, daily change and total return](docs/screenshots/portfolio-holdings.png)
 
-![A league's race chart and standings](docs/screenshots/leagues.png)
+### News
+
+![The daily brief with live-style market cards](docs/screenshots/news.png)
+
+The recap, Fear & Greed, the week's earnings and sector moves.
+
+![Daily recap, Fear & Greed gauge, upcoming earnings and sectors at a glance](docs/screenshots/news-details.png)
+
+### The Board
+
+Public, verified-only, percentages only.
+
+![The Board ranking top traders by return](docs/screenshots/board.png)
 
 ### Fantasy
 
@@ -43,15 +55,12 @@ an end date. Orders placed while the market is closed wait for the open.
 
 ![A fantasy league with the race chart and the trade panel](docs/screenshots/fantasy.png)
 
-### The Board
+### Leagues
 
-Public, verified-only, percentages only.
+A private group ranked on percentage return. Everyone is indexed to 100, so the
+chart compares rates of return, not who has more money.
 
-![The Board ranking top traders by return](docs/screenshots/board.png)
-
-### News
-
-![The daily brief with market cards and Fear & Greed](docs/screenshots/news.png)
+![A league's race chart and standings](docs/screenshots/leagues.png)
 
 ## What's shared, and what isn't
 
