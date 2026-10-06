@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { checkBrief, fallbackBrief, figures, isLastSessionOfWeek, selectItems, writeBrief, type Brief, type BriefItem } from "./news-brief.ts"
+import { briefTargets, checkBrief, closeUtc, fallbackBrief, figures, isLastSessionOfWeek, MAX_ITEM_TEXT, selectItems, worstCaseUsd, writeBrief, promptInput, type Brief, type BriefItem, type SpendLedger } from "./news-brief.ts"
 
 const at = (iso: string) => new Date(iso)
 const raw = [
@@ -100,4 +100,77 @@ test("isLastSessionOfWeek handles Fridays and holiday Fridays", () => {
   assert.equal(isLastSessionOfWeek("2026-10-08", isSession), false)
   // Good Friday 2026-04-03 is a holiday, so Thursday closes the week.
   assert.equal(isLastSessionOfWeek("2026-04-02", isSession), true)
+})
+
+// --- Review follow-ups: claims, budget, catch-up ---------------------------------
+
+const one = (title: string, summary: string | null = null): BriefItem[] =>
+  selectItems([{ source: "Wire", title, url: "https://x/a", summary, publishedAt: at("2026-10-06T20:00:00Z") }, { source: "Wire", title: "Second story", url: "https://x/b", summary: null, publishedAt: at("2026-10-06T19:00:00Z") }, { source: "Wire", title: "Third story", url: "https://x/c", summary: null, publishedAt: at("2026-10-06T18:00:00Z") }], window)
+
+const shell = (body: string): Brief => ({
+  headline: "Acme reports results",
+  body,
+  takeaways: [
+    { title: "One", body: "Second story.", sourceIds: ["s2"] },
+    { title: "Two", body: "Third story.", sourceIds: ["s3"] },
+    { title: "Three", body: "Acme reported.", sourceIds: ["s1"] },
+  ],
+  sourceIds: ["s1"],
+})
+
+test("the reviewer's case fails: direction flipped, millions made billions, a single-digit percent invented", () => {
+  const items = one("Acme fell 2.3%; revenue was $12 million")
+  const problems = checkBrief(shell("Acme gained 2.3%; revenue was $12 billion, up 7%."), items, "2026-10-06")
+  assert.ok(problems.some((p) => p.includes("2.3%") && p.includes("opposite")), problems.join(" | "))
+  assert.ok(problems.some((p) => p.includes("$12 billion")), problems.join(" | "))
+  assert.ok(problems.some((p) => p.includes("7%")), problems.join(" | "))
+  assert.deepEqual(checkBrief(shell("Acme fell 2.3% as revenue came in at $12 million."), items, "2026-10-06"), [])
+})
+
+test("figures must come from the items that part cites, not any item", () => {
+  const items = one("Acme rose 4%", null)
+  const brief = shell("Acme reported.")
+  brief.takeaways[0] = { title: "One", body: "Acme rose 4%.", sourceIds: ["s2"] } // 4% is in s1, not s2
+  assert.ok(checkBrief(brief, items, "2026-10-06").some((p) => p.includes("4%") && p.includes("s2")))
+})
+
+test("a denied reservation stops before calling the model", async () => {
+  let calls = 0
+  const client = { responses: { create: async () => { calls++; return { output_text: "{}", usage: { input_tokens: 0, output_tokens: 0 } } } } }
+  const ledger: SpendLedger = { reserve: async () => null, settle: async () => {} }
+  const result = await writeBrief({ client: client as never, period: "day", sessionDate: "2026-10-06", items: selectItems(raw, window), ledger })
+  assert.equal(calls, 0)
+  assert.equal(result.fallback, true)
+})
+
+test("every attempt is reserved first and settled at its actual cost", async () => {
+  const items = selectItems(raw, window)
+  const events: string[] = []
+  const ledger: SpendLedger = {
+    reserve: async (usd) => (events.push(`reserve ${usd > 0}`), `r${events.length}`),
+    settle: async (id, a) => void events.push(`settle ${id} ${a.inputTokens}`),
+  }
+  await writeBrief({ client: fakeClient([{ ...good, body: "Stocks soared 9.9%." }, good]) as never, period: "day", sessionDate: "2026-10-06", items, ledger })
+  assert.deepEqual(events, ["reserve true", "settle r1 4000", "reserve true", "settle r3 4000"])
+})
+
+test("the largest possible prompt has a bounded worst case", () => {
+  const long = "x".repeat(5000)
+  const items = Array.from({ length: 80 }, (_, i) => ({ id: `s${i + 1}`, source: "Wire", title: long, url: "https://x", summary: long, publishedAt: at("2026-10-06T20:00:00Z") }))
+  const input = promptInput("week", "2026-10-09", items)
+  assert.ok(input.length < 80 * (2 * MAX_ITEM_TEXT + 80) + 200)
+  assert.ok(worstCaseUsd(input) < 0.015, String(worstCaseUsd(input)))
+})
+
+test("closeUtc follows daylight saving", () => {
+  assert.equal(closeUtc("2026-10-06").toISOString(), "2026-10-06T20:00:00.000Z")
+  assert.equal(closeUtc("2026-12-01").toISOString(), "2026-12-01T21:00:00.000Z")
+})
+
+test("briefTargets finds the latest day and week, recovering a missed Friday on Monday", () => {
+  assert.deepEqual(briefTargets(at("2026-10-12T22:00:00Z")), { day: "2026-10-12", week: "2026-10-09" }) // Monday evening
+  assert.deepEqual(briefTargets(at("2026-10-09T22:00:00Z")), { day: "2026-10-09", week: "2026-10-09" }) // Friday evening
+  assert.deepEqual(briefTargets(at("2026-10-10T15:00:00Z")), { day: "2026-10-09", week: "2026-10-09" }) // Saturday
+  assert.deepEqual(briefTargets(at("2026-10-06T15:00:00Z")), { day: "2026-10-05", week: "2026-10-02" }) // Tuesday morning
+  assert.deepEqual(briefTargets(at("2026-04-02T22:00:00Z")), { day: "2026-04-02", week: "2026-04-02" }) // before Good Friday
 })

@@ -1,4 +1,5 @@
 import type OpenAI from "openai"
+import { latestCompletedSession, regularSession } from "./market-hours.ts"
 
 /**
  * The daily and weekly market recap, written by a small model from stored
@@ -37,6 +38,26 @@ const OUTPUT_PER_M = Number(process.env.NEWS_AI_OUTPUT_PER_M) || 2
 
 export const costOf = (inputTokens: number, outputTokens: number) => (inputTokens * INPUT_PER_M + outputTokens * OUTPUT_PER_M) / 1_000_000
 
+/** Hard cap on what one attempt may write (reasoning included). */
+export const MAX_OUTPUT_TOKENS = 4000
+/** Longest title or summary that reaches the prompt, so its size (and cost) is bounded. */
+export const MAX_ITEM_TEXT = 300
+
+/**
+ * The most one attempt can cost, before sending it: input counted generously at
+ * three characters a token (English runs nearer four), plus the full output cap.
+ */
+export const worstCaseUsd = (input: string) => costOf(Math.ceil((SYSTEM.length + input.length) / 3) + 200, MAX_OUTPUT_TOKENS)
+
+/**
+ * Where spend is reserved before each attempt and settled after it. `reserve`
+ * returns an id, or null when the month's budget can't cover the attempt.
+ */
+export type SpendLedger = {
+  reserve: (usd: number) => Promise<string | null>
+  settle: (id: string, actual: { inputTokens: number; outputTokens: number; costUsd: number }) => Promise<void>
+}
+
 const normalizeTitle = (t: string) =>
   t
     .toLowerCase()
@@ -69,7 +90,8 @@ const dayEt = (date: string) =>
 export function promptInput(period: BriefPeriod, sessionDate: string, items: BriefItem[]) {
   const header =
     period === "day" ? `Period: the US trading day of ${dayEt(sessionDate)}.` : `Period: the US trading week ending ${dayEt(sessionDate)}.`
-  const lines = items.map((i) => `[${i.id}] ${i.source} · ${timeEt.format(i.publishedAt)} ET — ${i.title}${i.summary ? `. ${i.summary}` : ""}`)
+  const clip = (t: string) => (t.length > MAX_ITEM_TEXT ? `${t.slice(0, MAX_ITEM_TEXT)}…` : t)
+  const lines = items.map((i) => `[${i.id}] ${i.source} · ${timeEt.format(i.publishedAt)} ET — ${clip(i.title)}${i.summary ? `. ${clip(i.summary)}` : ""}`)
   return `${header}\n\nNews items:\n${lines.join("\n")}`
 }
 
@@ -109,21 +131,66 @@ export const BRIEF_SCHEMA = {
   },
 } as const
 
+export type Claim = { value: string; unit: string; money: boolean; direction: "up" | "down" | null; raw: string }
+
+const UNITS: [RegExp, string][] = [
+  [/^(%|percent|per cent)$/i, "%"],
+  [/^(bps|basis points?)$/i, "bp"],
+  [/^(points?|pts)$/i, "pt"],
+  [/^(million|mn|m)$/i, "m"],
+  [/^(billion|bn|b)$/i, "b"],
+  [/^(trillion|tn|t)$/i, "t"],
+]
+const UP = /\b(up|rose|rise|rises|rising|gain|gains|gained|climb|climbs|climbed|jump|jumps|jumped|rall(?:y|ied|ies)|surge|surged|surges|advance|advanced|added|higher|soar|soared|increase|increased|grew|beat)\b/i
+const DOWN = /\b(down|fell|fall|falls|falling|drop|drops|dropped|slid|slide|slides|slip|slips|slipped|decline|declined|declines|lost|lose|loses|sank|sink|sinks|tumble|tumbled|plunge|plunged|lower|retreat|retreated|decrease|decreased|shed|missed)\b/i
+
 /**
- * Every figure in a text, compared by value so "1,250" matches "1250" and "0.40" matches "0.4".
- * Single digits are left alone ("3 takeaways", "Q3").
+ * Every figure that makes a claim: its value, unit (%, bp, points, m/b/t),
+ * whether it's money, and which way the words around it say it moved. A bare
+ * single digit with no unit ("3 takeaways", "Q3") makes no claim and is skipped.
  */
-export function figures(text: string) {
-  return (text.match(/\d[\d,]*(?:\.\d+)?/g) ?? [])
-    .filter((n) => n.replace(/[,.]/g, "").length > 1)
-    .map((n) => String(Number(n.replace(/,/g, ""))))
+export function claims(text: string): Claim[] {
+  const out: Claim[] = []
+  // "%" can't end on a word boundary, so it gets its own branch.
+  const re = /(\$)?\s?(\d[\d,]*(?:\.\d+)?)(?:\s?(%)|\s?(percent|per cent|bps|basis points?|points?|pts|million|billion|trillion|mn|bn|tn)\b|(?<=\d)([mbt])\b)?/gi
+  for (const m of text.matchAll(re)) {
+    const digits = m[2]!.replace(/,/g, "")
+    const unitWord = (m[3] ?? m[4] ?? m[5] ?? "").toLowerCase()
+    const unit = UNITS.find(([r]) => r.test(unitWord))?.[1] ?? ""
+    const money = Boolean(m[1])
+    if (!unit && !money && digits.replace(".", "").length < 2) continue
+    // The direction words just before the figure ("fell 2.3%", "up 0.4%").
+    const before = text.slice(Math.max(0, m.index! - 40), m.index!)
+    const near = before.split(/[.;!?]/).pop() ?? ""
+    const lastUp = near.search(new RegExp(`${UP.source}(?![\\s\\S]*${UP.source})`, "i"))
+    const lastDown = near.search(new RegExp(`${DOWN.source}(?![\\s\\S]*${DOWN.source})`, "i"))
+    const direction = lastUp === -1 && lastDown === -1 ? null : lastUp > lastDown ? "up" : "down"
+    out.push({ value: String(Number(digits)), unit, money, direction, raw: m[0].trim() })
+  }
+  return out
 }
 
-/** What's wrong with a draft, or nothing. */
+/** Compatibility helper: the values of every claim in a text. */
+export function figures(text: string) {
+  return claims(text).map((c) => c.value)
+}
+
+/**
+ * Whether a draft's claim is backed by one of the cited sources: same value,
+ * same unit, same money-ness, and not stated in the opposite direction.
+ */
+function supported(claim: Claim, sources: Claim[]) {
+  const same = sources.filter((s) => s.value === claim.value && s.unit === claim.unit && s.money === claim.money)
+  if (same.length === 0) return "missing" as const
+  if (claim.direction && same.every((s) => s.direction && s.direction !== claim.direction)) return "direction" as const
+  return "ok" as const
+}
+
+/** What's wrong with a draft, or nothing. Figures are checked against the items each part cites. */
 export function checkBrief(brief: Brief, items: BriefItem[], sessionDate: string): string[] {
   const problems: string[] = []
-  const ids = new Set(items.map((i) => i.id))
-  const allowed = new Set([...items.flatMap((i) => figures(`${i.title} ${i.summary ?? ""}`)), ...figures(sessionDate.replace(/-/g, " "))])
+  const byId = new Map(items.map((i) => [i.id, i]))
+  const dateClaims = claims(sessionDate.replace(/-/g, " "))
 
   if (!brief.headline.trim() || brief.headline.length > 110) problems.push("The headline must be present and at most 90 characters.")
   if (!brief.body.trim() || brief.body.length > 700) problems.push("The body must be present and at most 600 characters.")
@@ -133,13 +200,28 @@ export function checkBrief(brief: Brief, items: BriefItem[], sessionDate: string
     if (t.sourceIds.length === 0) problems.push(`Takeaway "${t.title}" must cite the items it relies on.`)
   }
   const cited = [...brief.sourceIds, ...brief.takeaways.flatMap((t) => t.sourceIds)]
-  const unknown = cited.filter((id) => !ids.has(id))
+  const unknown = cited.filter((id) => !byId.has(id))
   if (unknown.length) problems.push(`These ids are not in the items: ${[...new Set(unknown)].join(", ")}.`)
   if (brief.sourceIds.length === 0) problems.push("List the ids the headline and body rely on in sourceIds.")
 
-  const text = [brief.headline, brief.body, ...brief.takeaways.flatMap((t) => [t.title, t.body])].join(" ")
-  const invented = [...new Set(figures(text).filter((n) => !allowed.has(n)))]
-  if (invented.length) problems.push(`These numbers do not appear in the items, so they cannot be used: ${invented.join(", ")}.`)
+  const sourceClaims = (ids: string[]) => [
+    ...ids.flatMap((id) => {
+      const item = byId.get(id)
+      return item ? claims(`${item.title}. ${item.summary ?? ""}`) : []
+    }),
+    ...dateClaims,
+  ]
+  const checkPart = (label: string, text: string, ids: string[]) => {
+    const sources = sourceClaims(ids)
+    for (const claim of claims(text)) {
+      const verdict = supported(claim, sources)
+      if (verdict === "missing") problems.push(`${label}: "${claim.raw}" does not appear (with that unit) in the items it cites (${ids.join(", ") || "none"}). Use only figures from those items, or cite the item it comes from.`)
+      if (verdict === "direction") problems.push(`${label}: "${claim.raw}" is described moving the opposite way from the cited items. Match the direction they report.`)
+    }
+  }
+  checkPart("Headline", brief.headline, brief.sourceIds)
+  checkPart("Body", brief.body, brief.sourceIds)
+  for (const t of brief.takeaways) checkPart(`Takeaway "${t.title}"`, `${t.title}. ${t.body}`, t.sourceIds)
   return problems
 }
 
@@ -167,11 +249,14 @@ export async function writeBrief({
   period,
   sessionDate,
   items,
+  ledger,
 }: {
   client: Pick<OpenAI, "responses"> | null
   period: BriefPeriod
   sessionDate: string
   items: BriefItem[]
+  /** Reserves each attempt's worst case before it's sent. Without one, attempts aren't metered (tests). */
+  ledger?: SpendLedger
 }): Promise<BriefResult> {
   const result = (brief: Brief, fallback: boolean, problems: string[], inputTokens = 0, outputTokens = 0): BriefResult => ({
     brief,
@@ -189,21 +274,33 @@ export async function writeBrief({
   let feedback: string[] = []
 
   for (let attempt = 0; attempt < 2; attempt++) {
+    const prompt = feedback.length ? `${input}\n\nYour previous draft had these problems. Fix all of them:\n- ${feedback.join("\n- ")}` : input
+    const reserved = worstCaseUsd(prompt)
+    const reservation = ledger ? await ledger.reserve(reserved) : null
+    if (ledger && !reservation) {
+      feedback = ["the monthly AI budget can't cover another attempt"]
+      break
+    }
+    let used = { inputTokens: 0, outputTokens: 0 }
     try {
       const response = await client.responses.create({
         model: NEWS_MODEL,
         instructions: SYSTEM,
-        input: feedback.length ? `${input}\n\nYour previous draft had these problems. Fix all of them:\n- ${feedback.join("\n- ")}` : input,
+        input: prompt,
         reasoning: { effort: "low" },
-        max_output_tokens: 6000,
+        max_output_tokens: MAX_OUTPUT_TOKENS,
         text: { format: { type: "json_schema", name: "market_recap", schema: BRIEF_SCHEMA as unknown as Record<string, unknown>, strict: true } },
       })
-      inputTokens += response.usage?.input_tokens ?? 0
-      outputTokens += response.usage?.output_tokens ?? 0
+      used = { inputTokens: response.usage?.input_tokens ?? 0, outputTokens: response.usage?.output_tokens ?? 0 }
+      inputTokens += used.inputTokens
+      outputTokens += used.outputTokens
+      if (reservation) await ledger!.settle(reservation, { ...used, costUsd: costOf(used.inputTokens, used.outputTokens) })
       const brief = JSON.parse(response.output_text) as Brief
       feedback = checkBrief(brief, items, sessionDate)
       if (feedback.length === 0) return result(brief, false, [], inputTokens, outputTokens)
     } catch (error) {
+      // A failed request may still have been billed, so its reservation stands as the cost.
+      if (reservation && used.inputTokens === 0) await ledger!.settle(reservation, { inputTokens: 0, outputTokens: 0, costUsd: reserved })
       feedback = [error instanceof Error ? error.message : "request failed"]
     }
   }
@@ -219,4 +316,40 @@ export function isLastSessionOfWeek(date: string, isSession: (date: string) => b
     if (isSession(next.toISOString().slice(0, 10))) return false
   }
   return true
+}
+
+/** Whether the market traded on a New York date (YYYY-MM-DD). */
+export const isSessionDate = (date: string) => regularSession(new Date(`${date}T16:00:00Z`)) !== null
+
+const previousDay = (date: string) => new Date(new Date(`${date}T12:00:00Z`).getTime() - 86_400_000).toISOString().slice(0, 10)
+
+/** The UTC instant of the 4pm close on a New York date, daylight saving included. */
+export function closeUtc(date: string): Date {
+  const offset = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", timeZoneName: "shortOffset" })
+    .formatToParts(new Date(`${date}T16:00:00Z`))
+    .find((p) => p.type === "timeZoneName")?.value // "GMT-4" or "GMT-5"
+  const hours = Number(offset?.replace("GMT", "")) || -5
+  const [y, m, d] = date.split("-").map(Number)
+  return new Date(Date.UTC(y!, m! - 1, d!, 16 - hours))
+}
+
+/**
+ * The periods that should have a recap by `now`: the latest completed trading
+ * day, and the latest completed trading week (which may be last week's, so a
+ * missed Friday is written on Monday). Holidays are skipped.
+ */
+export function briefTargets(now: Date): { day: string | null; week: string | null } {
+  let day = latestCompletedSession(now)
+  for (let i = 0; i < 10 && !isSessionDate(day); i++) day = previousDay(day)
+  if (!isSessionDate(day)) return { day: null, week: null }
+  let week = day
+  for (let i = 0; i < 10 && !(isSessionDate(week) && isLastSessionOfWeek(week, isSessionDate)); i++) week = previousDay(week)
+  return { day, week: isSessionDate(week) && isLastSessionOfWeek(week, isSessionDate) ? week : null }
+}
+
+/** The stories a period's recap is written from: up to three hours after its close, looking back a day (and a bit) or a week. */
+export function briefWindow(period: BriefPeriod, date: string, now: Date) {
+  const to = new Date(Math.min(now.getTime(), closeUtc(date).getTime() + 3 * 3_600_000))
+  const from = new Date(to.getTime() - (period === "day" ? 30 * 3_600_000 : 7 * 86_400_000))
+  return { from, to }
 }

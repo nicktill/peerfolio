@@ -2,20 +2,18 @@ import "server-only"
 import OpenAI from "openai"
 import { and, desc, eq, gte, lt, sql } from "drizzle-orm"
 import { db } from "@web/db"
-import { newsBriefs, newsItems } from "@web/db/schema"
+import { newsAiSpend, newsBriefs, newsItems } from "@web/db/schema"
 import { fetchFeeds } from "@web/lib/news-feeds"
-import { isLastSessionOfWeek, NEWS_MODEL, selectItems, writeBrief, type BriefPeriod } from "@web/lib/news-brief"
-import { regularSession } from "@web/lib/market-hours"
+import { briefTargets, briefWindow, NEWS_MODEL, selectItems, writeBrief, type BriefPeriod, type SpendLedger } from "@web/lib/news-brief"
 
-/** Most the recap may spend in a calendar month (UTC). Past it, recaps are written from headlines only. */
+/** Most the recaps may spend in a calendar month (UTC). Past it, recaps are written from headlines only. */
 const MONTHLY_BUDGET_USD = Number(process.env.NEWS_AI_MONTHLY_BUDGET_USD) || 1
-/** Generous upper bound for one recap, retries included, checked before calling. */
-const WORST_CASE_USD = 0.03
 /** Headlines older than this are pruned; the weekly recap needs the last seven days. */
 const KEEP_DAYS = 21
+/** Any constant works; it only has to be the same for every server taking the budget lock. */
+const BUDGET_LOCK = 4_207_001
 
 const DAY = 86_400_000
-const isSession = (date: string) => regularSession(new Date(`${date}T16:00:00Z`)) !== null
 
 function client() {
   const apiKey = process.env.OPENAI_API_KEY
@@ -24,27 +22,45 @@ function client() {
   return apiKey ? new OpenAI({ apiKey, maxRetries: 0, timeout: 60_000 }) : null
 }
 
-async function spentThisMonth(now: Date) {
-  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
-  const [row] = await db
-    .select({ total: sql<string>`coalesce(sum(${newsBriefs.costUsd}), 0)` })
-    .from(newsBriefs)
-    .where(gte(newsBriefs.createdAt, start))
-  return Number(row?.total ?? 0)
+/**
+ * The monthly budget, metered per attempt. A reservation is taken under a
+ * transaction-scoped advisory lock, so two runs at once can't both read the
+ * same total and overspend; an unsettled reservation counts at its full amount.
+ */
+function ledgerFor(period: BriefPeriod, periodEnd: string, now: Date): SpendLedger {
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+  return {
+    reserve: (usd) =>
+      db.transaction(async (tx) => {
+        await tx.execute(sql`select pg_advisory_xact_lock(${BUDGET_LOCK})`)
+        const [row] = await tx
+          .select({ total: sql<string>`coalesce(sum(coalesce(${newsAiSpend.costUsd}, ${newsAiSpend.reservedUsd})), 0)` })
+          .from(newsAiSpend)
+          .where(gte(newsAiSpend.createdAt, monthStart))
+        if (Number(row?.total ?? 0) + usd > MONTHLY_BUDGET_USD) return null
+        const [entry] = await tx.insert(newsAiSpend).values({ period, periodEnd, reservedUsd: usd.toFixed(6) }).returning({ id: newsAiSpend.id })
+        return entry?.id ?? null
+      }),
+    settle: async (id, actual) => {
+      await db
+        .update(newsAiSpend)
+        .set({ costUsd: actual.costUsd.toFixed(6), inputTokens: actual.inputTokens, outputTokens: actual.outputTokens })
+        .where(eq(newsAiSpend.id, id))
+    },
+  }
 }
 
-async function publish(period: BriefPeriod, periodEnd: string, from: Date, to: Date, max: number, now: Date) {
+async function publish(period: BriefPeriod, periodEnd: string, now: Date) {
+  const { from, to } = briefWindow(period, periodEnd, now)
   const stored = await db
     .select()
     .from(newsItems)
     .where(and(gte(newsItems.publishedAt, from), lt(newsItems.publishedAt, to)))
-  const items = selectItems(stored, { from, to, max })
-  // Too little to write from (every feed down): publish nothing, so the next run can still write this period.
+  const items = selectItems(stored, { from, to, max: period === "day" ? 60 : 80 })
+  // Too little to write from (every feed down): publish nothing, so a later run can still write this period.
   if (items.length < 3) return { period, periodEnd, items: items.length, skipped: "too few stories" as const }
 
-  const spent = await spentThisMonth(now)
-  const ai = spent + WORST_CASE_USD <= MONTHLY_BUDGET_USD ? client() : null
-  const result = await writeBrief({ client: ai, period, sessionDate: periodEnd, items })
+  const result = await writeBrief({ client: client(), period, sessionDate: periodEnd, items, ledger: ledgerFor(period, periodEnd, now) })
 
   // Keep only the items the recap cites, so links survive pruning.
   const cited = new Set([...result.brief.sourceIds, ...result.brief.takeaways.flatMap((t) => t.sourceIds)])
@@ -68,13 +84,13 @@ async function publish(period: BriefPeriod, periodEnd: string, from: Date, to: D
     .insert(newsBriefs)
     .values(values)
     .onConflictDoUpdate({ target: [newsBriefs.period, newsBriefs.periodEnd], set: values })
-  return { period, periodEnd, items: items.length, fallback: result.fallback, problems: result.problems, costUsd: result.costUsd, spentBefore: spent }
+  return { period, periodEnd, items: items.length, fallback: result.fallback, problems: result.problems, costUsd: result.costUsd }
 }
 
 /**
- * The nightly news run: store new headlines, then write the day's recap (on a
- * trading day) and the week's (after its last session) if they don't exist yet.
- * `force` rewrites an existing recap for the period.
+ * The nightly news run: store new headlines, then write whichever recaps are
+ * due and missing: the latest completed trading day's, and the latest completed
+ * week's (so a Friday that failed is written on Monday). `force` rewrites them.
  */
 export async function runNews(now = new Date(), { force = false }: { force?: boolean } = {}) {
   const { items, failures } = await fetchFeeds()
@@ -86,19 +102,14 @@ export async function runNews(now = new Date(), { force = false }: { force?: boo
   }
   await db.delete(newsItems).where(lt(newsItems.publishedAt, new Date(now.getTime() - KEEP_DAYS * DAY)))
 
-  const session = regularSession(now)
-  const briefs = []
-  if (session) {
-    const existing = async (period: BriefPeriod) =>
-      (await db.select({ id: newsBriefs.id }).from(newsBriefs).where(and(eq(newsBriefs.period, period), eq(newsBriefs.periodEnd, session.date))).limit(1)).length > 0
+  const targets = briefTargets(now)
+  const exists = async (period: BriefPeriod, date: string) =>
+    (await db.select({ id: newsBriefs.id }).from(newsBriefs).where(and(eq(newsBriefs.period, period), eq(newsBriefs.periodEnd, date))).limit(1)).length > 0
 
-    // The day: from yesterday evening to now, so pre-market and overnight stories count.
-    if (force || !(await existing("day"))) briefs.push(await publish("day", session.date, new Date(now.getTime() - 30 * 3_600_000), now, 60, now))
-    if (isLastSessionOfWeek(session.date, isSession) && (force || !(await existing("week")))) {
-      briefs.push(await publish("week", session.date, new Date(now.getTime() - 7 * DAY), now, 80, now))
-    }
-  }
-  return { fetched: items.length, feedFailures: failures, session: session?.date ?? null, briefs }
+  const briefs = []
+  if (targets.day && (force || !(await exists("day", targets.day)))) briefs.push(await publish("day", targets.day, now))
+  if (targets.week && (force || !(await exists("week", targets.week)))) briefs.push(await publish("week", targets.week, now))
+  return { fetched: items.length, feedFailures: failures, targets, briefs }
 }
 
 export type PublishedBrief = {

@@ -643,5 +643,26 @@ export const newsBriefs = pgTable(
   (t) => [uniqueIndex("news_briefs_period_idx").on(t.period, t.periodEnd)],
 )
 
+/**
+ * Every AI attempt the news job makes, append-only: the worst case is reserved
+ * before the call and `costUsd` filled in after. The monthly cap reads this,
+ * not the published recaps, so overlapping runs and rewrites are all counted.
+ */
+export const newsAiSpend = pgTable(
+  "news_ai_spend",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    period: text("period").notNull(),
+    periodEnd: date("period_end").notNull(),
+    reservedUsd: numeric("reserved_usd", { precision: 10, scale: 6 }).notNull(),
+    /** Null until the attempt settles; until then the reservation counts. */
+    costUsd: numeric("cost_usd", { precision: 10, scale: 6 }),
+    inputTokens: integer("input_tokens"),
+    outputTokens: integer("output_tokens"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("news_ai_spend_created_idx").on(t.createdAt)],
+)
+
 export type NewsItem = typeof newsItems.$inferSelect
 export type NewsBrief = typeof newsBriefs.$inferSelect

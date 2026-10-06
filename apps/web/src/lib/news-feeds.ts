@@ -61,7 +61,7 @@ export function parseFeed(xml: string, source: string): FeedItem[] {
   const blocks = xml.match(/<item\b[\s\S]*?<\/item>|<entry\b[\s\S]*?<\/entry>/gi) ?? []
   const items: FeedItem[] = []
   for (const block of blocks) {
-    const title = plain(tag(block, "title") ?? "")
+    const title = plain(tag(block, "title") ?? "").slice(0, 300)
     const url = link(block)?.trim() ?? ""
     const when = tag(block, "pubDate") ?? tag(block, "published") ?? tag(block, "updated") ?? tag(block, "dc:date")
     const publishedAt = when ? new Date(plain(when)) : null
