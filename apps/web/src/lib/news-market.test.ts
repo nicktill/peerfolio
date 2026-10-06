@@ -145,3 +145,21 @@ test("funds Finnhub didn't answer are filled from Alpaca's snapshots", async () 
   assert.deepEqual(board.indexes.map((i) => [i.symbol, i.day.percent]), [["SPY", 0.5], ["QQQ", -1], ["DIA", -1], ["IWM", -1]])
   assert.equal(board.sectors.length, 11)
 })
+
+// Scheduled morning work must not fan out into sector quotes or chart requests.
+test("morning market refresh requests only four index quotes", async () => {
+  const urls: string[] = []
+  const now = new Date("2026-10-06T15:10:00Z")
+  const board = await fetchMarketBoard({ finnhubKey: "local", alpaca: null, indexesOnly: true, requiredSession: "2026-10-06", now, fetchImpl: async url => {
+    urls.push(url)
+    return Response.json({ c: 100, pc: 99, d: 1, dp: 1.01, t: now.getTime() / 1000 })
+  } })
+  assert.equal(urls.length, 4)
+  assert.equal(board?.indexes.length, 4)
+  assert.equal(board?.sectors.length, 0)
+})
+test("scheduled refresh rejects mixed-session quotes", async () => {
+  const now = new Date("2026-10-06T15:10:00Z")
+  const board = await fetchMarketBoard({ finnhubKey: "local", alpaca: null, indexesOnly: true, requiredSession: "2026-10-06", now, fetchImpl: async () => Response.json({ c: 100, pc: 99, d: 1, dp: 1.01, t: now.getTime() / 1000 - 86400 }) })
+  assert.equal(board, null)
+})

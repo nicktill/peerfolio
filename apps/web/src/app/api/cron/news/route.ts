@@ -1,22 +1,21 @@
 import { NextResponse } from "next/server"
 import { assertCronAuthorized, withPublic } from "@web/lib/api"
-import { runNewsOnce } from "@web/lib/news"
-
+import { runNews } from "@web/lib/news"
+import { scheduledNewsSlot } from "@web/lib/news-schedule"
+import { claimNewsLease, releaseNewsLease } from "@web/lib/news-lease"
 export const maxDuration = 300
-
-/**
- * The news job: stores headlines from publishers' RSS feeds and writes whatever
- * recap is due (the midday update, the day's recap after the close, the week's
- * after its last session). Page visits run it too when it's due; this route is
- * the scheduled backup (Vercel Cron after the close, GitHub Actions at midday).
- * `?force=1` rewrites today's recaps (for checking a prompt change).
- */
-export const GET = withPublic<unknown>(async (request) => {
+/** UTC schedules cover both offsets; wrong local-hour/holiday invocations do nothing. */
+export const GET = withPublic<unknown>(async request => {
   assertCronAuthorized(request)
-  const force = new URL(request.url).searchParams.get("force") === "1"
-  const result = await runNewsOnce(new Date(), { force })
-  if (!result) return NextResponse.json({ skipped: "already running" })
-  console.log("[cron] news", JSON.stringify(result))
-  // Healthy only if headlines arrived; an empty run means every feed failed.
-  return NextResponse.json(result, { status: result.fetched > 0 ? 200 : 502 })
+  const now = new Date()
+  const slot = scheduledNewsSlot(now, new URL(request.url).pathname.split("/").at(-1)?.startsWith("morning") ? "morning" : "close")
+  if (!slot) return NextResponse.json({ skipped: "outside scheduled trading window" })
+  const key = `news:${slot}:${now.toISOString().slice(0, 10)}`
+  const token = await claimNewsLease(key, 24 * 3600, 330)
+  if (!token) return NextResponse.json({ skipped: "already attempted or running" })
+  try {
+    const result = await runNews(now, { slot })
+    console.log("[cron] news", JSON.stringify(result))
+    return NextResponse.json(result, { status: result.fetched > 0 && "market" in result && result.market?.board ? 200 : 502 })
+  } finally { await releaseNewsLease(key, token) }
 })

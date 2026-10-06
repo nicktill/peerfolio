@@ -99,6 +99,13 @@
       "when": 1791313632852,
       "tag": "0013_news_ai_spend",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1791328358275,
+      "tag": "0014_news_saved_market",
+      "breakpoints": true
     }
   ]
 }

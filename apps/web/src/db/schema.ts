@@ -666,3 +666,16 @@ export const newsAiSpend = pgTable(
 
 export type NewsItem = typeof newsItems.$inferSelect
 export type NewsBrief = typeof newsBriefs.$inferSelect
+
+/** Saved public News components, refreshed by scheduled jobs only. */
+export const newsMarketCache = pgTable("news_market_cache", {
+  key: text("key").primaryKey(),
+  payload: jsonb("payload").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+})
+/** News-only deduplication; independent of portfolio synchronization. */
+export const newsJobLeases = pgTable("news_job_leases", {
+  name: text("name").primaryKey(),
+  attemptedAt: timestamp("attempted_at", { withTimezone: true }).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+})
