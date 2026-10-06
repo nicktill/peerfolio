@@ -10,7 +10,8 @@ import { latestCompletedSession, regularSession } from "./market-hours.ts"
  * published instead. Nothing unchecked reaches the page.
  */
 
-export type BriefPeriod = "day" | "week"
+/** "midday" is the late-morning update on a session still in progress; "day" is written after its close. */
+export type BriefPeriod = "day" | "week" | "midday"
 
 export type BriefItem = { id: string; source: string; title: string; url: string; summary: string | null; publishedAt: Date }
 
@@ -128,7 +129,11 @@ const dayEt = (date: string) =>
 
 export function promptInput(period: BriefPeriod, sessionDate: string, items: BriefItem[]) {
   const header =
-    period === "day" ? `Period: the US trading day of ${dayEt(sessionDate)}.` : `Period: the US trading week ending ${dayEt(sessionDate)}.`
+    period === "day"
+      ? `Period: the US trading day of ${dayEt(sessionDate)}.`
+      : period === "midday"
+        ? `Period: the US trading day of ${dayEt(sessionDate)} so far. This is a midday update: the market is still open, so describe moves as "so far" and never as closing levels.`
+        : `Period: the US trading week ending ${dayEt(sessionDate)}.`
   const clip = (t: string) => (t.length > MAX_ITEM_TEXT ? `${t.slice(0, MAX_ITEM_TEXT)}…` : t)
   const lines = items.map((i) => `[${i.id}] ${i.source} · ${timeEt.format(i.publishedAt)} ET — ${clip(i.title)}${i.summary ? `. ${clip(i.summary)}` : ""}`)
   return `${header}\n\nNews items:\n${lines.join("\n")}`
@@ -427,7 +432,26 @@ export function briefTargets(now: Date): { day: string | null; week: string | nu
 }
 
 /** The stories a period's recap is written from: up to three hours after its close, looking back a day (and a bit) or a week. */
+/** New York time of day in minutes, and the date. */
+function nyClock(at: Date) {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "numeric", hourCycle: "h23" }).formatToParts(at)
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value)
+  return get("hour") * 60 + get("minute")
+}
+
+/** Midday updates are written from 11:15am New York time on a trading day, until the day's own recap takes over. */
+export const MIDDAY_MINUTE = 11 * 60 + 15
+
+/** Today's date when a midday update is due (a trading day, 11:15am New York time or later), else null. */
+export function middayTarget(now: Date): string | null {
+  const session = regularSession(now)
+  if (!session) return null
+  return nyClock(now) >= MIDDAY_MINUTE ? session.date : null
+}
+
 export function briefWindow(period: BriefPeriod, date: string, now: Date) {
+  // Midday: everything since the previous evening, up to now.
+  if (period === "midday") return { from: new Date(now.getTime() - 20 * 3_600_000), to: now }
   const to = new Date(Math.min(now.getTime(), closeUtc(date).getTime() + 3 * 3_600_000))
   const from = new Date(to.getTime() - (period === "day" ? 30 * 3_600_000 : 7 * 86_400_000))
   return { from, to }
