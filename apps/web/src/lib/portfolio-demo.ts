@@ -17,7 +17,7 @@ const ACCOUNTS: { id: string; name: string; institution: string; category: "inve
   {
     id: "demo-roth",
     name: "Roth IRA",
-    institution: "Robinhood",
+    institution: "Fidelity",
     category: "investment",
     lots: [
       { ticker: "NVDA", name: "NVIDIA", quantity: 30, price: 186.4, cost: 1_420, today: 2.31 },
@@ -50,11 +50,11 @@ const ACCOUNTS: { id: string; name: string; institution: string; category: "inve
   {
     id: "demo-401k",
     name: "401(k)",
-    institution: "Fidelity",
+    institution: "Vanguard",
     category: "investment",
     lots: [{ ticker: "FXAIX", name: "Fidelity 500 Index Fund", quantity: 410, price: 228.1, cost: 71_300, today: 0.42 }],
   },
-  { id: "demo-cash", name: "Cash", institution: "Robinhood", category: "cash", cash: 6_635.42, lots: [] },
+  { id: "demo-cash", name: "High-yield savings", institution: "Ally Bank", category: "cash", cash: 6_635.42, lots: [] },
 ]
 
 const round2 = (v: number) => Math.round(v * 100) / 100

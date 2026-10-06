@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   AlertTriangle,
   BadgeDollarSign,
@@ -29,6 +29,7 @@ import { plural } from "@web/lib/plural"
 import { mutate } from "@web/lib/use-api"
 import { cn } from "@web/lib/utils"
 import { reconcileAccountExpansion } from "@web/lib/account-expansion"
+import { brandFor, type Brand } from "@web/lib/brokerages"
 
 export type AccountRow = {
   id: string
@@ -379,24 +380,77 @@ function InstitutionMark({
 }: {
   logo: string | null
   name: string
+  /** What the account is (brokerage, 401(k), cash): the icon alone, or a corner badge on a firm's mark. */
   fallback?: LucideIcon
   size?: "sm" | "md"
 }) {
   const box = size === "sm" ? "h-7 w-7" : "h-9 w-9"
+  // Manual accounts carry no artwork, so recognise the firm from its name.
+  const brand = logo ? null : brandFor(name)
+  const marked = Boolean(logo || brand)
 
   return (
-    <span className={cn("flex shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border/80 bg-gradient-to-br from-secondary to-background shadow-sm", box)}>
-      {logo ? (
-        // Plaid returns institution logos as base64 data URIs, so there is no
-        // remote host for next/image to optimise.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={logo} alt="" className="h-full w-full object-contain p-1" />
-      ) : (
-        <Fallback className="h-4 w-4 text-primary" strokeWidth={1.8} aria-hidden />
-      )}
+    <span className={cn("relative shrink-0", box)}>
+      <span className={cn("flex h-full w-full items-center justify-center overflow-hidden rounded-xl border border-border/80 shadow-sm", !brand && "bg-gradient-to-br from-secondary to-background")}>
+        {logo ? (
+          // Plaid returns institution logos as base64 data URIs, so there is no
+          // remote host for next/image to optimise.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={logo} alt="" className="h-full w-full object-contain p-1" />
+        ) : brand ? (
+          <BrandTile brand={brand} />
+        ) : (
+          <Fallback className="h-4 w-4 text-primary" strokeWidth={1.8} aria-hidden />
+        )}
+      </span>
+      {/* The firm's mark says where; a small badge keeps saying what (an IRA, a 401(k), cash). */}
+      {marked && size === "md" ? (
+        <span className="absolute -bottom-1 -right-1 grid size-[18px] place-items-center rounded-full border bg-card shadow-sm" aria-hidden>
+          <Fallback className="size-2.5 text-primary" strokeWidth={2.2} />
+        </span>
+      ) : null}
       <span className="sr-only">{name}</span>
     </span>
   )
+}
+
+/** A firm's icon via the logo proxy when it has a listed parent, else a monogram in its colour. */
+function BrandTile({ brand }: { brand: Brand }) {
+  const [failed, setFailed] = useState(false)
+  const image = useRef<HTMLImageElement>(null)
+  // An image that failed before hydration never fires onError, so check once mounted (as TickerLogo does).
+  useEffect(() => {
+    const el = image.current
+    if (el?.complete && el.naturalWidth === 0) setFailed(true)
+  }, [])
+  if (brand.ticker && !failed) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element -- proxied and cached at the edge
+      <img
+        ref={image}
+        src={`/api/market/logo/${encodeURIComponent(brand.ticker)}`}
+        alt=""
+        className="h-full w-full bg-white object-contain p-1.5"
+        loading="lazy"
+        onError={() => setFailed(true)}
+      />
+    )
+  }
+  return (
+    <span className="grid h-full w-full place-items-center font-display text-sm font-bold" style={{ backgroundColor: brand.color, color: inkOn(brand.color) }} aria-hidden>
+      {brand.monogram}
+    </span>
+  )
+}
+
+/** Black or white letters, whichever reads better on a brand colour (WCAG relative luminance). */
+function inkOn(hex: string) {
+  const [r, g, b] = [1, 3, 5].map((i) => {
+    const c = parseInt(hex.slice(i, i + 2), 16) / 255
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+  })
+  const luminance = 0.2126 * r! + 0.7152 * g! + 0.0722 * b!
+  return luminance > 0.179 ? "#000" : "#fff"
 }
 
 /** Manual accounts have no institution artwork, so their icon describes what the account does. */
