@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { ChevronDown, PieChart } from "lucide-react"
+import { ChevronDown, PieChart, Search } from "lucide-react"
 import { Card, CardContent } from "@web/components/ui/card"
 import { SectionLabel } from "@web/components/ui/section-card"
 import { EmptyState } from "@web/components/ui/empty-state"
@@ -72,14 +72,18 @@ export function HoldingsTable({
   allocation,
   hidden,
   todayLabel,
+  variant = "card",
 }: {
   holdings: HoldingRow[]
   allocation: AllocationSlice[]
   hidden: boolean
   /** What to call the "Today" column: "Today", or the date when the market hasn't traded today. */
   todayLabel: string
+  /** "section": open on the page under a hairline, with a search box, instead of a collapsible card. */
+  variant?: "card" | "section"
 }) {
   const [sort, setSort] = useState<Sort>("value")
+  const [query, setQuery] = useState("")
   const [showAll, setShowAll] = useState(false)
   // Open by default; a person's choice is remembered on this device (best effort).
   const [open, setOpen] = useState(true)
@@ -104,11 +108,13 @@ export function HoldingsTable({
   const sorted = useMemo(() => {
     const key = (h: HoldingRow) => (sort === "value" ? h.value : sort === "gain" ? h.gainPercent : h.todayPercent)
     // Unknowns go last in either direction so a sort never buries real numbers.
-    return [...holdings].sort((a, b) => (key(b) ?? -Infinity) - (key(a) ?? -Infinity))
-  }, [holdings, sort])
+    const q = query.trim().toLowerCase()
+    const matching = q ? holdings.filter((h) => `${h.ticker ?? ""} ${h.name ?? ""}`.toLowerCase().includes(q)) : holdings
+    return [...matching].sort((a, b) => (key(b) ?? -Infinity) - (key(a) ?? -Infinity))
+  }, [holdings, sort, query])
 
   const sortOptions: { value: Sort; label: string }[] = SORTS.map((s) => (s.value === "today" ? { value: s.value, label: todayLabel } : { value: s.value, label: s.label }))
-  const visible = showAll ? sorted : sorted.slice(0, PREVIEW)
+  const visible = showAll || query ? sorted : sorted.slice(0, PREVIEW)
 
   if (holdings.length === 0) {
     return (
@@ -129,24 +135,9 @@ export function HoldingsTable({
   const shownWeight = new Map(withShownWeights(holdings, 1).map((h) => [h.securityId, h.shownWeight]))
   const maxWeight = Math.max(...holdings.map((h) => h.weight), 1)
 
-  return (
-    <Card className="overflow-hidden">
-      <div className={cn("flex min-h-[52px] flex-wrap items-center gap-3 py-2.5 pl-5 pr-3", open && "border-b")}>
-        <button type="button" onClick={toggle} aria-expanded={open} aria-controls="holdings-body" className="group flex items-center gap-1.5 rounded-md text-left">
-          <SectionLabel as="span" className="transition-colors group-hover:text-foreground">{`Holdings · ${holdings.length}`}</SectionLabel>
-          <ChevronDown className={cn("size-3.5 text-muted-foreground transition-transform duration-300", !open && "-rotate-90")} aria-hidden />
-        </button>
-        {open ? (
-          <Segmented<Sort> options={sortOptions} value={sort} onChange={setSort} size="sm" label="Sort holdings" className="ml-auto" />
-        ) : (
-          <p className="ml-auto min-w-0 truncate text-xs text-muted-foreground">
-            {sorted.slice(0, 4).map((h) => h.ticker ?? h.name ?? "?").join(" · ")}
-            {sorted.length > 4 ? ` · +${sorted.length - 4} more` : ""}
-          </p>
-        )}
-      </div>
-
-      <CardContent id="holdings-body" hidden={!open} className="pt-4">
+  // The allocation bar and rows, shared by both layouts.
+  const content = (
+    <>
         {slices.length > 0 ? (
           <div className="mb-2">
             <div className="flex h-1.5 w-full gap-0.5 overflow-hidden rounded-full" role="img" aria-label={slices.map((s, i) => `${s.name} ${shownSlices[i]} percent`).join(", ")}>
@@ -224,7 +215,9 @@ export function HoldingsTable({
           ))}
         </ul>
 
-        {sorted.length > PREVIEW ? (
+        {sorted.length === 0 ? <p className="py-6 text-sm text-muted-foreground">No holdings match “{query}”.</p> : null}
+
+        {!query && sorted.length > PREVIEW ? (
           <button
             type="button"
             onClick={() => setShowAll((v) => !v)}
@@ -233,6 +226,61 @@ export function HoldingsTable({
             {showAll ? "Show fewer" : `Show all ${sorted.length} holdings`}
           </button>
         ) : null}
+    </>
+  )
+
+  const sortControl = <Segmented<Sort> options={sortOptions} value={sort} onChange={setSort} size="sm" label="Sort holdings" />
+
+  if (variant === "section") {
+    return (
+      <section aria-labelledby="holdings-title" className="border-t pt-6">
+        <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 id="holdings-title" className="text-base font-semibold">
+              Holdings <span className="numeric font-normal text-muted-foreground">{holdings.length}</span>
+            </h2>
+            <p className="mt-1 text-xs text-muted-foreground">One view across your accounts.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="flex h-9 items-center gap-2 rounded-lg border bg-background/60 px-3 transition-colors focus-within:border-foreground/30">
+              <Search className="size-3.5 text-muted-foreground" aria-hidden />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                aria-label="Find a holding"
+                placeholder="Find a holding"
+                className="w-32 bg-transparent text-sm outline-none placeholder:text-muted-foreground sm:w-44"
+              />
+            </label>
+            {sortControl}
+          </div>
+        </div>
+        <div>
+        {content}
+        </div>
+      </section>
+    )
+  }
+
+  return (
+    <Card className="overflow-hidden">
+      <div className={cn("flex min-h-[52px] flex-wrap items-center gap-3 py-2.5 pl-5 pr-3", open && "border-b")}>
+        <button type="button" onClick={toggle} aria-expanded={open} aria-controls="holdings-body" className="group flex items-center gap-1.5 rounded-md text-left">
+          <SectionLabel as="span" className="transition-colors group-hover:text-foreground">{`Holdings · ${holdings.length}`}</SectionLabel>
+          <ChevronDown className={cn("size-3.5 text-muted-foreground transition-transform duration-300", !open && "-rotate-90")} aria-hidden />
+        </button>
+        {open ? (
+          <div className="ml-auto">{sortControl}</div>
+        ) : (
+          <p className="ml-auto min-w-0 truncate text-xs text-muted-foreground">
+            {sorted.slice(0, 4).map((h) => h.ticker ?? h.name ?? "?").join(" · ")}
+            {sorted.length > 4 ? ` · +${sorted.length - 4} more` : ""}
+          </p>
+        )}
+      </div>
+
+      <CardContent id="holdings-body" hidden={!open} className="pt-4">
+        {content}
       </CardContent>
     </Card>
   )

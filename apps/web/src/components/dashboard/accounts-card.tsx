@@ -68,11 +68,14 @@ export function AccountsCard({
   items,
   hidden,
   onChange,
+  variant = "card",
 }: {
   accounts: AccountRow[]
   items: ItemRow[]
   hidden: boolean
   onChange: () => void
+  /** "rail": no card around it, for the quiet side column of the portfolio page. */
+  variant?: "card" | "rail"
 }) {
   const { toast } = useToast()
   const confirm = useConfirm()
@@ -153,11 +156,7 @@ export function AccountsCard({
     }
   }
 
-  return (
-    <SectionCard
-      label={`Accounts · ${accounts.length}`}
-      labelId="card-accounts"
-      action={
+  const importButton = (
           <ImportPositionsButton
             accounts={accounts
               .filter((a) => a.source === "manual" && a.category === "investment")
@@ -166,9 +165,10 @@ export function AccountsCard({
             variant="ghost"
             label="Import positions"
           />
-      }
-    >
-      <div className="space-y-5 p-4 pt-4">
+  )
+
+  const body = (
+      <div className={cn("space-y-5", variant === "card" ? "p-4" : "pt-2")}>
         {needsAttention.map((item) => (
           <div
             key={item.id}
@@ -189,7 +189,7 @@ export function AccountsCard({
 
         {grouped.map((group) => (
           <div key={group.key}>
-            <h3 className="mb-1.5 flex items-baseline justify-between px-2 font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+            <h3 className={cn("mb-1.5 flex items-baseline justify-between font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground", variant === "card" ? "px-2" : "px-0")}>
               <span>{group.label}</span>
               <span className={cn("numeric normal-case tracking-normal", group.key === "credit" || group.key === "loan" ? "text-loss-ink" : "")}>
                 {group.key === "credit" || group.key === "loan" ? "−" : ""}
@@ -206,6 +206,7 @@ export function AccountsCard({
                   id={`account-${account.id}`}
                   className={cn(
                     "group rounded-xl p-2 transition-[background-color,box-shadow] duration-300",
+                    variant === "rail" && "-mx-2",
                     account.source === "manual" && account.category === "investment" && isOpen(account) ? "bg-secondary/50 shadow-[inset_0_0_0_1px_hsl(var(--border))]" : "hover:bg-secondary/50",
                     highlightId === account.id && "shadow-[0_0_0_2px_hsl(var(--primary))]",
                   )}
@@ -336,7 +337,7 @@ export function AccountsCard({
           </div>
         ) : null}
 
-        <div className="-mx-4 flex flex-wrap gap-2 border-t px-4 pt-4">
+        <div className={cn("flex flex-wrap gap-2 border-t pt-4", variant === "card" && "-mx-4 px-4")}>
           <AddAccountButton
             onCreated={(id) => {
               setHighlightId(id)
@@ -347,6 +348,25 @@ export function AccountsCard({
           <ConnectButton onConnected={onChange} variant="outline" />
         </div>
       </div>
+  )
+
+  if (variant === "rail") {
+    return (
+      <section aria-labelledby="rail-accounts">
+        <div className="flex items-center justify-between gap-2">
+          <h2 id="rail-accounts" className="text-sm font-semibold">
+            Your accounts <span className="numeric font-normal text-muted-foreground">{accounts.length}</span>
+          </h2>
+          {importButton}
+        </div>
+        {body}
+      </section>
+    )
+  }
+
+  return (
+    <SectionCard label={`Accounts · ${accounts.length}`} labelId="card-accounts" action={importButton}>
+      {body}
     </SectionCard>
   )
 }

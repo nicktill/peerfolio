@@ -167,6 +167,17 @@ export function demoPortfolio(range: Range): PortfolioResponse {
     .sort((a, b) => b.value - a.value)
 
   const netWorth = accounts.reduce((sum, a) => sum + a.balance, 0)
+  const cash = netWorth - invested
+
+  // The dollar series follows the same market path, plus a $5,000 deposit 15
+  // sessions ago: value steps up on that day, the time-weighted return doesn't.
+  const DEPOSIT = 5_000
+  const depositDate = full[full.length - 15]!.date
+  const last = full[full.length - 1]!.level
+  const dollarHistory = window.map((p) => {
+    const investableAssets = (invested - (p.date < depositDate ? DEPOSIT : 0)) * (p.level / last)
+    return { date: p.date, netWorth: investableAssets + cash, investableAssets }
+  })
   const todayAmount = holdings.reduce((sum, h) => sum + (h.todayAmount ?? 0), 0)
   const cost = holdings.reduce((sum, h) => sum + (h.value - (h.gainAmount ?? 0)), 0)
 
@@ -182,7 +193,7 @@ export function demoPortfolio(range: Range): PortfolioResponse {
       { id: "demo-league-1", name: "AI-Infra", emoji: "🤖", rank: 1, members: 8 },
       { id: "demo-league-2", name: "Dorm Room Fund", emoji: "🎓", rank: 3, members: 12 },
     ],
-    history: [],
+    history: dollarHistory,
     performance: { percent: series[series.length - 1]!.indexed - 100, days: series.length, range, series },
     hasHistory: true,
     firstDate: full[0]!.date,

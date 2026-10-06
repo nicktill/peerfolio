@@ -2,14 +2,14 @@
 
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { ArrowDownRight, ArrowUpRight, ChevronRight, Eye, EyeOff, Info, Newspaper, RefreshCw, ShieldCheck, Sparkles, Wallet } from "lucide-react"
+import { ArrowDownRight, ArrowUpRight, ChevronRight, Eye, EyeOff, RefreshCw, ShieldCheck, Sparkles, Wallet } from "lucide-react"
 import { Badge } from "@web/components/ui/badge"
 import { Button } from "@web/components/ui/button"
 import { Card, CardContent } from "@web/components/ui/card"
 import { EmptyState } from "@web/components/ui/empty-state"
 import { Segmented } from "@web/components/ui/segmented"
-import { SectionCard, SectionLabel } from "@web/components/ui/section-card"
-import { Reveal } from "@web/components/motion/reveal"
+import { SectionLabel } from "@web/components/ui/section-card"
+import { Reveal, revealStyle } from "@web/components/motion/reveal"
 import { DashboardSkeleton } from "@web/components/skeletons"
 import { AnimatedNumber } from "@web/components/ui/animated-number"
 import { plural } from "@web/lib/plural"
@@ -20,7 +20,7 @@ import { AccountsCard, type AccountRow, type ItemRow } from "@web/components/das
 import { ConnectButton } from "@web/components/dashboard/connect-button"
 import { HoldingsTable, type HoldingRow } from "@web/components/dashboard/holdings-table"
 import { AddAccountButton } from "@web/components/dashboard/add-account-dialog"
-import { formatDate, formatPercent } from "@web/lib/format"
+import { formatCurrency, formatDate, formatPercent } from "@web/lib/format"
 import { isUsMarketOpen } from "@web/lib/market-hours"
 import { cn } from "@web/lib/utils"
 import { mutate } from "@web/lib/use-api"
@@ -50,6 +50,8 @@ export type PortfolioSource = (range: Range) => {
   refetch: () => Promise<void> | void
 }
 
+type Metric = "value" | "return"
+
 const RANGE_NAMES: Record<Range, string> = { "1W": "week", "1M": "month", "3M": "3 months", "6M": "6 months", "1Y": "year", ALL: "period" }
 const usd = (v: number) => `$${new Intl.NumberFormat("en-US").format(v)}`
 /** Signed dollars: cents while the amount is small, whole dollars once it isn't. */
@@ -62,14 +64,18 @@ const signedUsd = (v: number) => {
 const marketToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date())
 
 /**
- * The portfolio as one page: net worth up top, then a main column (return,
- * holdings) beside a rail (accounts, leagues, news). Every card shares the
- * labelled-header anatomy, so it reads as one view rather than a stack of
- * widgets. `demo` swaps the server actions for a note, for the preview route.
+ * The portfolio as one composition: a single overview card (net worth, today,
+ * and one chart that switches between dollar value and time-weighted return)
+ * beside a quiet, unboxed rail (accounts, the invested/cash split, leagues,
+ * news), with every holding in an open section underneath. `demo` swaps the
+ * server actions for a note, for the preview route.
  */
 export function PortfolioScreen({ useSource, demo = false }: { useSource: PortfolioSource; demo?: boolean }) {
   const { toast } = useToast()
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
+  // Two different questions: what is it worth (dollars, moved by deposits) and how
+  // have the investments done (time-weighted, deposits taken out).
+  const [metric, setMetric] = useState<Metric>("value")
   const [range, setRange] = useState<Range>("1M")
   // Until someone picks a range themselves, show the longest one their history can fill.
   const pickedRange = useRef(false)
@@ -140,22 +146,23 @@ export function PortfolioScreen({ useSource, demo = false }: { useSource: Portfo
     )
   }
 
-  // Plot the time-weighted series, not net worth. They disagree whenever money
-  // moves in or out, and showing the dollar line under a time-weighted
-  // percentage told two different stories six pixels apart.
-  const series = data.performance.series.map((p) => ({ date: p.date, value: p.indexed }))
-
   const available = rangeAvailability(data.firstDate, marketToday())
   const unlockIn = rangeUnlockDays(data.firstDate, marketToday())
   // Only ranges the history can fill are offered; locked ones are described in the
-  // note beside the readout instead of sitting there greyed out.
+  // footnote under the chart instead of sitting there greyed out.
   const rangeOptions = RANGES.filter((r) => available[r]).map((r) => ({ value: r, label: r }))
   const nextRange = RANGES.filter((r) => !available[r]).sort((a, b) => unlockIn[a] - unlockIn[b])[0]
   const windowCoversAll = range === "ALL" || !available[range]
-  const points = data.performance.series
-  const shown = hoverIndex != null ? points[hoverIndex] : points[points.length - 1]
-  const shownPercent = shown ? shown.indexed - 100 : data.performance.percent
-  const explainer = `How your investments have done since you added them here. Money you add or withdraw doesn’t count.${nextRange ? ` The ${nextRange} view unlocks in ${plural(unlockIn[nextRange], "day")}.` : ""}`
+
+  // Never draw the dollar line under a percentage or the other way round: each
+  // metric gets its own series, readout and footnote, so they can't be confused.
+  const isValue = metric === "value"
+  const series = isValue
+    ? data.history.map((p) => ({ date: p.date, value: p.netWorth }))
+    : data.performance.series.map((p) => ({ date: p.date, value: p.indexed }))
+  const canChart = data.hasHistory && series.length >= 2
+  const shown = canChart ? (hoverIndex != null ? series[hoverIndex] : series[series.length - 1]) : undefined
+  const windowLabel = windowCoversAll && data.firstDate ? `since ${formatDate(data.firstDate)}` : `last ${RANGE_NAMES[range]}`
 
   const netWorthWhole = Math.floor(data.summary.netWorth)
   const cents = Math.round((data.summary.netWorth - netWorthWhole) * 100)
@@ -163,8 +170,11 @@ export function PortfolioScreen({ useSource, demo = false }: { useSource: Portfo
   const isToday = data.today?.asOf === marketToday()
   const todayLabel = data.today?.asOf ? (isToday ? "today" : `on ${formatDate(`${data.today.asOf}T12:00:00`, "short")}`) : "today"
 
+  const cash = data.accounts.filter((a) => a.category === "cash").reduce((sum, a) => sum + a.balance, 0)
+  const invested = data.summary.investableAssets
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {error ? (
         <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3 text-sm text-muted-foreground">
           <p>Couldn’t refresh your portfolio. Showing the last loaded balances.</p>
@@ -172,70 +182,25 @@ export function PortfolioScreen({ useSource, demo = false }: { useSource: Portfo
         </div>
       ) : null}
 
-      <Reveal index={0} className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
-        <div className="min-w-0 space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <SectionLabel as="h1">Net worth</SectionLabel>
-            {data.isVerified ? (
-              <Badge variant="verified">
-                <ShieldCheck aria-hidden />
-                Verified
-              </Badge>
-            ) : (
-              <Badge variant="outline">Self-reported</Badge>
-            )}
-            {demo ? (
-              <Badge variant="outline" className="border-dashed">
-                Demo data
-              </Badge>
-            ) : null}
-          </div>
-
-          <p className="font-display text-5xl font-semibold leading-none sm:text-[56px]" style={{ letterSpacing: "-0.035em" }}>
-            {hidden ? (
-              "••••••"
-            ) : (
-              <>
-                <AnimatedNumber className="numeric" value={netWorthWhole} format={usd} />
-                <span className="numeric text-[0.5em] text-muted-foreground" style={{ letterSpacing: "-0.02em" }}>
-                  .{String(cents).padStart(2, "0")}
-                </span>
-              </>
-            )}
-          </p>
-
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            {data.today ? (
-              <span
-                className={cn(
-                  "numeric inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[13px] font-semibold",
-                  data.today.amount >= 0 ? "tint-gain text-gain-ink" : "tint-loss text-loss-ink",
-                )}
-              >
-                {data.today.amount >= 0 ? <ArrowUpRight className="size-3.5" aria-hidden /> : <ArrowDownRight className="size-3.5" aria-hidden />}
-                {hidden ? null : <>{signedUsd(data.today.amount)} </>}
-                <span className={hidden ? "" : "font-medium opacity-80"}>{formatPercent(data.today.percent)}</span>
-                <span className="font-medium opacity-80">{todayLabel}</span>
-              </span>
-            ) : null}
-            {data.today && isToday && marketOpen ? (
-              <span className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="live-dot size-2 rounded-full bg-[--gain]" aria-hidden />
-                Live · market open
-              </span>
-            ) : null}
-            {data.allTime ? (
-              <span className="text-xs text-muted-foreground" title={`Across the ${Math.round(data.allTime.coverage * 100)}% of your holdings that have an average cost`}>
-                Since purchase{" "}
-                <span className={cn("numeric font-semibold", data.allTime.amount >= 0 ? "text-gain-ink" : "text-loss-ink")}>
-                  {hidden ? formatPercent(data.allTime.percent, 0) : `${signedUsd(data.allTime.amount)} (${formatPercent(data.allTime.percent, 0)})`}
-                </span>
-              </span>
-            ) : null}
-          </div>
+      <Reveal index={0} className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <SectionLabel as="span" className="mb-2 block">Your financial picture</SectionLabel>
+          <h1 className="font-display text-3xl font-semibold tracking-tight">Portfolio</h1>
         </div>
-
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {data.isVerified ? (
+            <Badge variant="verified">
+              <ShieldCheck aria-hidden />
+              Verified
+            </Badge>
+          ) : (
+            <Badge variant="outline">Self-reported</Badge>
+          )}
+          {demo ? (
+            <Badge variant="outline" className="border-dashed">
+              Demo data
+            </Badge>
+          ) : null}
           <Button variant="ghost" size="icon" onClick={() => setHidden(!hidden)} title={hidden ? "Show amounts" : "Hide amounts (returns stay visible)"}>
             {hidden ? <Eye className="h-4 w-4" aria-hidden /> : <EyeOff className="h-4 w-4" aria-hidden />}
             <span className="sr-only">{hidden ? "Show amounts" : "Hide amounts"}</span>
@@ -247,84 +212,207 @@ export function PortfolioScreen({ useSource, demo = false }: { useSource: Portfo
         </div>
       </Reveal>
 
-      {/* Three grid items, not two columns: on a phone they stack as return, accounts,
-          holdings; on desktop the rail spans both rows beside the main column. */}
-      <div className="grid items-start gap-5 [&>*]:min-w-0 lg:grid-cols-[minmax(0,1fr)_380px] lg:grid-rows-[auto_1fr] xl:grid-cols-[minmax(0,1fr)_420px]">
-        <SectionCard
-          label="Return"
-          index={1}
-          className="lg:col-start-1 lg:row-start-1"
-          action={
-            rangeOptions.length > 1 ? (
-              <Segmented<Range>
-                options={rangeOptions}
-                value={range}
-                onChange={(r) => {
-                  pickedRange.current = true
-                  setHoverIndex(null)
-                  setRange(r)
-                }}
-                size="sm"
-                label="Time range"
-                className="shrink-0"
-              />
-            ) : null
-          }
-        >
-          {data.hasHistory ? (
-            <>
-              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-5 pt-5">
-                <span className={cn("numeric font-display text-[34px] font-semibold leading-none tracking-tight", shownPercent >= 0 ? "text-gain-ink" : "text-loss-ink")}>
-                  {formatPercent(shownPercent)}
+      {/* Three items, not two columns: phones stack overview, accounts, holdings; on
+          desktop the rail runs beside both, so an opened account never leaves a hole. */}
+      <div className="grid items-start gap-8 [&>*]:min-w-0 lg:grid-cols-[minmax(0,1fr)_320px] lg:grid-rows-[auto_1fr] xl:grid-cols-[minmax(0,1fr)_360px]">
+        <Card className="reveal overflow-hidden lg:col-start-1 lg:row-start-1" style={revealStyle(1)}>
+          <div className="p-5 sm:p-6">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs text-muted-foreground">Net worth</span>
+              {data.today && isToday && marketOpen ? (
+                <span className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                  <span className="live-dot size-2 rounded-full bg-[--gain]" aria-hidden />
+                  Live · market open
                 </span>
-                <span className="text-sm text-muted-foreground">
-                  {hoverIndex != null && shown
-                    ? formatDate(shown.date)
-                    : windowCoversAll && data.firstDate
-                      ? `since ${formatDate(data.firstDate)} · ${plural(data.performance.days, "day")} tracked`
-                      : `last ${RANGE_NAMES[range]}`}
+              ) : null}
+            </div>
+
+            <p className="mt-2 font-display text-5xl font-semibold leading-none sm:text-[56px]" style={{ letterSpacing: "-0.035em" }}>
+              {hidden ? (
+                "••••••"
+              ) : (
+                <>
+                  <AnimatedNumber className="numeric" value={netWorthWhole} format={usd} />
+                  <span className="numeric text-[0.5em] text-muted-foreground" style={{ letterSpacing: "-0.02em" }}>
+                    .{String(cents).padStart(2, "0")}
+                  </span>
+                </>
+              )}
+            </p>
+
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+              {data.today ? (
+                <span
+                  className={cn(
+                    "numeric inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[13px] font-semibold",
+                    data.today.amount >= 0 ? "tint-gain text-gain-ink" : "tint-loss text-loss-ink",
+                  )}
+                >
+                  {data.today.amount >= 0 ? <ArrowUpRight className="size-3.5" aria-hidden /> : <ArrowDownRight className="size-3.5" aria-hidden />}
+                  {hidden ? null : <>{signedUsd(data.today.amount)} </>}
+                  <span className={hidden ? "" : "font-medium opacity-80"}>{formatPercent(data.today.percent)}</span>
+                  <span className="font-medium opacity-80">{todayLabel}</span>
                 </span>
-                <span className="group relative ml-auto inline-flex" tabIndex={0} aria-label={explainer}>
-                  <Info className="size-4 text-muted-foreground transition-colors group-hover:text-foreground" aria-hidden />
-                  {/* The long explanation lives behind the icon instead of above the chart. */}
-                  <span
-                    role="tooltip"
-                    className="pointer-events-none absolute right-0 top-6 z-30 w-64 translate-y-1 rounded-xl border bg-popover p-3 text-xs leading-relaxed text-popover-foreground opacity-0 shadow-lg transition-[opacity,translate] duration-200 group-hover:translate-y-0 group-hover:opacity-100 group-focus:translate-y-0 group-focus:opacity-100"
-                  >
-                    {explainer}
+              ) : null}
+              {data.allTime ? (
+                <span className="text-xs text-muted-foreground" title={`Across the ${Math.round(data.allTime.coverage * 100)}% of your holdings that have an average cost`}>
+                  Since purchase{" "}
+                  <span className={cn("numeric font-semibold", data.allTime.amount >= 0 ? "text-gain-ink" : "text-loss-ink")}>
+                    {hidden ? formatPercent(data.allTime.percent, 0) : `${signedUsd(data.allTime.amount)} (${formatPercent(data.allTime.percent, 0)})`}
                   </span>
                 </span>
-              </div>
-              <div className="px-2 pb-2 pt-3">
-                <PerformanceChart
-                  points={series}
-                  baseline={100}
-                  indexed
-                  height={340}
-                  onHover={setHoverIndex}
-                  ariaLabel={`Time-weighted return over the last ${range}`}
-                  valueFormatter={(v) => `${v >= 100 ? "+" : "−"}${Math.abs(v - 100).toFixed(2)}%`}
-                />
-              </div>
-            </>
-          ) : (
-            /* Being honest beats drawing a line through invented data. */
-            <div className="grid min-h-[340px] place-items-center p-5">
-              <EmptyState icon={Sparkles} title="Your history starts now" description="We snapshot your portfolio once a day. Check back tomorrow for your first data point." />
+              ) : null}
             </div>
-          )}
-        </SectionCard>
 
-        <div className="flex flex-col gap-5 lg:col-start-2 lg:row-span-2 lg:row-start-1">
-          <Reveal index={2}>
-            <AccountsCard accounts={data.accounts} items={data.items} hidden={hidden} onChange={refetch} />
-          </Reveal>
-          {data.leagues.length > 0 ? <LeaguesCard leagues={data.leagues} index={4} /> : null}
-          <NewsCard index={5} />
-        </div>
+            <div className="mt-7 flex flex-wrap items-center justify-between gap-3 border-t pt-5">
+              <Segmented<Metric>
+                options={[
+                  { value: "value", label: "Portfolio value" },
+                  { value: "return", label: "Investment return" },
+                ]}
+                value={metric}
+                onChange={(m) => {
+                  setHoverIndex(null)
+                  setMetric(m)
+                }}
+                size="sm"
+                label="Chart"
+              />
+              {rangeOptions.length > 1 ? (
+                <Segmented<Range>
+                  options={rangeOptions}
+                  value={range}
+                  onChange={(r) => {
+                    pickedRange.current = true
+                    setHoverIndex(null)
+                    setRange(r)
+                  }}
+                  size="sm"
+                  label="Time range"
+                />
+              ) : null}
+            </div>
+
+            {canChart && shown ? (
+              <>
+                <div className="mt-5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <span
+                    className={cn(
+                      "numeric text-2xl font-semibold tracking-tight",
+                      !isValue && (shown.value >= 100 ? "text-gain-ink" : "text-loss-ink"),
+                    )}
+                  >
+                    {isValue ? (hidden ? "••••••" : formatCurrency(shown.value)) : formatPercent(shown.value - 100)}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {hoverIndex != null
+                      ? formatDate(shown.date)
+                      : isValue
+                        ? `Portfolio value · ${windowLabel}`
+                        : `Time-weighted return · ${windowLabel}${windowCoversAll ? ` · ${plural(data.performance.days, "day")} tracked` : ""}`}
+                  </span>
+                </div>
+                {/* Keyed so a metric or range switch fades the new line in instead of morphing between unrelated shapes. */}
+                <div key={`${metric}-${range}`} className="swap-in -mx-1 mt-3">
+                  <PerformanceChart
+                    points={series}
+                    height={300}
+                    indexed={!isValue}
+                    baseline={isValue ? undefined : 100}
+                    showTooltip={false}
+                    onHover={setHoverIndex}
+                    ariaLabel={isValue ? `Portfolio value in dollars over the last ${range}` : `Time-weighted return over the last ${range}`}
+                    valueFormatter={(v) => (isValue ? (hidden ? "Hidden" : formatCurrency(v)) : formatPercent(v - 100))}
+                  />
+                </div>
+                <p className="mt-4 text-xs leading-5 text-muted-foreground">
+                  {isValue
+                    ? "Value includes money you add or withdraw, so it isn’t a measure of how your investments did. Switch to Investment return for that."
+                    : "Time-weighted return leaves out money you add or withdraw, so it measures only how your investments did."}
+                  {!isValue && nextRange ? ` The ${nextRange} view unlocks in ${plural(unlockIn[nextRange], "day")}.` : ""}
+                </p>
+              </>
+            ) : (
+              /* Being honest beats drawing a line through invented data. */
+              <div className="grid min-h-[300px] place-items-center">
+                <EmptyState icon={Sparkles} title="Your history starts now" description="We snapshot your portfolio once a day. Check back tomorrow for your first data point." />
+              </div>
+            )}
+          </div>
+        </Card>
+
+        <aside className="reveal space-y-8 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:pt-1" style={revealStyle(2)}>
+          <AccountsCard variant="rail" accounts={data.accounts} items={data.items} hidden={hidden} onChange={refetch} />
+
+          <section aria-labelledby="rail-glance" className="border-t pt-5">
+            <SectionLabel as="h2" id="rail-glance">At a glance</SectionLabel>
+            <dl className="mt-3 space-y-2 text-sm">
+              <div className="flex justify-between gap-3">
+                <dt className="text-muted-foreground">Invested</dt>
+                <dd className="numeric font-medium">{formatCurrency(invested, { hidden })}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="text-muted-foreground">Cash &amp; savings</dt>
+                <dd className="numeric font-medium">{formatCurrency(cash, { hidden })}</dd>
+              </div>
+              {data.summary.totalLiabilities > 0 ? (
+                <div className="flex justify-between gap-3">
+                  <dt className="text-muted-foreground">Owed</dt>
+                  <dd className="numeric font-medium text-loss-ink">−{formatCurrency(data.summary.totalLiabilities, { hidden })}</dd>
+                </div>
+              ) : null}
+            </dl>
+            {invested + cash > 0 ? (
+              <div
+                className="mt-3 flex h-1.5 overflow-hidden rounded-full bg-secondary"
+                role="img"
+                aria-label={`${Math.round((invested / (invested + cash)) * 100)}% invested, ${Math.round((cash / (invested + cash)) * 100)}% cash`}
+              >
+                <span className="stat-bar h-full rounded-full bg-primary" style={{ width: `${(invested / (invested + cash)) * 100}%` }} />
+              </div>
+            ) : null}
+          </section>
+
+          {data.leagues.length > 0 ? (
+            <section aria-labelledby="rail-leagues" className="border-t pt-5">
+              <div className="flex items-center justify-between">
+                <SectionLabel as="h2" id="rail-leagues">Your leagues</SectionLabel>
+                <Link href="/leagues" className="text-xs font-medium text-muted-foreground transition-colors hover:text-foreground">
+                  See all
+                </Link>
+              </div>
+              <ul className="mt-2 divide-y">
+                {data.leagues.slice(0, 4).map((league) => (
+                  <li key={league.id}>
+                    <Link href={`/leagues/${league.id}`} className="group -mx-2 flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-secondary/50">
+                      <span className="text-lg" aria-hidden>{league.emoji}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">{league.name}</span>
+                        <span className="block text-xs text-muted-foreground">{plural(league.members, "member")}</span>
+                      </span>
+                      {league.rank != null ? (
+                        <span className={cn("numeric font-display text-sm font-bold", league.rank === 1 ? "text-gold-ink" : "text-muted-foreground")}>#{league.rank}</span>
+                      ) : null}
+                      <ChevronRight className="size-3.5 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          <Link href="/news" className="group flex items-center justify-between gap-3 border-t pt-5">
+            <span>
+              <SectionLabel as="span" className="block transition-colors group-hover:text-foreground">Markets today</SectionLabel>
+              <span className="mt-1.5 block text-sm text-muted-foreground">Recap, sectors, sentiment and earnings for what you hold.</span>
+            </span>
+            <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden />
+          </Link>
+        </aside>
 
         <Reveal index={3} className="lg:col-start-1 lg:row-start-2">
           <HoldingsTable
+            variant="section"
             holdings={data.holdings}
             allocation={data.allocation}
             hidden={hidden}
@@ -333,55 +421,5 @@ export function PortfolioScreen({ useSource, demo = false }: { useSource: Portfo
         </Reveal>
       </div>
     </div>
-  )
-}
-
-function LeaguesCard({ leagues, index }: { leagues: PortfolioResponse["leagues"]; index: number }) {
-  return (
-    <SectionCard label="Your leagues" href="/leagues" index={index}>
-      <ul>
-        {leagues.slice(0, 5).map((league, i) => (
-          <li key={league.id} className={cn(i > 0 && "border-t")}>
-            <Link href={`/leagues/${league.id}`} className="group flex items-center gap-3 px-5 py-3 transition-colors hover:bg-secondary/50">
-              <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-secondary text-lg" aria-hidden>
-                {league.emoji}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium">{league.name}</span>
-                <span className="block text-xs text-muted-foreground">{plural(league.members, "member")}</span>
-              </span>
-              {league.rank != null ? (
-                <span
-                  className={cn(
-                    "numeric rounded-lg px-2 py-1 font-display text-sm font-bold",
-                    league.rank === 1 ? "bg-[color-mix(in_srgb,var(--rank-1)_16%,transparent)] text-gold-ink" : "bg-secondary text-muted-foreground",
-                  )}
-                >
-                  #{league.rank}
-                </span>
-              ) : null}
-              <ChevronRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden />
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </SectionCard>
-  )
-}
-
-function NewsCard({ index }: { index: number }) {
-  return (
-    <SectionCard label="Markets today" index={index} className="surface-hero">
-      <div className="flex flex-col gap-3 p-5">
-        <p className="text-sm leading-relaxed text-muted-foreground">The day’s recap, sector moves, sentiment and the earnings coming up for what you hold.</p>
-        <Link
-          href="/news"
-          className="press inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-foreground text-sm font-medium text-background transition-opacity hover:opacity-90"
-        >
-          <Newspaper className="size-4" aria-hidden />
-          Open News
-        </Link>
-      </div>
-    </SectionCard>
   )
 }
