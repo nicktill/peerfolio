@@ -4,6 +4,7 @@ import { Badge } from "@web/components/ui/badge"
 import { Delta } from "@web/components/ui/delta"
 import { TickerLogo } from "@web/components/ui/ticker-logo"
 import { IconChip, SectionCard, type ChipTone } from "@web/components/ui/section-card"
+import { cn } from "@web/lib/utils"
 
 export type RecapSource = { id: string; source: string; title: string; url: string }
 
@@ -58,7 +59,11 @@ export function MarketRecap({
       {/* Keyed on the period: the story swaps with a soft crossfade instead of snapping. */}
       <div key={swapKey} className="swap-in flex flex-1 flex-col gap-3.5 p-5">
         {showHeadline ? <h3 className="text-balance font-display text-[27px] font-semibold leading-[1.15] tracking-tight">{recap.headline}</h3> : null}
-        <p className={showHeadline ? "max-w-[64ch] text-[15px] leading-relaxed text-muted-foreground" : "max-w-[66ch] text-base leading-relaxed text-foreground/85"}>{recap.body}</p>
+        <div className={cn("flex flex-col gap-3", showHeadline ? "max-w-[64ch] text-[15px] leading-relaxed text-muted-foreground" : "max-w-[66ch] text-base leading-relaxed text-foreground/85")}>
+          {recap.body.split(/\n\s*\n/).map((paragraph, i) => (
+            <p key={i}>{paragraph.trim()}</p>
+          ))}
+        </div>
         {recap.takeaways.length > 0 ? (
           <ol className="mt-auto grid gap-2.5 pt-1 sm:grid-cols-3">
             {recap.takeaways.map((t, i) => (

@@ -14,5 +14,6 @@ export default function NewsPage() {
         .slice(0, 5)
         .map((h) => ({ symbol: h.ticker!, percent: h.todayPercent! }))
     : null
-  return <NewsBoard holdingMoves={moves} />
+  const held = data ? [...new Set(data.holdings.flatMap((h) => (h.ticker ? [h.ticker] : [])))] : []
+  return <NewsBoard holdingMoves={moves} held={held} />
 }

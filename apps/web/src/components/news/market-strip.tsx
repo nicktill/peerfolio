@@ -12,6 +12,7 @@ const W = 240
 const H = 64
 
 function geometry(path: number[]) {
+  if (path.length < 2) path = [0, ...path, ...(path.length ? [] : [0])]
   const lo = Math.min(0, ...path)
   const hi = Math.max(0, ...path)
   const span = hi - lo || 1
@@ -28,18 +29,28 @@ const points = (v: number) => `${v >= 0 ? "+" : "−"}${price(Math.abs(v))}`
 function IndexCard({ quote, period, index }: { quote: IndexQuote; period: Period; index: number }) {
   const gradient = useId()
   const move = quote[period]
+  if (!move) {
+    // The week can't be measured without enough daily bars; say so rather than show the day's move under a week label.
+    return (
+      <Card className="stat-card reveal flex flex-col gap-1 p-3.5" style={revealStyle(index)}>
+        <Name quote={quote} />
+        <AnimatedNumber value={quote.price} format={price} className="numeric text-[21px] font-semibold tracking-tight" />
+        <span className="text-xs text-muted-foreground">This week’s move isn’t available yet.</span>
+      </Card>
+    )
+  }
   const g = geometry(move.path)
   const color = move.percent >= 0 ? "var(--gain)" : "var(--loss)"
 
   return (
     <Card className={cn("stat-card reveal group flex flex-col gap-1 p-3.5 pb-2", move.percent >= 0 ? "stat-card-up" : "stat-card-down")} style={revealStyle(index)}>
       <div className="flex items-center justify-between gap-2">
-        <span className="min-w-0 truncate text-[13px] font-medium text-muted-foreground">{quote.name}</span>
+        <Name quote={quote} />
         <Delta value={move.percent} size="sm" />
       </div>
-      <AnimatedNumber value={quote.price} format={price} className="numeric text-[21px] font-semibold tracking-tight" />
+      <AnimatedNumber value={quote.price} format={quote.symbol ? (v) => `$${price(v)}` : price} className="numeric text-[21px] font-semibold tracking-tight" />
       <span className="numeric text-xs text-muted-foreground">
-        {points(move.points)} {period === "day" ? "today" : "this week"}
+        {quote.symbol ? `${points(move.points).replace(/^([+−])/, "$1$")}` : points(move.points)} {period === "day" ? "today" : "this week"}
       </span>
       {/* Keyed on the period so the line draws itself again when you switch. */}
       <svg key={period} viewBox={`0 0 ${W} ${H}`} className="mt-1 block h-auto w-full overflow-visible" aria-hidden>
@@ -56,6 +67,16 @@ function IndexCard({ quote, period, index }: { quote: IndexQuote; period: Period
         <circle cx={g.end.x} cy={g.end.y} r={3} fill={color} className="race-end" />
       </svg>
     </Card>
+  )
+}
+
+/** The index's name, and the fund the numbers come from when they're live. */
+function Name({ quote }: { quote: IndexQuote }) {
+  return (
+    <span className="flex min-w-0 items-baseline gap-1.5 truncate text-[13px] font-medium text-muted-foreground" title={quote.symbol ? `Tracked by the ${quote.symbol} fund` : undefined}>
+      {quote.name}
+      {quote.symbol ? <span className="font-mono text-[11px] text-muted-foreground/80">{quote.symbol}</span> : null}
+    </span>
   )
 }
 

@@ -21,7 +21,7 @@ import { Delta } from "@web/components/ui/delta"
 import { useConfirm } from "@web/components/ui/confirm"
 import { useToast } from "@web/components/ui/toast"
 import { ConnectButton } from "@web/components/dashboard/connect-button"
-import { AddAccountButton } from "@web/components/dashboard/add-account-dialog"
+import { AddAccountButton, EditAccountButton } from "@web/components/dashboard/add-account-dialog"
 import { ImportPositionsButton } from "@web/components/dashboard/import-positions-dialog"
 import { PositionsEditor, type PositionRow } from "@web/components/dashboard/positions-editor"
 import { formatCurrency, formatRelativeTime } from "@web/lib/format"
@@ -267,6 +267,13 @@ export function AccountsCard({
                           ) : null}
                         </button>
 
+                        {account.source === "manual" ? (
+                          <EditAccountButton
+                            account={{ id: account.id, name: account.name, institution: account.institutionName === "Manual account" ? "" : account.institutionName }}
+                            onSaved={onChange}
+                            className="h-8 w-8 shrink-0 opacity-100 transition-opacity sm:opacity-0 sm:focus-visible:opacity-100 sm:group-hover:opacity-100"
+                          />
+                        ) : null}
                         {account.source === "manual" ? (
                           <Button
                             variant="ghost"

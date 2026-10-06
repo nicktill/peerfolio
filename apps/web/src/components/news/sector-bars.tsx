@@ -5,23 +5,27 @@ import { formatPercent } from "@web/lib/format"
 import { LayoutGrid } from "lucide-react"
 import { SectionCard } from "@web/components/ui/section-card"
 import { cn } from "@web/lib/utils"
-import type { Period } from "@web/lib/news-sample"
+import type { Period, SectorMove } from "@web/lib/news-sample"
 
 /**
  * Sectors as bars either side of zero, best first. Bars grow out from the
  * centre line on arrival and re-measure smoothly when the period changes; rows
  * that swap places on a re-sort slide to their new spot.
  */
-export function SectorBars({ sectors, period, index }: { sectors: [string, number, number][]; period: Period; index: number }) {
+export function SectorBars({ sectors, period, index }: { sectors: SectorMove[]; period: Period; index: number }) {
   const [grown, setGrown] = useState(false)
   useEffect(() => {
     const frame = requestAnimationFrame(() => setGrown(true))
     return () => cancelAnimationFrame(frame)
   }, [])
 
-  const rows = sectors.map(([name, day, week]) => ({ name, value: period === "day" ? day : week }))
+  // A sector whose week can't be measured is left out of the week view rather than shown as flat.
+  const rows = sectors.flatMap(([name, day, week]) => {
+    const value = period === "day" ? day : week
+    return value == null ? [] : [{ name, value }]
+  })
   const order = [...rows].sort((a, b) => b.value - a.value).map((r) => r.name)
-  const max = Math.max(...rows.map((r) => Math.abs(r.value)))
+  const max = Math.max(0.01, ...rows.map((r) => Math.abs(r.value)))
   const ROW = 34
 
   return (

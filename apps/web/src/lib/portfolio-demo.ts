@@ -205,6 +205,6 @@ export function demoPortfolio(range: Range): PortfolioResponse {
 }
 
 export const DEMO_FANTASY: FantasyRow[] = [
-  { id: "demo-fantasy-1", name: "Friday Night Picks", emoji: "🏈", memberCount: 6, yourReturn: 4.21, isClosed: false },
-  { id: "demo-fantasy-2", name: "Crypto Winter", emoji: "🥶", memberCount: 4, yourReturn: -2.35, isClosed: false },
+  { id: "demo-fantasy-1", name: "Friday Night Picks", emoji: "🏈", memberCount: 6, yourReturn: 4.21, yourRank: 2, isClosed: false },
+  { id: "demo-fantasy-2", name: "Crypto Winter", emoji: "🥶", memberCount: 4, yourReturn: -2.35, yourRank: 3, isClosed: false },
 ]

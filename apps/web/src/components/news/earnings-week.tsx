@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { CalendarDays, ChevronLeft, ChevronRight, Moon, Sun } from "lucide-react"
+import { CalendarDays, Clock, Moon, Sun } from "lucide-react"
 import { Segmented } from "@web/components/ui/segmented"
 import { TickerLogo } from "@web/components/ui/ticker-logo"
 import { SectionCard } from "@web/components/ui/section-card"
@@ -24,12 +24,11 @@ export function EarningsWeek({ label, days, initialDay, index }: { label: string
   const day = days[selected]!
   const reports = day.reports.filter((r) => scope === "all" || r.owned)
   const empty =
-    day.date === 9
-      ? { title: "A quiet Friday", body: "Bank earnings begin Tuesday, Oct 13." }
-      : scope === "mine" && day.reports.length
-        ? { title: "None of your holdings report", body: "Switch to All to see every company." }
-        : { title: "No major reports", body: "Nothing notable was scheduled." }
-
+    scope === "mine" && day.reports.length
+      ? { title: "None of your holdings report", body: "Switch to All to see every company." }
+      : { title: "No major reports", body: "Nothing notable is scheduled." }
+  // Only the sample knows whether a date is confirmed; the live calendar doesn't say.
+  const showStatus = days.some((d) => d.reports.some((r) => r.confirmed !== undefined))
   return (
     <SectionCard
       label="Upcoming earnings"
@@ -52,14 +51,6 @@ export function EarningsWeek({ label, days, initialDay, index }: { label: string
       <div className="flex flex-col gap-3 px-5 pb-3.5 pt-4">
         <div className="flex items-center justify-between gap-2">
           <span className="text-sm font-semibold">{label}</span>
-          <span className="flex gap-0.5">
-            <button type="button" className="press grid size-8 place-items-center rounded-lg hover:bg-secondary" aria-label="Previous week">
-              <ChevronLeft className="h-4 w-4" aria-hidden />
-            </button>
-            <button type="button" className="press grid size-8 place-items-center rounded-lg hover:bg-secondary" aria-label="Next week">
-              <ChevronRight className="h-4 w-4" aria-hidden />
-            </button>
-          </span>
         </div>
         <div ref={strip.containerRef} className="relative grid grid-cols-5 gap-1.5 sm:gap-2">
           {/* The selection ring slides between days rather than jumping. */}
@@ -69,7 +60,7 @@ export function EarningsWeek({ label, days, initialDay, index }: { label: string
             const owns = d.reports.some((r) => r.owned)
             return (
               <button
-                key={d.date}
+                key={d.iso ?? d.date}
                 type="button"
                 data-slide-key={String(i)}
                 aria-pressed={i === selected}
@@ -93,17 +84,20 @@ export function EarningsWeek({ label, days, initialDay, index }: { label: string
         </div>
       </div>
 
-      <div className="hidden grid-cols-[minmax(0,1fr)_128px_88px_92px] gap-3 border-t px-5 py-2 text-xs text-muted-foreground sm:grid">
+      <div className={cn("hidden gap-3 border-t px-5 py-2 text-xs text-muted-foreground sm:grid", showStatus ? "grid-cols-[minmax(0,1fr)_128px_88px_92px]" : "grid-cols-[minmax(0,1fr)_128px_88px]")}>
         <span>{day.label}</span>
         <span>Reports</span>
         <span className="text-right">EPS est.</span>
-        <span className="text-right">Date</span>
+        {showStatus ? <span className="text-right">Date</span> : null}
       </div>
       <ul key={`${selected}-${scope}`} className="flex-1">
         {reports.map((r, i) => (
           <li
             key={r.symbol}
-            className="swap-in grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-t px-4 py-3 sm:grid-cols-[minmax(0,1fr)_128px_88px_92px] sm:px-5"
+            className={cn(
+              "swap-in grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-t px-4 py-3 sm:px-5",
+              showStatus ? "sm:grid-cols-[minmax(0,1fr)_128px_88px_92px]" : "sm:grid-cols-[minmax(0,1fr)_128px_88px]",
+            )}
             style={{ animationDelay: `${i * 55}ms` }}
           >
             <span className="flex min-w-0 items-center gap-3">
@@ -113,19 +107,21 @@ export function EarningsWeek({ label, days, initialDay, index }: { label: string
                   {r.symbol}
                   {r.owned && <span className="rounded-full bg-accent px-1.5 py-px text-[11px] font-semibold text-accent-foreground">You own</span>}
                 </span>
-                <span className="truncate text-[13px] text-muted-foreground">{r.name}</span>
+                {r.name ? <span className="truncate text-[13px] text-muted-foreground">{r.name}</span> : null}
               </span>
             </span>
             <span className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground">
-              {r.when === "before-open" ? <Sun className="h-3.5 w-3.5" aria-hidden /> : <Moon className="h-3.5 w-3.5" aria-hidden />}
-              {r.when === "before-open" ? "Before open" : "After close"}
+              {r.when === "before-open" ? <Sun className="h-3.5 w-3.5" aria-hidden /> : r.when === "after-close" ? <Moon className="h-3.5 w-3.5" aria-hidden /> : <Clock className="h-3.5 w-3.5" aria-hidden />}
+              {r.when === "before-open" ? "Before open" : r.when === "after-close" ? "After close" : r.when === "during" ? "During market" : "Time not set"}
             </span>
             <span className="numeric hidden text-right text-sm font-medium sm:block">{r.epsEstimate}</span>
-            <span className="hidden text-right sm:block">
-              <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", r.confirmed ? "bg-accent text-accent-foreground" : "bg-muted text-muted-foreground")}>
-                {r.confirmed ? "Confirmed" : "Estimated"}
+            {showStatus ? (
+              <span className="hidden text-right sm:block">
+                <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", r.confirmed ? "bg-accent text-accent-foreground" : "bg-muted text-muted-foreground")}>
+                  {r.confirmed ? "Confirmed" : "Estimated"}
+                </span>
               </span>
-            </span>
+            ) : null}
           </li>
         ))}
         {reports.length === 0 && (
@@ -135,7 +131,7 @@ export function EarningsWeek({ label, days, initialDay, index }: { label: string
           </li>
         )}
       </ul>
-      <p className="border-t px-5 pb-4 pt-3 text-xs text-muted-foreground">Times in ET. Estimated dates can move until the company confirms.</p>
+      <p className="border-t px-5 pb-4 pt-3 text-xs text-muted-foreground">Times in ET. Dates can move until the company confirms them.</p>
     </SectionCard>
   )
 }

@@ -146,7 +146,7 @@ Style:
 - Lead with what mattered most to the overall market (major indexes, interest rates, the economy, big movers), then notable company news.
 - Plain English, specific and interesting. Explain jargon briefly. No hype, no exclamation marks, no investment advice.
 - headline: one specific sentence-case line, at most 90 characters.
-- body: 2 to 4 sentences, at most 600 characters.
+- body: two short paragraphs separated by a blank line, 4 to 7 sentences in all, at most 1000 characters. The first covers the overall market; the second the most notable company, sector or economic news.
 - takeaways: exactly 3. Each has a 2 to 5 word title and one sentence of at most 180 characters, plus the ids of the items it relies on.
 - sourceIds: the ids of every item the headline and body rely on.`
 
@@ -262,7 +262,7 @@ export function checkBrief(brief: Brief, items: BriefItem[], sessionDate: string
   const dateClaims = claims(sessionDate.replace(/-/g, " "))
 
   if (!brief.headline.trim() || brief.headline.length > 110) problems.push("The headline must be present and at most 90 characters.")
-  if (!brief.body.trim() || brief.body.length > 700) problems.push("The body must be present and at most 600 characters.")
+  if (!brief.body.trim() || brief.body.length > 1150) problems.push("The body must be present and at most 1000 characters.")
   if (brief.takeaways.length !== 3) problems.push("Write exactly 3 takeaways.")
   for (const t of brief.takeaways) {
     if (!t.title.trim() || !t.body.trim() || t.body.length > 220) problems.push(`Takeaway "${t.title}" needs a short title and one sentence of at most 180 characters.`)
