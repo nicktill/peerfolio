@@ -59,12 +59,12 @@ export default function LeaguesPage() {
       {mode === "join" ? <JoinLeagueForm onDone={() => { setMode("none"); void refetch() }} /> : null}
 
       {loading && !data ? (
-        <div className="grid gap-4 [&>*]:min-w-0 sm:grid-cols-2">
+        <div className="grid gap-4 [&>*]:min-w-0 sm:grid-cols-2 xl:grid-cols-3">
           <Skeleton className="h-28 rounded-xl" />
           <Skeleton className="h-28 rounded-xl" />
         </div>
       ) : data && data.leagues.length > 0 ? (
-        <div className="grid gap-4 [&>*]:min-w-0 sm:grid-cols-2">
+        <div className="grid gap-4 [&>*]:min-w-0 sm:grid-cols-2 xl:grid-cols-3">
           {data.leagues.map((league, i) => (
             <Link
               key={league.id}

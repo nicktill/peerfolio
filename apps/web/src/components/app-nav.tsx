@@ -4,7 +4,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { signOut, useSession } from "next-auth/react"
-import { Gamepad2, LayoutDashboard, LogOut, Settings, Trophy, Users } from "lucide-react"
+import { Gamepad2, LayoutDashboard, LogOut, Newspaper, Settings, Trophy, Users } from "lucide-react"
 import { cn } from "@web/lib/utils"
 import { cacheClear } from "@web/lib/api-cache"
 import { slideStyle, useSlidingIndicator } from "@web/lib/use-sliding-indicator"
@@ -19,6 +19,7 @@ const LINKS = [
   { href: "/leagues", label: "Leagues", icon: Users },
   { href: "/fantasy", label: "Fantasy", icon: Gamepad2 },
   { href: "/board", label: "Board", icon: Trophy },
+  { href: "/news", label: "News", icon: Newspaper },
 ]
 
 export function AppNav() {
@@ -32,7 +33,7 @@ export function AppNav() {
   return (
     <>
       <header className="sticky top-0 z-40 border-b bg-background/85 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4">
+        <div className="mx-auto flex h-14 max-w-[1360px] items-center gap-3 px-4 sm:px-6">
           <Link href="/dashboard" className="press flex shrink-0 items-center gap-2">
             <span className="grid size-7 place-items-center rounded-lg bg-white shadow-sm ring-1 ring-border">
               <Image src="/logo.png" alt="" width={20} height={20} />

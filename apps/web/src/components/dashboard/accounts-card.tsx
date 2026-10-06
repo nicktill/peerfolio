@@ -15,7 +15,7 @@ import {
   Trash2,
   type LucideIcon,
 } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card"
+import { SectionCard } from "@web/components/ui/section-card"
 import { Button } from "@web/components/ui/button"
 import { Delta } from "@web/components/ui/delta"
 import { useConfirm } from "@web/components/ui/confirm"
@@ -29,6 +29,7 @@ import { plural } from "@web/lib/plural"
 import { mutate } from "@web/lib/use-api"
 import { cn } from "@web/lib/utils"
 import { reconcileAccountExpansion } from "@web/lib/account-expansion"
+import { brandFor, type Brand } from "@web/lib/brokerages"
 
 export type AccountRow = {
   id: string
@@ -68,18 +69,14 @@ export function AccountsCard({
   items,
   hidden,
   onChange,
-  onRestHeight,
+  variant = "card",
 }: {
   accounts: AccountRow[]
   items: ItemRow[]
   hidden: boolean
   onChange: () => void
-  /**
-   * The card's height as first laid out, for the return chart beside it to match.
-   * Reporting stops for good once someone opens or closes an account by hand, so the
-   * chart holds still while they do and never re-measures a card they've opened up.
-   */
-  onRestHeight?: (px: number) => void
+  /** "rail": no card around it, for the quiet side column of the portfolio page. */
+  variant?: "card" | "rail"
 }) {
   const { toast } = useToast()
   const confirm = useConfirm()
@@ -92,25 +89,8 @@ export function AccountsCard({
   const [openById, setOpenById] = useState<Record<string, boolean>>(() => reconcileAccountExpansion({}, accounts))
   const isOpen = (a: AccountRow) => openById[a.id] ?? false
   const toggle = (a: AccountRow) => {
-    toggledByHand.current = true
     setOpenById((prev) => ({ ...prev, [a.id]: !prev[a.id] }))
   }
-
-  const cardRef = useRef<HTMLDivElement>(null)
-  const toggledByHand = useRef(false)
-  const restHeightCallback = useRef(onRestHeight)
-  restHeightCallback.current = onRestHeight
-  useEffect(() => {
-    const card = cardRef.current
-    if (!card || typeof ResizeObserver === "undefined") return
-    const report = () => {
-      if (!toggledByHand.current) restHeightCallback.current?.(Math.round(card.getBoundingClientRect().height))
-    }
-    const observer = new ResizeObserver(report)
-    observer.observe(card)
-    report()
-    return () => observer.disconnect()
-  }, [])
 
   useEffect(() => {
     setOpenById((prev) => reconcileAccountExpansion(prev, accounts))
@@ -177,12 +157,7 @@ export function AccountsCard({
     }
   }
 
-  return (
-    <Card ref={cardRef}>
-      <CardHeader className="flex-row items-center justify-between">
-        <CardTitle>Accounts</CardTitle>
-        <span className="numeric text-sm text-muted-foreground">{accounts.length}</span>
-        <div className="ml-auto">
+  const importButton = (
           <ImportPositionsButton
             accounts={accounts
               .filter((a) => a.source === "manual" && a.category === "investment")
@@ -191,10 +166,10 @@ export function AccountsCard({
             variant="ghost"
             label="Import positions"
           />
-        </div>
-      </CardHeader>
+  )
 
-      <CardContent className="space-y-5">
+  const body = (
+      <div className={cn("space-y-5", variant === "card" ? "p-4" : "pt-2")}>
         {needsAttention.map((item) => (
           <div
             key={item.id}
@@ -215,7 +190,7 @@ export function AccountsCard({
 
         {grouped.map((group) => (
           <div key={group.key}>
-            <h4 className="mb-2 flex items-baseline justify-between text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <h3 className={cn("mb-1.5 flex items-baseline justify-between font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground", variant === "card" ? "px-2" : "px-0")}>
               <span>{group.label}</span>
               <span className={cn("numeric normal-case tracking-normal", group.key === "credit" || group.key === "loan" ? "text-loss-ink" : "")}>
                 {group.key === "credit" || group.key === "loan" ? "−" : ""}
@@ -224,14 +199,16 @@ export function AccountsCard({
                   { hidden, compact: true },
                 )}
               </span>
-            </h4>
-            <ul className="space-y-1.5">
+            </h3>
+            <ul className="space-y-1">
               {group.rows.map((account) => (
                 <li
                   key={account.id}
                   id={`account-${account.id}`}
                   className={cn(
-                    "group space-y-3 rounded-lg border bg-background p-3 transition-[background-color,box-shadow] duration-500 hover:bg-secondary/50",
+                    "group rounded-xl p-2 transition-[background-color,box-shadow] duration-300",
+                    variant === "rail" && "-mx-2",
+                    account.source === "manual" && account.category === "investment" && isOpen(account) ? "bg-secondary/50 shadow-[inset_0_0_0_1px_hsl(var(--border))]" : "hover:bg-secondary/50",
                     highlightId === account.id && "shadow-[0_0_0_2px_hsl(var(--primary))]",
                   )}
                 >
@@ -284,7 +261,7 @@ export function AccountsCard({
 
                           {expandable ? (
                             <ChevronDown
-                              className={cn("size-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")}
+                              className={cn("size-4 shrink-0 text-muted-foreground transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]", open && "rotate-180")}
                               aria-hidden
                             />
                           ) : null}
@@ -307,13 +284,23 @@ export function AccountsCard({
                   })()}
 
                   {account.source === "manual" && account.category === "investment" ? (
-                    <div id={`account-body-${account.id}`} hidden={!isOpen(account)}>
-                      <PositionsEditor
-                        accountId={account.id}
-                        positions={account.positions}
-                        hidden={hidden}
-                        onChange={onChange}
-                      />
+                    // Opens by animating the row track from 0fr to 1fr, so the drawer grows to its real height.
+                    <div
+                      id={`account-body-${account.id}`}
+                      inert={!isOpen(account)}
+                      className="grid transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
+                      style={{ gridTemplateRows: isOpen(account) ? "1fr" : "0fr", opacity: isOpen(account) ? 1 : 0 }}
+                    >
+                      <div className="min-h-0 overflow-hidden">
+                        <div className="pt-3">
+                          <PositionsEditor
+                            accountId={account.id}
+                            positions={account.positions}
+                            hidden={hidden}
+                            onChange={onChange}
+                          />
+                        </div>
+                      </div>
                     </div>
                   ) : null}
                 </li>
@@ -324,7 +311,7 @@ export function AccountsCard({
 
         {items.length > 0 ? (
           <div className="space-y-2 border-t pt-4">
-            <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Connections</h4>
+            <h3 className="px-2 font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Connections</h3>
             {items.map((item) => (
               <div key={item.id} className="flex items-center gap-3 text-sm">
                 <InstitutionMark logo={item.institutionLogo} name={item.institutionName} size="sm" />
@@ -351,7 +338,7 @@ export function AccountsCard({
           </div>
         ) : null}
 
-        <div className="flex flex-wrap gap-2 border-t pt-4">
+        <div className={cn("flex flex-wrap gap-2 border-t pt-4", variant === "card" && "-mx-4 px-4")}>
           <AddAccountButton
             onCreated={(id) => {
               setHighlightId(id)
@@ -361,8 +348,27 @@ export function AccountsCard({
           />
           <ConnectButton onConnected={onChange} variant="outline" />
         </div>
-      </CardContent>
-    </Card>
+      </div>
+  )
+
+  if (variant === "rail") {
+    return (
+      <section aria-labelledby="rail-accounts">
+        <div className="flex items-center justify-between gap-2">
+          <h2 id="rail-accounts" className="text-sm font-semibold">
+            Your accounts <span className="numeric font-normal text-muted-foreground">{accounts.length}</span>
+          </h2>
+          {importButton}
+        </div>
+        {body}
+      </section>
+    )
+  }
+
+  return (
+    <SectionCard label={`Accounts · ${accounts.length}`} labelId="card-accounts" action={importButton}>
+      {body}
+    </SectionCard>
   )
 }
 
@@ -374,24 +380,77 @@ function InstitutionMark({
 }: {
   logo: string | null
   name: string
+  /** What the account is (brokerage, 401(k), cash): the icon alone, or a corner badge on a firm's mark. */
   fallback?: LucideIcon
   size?: "sm" | "md"
 }) {
   const box = size === "sm" ? "h-7 w-7" : "h-9 w-9"
+  // Manual accounts carry no artwork, so recognise the firm from its name.
+  const brand = logo ? null : brandFor(name)
+  const marked = Boolean(logo || brand)
 
   return (
-    <span className={cn("flex shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border/80 bg-gradient-to-br from-secondary to-background shadow-sm", box)}>
-      {logo ? (
-        // Plaid returns institution logos as base64 data URIs, so there is no
-        // remote host for next/image to optimise.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={logo} alt="" className="h-full w-full object-contain p-1" />
-      ) : (
-        <Fallback className="h-4 w-4 text-primary" strokeWidth={1.8} aria-hidden />
-      )}
+    <span className={cn("relative shrink-0", box)}>
+      <span className={cn("flex h-full w-full items-center justify-center overflow-hidden rounded-xl border border-border/80 shadow-sm", !brand && "bg-gradient-to-br from-secondary to-background")}>
+        {logo ? (
+          // Plaid returns institution logos as base64 data URIs, so there is no
+          // remote host for next/image to optimise.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={logo} alt="" className="h-full w-full object-contain p-1" />
+        ) : brand ? (
+          <BrandTile brand={brand} />
+        ) : (
+          <Fallback className="h-4 w-4 text-primary" strokeWidth={1.8} aria-hidden />
+        )}
+      </span>
+      {/* The firm's mark says where; a small badge keeps saying what (an IRA, a 401(k), cash). */}
+      {marked && size === "md" ? (
+        <span className="absolute -bottom-1 -right-1 grid size-[18px] place-items-center rounded-full border bg-card shadow-sm" aria-hidden>
+          <Fallback className="size-2.5 text-primary" strokeWidth={2.2} />
+        </span>
+      ) : null}
       <span className="sr-only">{name}</span>
     </span>
   )
+}
+
+/** A firm's icon via the logo proxy when it has a listed parent, else a monogram in its colour. */
+function BrandTile({ brand }: { brand: Brand }) {
+  const [failed, setFailed] = useState(false)
+  const image = useRef<HTMLImageElement>(null)
+  // An image that failed before hydration never fires onError, so check once mounted (as TickerLogo does).
+  useEffect(() => {
+    const el = image.current
+    if (el?.complete && el.naturalWidth === 0) setFailed(true)
+  }, [])
+  if (brand.ticker && !failed) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element -- proxied and cached at the edge
+      <img
+        ref={image}
+        src={`/api/market/logo/${encodeURIComponent(brand.ticker)}`}
+        alt=""
+        className="h-full w-full bg-white object-contain p-1.5"
+        loading="lazy"
+        onError={() => setFailed(true)}
+      />
+    )
+  }
+  return (
+    <span className="grid h-full w-full place-items-center font-display text-sm font-bold" style={{ backgroundColor: brand.color, color: inkOn(brand.color) }} aria-hidden>
+      {brand.monogram}
+    </span>
+  )
+}
+
+/** Black or white letters, whichever reads better on a brand colour (WCAG relative luminance). */
+function inkOn(hex: string) {
+  const [r, g, b] = [1, 3, 5].map((i) => {
+    const c = parseInt(hex.slice(i, i + 2), 16) / 255
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+  })
+  const luminance = 0.2126 * r! + 0.7152 * g! + 0.0722 * b!
+  return luminance > 0.179 ? "#000" : "#fff"
 }
 
 /** Manual accounts have no institution artwork, so their icon describes what the account does. */

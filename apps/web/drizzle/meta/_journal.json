@@ -85,6 +85,20 @@
       "when": 1791243286860,
       "tag": "0011_provider_budgets",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791308589797,
+      "tag": "0012_news",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1791313632852,
+      "tag": "0013_news_ai_spend",
+      "breakpoints": true
     }
   ]
 }
