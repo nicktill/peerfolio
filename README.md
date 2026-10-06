@@ -4,14 +4,54 @@ Social investing built around one rule: **percentages are public, dollars never
 are.**
 
 Blossom, AfterHour and Robinhood Social are public feeds with follower counts
-and dollar amounts. Peerfolio is two surfaces on one engine:
+and dollar amounts. Peerfolio is five surfaces on one engine:
 
+- **Portfolio** — your own net worth, accounts and positions in one place, with
+  a time-weighted return that ignores deposits and withdrawals. Only you see it.
 - **Leagues** — small private groups of actual friends, ranked on return.
+- **Fantasy** — play-money leagues where everyone starts with the same cash,
+  picks stocks and races. Nothing here touches a real balance.
 - **The Board** — a public leaderboard of top investors, where every return is
   pulled from a connected brokerage rather than typed in.
+- **News** — a daily and weekly market recap, index moves, Fear & Greed and the
+  week's earnings, so there's something to read before the next move.
 
 Returns are **time-weighted**, so deposits don't count as performance. Whoever
 adds the most cash doesn't win; that's what makes a ranking worth reading.
+
+## Screenshots
+
+All screenshots use invented demo data, not real accounts.
+
+### Portfolio
+
+Net worth, accounts and positions in one view. The return leaves deposits out.
+
+![Portfolio page showing net worth, a one-month chart and linked accounts](docs/screenshots/portfolio.png)
+
+### Leagues
+
+A private group ranked on percentage return. Everyone is indexed to 100, so the
+chart compares rates of return, not who has more money.
+
+![A league's race chart and standings](docs/screenshots/leagues.png)
+
+### Fantasy
+
+Play-money leagues with a shared starting balance, an optional cap per pick and
+an end date. Orders placed while the market is closed wait for the open.
+
+![A fantasy league with the race chart and the trade panel](docs/screenshots/fantasy.png)
+
+### The Board
+
+Public, verified-only, percentages only.
+
+![The Board ranking top traders by return](docs/screenshots/board.png)
+
+### News
+
+![The daily brief with market cards and Fear & Greed](docs/screenshots/news.png)
 
 ## What's shared, and what isn't
 
@@ -37,6 +77,9 @@ npm run dev
 ```
 
 Then open **http://localhost:3000/dev-login** and sign in as any seeded user.
+
+Two pages can also be looked at without signing in, on invented data:
+**/preview/portfolio** and **/preview/news**. Both 404 in production builds.
 
 Port 3000 taken? `PORT=3200 npm run dev --workspace=@repo/web`. Set
 `NEXTAUTH_URL` to the same port in `.env.local` — if it disagrees, sign-in
@@ -107,9 +150,12 @@ launching.
 
 ```
 apps/web/src
-├── app/(app)/        Signed-in surfaces: dashboard, leagues, board, settings
+├── app/(app)/        Signed-in surfaces: dashboard (Portfolio), leagues, fantasy,
+│                     board, news, settings
+├── app/preview/      Sign-in-free Portfolio and News pages on sample data
 ├── app/u/[handle]/   Public trader profiles
 ├── app/api/          Route handlers (every Plaid route is session-guarded)
+│                     plus the cron jobs for snapshots, prices and news
 ├── components/       UI primitives, hand-rolled SVG charts, feature components
 ├── db/               Drizzle schema and client (server-only)
 └── lib/              Plaid client + sync, returns math, crypto, formatting
