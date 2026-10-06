@@ -4,10 +4,10 @@ import { and, inArray, isNotNull } from "drizzle-orm"
 import { db, securities } from "@web/db"
 import { withPublic } from "@web/lib/api"
 import { providerFetch, withProviderPatience } from "@web/lib/provider-fetch"
-import { earningsWeekDates, fetchEarningsWeek, fetchFearGreed, fetchMarketBoard, nyDate } from "@web/lib/news-market"
+import { alpacaCompanyNames, earningsWeekDates, fetchEarningsWeek, fetchFearGreed, fetchMarketBoard, nyDate } from "@web/lib/news-market"
 
 export const dynamic = "force-dynamic"
-export const maxDuration = 60
+export const maxDuration = 120
 
 /**
  * Each part is cached on its own clock and refreshed by whoever visits after
@@ -16,18 +16,21 @@ export const maxDuration = 60
  * failed fetch is cached as "nothing to show" for the same window, so an
  * outage hides the card instead of hammering the source.
  */
+const alpacaAuth = () =>
+  process.env.ALPACA_API_KEY && process.env.ALPACA_API_SECRET ? { keyId: process.env.ALPACA_API_KEY, secret: process.env.ALPACA_API_SECRET } : null
+
 const board = unstable_cache(
   async () =>
     // Fifteen quotes is more than Finnhub's burst, so this waits its turn for tokens rather than come back half empty.
-    withProviderPatience(30_000, () => fetchMarketBoard({
+    withProviderPatience(50_000, () => fetchMarketBoard({
       finnhubKey: process.env.FINNHUB_API_KEY,
-      alpaca: process.env.ALPACA_API_KEY && process.env.ALPACA_API_SECRET ? { keyId: process.env.ALPACA_API_KEY, secret: process.env.ALPACA_API_SECRET } : null,
+      alpaca: alpacaAuth(),
       fetchImpl: (url, init) => (url.includes("finnhub.io") ? providerFetch("finnhub") : providerFetch("alpaca"))(url, init),
     })).catch((error) => {
       console.error("[news] market board failed:", error instanceof Error ? error.message : error)
       return null
     }),
-  ["news-market-board-v1"],
+  ["news-market-board-v2"],
   { revalidate: 300 },
 )
 
@@ -35,7 +38,7 @@ const earnings = unstable_cache(
   // The week's Monday is only the cache key, so a new week starts a new entry.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async (_week: string) =>
-    withProviderPatience(40_000, () => fetchEarningsWeek({
+    withProviderPatience(50_000, () => fetchEarningsWeek({
       finnhubKey: process.env.FINNHUB_API_KEY,
       fetchImpl: providerFetch("finnhub"),
       knownNames: async (symbols) => {
@@ -46,11 +49,15 @@ const earnings = unstable_cache(
           .where(and(inArray(securities.tickerSymbol, symbols), isNotNull(securities.name)))
         return new Map(rows.flatMap((r) => (r.symbol && r.name ? [[r.symbol, r.name] as const] : [])))
       },
+      allNames: async () => {
+        const auth = alpacaAuth()
+        return auth ? alpacaCompanyNames(auth, providerFetch("alpaca")) : new Map()
+      },
     })).catch((error) => {
       console.error("[news] earnings failed:", error instanceof Error ? error.message : error)
       return null
     }),
-  ["news-earnings-v1"],
+  ["news-earnings-v2"],
   { revalidate: 6 * 3600 },
 )
 

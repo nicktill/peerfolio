@@ -83,7 +83,8 @@ function Name({ quote }: { quote: IndexQuote }) {
 /** Four index cards, each with the period's path drawn as an area sparkline. */
 export function MarketStrip({ quotes, period, startIndex = 0 }: { quotes: IndexQuote[]; period: Period; startIndex?: number }) {
   return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    // As many columns as there are cards, so a missing index never leaves a hole.
+    <div className={cn("grid grid-cols-2 gap-3", quotes.length === 4 ? "lg:grid-cols-4" : quotes.length === 3 ? "lg:grid-cols-3" : "lg:grid-cols-2")}>
       {quotes.map((q, i) => (
         <IndexCard key={q.key} quote={q} period={period} index={startIndex + i} />
       ))}

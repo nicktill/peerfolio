@@ -16,7 +16,7 @@ type Scope = "all" | "mine"
  * A Monday-to-Friday strip of earnings days. The selection is one outline that
  * glides between days, and the day's reports fade in one after another.
  */
-export function EarningsWeek({ label, days, initialDay, index }: { label: string; days: EarningsDay[]; initialDay: number; index: number }) {
+export function EarningsWeek({ label, days, initialDay, index, className }: { label: string; days: EarningsDay[]; initialDay: number; index: number; className?: string }) {
   const [selected, setSelected] = useState(initialDay)
   const [scope, setScope] = useState<Scope>("all")
   const strip = useSlidingIndicator<HTMLDivElement>(String(selected))
@@ -32,6 +32,7 @@ export function EarningsWeek({ label, days, initialDay, index }: { label: string
   return (
     <SectionCard
       label="Upcoming earnings"
+      className={className}
       icon={<CalendarDays />}
       tone="blue"
       index={index}

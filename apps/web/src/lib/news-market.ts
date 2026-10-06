@@ -137,6 +137,43 @@ async function alpacaBars(symbols: string[], timeframe: "1Day" | "15Min", start:
   return out
 }
 
+type Snapshot = { dailyBar?: { t?: unknown; c?: unknown }; prevDailyBar?: { c?: unknown } }
+
+/**
+ * A quote built from Alpaca's snapshot: the session's bar against the one
+ * before it. Used only for funds Finnhub didn't answer (its free allowance is
+ * shared with live prices), so a busy minute doesn't empty the board.
+ */
+export function quoteFromSnapshot(snapshot: Snapshot | undefined): FinnhubQuote | null {
+  const c = snapshot?.dailyBar?.c
+  const pc = snapshot?.prevDailyBar?.c
+  const t = typeof snapshot?.dailyBar?.t === "string" ? Date.parse(snapshot.dailyBar.t) : Number.NaN
+  if (typeof c !== "number" || typeof pc !== "number" || !(c > 0) || !(pc > 0) || !Number.isFinite(t)) return null
+  // Bars are stamped at the session's start; the quote is that session's latest price.
+  return { c, pc, d: round(c - pc), dp: round((c / pc - 1) * 100), t: t / 1000 + 12 * 3600 }
+}
+
+async function alpacaSnapshots(symbols: string[], auth: { keyId: string; secret: string }, fetchImpl: Fetch) {
+  const out = new Map<string, FinnhubQuote>()
+  if (symbols.length === 0) return out
+  try {
+    const response = await fetchImpl(`https://data.alpaca.markets/v2/stocks/snapshots?symbols=${encodeURIComponent(symbols.join(","))}&feed=iex`, {
+      headers: { "APCA-API-KEY-ID": auth.keyId, "APCA-API-SECRET-KEY": auth.secret },
+      cache: "no-store",
+      timeoutMs: 8_000,
+    })
+    if (!response.ok) return out
+    const body = (await response.json()) as Record<string, Snapshot | undefined>
+    for (const symbol of symbols) {
+      const q = quoteFromSnapshot(body[symbol])
+      if (q) out.set(symbol, q)
+    }
+  } catch {
+    // Finnhub's quotes stand alone.
+  }
+  return out
+}
+
 /**
  * Today's and this week's moves for the four index funds and eleven sector
  * funds. Null when there isn't enough to show honestly (no keys, or the quotes
@@ -153,15 +190,19 @@ export async function fetchMarketBoard({
   fetchImpl: Fetch
   now?: Date
 }): Promise<MarketBoard | null> {
-  if (!finnhubKey) return null
+  if (!finnhubKey && !alpaca) return null
   const symbols = [...INDEX_FUNDS.map((f) => f.symbol), ...SECTOR_FUNDS.map((f) => f.symbol)]
 
   const quotes = new Map<string, FinnhubQuote>()
   // A few at a time, inside Finnhub's free allowance.
   for (let i = 0; i < symbols.length; i += 4) {
     const batch = symbols.slice(i, i + 4)
-    const got = await Promise.all(batch.map((s) => finnhubQuote(s, finnhubKey, fetchImpl)))
+    const got = finnhubKey ? await Promise.all(batch.map((s) => finnhubQuote(s, finnhubKey, fetchImpl))) : []
     batch.forEach((s, j) => got[j] && quotes.set(s, got[j]!))
+  }
+  if (alpaca) {
+    const fallback = await alpacaSnapshots(symbols.filter((sym) => !quotes.has(sym)), alpaca, fetchImpl)
+    for (const [sym, q] of fallback) quotes.set(sym, q)
   }
   // A quote more than four days old means the source is stuck, not that it's a long weekend.
   for (const [s, q] of quotes) if (now.getTime() - q.t * 1000 > 4 * DAY) quotes.delete(s)
@@ -226,7 +267,9 @@ export function buildEarningsWeek(rows: CalendarRow[], dates: string[], today: s
   return dates.map((date) => {
     const d = new Date(`${date}T12:00:00Z`)
     const reports = rows
-      .filter((r) => r.date === date && typeof r.symbol === "string" && SYMBOL.test(r.symbol))
+      // Rows with no analyst estimates at all are mostly closed-end funds and shells, not news.
+      .filter((r) => r.date === date && typeof r.symbol === "string" && SYMBOL.test(r.symbol) && (Number(r.revenueEstimate) > 0 || typeof r.epsEstimate === "number"))
+      .filter((r, i, all) => all.findIndex((o) => o.symbol === r.symbol) === i)
       .sort((a, b) => (Number(b.revenueEstimate) || 0) - (Number(a.revenueEstimate) || 0))
       .slice(0, perDay)
       .map((r) => ({
@@ -248,6 +291,35 @@ export function buildEarningsWeek(rows: CalendarRow[], dates: string[], today: s
   })
 }
 
+/** "Applied Digital Corporation Common Stock" → "Applied Digital Corporation". */
+export function tidyCompanyName(name: string) {
+  return name
+    .replace(/\s+(Class [A-Z] )?(Common|Ordinary|Capital) (Stock|Shares?)\b.*$/i, "")
+    .replace(/\s+(Common|Ordinary) Shares?$/i, "")
+    .replace(/,?\s+Inc\.?$/i, "")
+    .trim()
+}
+
+/** Every active US-listed company's name, from Alpaca's asset list (one request). */
+export async function alpacaCompanyNames(auth: { keyId: string; secret: string }, fetchImpl: Fetch): Promise<Map<string, string>> {
+  for (const base of ["https://api.alpaca.markets", "https://paper-api.alpaca.markets"]) {
+    try {
+      const response = await fetchImpl(`${base}/v2/assets?status=active&asset_class=us_equity`, {
+        headers: { "APCA-API-KEY-ID": auth.keyId, "APCA-API-SECRET-KEY": auth.secret },
+        cache: "no-store",
+        timeoutMs: 15_000,
+      })
+      if (!response.ok) continue
+      const assets = (await response.json()) as { symbol?: unknown; name?: unknown }[]
+      if (!Array.isArray(assets)) continue
+      return new Map(assets.flatMap((a) => (typeof a.symbol === "string" && typeof a.name === "string" && a.name ? [[a.symbol, tidyCompanyName(a.name)] as const] : [])))
+    } catch {
+      // Try the other environment's host; keys belong to one or the other.
+    }
+  }
+  return new Map()
+}
+
 export type EarningsWeekData = { label: string; days: EarningsDay[]; asOf: string }
 
 /** The week's earnings calendar, or null when it can't be fetched. */
@@ -255,12 +327,15 @@ export async function fetchEarningsWeek({
   finnhubKey,
   fetchImpl,
   knownNames,
+  allNames,
   now = new Date(),
 }: {
   finnhubKey: string | undefined
   fetchImpl: Fetch
   /** Company names we already have, by ticker, so few need looking up. */
   knownNames: (symbols: string[]) => Promise<Map<string, string>>
+  /** Every listed company's name in one request (Alpaca's asset list), when available. */
+  allNames?: () => Promise<Map<string, string>>
   now?: Date
 }): Promise<EarningsWeekData | null> {
   if (!finnhubKey) return null
@@ -278,6 +353,8 @@ export async function fetchEarningsWeek({
   // Names for the companies most likely to be shown: ours first, then Finnhub's profile for a few more.
   const top = [...new Set(days.flatMap((d) => d.reports.slice(0, 6).map((r) => r.symbol)))]
   const names = await knownNames(days.flatMap((d) => d.reports.map((r) => r.symbol))).catch(() => new Map<string, string>())
+  const listed = allNames ? await allNames().catch(() => new Map<string, string>()) : new Map<string, string>()
+  for (const d of days) for (const r of d.reports) if (!names.has(r.symbol) && listed.has(r.symbol)) names.set(r.symbol, listed.get(r.symbol)!)
   const missing = top.filter((s) => !names.has(s)).slice(0, 20)
   for (let i = 0; i < missing.length; i += 4) {
     await Promise.all(
@@ -292,7 +369,7 @@ export async function fetchEarningsWeek({
       }),
     )
   }
-  for (const d of days) for (const r of d.reports) r.name = names.get(r.symbol) ?? ""
+  for (const d of days) for (const r of d.reports) r.name = tidyCompanyName(names.get(r.symbol) ?? "")
 
   const monday = new Date(`${dates[0]}T12:00:00Z`)
   return { label: `Week of ${monday.toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" })}`, days, asOf: now.toISOString() }

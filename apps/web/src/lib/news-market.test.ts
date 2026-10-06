@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { buildEarningsWeek, dayMove, earningsWeekDates, fetchMarketBoard, parseFearGreed, parseQuote, weekMove } from "./news-market.ts"
+import { buildEarningsWeek, dayMove, earningsWeekDates, fetchMarketBoard, parseFearGreed, parseQuote, quoteFromSnapshot, tidyCompanyName, weekMove } from "./news-market.ts"
 
 const at = (iso: string) => new Date(iso)
 // Tuesday Oct 6 2026, 4:05pm New York.
@@ -101,4 +101,47 @@ test("a quote that's days old is treated as missing, not as today's move", async
   const old = Date.parse("2026-09-20T20:00:00Z") / 1000
   const fetchImpl = async () => new Response(JSON.stringify({ c: 101, d: 1, dp: 1, pc: 100, t: old }))
   assert.equal(await fetchMarketBoard({ finnhubKey: "k", alpaca: null, fetchImpl, now: at("2026-10-06T21:00:00Z") }), null)
+})
+
+test("calendar rows with no estimates (funds, shells) and repeats are dropped", () => {
+  const rows = [
+    { date: "2026-10-05", symbol: "NCZ", hour: "", epsEstimate: null, revenueEstimate: null },
+    { date: "2026-10-05", symbol: "NCZ", hour: "", epsEstimate: null, revenueEstimate: null },
+    { date: "2026-10-05", symbol: "MKC", hour: "bmo", epsEstimate: 0.76, revenueEstimate: 1.7e9 },
+    { date: "2026-10-05", symbol: "MKC", hour: "bmo", epsEstimate: 0.76, revenueEstimate: 1.7e9 },
+  ]
+  const days = buildEarningsWeek(rows, earningsWeekDates(at("2026-10-06T15:00:00Z")), "2026-10-06", new Map())
+  assert.deepEqual(days[0]!.reports.map((r) => r.symbol), ["MKC"])
+})
+
+test("company names lose the share-class boilerplate", () => {
+  assert.equal(tidyCompanyName("Applied Digital Corporation Common Stock"), "Applied Digital Corporation")
+  assert.equal(tidyCompanyName("McCormick & Company Inc"), "McCormick & Company")
+  assert.equal(tidyCompanyName("VCI Global Limited Ordinary Share"), "VCI Global Limited")
+  assert.equal(tidyCompanyName("PepsiCo, Inc."), "PepsiCo")
+})
+
+test("an Alpaca snapshot stands in for a missing quote: the session's bar against the one before", () => {
+  const q = quoteFromSnapshot({ dailyBar: { t: "2026-10-06T04:00:00Z", c: 101 }, prevDailyBar: { c: 100 } })!
+  assert.equal(q.dp, 1)
+  assert.equal(q.d, 1)
+  assert.equal(new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date(q.t * 1000)), "2026-10-06")
+  assert.equal(quoteFromSnapshot({ dailyBar: { t: "2026-10-06T04:00:00Z", c: 101 } }), null)
+})
+
+test("funds Finnhub didn't answer are filled from Alpaca's snapshots", async () => {
+  const fetchImpl = async (url: string) => {
+    if (url.includes("finnhub.io")) {
+      const symbol = new URL(url).searchParams.get("symbol")!
+      return symbol === "SPY" ? new Response(JSON.stringify({ c: 100.5, d: 0.5, dp: 0.5, pc: 100, t: close })) : new Response("", { status: 429 })
+    }
+    if (url.includes("/snapshots")) {
+      const symbols = new URL(url).searchParams.get("symbols")!.split(",")
+      return new Response(JSON.stringify(Object.fromEntries(symbols.map((s) => [s, { dailyBar: { t: "2026-10-06T04:00:00Z", c: 99 }, prevDailyBar: { c: 100 } }]))))
+    }
+    return new Response(JSON.stringify({ bars: {} }))
+  }
+  const board = (await fetchMarketBoard({ finnhubKey: "k", alpaca: { keyId: "a", secret: "b" }, fetchImpl, now: at("2026-10-06T21:00:00Z") }))!
+  assert.deepEqual(board.indexes.map((i) => [i.symbol, i.day.percent]), [["SPY", 0.5], ["QQQ", -1], ["DIA", -1], ["IWM", -1]])
+  assert.equal(board.sectors.length, 11)
 })

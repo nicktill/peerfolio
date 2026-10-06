@@ -10,8 +10,8 @@ import { TopStories } from "@web/components/news/top-stories"
 import { FearGreed } from "@web/components/news/fear-greed"
 import { EarningsWeek } from "@web/components/news/earnings-week"
 import { SectorBars } from "@web/components/news/sector-bars"
-import { IconChip, SectionLabel } from "@web/components/ui/section-card"
-import { Activity } from "lucide-react"
+import { IconChip, SectionCard, SectionLabel } from "@web/components/ui/section-card"
+import { Activity, Sparkles } from "lucide-react"
 import { cn } from "@web/lib/utils"
 import { EARNINGS_WEEK, FEAR_GREED, HOLDING_MOVES, INDEXES, RECAPS, SECTORS, type EarningsDay, type Period } from "@web/lib/news-sample"
 import type { EarningsWeekData, FearGreedReading, MarketBoard } from "@web/lib/news-market"
@@ -70,7 +70,8 @@ export function NewsBoard({ holdingMoves, held = [] }: { holdingMoves: HoldingMo
   const fearGreed = sample ? { ...FEAR_GREED, asOf: null as string | null } : market?.fearGreed ?? null
   const earnings = sample ? EARNINGS_WEEK : market?.earnings ? { label: market.earnings.label, days: markOwned(market.earnings.days, new Set(held)) } : null
   const brief = period === "day" ? news?.day : news?.week
-  const recap: RecapView = brief ? toView(brief) : { ...RECAPS[period], kind: "sample" }
+  // The preview shows sample copy; the live page never does, since its made-up figures would contradict the real ones beside it.
+  const recap: RecapView | null = brief ? toView(brief) : sample ? { ...RECAPS[period], kind: "sample" } : null
   const moves =
     holdingMoves === "sample"
       ? HOLDING_MOVES.map(([symbol, day, week]) => ({ symbol, percent: period === "day" ? day : week }))
@@ -81,6 +82,7 @@ export function NewsBoard({ holdingMoves, held = [] }: { holdingMoves: HoldingMo
   const today = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "long", month: "long", day: "numeric" }).format(now).replace(", ", " · ")
   const open = isUsMarketOpen(now)
   // The hero takes the colour of the broad market's move.
+  const hasSectors = Boolean(board && board.sectors.length > 0)
   const up = (board?.indexes[0]?.[period]?.percent ?? board?.indexes[0]?.day.percent ?? 0) >= 0
 
   return (
@@ -112,11 +114,13 @@ export function NewsBoard({ holdingMoves, held = [] }: { holdingMoves: HoldingMo
                 {period === "day" ? "The daily brief" : "The weekly brief"}
               </SectionLabel>
               {/* The day's story is the page's headline. */}
-              <h1 key={`${period}-${recap.headline}`} className="swap-in mt-2 text-balance font-display text-3xl font-semibold leading-[1.1] tracking-tight sm:text-[40px]">
-                {recap.headline}
+              <h1 key={`${period}-${recap?.headline}`} className="swap-in mt-2 text-balance font-display text-3xl font-semibold leading-[1.1] tracking-tight sm:text-[40px]">
+                {recap?.headline ?? (period === "day" ? "Today in the markets" : "This week in the markets")}
               </h1>
               <p className="mt-3 max-w-xl text-sm text-muted-foreground">
-                {recap.kind === "ai"
+                {!recap
+                  ? `The ${period === "day" ? "daily" : "weekly"} recap is written after ${period === "day" ? "each close" : "the week’s last close"}. Here’s the market as it stands.`
+                  : recap.kind === "ai"
                   ? `What moved, why it mattered, and what’s next, written from ${recap.sources?.length ?? 0} stories and checked against them.`
                   : recap.kind === "fallback"
                     ? "Today’s biggest stories, straight from the publishers."
@@ -164,7 +168,18 @@ export function NewsBoard({ holdingMoves, held = [] }: { holdingMoves: HoldingMo
       ) : null}
 
       <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,1.85fr)_minmax(0,1fr)]">
-        <MarketRecap recap={recap} moves={moves} swapKey={`${period}-${recap.kind}`} index={5} showHeadline={false} />
+        {recap ? (
+          <MarketRecap recap={recap} moves={moves} swapKey={`${period}-${recap.kind}`} index={5} showHeadline={false} />
+        ) : (
+          <SectionCard label={period === "day" ? "Daily recap" : "Weekly recap"} icon={<Sparkles />} tone="primary" index={5}>
+            <div className="flex flex-1 flex-col items-center justify-center gap-1.5 px-6 py-12 text-center">
+              <span className="text-sm font-semibold">{period === "day" ? "Today’s recap lands after the close" : "The weekly recap lands after the week’s last close"}</span>
+              <span className="max-w-sm text-[13px] text-muted-foreground">
+                Written from the day’s stories and checked against them. Until then, the numbers above are live.
+              </span>
+            </div>
+          </SectionCard>
+        )}
         {fearGreed ? (
           <FearGreed
             score={fearGreed.score}
@@ -173,8 +188,17 @@ export function NewsBoard({ holdingMoves, held = [] }: { holdingMoves: HoldingMo
             source={sample ? null : { label: "CNN", href: CNN_FEAR_GREED_PAGE, asOf: fearGreed.asOf }}
           />
         ) : null}
-        {earnings ? <EarningsWeek label={earnings.label} days={earnings.days} initialDay={Math.max(0, earnings.days.findIndex((d) => d.today))} index={7} /> : null}
-        {board && board.sectors.length > 0 ? <SectorBars sectors={board.sectors} period={period} index={8} /> : null}
+        {earnings ? (
+          <EarningsWeek
+            label={earnings.label}
+            days={earnings.days}
+            initialDay={Math.max(0, earnings.days.findIndex((d) => d.today))}
+            index={7}
+            // Full width when there's no sector card beside it.
+            className={hasSectors ? undefined : "lg:col-span-2"}
+          />
+        ) : null}
+        {hasSectors ? <SectorBars sectors={board!.sectors} period={period} index={8} /> : null}
         {news?.headlines.length ? <TopStories headlines={news.headlines.slice(0, 10)} index={9} /> : null}
       </div>
     </div>
