@@ -1,0 +1,37 @@
+name: News recap
+
+# Backup for the News page. Page visits already refresh headlines and write any
+# recap that's due; these runs make sure it happens on quiet days too. The job
+# decides what's due from the New York clock, so extra or late runs are harmless.
+# Times are UTC; each pair covers daylight saving and standard time.
+on:
+  schedule:
+    - cron: "20 15,16 * * 1-5" # 11:20am ET: the midday update
+    - cron: "40 20,21 * * 1-5" # 4:40pm ET: the day's recap (and the week's on its last session)
+  workflow_dispatch: {}
+
+concurrency:
+  group: news
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Call /api/cron/news
+        env:
+          APP_URL: ${{ vars.PEERFOLIO_URL || 'https://www.peerfolio.org' }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "Set the CRON_SECRET repository secret." >&2
+            exit 1
+          fi
+          code=$(curl --silent --show-error --max-time 300 \
+            -o response.json -w '%{http_code}' \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "${APP_URL%/}/api/cron/news")
+          cat response.json
+          echo
+          [ "$code" = "200" ] || { echo "Expected HTTP 200, got $code" >&2; exit 1; }

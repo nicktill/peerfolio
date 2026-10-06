@@ -65,9 +65,18 @@ const earnings = unstable_cache(
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const fearGreed = unstable_cache(async (_day: string) => fetchFearGreed(fetch), ["news-fear-greed-v1"], { revalidate: 3600 })
 
-/** Indexes, sectors, the earnings week and Fear & Greed. Public market data, no user data. */
-export const GET = withPublic<unknown>(async () => {
+/**
+ * Indexes and sectors, the earnings week and Fear & Greed. Public market data,
+ * no user data. `?part=board|earnings|fear-greed` returns one of them, so the
+ * page can show each as soon as it's ready.
+ */
+export const GET = withPublic<unknown>(async (request) => {
   const now = new Date()
+  const part = new URL(request.url).searchParams.get("part")
+  const headers = { "Cache-Control": "public, s-maxage=120, stale-while-revalidate=600" }
+  if (part === "board") return NextResponse.json({ board: await board() }, { headers })
+  if (part === "earnings") return NextResponse.json({ earnings: await earnings(earningsWeekDates(now)[0]!) }, { headers })
+  if (part === "fear-greed") return NextResponse.json({ fearGreed: await fearGreed(nyDate(now)) }, { headers })
   const [b, e, f] = await Promise.all([board(), earnings(earningsWeekDates(now)[0]!), fearGreed(nyDate(now))])
-  return NextResponse.json({ board: b, earnings: e, fearGreed: f }, { headers: { "Cache-Control": "public, s-maxage=120, stale-while-revalidate=600" } })
+  return NextResponse.json({ board: b, earnings: e, fearGreed: f }, { headers })
 })

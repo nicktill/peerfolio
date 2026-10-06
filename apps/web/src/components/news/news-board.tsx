@@ -12,6 +12,7 @@ import { EarningsWeek } from "@web/components/news/earnings-week"
 import { SectorBars } from "@web/components/news/sector-bars"
 import { IconChip, SectionCard, SectionLabel } from "@web/components/ui/section-card"
 import { Activity, Sparkles } from "lucide-react"
+import { Skeleton } from "@web/components/ui/skeleton"
 import { cn } from "@web/lib/utils"
 import { EARNINGS_WEEK, FEAR_GREED, HOLDING_MOVES, INDEXES, RECAPS, SECTORS, type EarningsDay, type Period } from "@web/lib/news-sample"
 import type { EarningsWeekData, FearGreedReading, MarketBoard } from "@web/lib/news-market"
@@ -44,9 +45,16 @@ const dayLabel = (date: string, opts: Intl.DateTimeFormatOptions) =>
 function toView(brief: PublishedBrief): RecapView {
   const byId = new Map(brief.sources.map((s) => [s.id, s]))
   const pick = (ids: string[]) => ids.map((id) => byId.get(id)).filter((s): s is NonNullable<typeof s> => Boolean(s))
+  const day = dayLabel(brief.periodEnd, { weekday: "short", month: "short", day: "numeric" })
+  const time = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" }).format(new Date(brief.createdAt))
   return {
-    title: brief.period === "day" ? "Daily recap" : "Weekly recap",
-    stamp: brief.period === "day" ? `${dayLabel(brief.periodEnd, { weekday: "short", month: "short", day: "numeric" })} · after the close` : `Week ending ${dayLabel(brief.periodEnd, { month: "short", day: "numeric" })}`,
+    title: brief.period === "midday" ? "Midday update" : brief.period === "day" ? "Daily recap" : "Weekly recap",
+    stamp:
+      brief.period === "midday"
+        ? `${day} · as of ${time} ET`
+        : brief.period === "day"
+          ? `${day} · after the close`
+          : `Week ending ${dayLabel(brief.periodEnd, { month: "short", day: "numeric" })}`,
     headline: brief.headline,
     body: brief.body,
     takeaways: brief.takeaways.map((t) => ({ title: t.title, body: t.body, sources: pick(t.sourceIds) })),
@@ -65,10 +73,15 @@ export function NewsBoard({ holdingMoves, held = [] }: { holdingMoves: HoldingMo
   const { data: news } = useApi<NewsResponse>("/api/news")
   // The preview shows the sample figures; the real page shows live data or, where a source is down, nothing.
   const sample = holdingMoves === "sample"
-  const { data: market } = useApi<MarketResponse>(sample ? null : "/api/news/market")
-  const board = sample ? { indexes: INDEXES, sectors: SECTORS } : market?.board ?? null
-  const fearGreed = sample ? { ...FEAR_GREED, asOf: null as string | null } : market?.fearGreed ?? null
-  const earnings = sample ? EARNINGS_WEEK : market?.earnings ? { label: market.earnings.label, days: markOwned(market.earnings.days, new Set(held)) } : null
+  // Each part loads on its own, so a slow source never holds up the others.
+  const boardApi = useApi<Pick<MarketResponse, "board">>(sample ? null : "/api/news/market?part=board")
+  const earningsApi = useApi<Pick<MarketResponse, "earnings">>(sample ? null : "/api/news/market?part=earnings")
+  const fearGreedApi = useApi<Pick<MarketResponse, "fearGreed">>(sample ? null : "/api/news/market?part=fear-greed")
+  const pending = (api: { data: unknown; error: string | null }) => !sample && !api.data && !api.error
+  const board = sample ? { indexes: INDEXES, sectors: SECTORS } : boardApi.data?.board ?? null
+  const fearGreed = sample ? { ...FEAR_GREED, asOf: null as string | null } : fearGreedApi.data?.fearGreed ?? null
+  const earningsData = earningsApi.data?.earnings
+  const earnings = sample ? EARNINGS_WEEK : earningsData ? { label: earningsData.label, days: markOwned(earningsData.days, new Set(held)) } : null
   const brief = period === "day" ? news?.day : news?.week
   // The preview shows sample copy; the live page never does, since its made-up figures would contradict the real ones beside it.
   const recap: RecapView | null = brief ? toView(brief) : sample ? { ...RECAPS[period], kind: "sample" } : null
@@ -141,6 +154,13 @@ export function NewsBoard({ holdingMoves, held = [] }: { holdingMoves: HoldingMo
         </header>
       </Reveal>
 
+      {pending(boardApi) ? (
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-busy="true" aria-label="Loading markets">
+          {[0, 1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-[148px] rounded-2xl" />
+          ))}
+        </div>
+      ) : null}
       {board && board.indexes.length > 0 ? (
         <section className="flex flex-col gap-2.5" aria-labelledby="news-markets">
           <Reveal index={1} className="flex items-center justify-between gap-2 px-0.5">
@@ -180,6 +200,7 @@ export function NewsBoard({ holdingMoves, held = [] }: { holdingMoves: HoldingMo
             </div>
           </SectionCard>
         )}
+        {pending(fearGreedApi) ? <Skeleton className="min-h-[420px] rounded-2xl" /> : null}
         {fearGreed ? (
           <FearGreed
             score={fearGreed.score}
@@ -188,6 +209,8 @@ export function NewsBoard({ holdingMoves, held = [] }: { holdingMoves: HoldingMo
             source={sample ? null : { label: "CNN", href: CNN_FEAR_GREED_PAGE, asOf: fearGreed.asOf }}
           />
         ) : null}
+        {pending(earningsApi) ? <Skeleton className="min-h-[420px] rounded-2xl" /> : null}
+        {pending(boardApi) ? <Skeleton className="min-h-[420px] rounded-2xl" /> : null}
         {earnings ? (
           <EarningsWeek
             label={earnings.label}

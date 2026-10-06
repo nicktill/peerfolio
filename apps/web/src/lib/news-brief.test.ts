@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { briefTargets, checkBrief, claims, clipBytes, closeUtc, costOf, fallbackBrief, feedbackText, figures, inputTokenBound, isLastSessionOfWeek, MAX_INPUT_TOKENS, MAX_OUTPUT_TOKENS, selectItems, worstCaseUsd, writeBrief, type Brief, type BriefItem, type SpendLedger } from "./news-brief.ts"
+import { briefTargets, briefWindow, middayTarget, checkBrief, claims, clipBytes, closeUtc, costOf, fallbackBrief, feedbackText, figures, inputTokenBound, isLastSessionOfWeek, MAX_INPUT_TOKENS, MAX_OUTPUT_TOKENS, selectItems, worstCaseUsd, writeBrief, type Brief, type BriefItem, type SpendLedger } from "./news-brief.ts"
 
 const at = (iso: string) => new Date(iso)
 const raw = [
@@ -251,4 +251,18 @@ test("briefTargets finds the latest day and week, recovering a missed Friday on 
   assert.deepEqual(briefTargets(at("2026-10-10T15:00:00Z")), { day: "2026-10-09", week: "2026-10-09" }) // Saturday
   assert.deepEqual(briefTargets(at("2026-10-06T15:00:00Z")), { day: "2026-10-05", week: "2026-10-02" }) // Tuesday morning
   assert.deepEqual(briefTargets(at("2026-04-02T22:00:00Z")), { day: "2026-04-02", week: "2026-04-02" }) // before Good Friday
+})
+
+test("the midday update is due from 11:15am New York time on trading days only", () => {
+  assert.equal(middayTarget(at("2026-10-06T15:10:00Z")), null) // 11:10am EDT
+  assert.equal(middayTarget(at("2026-10-06T15:15:00Z")), "2026-10-06") // 11:15am EDT
+  assert.equal(middayTarget(at("2026-12-07T16:20:00Z")), "2026-12-07") // 11:20am EST
+  assert.equal(middayTarget(at("2026-10-10T16:00:00Z")), null) // Saturday
+})
+
+test("the midday window runs from the previous evening up to now", () => {
+  const now = at("2026-10-06T15:20:00Z")
+  const { from, to } = briefWindow("midday", "2026-10-06", now)
+  assert.equal(to.getTime(), now.getTime())
+  assert.equal(from.toISOString(), "2026-10-05T19:20:00.000Z")
 })
