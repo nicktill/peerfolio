@@ -1,4 +1,4 @@
-import { toMarketTicker, tickerDetails } from "@web/lib/market-data"
+import { massiveFetch, toMarketTicker, tickerDetails } from "@web/lib/market-data"
 
 type Ctx = { params: Promise<{ symbol: string }> }
 
@@ -21,7 +21,8 @@ export async function GET(_request: Request, { params }: Ctx) {
     const source = details?.iconUrl ?? details?.logoUrl
     if (!source) return miss()
 
-    const image = await fetch(source, { headers: { Authorization: `Bearer ${key}` } })
+    // The image is served by Massive with our key, so it spends from the same budget.
+    const image = await massiveFetch(source, { headers: { Authorization: `Bearer ${key}` } })
     if (!image.ok) return miss()
 
     return new Response(image.body, {

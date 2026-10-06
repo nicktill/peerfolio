@@ -8,7 +8,12 @@
  * Free of database imports so the tests can exercise it with a stubbed fetch.
  */
 
+import { providerFetch } from "./provider-fetch.ts"
+
 const BASE_URL = process.env.MASSIVE_BASE_URL ?? "https://api.massive.com"
+
+/** Every Massive request spends from its shared budget (see provider-fetch.ts). */
+export const massiveFetch = providerFetch("massive")
 
 /** How far back to look for a trading day: covers a weekend plus a holiday. */
 const MAX_LOOKBACK_DAYS = 5
@@ -74,7 +79,7 @@ async function getJson<T>(path: string, fetchImpl: typeof fetch): Promise<T> {
 const isoDate = (ms: number) => new Date(ms).toISOString().slice(0, 10)
 
 /** Most recent completed daily close for one ticker, or null if it doesn't trade. */
-export async function previousClose(marketTicker: string, fetchImpl: typeof fetch = fetch): Promise<Close | null> {
+export async function previousClose(marketTicker: string, fetchImpl: typeof fetch = massiveFetch): Promise<Close | null> {
   const data = await get(`/v2/aggs/ticker/${encodeURIComponent(marketTicker)}/prev?adjusted=true`, fetchImpl)
   const bar = data.results?.[0]
   if (!bar || typeof bar.c !== "number" || typeof bar.t !== "number") return null
@@ -113,7 +118,7 @@ function firstDayBack(marketTickerIsCrypto: boolean, now: Date): number {
  */
 export async function latestCloses(
   marketTickers: string[],
-  { now = new Date(), fetchImpl = fetch }: { now?: Date; fetchImpl?: typeof fetch } = {},
+  { now = new Date(), fetchImpl = massiveFetch }: { now?: Date; fetchImpl?: typeof fetch } = {},
 ): Promise<Map<string, Close>> {
   const out = new Map<string, Close>()
   const wanted = new Set(marketTickers)
@@ -168,7 +173,7 @@ export type TickerDetails = { name: string | null; iconUrl: string | null; logoU
  * Company name and branding for a ticker, or null when the provider doesn't
  * know it. Crypto pairs have no branding; they return their name only.
  */
-export async function tickerDetails(marketTicker: string, fetchImpl: typeof fetch = fetch): Promise<TickerDetails | null> {
+export async function tickerDetails(marketTicker: string, fetchImpl: typeof fetch = massiveFetch): Promise<TickerDetails | null> {
   type Response = { results?: { name?: string; type?: string; branding?: { icon_url?: string; logo_url?: string } } }
   let data: Response
   try {
@@ -192,7 +197,7 @@ export type TickerMatch = { symbol: string; name: string }
 export async function searchTickers(
   query: string,
   kind: AssetKind,
-  { limit = 3, fetchImpl = fetch }: { limit?: number; fetchImpl?: typeof fetch } = {},
+  { limit = 3, fetchImpl = massiveFetch }: { limit?: number; fetchImpl?: typeof fetch } = {},
 ): Promise<TickerMatch[]> {
   type Response = { results?: { ticker?: string; name?: string }[] }
   const market = kind === "crypto" ? "crypto" : "stocks"

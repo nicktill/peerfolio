@@ -78,6 +78,13 @@
       "when": 1791240809524,
       "tag": "0010_close_price_final",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791243286860,
+      "tag": "0011_provider_budgets",
+      "breakpoints": true
     }
   ]
 }

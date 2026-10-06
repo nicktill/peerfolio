@@ -33,3 +33,6 @@ jobs:
       - run: node apps/web/scripts/import-regression.mjs
         env:
           IMPORT_TEST_DATABASE_URL: postgres://postgres:regression@127.0.0.1:5432/regression
+      - run: node apps/web/scripts/close-regression.mjs
+        env:
+          IMPORT_TEST_DATABASE_URL: postgres://postgres:regression@127.0.0.1:5432/regression

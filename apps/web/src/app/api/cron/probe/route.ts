@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { assertCronAuthorized, withPublic } from "@web/lib/api"
 
 import { tiingoApiKey } from "@web/lib/tiingo"
+import { providerFetch } from "@web/lib/provider-fetch"
 
 export const maxDuration = 30
 
@@ -10,6 +11,8 @@ export const maxDuration = 30
  * keys live, and reports what came back: HTTP status, latency, the price and
  * how old its timestamp is. Never returns a key or a raw response body beyond
  * a few numeric fields (and a short error text on failure).
+ *
+ * Its requests spend from the same provider budgets as everything else.
  *
  * Run it by hand (the "Probe price providers" workflow) to answer "is this
  * provider actually working from production?" without guessing from logs.
@@ -41,10 +44,10 @@ export const GET = withPublic<unknown>(async (request) => {
 
   const finnhub = process.env.FINNHUB_API_KEY
     ? await time(async () => {
-        const response = await fetch(`https://finnhub.io/api/v1/quote?symbol=${symbol}`, {
+        const response = await providerFetch("finnhub")(`https://finnhub.io/api/v1/quote?symbol=${symbol}`, {
           headers: { "X-Finnhub-Token": process.env.FINNHUB_API_KEY! },
           cache: "no-store",
-          signal: AbortSignal.timeout(8_000),
+          timeoutMs: 8_000,
         })
         const text = await response.text()
         if (!response.ok) return { status: response.status, body: text.slice(0, 160) }
@@ -65,10 +68,10 @@ export const GET = withPublic<unknown>(async (request) => {
   const alpaca =
     process.env.ALPACA_API_KEY && process.env.ALPACA_API_SECRET
       ? await time(async () => {
-          const response = await fetch(`https://data.alpaca.markets/v2/stocks/snapshots?symbols=${symbol}&feed=iex`, {
+          const response = await providerFetch("alpaca")(`https://data.alpaca.markets/v2/stocks/snapshots?symbols=${symbol}&feed=iex`, {
             headers: { "APCA-API-KEY-ID": process.env.ALPACA_API_KEY!, "APCA-API-SECRET-KEY": process.env.ALPACA_API_SECRET! },
             cache: "no-store",
-            signal: AbortSignal.timeout(8_000),
+            timeoutMs: 8_000,
           })
           const text = await response.text()
           if (!response.ok) return { status: response.status, body: text.slice(0, 160) }
@@ -88,10 +91,10 @@ export const GET = withPublic<unknown>(async (request) => {
 
   const tiingo = tiingoKey
     ? await time(async () => {
-        const response = await fetch(`https://api.tiingo.com/tiingo/daily/${symbol.replace(".", "-")}/prices`, {
+        const response = await providerFetch("tiingo")(`https://api.tiingo.com/tiingo/daily/${symbol.replace(".", "-")}/prices`, {
           headers: { Authorization: `Token ${tiingoKey}`, "Content-Type": "application/json" },
           cache: "no-store",
-          signal: AbortSignal.timeout(8_000),
+          timeoutMs: 8_000,
         })
         const text = await response.text()
         if (!response.ok) return { status: response.status, body: text.slice(0, 160) }
@@ -102,10 +105,10 @@ export const GET = withPublic<unknown>(async (request) => {
 
   const massive = process.env.MASSIVE_API_KEY
     ? await time(async () => {
-        const response = await fetch(`https://api.massive.com/v2/aggs/ticker/${symbol}/prev?adjusted=true`, {
+        const response = await providerFetch("massive")(`https://api.massive.com/v2/aggs/ticker/${symbol}/prev?adjusted=true`, {
           headers: { Authorization: `Bearer ${process.env.MASSIVE_API_KEY}` },
           cache: "no-store",
-          signal: AbortSignal.timeout(8_000),
+          timeoutMs: 8_000,
         })
         const text = await response.text()
         if (!response.ok) return { status: response.status, body: text.slice(0, 160) }

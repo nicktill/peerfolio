@@ -11,6 +11,7 @@
  */
 
 import type { Quote, QuoteProvider, QuoteResult } from "./quote-provider.ts"
+import { providerFetch, type ProviderFetch } from "./provider-fetch.ts"
 
 const BASE_URL = "https://finnhub.io/api/v1"
 
@@ -19,13 +20,13 @@ const SYMBOL = /^[A-Z][A-Z0-9]{0,5}(\.[A-Z0-9]{1,2})?$/
 
 export function createFinnhubProvider({
   apiKey,
-  fetchImpl = fetch,
+  fetchImpl = providerFetch("finnhub"),
   concurrency = 4,
   timeoutMs = 5_000,
   baseUrl = BASE_URL,
 }: {
   apiKey: string
-  fetchImpl?: typeof fetch
+  fetchImpl?: ProviderFetch
   concurrency?: number
   timeoutMs?: number
   baseUrl?: string
@@ -36,7 +37,8 @@ export function createFinnhubProvider({
         // In a header, not the URL, so the key doesn't end up in request logs.
         headers: { "X-Finnhub-Token": apiKey },
         cache: "no-store",
-        signal: AbortSignal.timeout(timeoutMs),
+        // Starts when the request is sent, after any wait for budget.
+        timeoutMs,
       })
       if (response.status === 429) return { rateLimited: true }
       if (!response.ok) return { failed: true }

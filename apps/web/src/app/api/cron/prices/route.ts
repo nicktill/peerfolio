@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { assertCronAuthorized, withPublic } from "@web/lib/api"
+import { withProviderPatience } from "@web/lib/provider-fetch"
 import { fillQueuedOrders } from "@web/lib/fantasy"
 import { refreshLivePrices } from "@web/lib/live-quotes"
 import { refreshSecurityMetadata, refreshStalePrices } from "@web/lib/positions"
@@ -23,7 +24,11 @@ export const maxDuration = 60
  */
 export const GET = withPublic<unknown>(async (request) => {
   assertCronAuthorized(request)
+  // A scheduled run may wait a little for provider budget (within maxDuration) rather than defer work.
+  return withProviderPatience(20_000, refresh)
+})
 
+async function refresh() {
   const live = await refreshLivePrices().catch((error) => ({ error: error instanceof Error ? error.message : "unknown" }))
   // No per-instance throttle here: the schedule is the throttle.
   const closes = await refreshStalePrices({ minIntervalMinutes: 0, recheckMinutes: 10 })
@@ -34,4 +39,4 @@ export const GET = withPublic<unknown>(async (request) => {
   const liveBroken = "error" in live || ("claimed" in live && (live.claimed ?? 0) > 0 && live.refreshed === 0)
   console.log("[cron] prices", JSON.stringify({ live, closes, metadata, orders }))
   return NextResponse.json({ healthy: !liveBroken, live, closes, metadata, orders }, { status: liveBroken ? 500 : 200 })
-})
+}
