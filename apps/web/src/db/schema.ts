@@ -597,3 +597,51 @@ export type LeagueMember = typeof leagueMembers.$inferSelect
 export type Follow = typeof follows.$inferSelect
 export type FantasyLeague = typeof fantasyLeagues.$inferSelect
 export type FantasyMember = typeof fantasyMembers.$inferSelect
+
+/* ------------------------------------------------------------------ *
+ * News
+ * ------------------------------------------------------------------ */
+
+/** Headlines from publishers' RSS feeds: title, summary, time and link only, never the article. */
+export const newsItems = pgTable(
+  "news_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    source: text("source").notNull(),
+    title: text("title").notNull(),
+    url: text("url").notNull(),
+    summary: text("summary"),
+    publishedAt: timestamp("published_at", { withTimezone: true }).notNull(),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("news_items_url_idx").on(t.url), index("news_items_published_idx").on(t.publishedAt)],
+)
+
+/**
+ * One published recap per period: the day's after the close, the week's after
+ * its last session. `sources` keeps what each cited id pointed to, so the page
+ * can link them without the items table. `fallback` marks a headline-only recap
+ * written without the model; `costUsd` is the spend ledger the monthly cap reads.
+ */
+export const newsBriefs = pgTable(
+  "news_briefs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    period: text("period").notNull(),
+    periodEnd: date("period_end").notNull(),
+    headline: text("headline").notNull(),
+    body: text("body").notNull(),
+    takeaways: jsonb("takeaways").notNull(),
+    sources: jsonb("sources").notNull(),
+    model: text("model"),
+    fallback: boolean("fallback").notNull().default(false),
+    inputTokens: integer("input_tokens").notNull().default(0),
+    outputTokens: integer("output_tokens").notNull().default(0),
+    costUsd: numeric("cost_usd", { precision: 10, scale: 6 }).notNull().default("0"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("news_briefs_period_idx").on(t.period, t.periodEnd)],
+)
+
+export type NewsItem = typeof newsItems.$inferSelect
+export type NewsBrief = typeof newsBriefs.$inferSelect
