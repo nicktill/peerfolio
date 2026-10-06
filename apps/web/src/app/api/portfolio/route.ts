@@ -39,9 +39,11 @@ export const GET = withUser<unknown>(async (userId, request) => {
 
   // Bring stored closes up to date first so balances below are current, not
   // last night's. Throttled and never throws.
-  await refreshStalePrices()
-  scheduleLiveRefresh()
-  scheduleMetadataRefresh()
+  if (url.searchParams.get("stored") !== "1") {
+    await refreshStalePrices()
+    scheduleLiveRefresh()
+    scheduleMetadataRefresh()
+  }
 
   const [accountRows, items, holdingRows] = await Promise.all([
     db.select().from(accounts).where(and(eq(accounts.userId, userId), eq(accounts.isActive, true))),

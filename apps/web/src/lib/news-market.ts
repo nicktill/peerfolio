@@ -184,14 +184,18 @@ export async function fetchMarketBoard({
   alpaca,
   fetchImpl,
   now = new Date(),
+  indexesOnly = false,
+  requiredSession,
 }: {
   finnhubKey: string | undefined
   alpaca: { keyId: string; secret: string } | null
   fetchImpl: Fetch
   now?: Date
+  indexesOnly?: boolean
+  requiredSession?: string
 }): Promise<MarketBoard | null> {
   if (!finnhubKey && !alpaca) return null
-  const symbols = [...INDEX_FUNDS.map((f) => f.symbol), ...SECTOR_FUNDS.map((f) => f.symbol)]
+  const symbols = [...INDEX_FUNDS.map((f) => f.symbol), ...(indexesOnly ? [] : SECTOR_FUNDS.map((f) => f.symbol))]
 
   const quotes = new Map<string, FinnhubQuote>()
   // A few at a time, inside Finnhub's free allowance.
@@ -205,12 +209,12 @@ export async function fetchMarketBoard({
     for (const [sym, q] of fallback) quotes.set(sym, q)
   }
   // A quote more than four days old means the source is stuck, not that it's a long weekend.
-  for (const [s, q] of quotes) if (now.getTime() - q.t * 1000 > 4 * DAY) quotes.delete(s)
+  for (const [s, q] of quotes) if (now.getTime() - q.t * 1000 > 4 * DAY || (requiredSession && nyDate(new Date(q.t * 1000)) !== requiredSession)) quotes.delete(s)
   if (INDEX_FUNDS.filter((f) => quotes.has(f.symbol)).length < 2) return null
 
   let daily = new Map<string, Bar[]>()
   let intraday = new Map<string, Bar[]>()
-  if (alpaca) {
+  if (alpaca && !indexesOnly) {
     const spy = quotes.get("SPY") ?? [...quotes.values()][0]!
     const sessionStart = new Date(spy.t * 1000 - 8 * 3_600_000)
     ;[daily, intraday] = await Promise.all([

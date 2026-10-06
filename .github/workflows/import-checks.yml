@@ -30,6 +30,7 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm test --workspace @repo/web
       - run: npm run check-types --workspace @repo/web
+      - run: npm run test:news --workspace @repo/web
       - run: node apps/web/scripts/import-regression.mjs
         env:
           IMPORT_TEST_DATABASE_URL: postgres://postgres:regression@127.0.0.1:5432/regression

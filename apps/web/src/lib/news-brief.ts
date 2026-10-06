@@ -325,6 +325,8 @@ export async function writeBrief({
   sessionDate,
   items,
   ledger,
+  briefing,
+  deadline = Infinity,
 }: {
   client: Pick<OpenAI, "responses"> | null
   period: BriefPeriod
@@ -332,6 +334,8 @@ export async function writeBrief({
   items: BriefItem[]
   /** Reserves each attempt's worst case before it's sent. Without one, attempts aren't metered (tests). */
   ledger?: SpendLedger
+  briefing?: string
+  deadline?: number
 }): Promise<BriefResult> {
   const result = (brief: Brief, fallback: boolean, problems: string[], inputTokens = 0, outputTokens = 0): BriefResult => ({
     brief,
@@ -345,10 +349,10 @@ export async function writeBrief({
 
   // Drop the oldest stories until the prompt, with room for retry feedback, is under the input limit.
   let kept = items
-  let input = promptInput(period, sessionDate, kept)
+  let input = `${briefing ?? ""}\n${promptInput(period, sessionDate, kept)}`
   while (kept.length > 3 && inputTokenBound(input) + FEEDBACK_ROOM > MAX_INPUT_TOKENS) {
     kept = kept.slice(0, -1)
-    input = promptInput(period, sessionDate, kept)
+    input = `${briefing ?? ""}\n${promptInput(period, sessionDate, kept)}`
   }
   if (inputTokenBound(input) + FEEDBACK_ROOM > MAX_INPUT_TOKENS) return result(fallbackBrief(items), true, ["prompt over the input limit"])
   let inputTokens = 0
@@ -356,6 +360,7 @@ export async function writeBrief({
   let feedback: string[] = []
 
   for (let attempt = 0; attempt < 2; attempt++) {
+    if (Date.now() + 45_000 > deadline) { feedback = ["job deadline reached"]; break }
     // Recheck the whole prompt every attempt: if feedback would push it past the limit, retry without it.
     const withFeedback = feedback.length ? `${input}${feedbackText(feedback)}` : input
     const prompt = inputTokenBound(withFeedback) <= MAX_INPUT_TOKENS ? withFeedback : input

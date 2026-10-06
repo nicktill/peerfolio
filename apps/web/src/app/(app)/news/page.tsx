@@ -6,7 +6,7 @@ import type { PortfolioResponse } from "@web/components/dashboard/portfolio-scre
 
 export default function NewsPage() {
   // Your biggest movers today, from the same data the Portfolio page uses.
-  const { data } = useApi<PortfolioResponse>("/api/portfolio?range=1W")
+  const { data } = useApi<PortfolioResponse>("/api/portfolio?range=1W&stored=1")
   const moves: HoldingMoves = data
     ? data.holdings
         .filter((h) => h.ticker && h.todayPercent != null)

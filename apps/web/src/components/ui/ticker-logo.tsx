@@ -19,7 +19,7 @@ function hue(symbol: string) {
  * Company icon from the logo proxy, falling back to a coloured monogram when
  * there's no logo (crypto, funds, tiny caps) or it fails to load.
  */
-export function TickerLogo({ symbol, kind = "stock", size = "md", className }: { symbol: string; kind?: "stock" | "crypto"; size?: keyof typeof SIZES; className?: string }) {
+export function TickerLogo({ symbol, kind = "stock", size = "md", className, imageEnabled = true }: { symbol: string; kind?: "stock" | "crypto"; size?: keyof typeof SIZES; className?: string; imageEnabled?: boolean }) {
   const [failed, setFailed] = useState(false)
   const image = useRef<HTMLImageElement>(null)
   // An image that failed before this component hydrated never fires onError here, so look once it has mounted.
@@ -28,7 +28,7 @@ export function TickerLogo({ symbol, kind = "stock", size = "md", className }: {
     if (el?.complete && el.naturalWidth === 0) setFailed(true)
   }, [])
   const s = symbol.toUpperCase()
-  const showImage = kind === "stock" && !failed
+  const showImage = imageEnabled && kind === "stock" && !failed
 
   return (
     <span

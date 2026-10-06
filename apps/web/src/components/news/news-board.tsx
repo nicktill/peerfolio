@@ -24,7 +24,7 @@ import type { NewsResponse, PublishedBrief } from "@web/lib/news"
 /** Your holdings' moves today, or "sample" for the preview's placeholder ones. */
 export type HoldingMoves = { symbol: string; percent: number }[] | "sample" | null
 
-type MarketResponse = { board: MarketBoard | null; earnings: EarningsWeekData | null; fearGreed: FearGreedReading | null }
+type MarketResponse = { closingBoard: MarketBoard | null; sectorsAsOf: string | null; board: MarketBoard | null; earnings: EarningsWeekData | null; fearGreed: FearGreedReading | null }
 
 /** How many companies a day shows under "All": the biggest, plus any you own. */
 const EARNINGS_PER_DAY = 8
@@ -48,12 +48,12 @@ function toView(brief: PublishedBrief): RecapView {
   const day = dayLabel(brief.periodEnd, { weekday: "short", month: "short", day: "numeric" })
   const time = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" }).format(new Date(brief.createdAt))
   return {
-    title: brief.period === "midday" ? "Midday update" : brief.period === "day" ? "Daily recap" : "Weekly recap",
+    title: brief.phase === "morning" ? "Opening-session briefing" : brief.period === "day" ? "Closing recap" : "Weekly recap",
     stamp:
-      brief.period === "midday"
+      brief.phase === "morning"
         ? `${day} · as of ${time} ET`
         : brief.period === "day"
-          ? `${day} · after the close`
+          ? `${day} · as of ${time} ET`
           : `Week ending ${dayLabel(brief.periodEnd, { month: "short", day: "numeric" })}`,
     headline: brief.headline,
     body: brief.body,
@@ -74,11 +74,11 @@ export function NewsBoard({ holdingMoves, held = [] }: { holdingMoves: HoldingMo
   // The preview shows the sample figures; the real page shows live data or, where a source is down, nothing.
   const sample = holdingMoves === "sample"
   // Each part loads on its own, so a slow source never holds up the others.
-  const boardApi = useApi<Pick<MarketResponse, "board">>(sample ? null : "/api/news/market?part=board")
+  const boardApi = useApi<Pick<MarketResponse, "board" | "closingBoard" | "sectorsAsOf">>(sample ? null : "/api/news/market?part=board")
   const earningsApi = useApi<Pick<MarketResponse, "earnings">>(sample ? null : "/api/news/market?part=earnings")
   const fearGreedApi = useApi<Pick<MarketResponse, "fearGreed">>(sample ? null : "/api/news/market?part=fear-greed")
   const pending = (api: { data: unknown; error: string | null }) => !sample && !api.data && !api.error
-  const board = sample ? { indexes: INDEXES, sectors: SECTORS } : boardApi.data?.board ?? null
+  const board = sample ? { indexes: INDEXES, sectors: SECTORS } : (period === "week" ? boardApi.data?.closingBoard : boardApi.data?.board) ?? null
   const fearGreed = sample ? { ...FEAR_GREED, asOf: null as string | null } : fearGreedApi.data?.fearGreed ?? null
   const earningsData = earningsApi.data?.earnings
   const earnings = sample ? EARNINGS_WEEK : earningsData ? { label: earningsData.label, days: markOwned(earningsData.days, new Set(held)) } : null
@@ -137,7 +137,7 @@ export function NewsBoard({ holdingMoves, held = [] }: { holdingMoves: HoldingMo
                   ? `What moved, why it mattered, and what’s next, written from ${recap.sources?.length ?? 0} stories and checked against them.`
                   : recap.kind === "fallback"
                     ? "Today’s biggest stories, straight from the publishers."
-                    : "Your two-minute read on the markets. The live brief lands after each close."}
+                    : "Your two-minute read on the markets. Briefings arrive around 11am and after close."}
               </p>
             </div>
             <Segmented<Period>
@@ -176,14 +176,15 @@ export function NewsBoard({ holdingMoves, held = [] }: { holdingMoves: HoldingMo
                   Sample figures
                 </Badge>
               ) : (
-                <span className="hidden md:inline" title="Index levels are licensed data; these are the funds that track each index, whose moves match to within a few hundredths of a percent.">
-                  Tracked by index funds ·
+                <span className="hidden md:inline" title="ETF proxies, not index levels. Prices and returns can differ from the underlying index.">
+                  Tracked by index ETFs ·
                 </span>
               )}
-              <span className="hidden sm:inline">{period === "day" ? "Today’s session" : "Last 5 sessions"}</span>
+              <span className="hidden sm:inline">{period === "day" ? (sample ? "Today’s session" : `Saved session · ${boardApi.data?.board?.session ?? ""}`) : "Last 5 sessions"}</span>
             </span>
           </Reveal>
           <MarketStrip quotes={board.indexes} period={period} startIndex={1} />
+          {!sample && boardApi.data?.board ? <p className="px-2 text-xs text-muted-foreground">Index quotes captured {new Date((period === "week" ? boardApi.data.closingBoard : boardApi.data.board)!.asOf).toLocaleString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} ET · saved updates twice daily</p> : null}
         </section>
       ) : null}
 
@@ -193,9 +194,9 @@ export function NewsBoard({ holdingMoves, held = [] }: { holdingMoves: HoldingMo
         ) : (
           <SectionCard label={period === "day" ? "Daily recap" : "Weekly recap"} icon={<Sparkles />} tone="primary" index={5}>
             <div className="flex flex-1 flex-col items-center justify-center gap-1.5 px-6 py-12 text-center">
-              <span className="text-sm font-semibold">{period === "day" ? "Today’s recap lands after the close" : "The weekly recap lands after the week’s last close"}</span>
+              <span className="text-sm font-semibold">{period === "day" ? "Briefings arrive around 11am and after close" : "The weekly recap lands after the week’s last close"}</span>
               <span className="max-w-sm text-[13px] text-muted-foreground">
-                Written from the day’s stories and checked against them. Until then, the numbers above are live.
+                Written from the day’s stories and checked against them. Quotes are saved around 11am and after close, with their capture times shown above.
               </span>
             </div>
           </SectionCard>
@@ -221,7 +222,7 @@ export function NewsBoard({ holdingMoves, held = [] }: { holdingMoves: HoldingMo
             className={hasSectors ? undefined : "lg:col-span-2"}
           />
         ) : null}
-        {hasSectors ? <SectorBars sectors={board!.sectors} period={period} index={8} /> : null}
+        {hasSectors ? <div className="flex flex-col gap-1"><SectorBars sectors={board!.sectors} period={period} index={8} />{!sample && boardApi.data?.sectorsAsOf ? <p className="px-2 text-xs text-muted-foreground">Sectors captured {new Date(boardApi.data.sectorsAsOf).toLocaleString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} ET</p> : null}</div> : null}
         {news?.headlines.length ? <TopStories headlines={news.headlines.slice(0, 10)} index={9} /> : null}
       </div>
     </div>
