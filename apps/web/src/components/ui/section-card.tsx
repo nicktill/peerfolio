@@ -4,12 +4,12 @@ import { Card } from "@web/components/ui/card"
 import { revealStyle } from "@web/components/motion/reveal"
 import { cn } from "@web/lib/utils"
 
-/** The small uppercase label every News card (and section) opens with. */
-export function SectionLabel({ children, className, id }: { children: React.ReactNode; className?: string; id?: string }) {
+/** The small uppercase label every card (and section) opens with. */
+export function SectionLabel({ children, className, id, as: Tag = "h2" }: { children: React.ReactNode; className?: string; id?: string; as?: "h1" | "h2" | "span" }) {
   return (
-    <h2 id={id} className={cn("font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground", className)}>
+    <Tag id={id} className={cn("font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground", className)}>
       {children}
-    </h2>
+    </Tag>
   )
 }
 
@@ -20,6 +20,7 @@ export function SectionLabel({ children, className, id }: { children: React.Reac
  */
 export function SectionCard({
   label,
+  labelId,
   href,
   action,
   index = 0,
@@ -27,13 +28,15 @@ export function SectionCard({
   children,
 }: {
   label: React.ReactNode
+  /** Names the card for screen readers when `label` isn't plain text. */
+  labelId?: string
   href?: string
   action?: React.ReactNode
   index?: number
   className?: string
   children: React.ReactNode
 }) {
-  const id = typeof label === "string" ? `news-${label.toLowerCase().replace(/[^a-z]+/g, "-")}` : undefined
+  const id = labelId ?? (typeof label === "string" ? `card-${label.toLowerCase().replace(/[^a-z]+/g, "-")}` : undefined)
   return (
     <Card className={cn("reveal flex flex-col overflow-hidden", className)} style={revealStyle(index)} aria-labelledby={id}>
       <div className="flex min-h-[52px] flex-wrap items-center justify-between gap-3 border-b py-2.5 pl-5 pr-3">

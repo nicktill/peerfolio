@@ -26,8 +26,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="app-bg min-h-screen">
       <AppNav />
-      {/* Bottom padding clears the mobile tab bar. */}
-      <main className="mx-auto max-w-6xl px-4 pb-24 pt-6 sm:pb-12">{children}</main>
+      {/* Wide enough for a dashboard on a laptop; text-heavy pages set their own reading width. Bottom padding clears the mobile tab bar. */}
+      <main className="mx-auto max-w-[1360px] px-4 pb-24 pt-6 sm:px-6 sm:pb-12">{children}</main>
     </div>
   )
 }

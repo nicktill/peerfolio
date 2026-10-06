@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 import {
   AlertTriangle,
   BadgeDollarSign,
@@ -15,7 +15,7 @@ import {
   Trash2,
   type LucideIcon,
 } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card"
+import { SectionCard } from "@web/components/ui/section-card"
 import { Button } from "@web/components/ui/button"
 import { Delta } from "@web/components/ui/delta"
 import { useConfirm } from "@web/components/ui/confirm"
@@ -68,18 +68,11 @@ export function AccountsCard({
   items,
   hidden,
   onChange,
-  onRestHeight,
 }: {
   accounts: AccountRow[]
   items: ItemRow[]
   hidden: boolean
   onChange: () => void
-  /**
-   * The card's height as first laid out, for the return chart beside it to match.
-   * Reporting stops for good once someone opens or closes an account by hand, so the
-   * chart holds still while they do and never re-measures a card they've opened up.
-   */
-  onRestHeight?: (px: number) => void
 }) {
   const { toast } = useToast()
   const confirm = useConfirm()
@@ -92,25 +85,8 @@ export function AccountsCard({
   const [openById, setOpenById] = useState<Record<string, boolean>>(() => reconcileAccountExpansion({}, accounts))
   const isOpen = (a: AccountRow) => openById[a.id] ?? false
   const toggle = (a: AccountRow) => {
-    toggledByHand.current = true
     setOpenById((prev) => ({ ...prev, [a.id]: !prev[a.id] }))
   }
-
-  const cardRef = useRef<HTMLDivElement>(null)
-  const toggledByHand = useRef(false)
-  const restHeightCallback = useRef(onRestHeight)
-  restHeightCallback.current = onRestHeight
-  useEffect(() => {
-    const card = cardRef.current
-    if (!card || typeof ResizeObserver === "undefined") return
-    const report = () => {
-      if (!toggledByHand.current) restHeightCallback.current?.(Math.round(card.getBoundingClientRect().height))
-    }
-    const observer = new ResizeObserver(report)
-    observer.observe(card)
-    report()
-    return () => observer.disconnect()
-  }, [])
 
   useEffect(() => {
     setOpenById((prev) => reconcileAccountExpansion(prev, accounts))
@@ -178,11 +154,10 @@ export function AccountsCard({
   }
 
   return (
-    <Card ref={cardRef}>
-      <CardHeader className="flex-row items-center justify-between">
-        <CardTitle>Accounts</CardTitle>
-        <span className="numeric text-sm text-muted-foreground">{accounts.length}</span>
-        <div className="ml-auto">
+    <SectionCard
+      label={`Accounts · ${accounts.length}`}
+      labelId="card-accounts"
+      action={
           <ImportPositionsButton
             accounts={accounts
               .filter((a) => a.source === "manual" && a.category === "investment")
@@ -191,10 +166,9 @@ export function AccountsCard({
             variant="ghost"
             label="Import positions"
           />
-        </div>
-      </CardHeader>
-
-      <CardContent className="space-y-5">
+      }
+    >
+      <div className="space-y-5 p-4 pt-4">
         {needsAttention.map((item) => (
           <div
             key={item.id}
@@ -215,7 +189,7 @@ export function AccountsCard({
 
         {grouped.map((group) => (
           <div key={group.key}>
-            <h4 className="mb-2 flex items-baseline justify-between text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <h3 className="mb-1.5 flex items-baseline justify-between px-2 font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
               <span>{group.label}</span>
               <span className={cn("numeric normal-case tracking-normal", group.key === "credit" || group.key === "loan" ? "text-loss-ink" : "")}>
                 {group.key === "credit" || group.key === "loan" ? "−" : ""}
@@ -224,14 +198,15 @@ export function AccountsCard({
                   { hidden, compact: true },
                 )}
               </span>
-            </h4>
-            <ul className="space-y-1.5">
+            </h3>
+            <ul className="space-y-1">
               {group.rows.map((account) => (
                 <li
                   key={account.id}
                   id={`account-${account.id}`}
                   className={cn(
-                    "group space-y-3 rounded-lg border bg-background p-3 transition-[background-color,box-shadow] duration-500 hover:bg-secondary/50",
+                    "group rounded-xl p-2 transition-[background-color,box-shadow] duration-300",
+                    account.source === "manual" && account.category === "investment" && isOpen(account) ? "bg-secondary/50 shadow-[inset_0_0_0_1px_hsl(var(--border))]" : "hover:bg-secondary/50",
                     highlightId === account.id && "shadow-[0_0_0_2px_hsl(var(--primary))]",
                   )}
                 >
@@ -284,7 +259,7 @@ export function AccountsCard({
 
                           {expandable ? (
                             <ChevronDown
-                              className={cn("size-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")}
+                              className={cn("size-4 shrink-0 text-muted-foreground transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]", open && "rotate-180")}
                               aria-hidden
                             />
                           ) : null}
@@ -307,13 +282,23 @@ export function AccountsCard({
                   })()}
 
                   {account.source === "manual" && account.category === "investment" ? (
-                    <div id={`account-body-${account.id}`} hidden={!isOpen(account)}>
-                      <PositionsEditor
-                        accountId={account.id}
-                        positions={account.positions}
-                        hidden={hidden}
-                        onChange={onChange}
-                      />
+                    // Opens by animating the row track from 0fr to 1fr, so the drawer grows to its real height.
+                    <div
+                      id={`account-body-${account.id}`}
+                      inert={!isOpen(account)}
+                      className="grid transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
+                      style={{ gridTemplateRows: isOpen(account) ? "1fr" : "0fr", opacity: isOpen(account) ? 1 : 0 }}
+                    >
+                      <div className="min-h-0 overflow-hidden">
+                        <div className="pt-3">
+                          <PositionsEditor
+                            accountId={account.id}
+                            positions={account.positions}
+                            hidden={hidden}
+                            onChange={onChange}
+                          />
+                        </div>
+                      </div>
                     </div>
                   ) : null}
                 </li>
@@ -324,7 +309,7 @@ export function AccountsCard({
 
         {items.length > 0 ? (
           <div className="space-y-2 border-t pt-4">
-            <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Connections</h4>
+            <h3 className="px-2 font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Connections</h3>
             {items.map((item) => (
               <div key={item.id} className="flex items-center gap-3 text-sm">
                 <InstitutionMark logo={item.institutionLogo} name={item.institutionName} size="sm" />
@@ -351,7 +336,7 @@ export function AccountsCard({
           </div>
         ) : null}
 
-        <div className="flex flex-wrap gap-2 border-t pt-4">
+        <div className="-mx-4 flex flex-wrap gap-2 border-t px-4 pt-4">
           <AddAccountButton
             onCreated={(id) => {
               setHighlightId(id)
@@ -361,8 +346,8 @@ export function AccountsCard({
           />
           <ConnectButton onConnected={onChange} variant="outline" />
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </SectionCard>
   )
 }
 

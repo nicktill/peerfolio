@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { formatPercent } from "@web/lib/format"
-import { SectionCard } from "@web/components/news/section-card"
+import { SectionCard } from "@web/components/ui/section-card"
 import { cn } from "@web/lib/utils"
 import type { Period } from "@web/lib/news-sample"
 

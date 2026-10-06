@@ -9,7 +9,7 @@ import { MarketRecap } from "@web/components/news/market-recap"
 import { FearGreed } from "@web/components/news/fear-greed"
 import { EarningsWeek } from "@web/components/news/earnings-week"
 import { SectorBars } from "@web/components/news/sector-bars"
-import { SectionLabel } from "@web/components/news/section-card"
+import { SectionLabel } from "@web/components/ui/section-card"
 import { EARNINGS_WEEK, FEAR_GREED, HOLDING_MOVES, INDEXES, RECAPS, SECTORS, type Period } from "@web/lib/news-sample"
 
 /**
@@ -21,7 +21,7 @@ export function NewsBoard() {
   const [period, setPeriod] = useState<Period>("day")
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 pb-16 pt-8">
+    <div className="flex flex-col gap-5 pb-16 pt-2">
       <Reveal index={0} className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex flex-col gap-1.5">
           <SectionLabel>Tuesday · October 6</SectionLabel>

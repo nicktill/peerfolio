@@ -33,7 +33,7 @@ export function AppNav() {
   return (
     <>
       <header className="sticky top-0 z-40 border-b bg-background/85 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4">
+        <div className="mx-auto flex h-14 max-w-[1360px] items-center gap-3 px-4 sm:px-6">
           <Link href="/dashboard" className="press flex shrink-0 items-center gap-2">
             <span className="grid size-7 place-items-center rounded-lg bg-white shadow-sm ring-1 ring-border">
               <Image src="/logo.png" alt="" width={20} height={20} />

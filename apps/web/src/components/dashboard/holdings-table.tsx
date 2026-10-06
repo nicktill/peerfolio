@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { ChevronDown, PieChart } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card"
+import { Card, CardContent } from "@web/components/ui/card"
+import { SectionLabel } from "@web/components/ui/section-card"
 import { EmptyState } from "@web/components/ui/empty-state"
 import { Segmented } from "@web/components/ui/segmented"
 import { TickerLogo } from "@web/components/ui/ticker-logo"
@@ -112,10 +113,10 @@ export function HoldingsTable({
   if (holdings.length === 0) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle>Holdings</CardTitle>
-        </CardHeader>
-        <CardContent>
+        <div className="flex min-h-[52px] items-center border-b py-2.5 pl-5 pr-3">
+          <SectionLabel>Holdings</SectionLabel>
+        </div>
+        <CardContent className="pt-5">
           <EmptyState icon={PieChart} title="No holdings yet" description="Add positions to an account and they’ll show up here." />
         </CardContent>
       </Card>
@@ -129,12 +130,11 @@ export function HoldingsTable({
   const maxWeight = Math.max(...holdings.map((h) => h.weight), 1)
 
   return (
-    <Card>
-      <CardHeader className="flex-row flex-wrap items-center gap-3">
-        <button type="button" onClick={toggle} aria-expanded={open} aria-controls="holdings-body" className="flex items-center gap-3 rounded-md text-left">
-          <CardTitle>Holdings</CardTitle>
-          <span className="numeric text-sm text-muted-foreground">{holdings.length}</span>
-          <ChevronDown className={cn("size-4 text-muted-foreground transition-transform", !open && "-rotate-90")} aria-hidden />
+    <Card className="overflow-hidden">
+      <div className={cn("flex min-h-[52px] flex-wrap items-center gap-3 py-2.5 pl-5 pr-3", open && "border-b")}>
+        <button type="button" onClick={toggle} aria-expanded={open} aria-controls="holdings-body" className="group flex items-center gap-1.5 rounded-md text-left">
+          <SectionLabel as="span" className="transition-colors group-hover:text-foreground">{`Holdings · ${holdings.length}`}</SectionLabel>
+          <ChevronDown className={cn("size-3.5 text-muted-foreground transition-transform duration-300", !open && "-rotate-90")} aria-hidden />
         </button>
         {open ? (
           <Segmented<Sort> options={sortOptions} value={sort} onChange={setSort} size="sm" label="Sort holdings" className="ml-auto" />
@@ -144,9 +144,9 @@ export function HoldingsTable({
             {sorted.length > 4 ? ` · +${sorted.length - 4} more` : ""}
           </p>
         )}
-      </CardHeader>
+      </div>
 
-      <CardContent id="holdings-body" hidden={!open}>
+      <CardContent id="holdings-body" hidden={!open} className="pt-4">
         {slices.length > 0 ? (
           <div className="mb-2">
             <div className="flex h-1.5 w-full gap-0.5 overflow-hidden rounded-full" role="img" aria-label={slices.map((s, i) => `${s.name} ${shownSlices[i]} percent`).join(", ")}>

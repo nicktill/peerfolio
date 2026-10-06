@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { AnimatedNumber } from "@web/components/ui/animated-number"
-import { SectionCard } from "@web/components/news/section-card"
+import { SectionCard } from "@web/components/ui/section-card"
 import { cn } from "@web/lib/utils"
 
 const BANDS = [

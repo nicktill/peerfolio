@@ -16,7 +16,7 @@ export default function NewsPreviewPage() {
   return (
     <div className="app-bg min-h-screen">
       <AppNav />
-      <main className="mx-auto max-w-6xl px-4 pb-24 pt-6 sm:pb-12">
+      <main className="mx-auto max-w-[1360px] px-4 pb-24 pt-6 sm:px-6 sm:pb-12">
         <NewsBoard />
       </main>
     </div>

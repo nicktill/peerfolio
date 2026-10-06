@@ -2,7 +2,7 @@ import Link from "next/link"
 import { Sparkles } from "lucide-react"
 import { Delta } from "@web/components/ui/delta"
 import { TickerLogo } from "@web/components/ui/ticker-logo"
-import { SectionCard } from "@web/components/news/section-card"
+import { SectionCard } from "@web/components/ui/section-card"
 import type { Period, Recap } from "@web/lib/news-sample"
 
 /** Headline, a short read, three takeaways, then how the day touched your holdings. */
