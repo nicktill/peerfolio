@@ -47,7 +47,10 @@ export async function withPortfolioWrite<T>(userId: string, work: () => Promise<
       }, { isolationLevel: "serializable" })
     } catch (error) {
       const code = (error as { code?: string; cause?: { code?: string } }).code ?? (error as { cause?: { code?: string } }).cause?.code
-      if (attempt >= 2 || (code !== "40001" && code !== "40P01")) throw error
+      if (attempt >= 9 || (code !== "40001" && code !== "40P01")) throw error
+      // Waiting for the advisory lock can leave a serializable snapshot stale.
+      // Back off outside the rolled-back transaction so a burst can drain.
+      await new Promise(resolve => setTimeout(resolve, Math.min(25 * 2 ** attempt, 400) + Math.random() * 50))
     }
   }
 }
