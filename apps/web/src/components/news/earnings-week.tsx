@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { ChevronLeft, ChevronRight, Moon, Sun } from "lucide-react"
+import { CalendarDays, ChevronLeft, ChevronRight, Moon, Sun } from "lucide-react"
 import { Segmented } from "@web/components/ui/segmented"
 import { TickerLogo } from "@web/components/ui/ticker-logo"
 import { SectionCard } from "@web/components/ui/section-card"
@@ -33,7 +33,8 @@ export function EarningsWeek({ label, days, initialDay, index }: { label: string
   return (
     <SectionCard
       label="Upcoming earnings"
-      href="#"
+      icon={<CalendarDays />}
+      tone="blue"
       index={index}
       action={
         <Segmented<Scope>

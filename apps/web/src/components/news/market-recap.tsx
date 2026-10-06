@@ -3,7 +3,7 @@ import { ArrowUpRight, Sparkles } from "lucide-react"
 import { Badge } from "@web/components/ui/badge"
 import { Delta } from "@web/components/ui/delta"
 import { TickerLogo } from "@web/components/ui/ticker-logo"
-import { SectionCard } from "@web/components/ui/section-card"
+import { IconChip, SectionCard, type ChipTone } from "@web/components/ui/section-card"
 
 export type RecapSource = { id: string; source: string; title: string; url: string }
 
@@ -20,10 +20,27 @@ export type RecapView = {
 }
 
 /** Headline, a short read, three takeaways with their sources, then how the day touched your holdings. */
-export function MarketRecap({ recap, moves, swapKey, index }: { recap: RecapView; moves: { symbol: string; percent: number }[] | null; swapKey: string; index: number }) {
+const TAKEAWAY_TONES: ChipTone[] = ["blue", "orange", "violet"]
+
+export function MarketRecap({
+  recap,
+  moves,
+  swapKey,
+  index,
+  showHeadline = true,
+}: {
+  recap: RecapView
+  moves: { symbol: string; percent: number }[] | null
+  swapKey: string
+  index: number
+  /** Off when the page hero already shows the headline. */
+  showHeadline?: boolean
+}) {
   return (
     <SectionCard
       label={recap.title}
+      icon={<Sparkles />}
+      tone="primary"
       index={index}
       action={
         <span className="inline-flex items-center gap-1.5 pr-2 text-xs text-muted-foreground">
@@ -40,14 +57,18 @@ export function MarketRecap({ recap, moves, swapKey, index }: { recap: RecapView
     >
       {/* Keyed on the period: the story swaps with a soft crossfade instead of snapping. */}
       <div key={swapKey} className="swap-in flex flex-1 flex-col gap-3.5 p-5">
-        <h3 className="text-balance font-display text-[27px] font-semibold leading-[1.15] tracking-tight">{recap.headline}</h3>
-        <p className="max-w-[64ch] text-[15px] leading-relaxed text-muted-foreground">{recap.body}</p>
+        {showHeadline ? <h3 className="text-balance font-display text-[27px] font-semibold leading-[1.15] tracking-tight">{recap.headline}</h3> : null}
+        <p className={showHeadline ? "max-w-[64ch] text-[15px] leading-relaxed text-muted-foreground" : "max-w-[66ch] text-base leading-relaxed text-foreground/85"}>{recap.body}</p>
         {recap.takeaways.length > 0 ? (
           <ol className="mt-auto grid gap-2.5 pt-1 sm:grid-cols-3">
             {recap.takeaways.map((t, i) => (
               <li key={`${t.title}-${i}`} className="swap-in flex flex-col gap-1 rounded-xl bg-muted/70 px-3.5 py-3" style={{ animationDelay: `${80 + i * 60}ms` }}>
-                <span className="font-mono text-[10px] font-medium tracking-[0.14em] text-muted-foreground">0{i + 1}</span>
-                <span className="text-sm font-semibold">{t.title}</span>
+                <span className="flex items-center gap-2">
+                  <IconChip tone={TAKEAWAY_TONES[i % 3]} className="font-display text-[11px] font-bold">
+                    {i + 1}
+                  </IconChip>
+                  <span className="text-sm font-semibold">{t.title}</span>
+                </span>
                 <span className="text-[13px] leading-snug text-muted-foreground">{t.body}</span>
                 {t.sources?.length ? (
                   <span className="mt-auto flex flex-wrap gap-x-2 pt-1 text-[11px]">

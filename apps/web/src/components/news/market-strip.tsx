@@ -5,6 +5,7 @@ import { Card } from "@web/components/ui/card"
 import { Delta } from "@web/components/ui/delta"
 import { AnimatedNumber } from "@web/components/ui/animated-number"
 import { revealStyle } from "@web/components/motion/reveal"
+import { cn } from "@web/lib/utils"
 import type { IndexQuote, Period } from "@web/lib/news-sample"
 
 const W = 240
@@ -31,7 +32,7 @@ function IndexCard({ quote, period, index }: { quote: IndexQuote; period: Period
   const color = move.percent >= 0 ? "var(--gain)" : "var(--loss)"
 
   return (
-    <Card className="stat-card reveal group flex flex-col gap-1 p-3.5 pb-2" style={revealStyle(index)}>
+    <Card className={cn("stat-card reveal group flex flex-col gap-1 p-3.5 pb-2", move.percent >= 0 ? "stat-card-up" : "stat-card-down")} style={revealStyle(index)}>
       <div className="flex items-center justify-between gap-2">
         <span className="min-w-0 truncate text-[13px] font-medium text-muted-foreground">{quote.name}</span>
         <Delta value={move.percent} size="sm" />

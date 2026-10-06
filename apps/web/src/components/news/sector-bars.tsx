@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { formatPercent } from "@web/lib/format"
+import { LayoutGrid } from "lucide-react"
 import { SectionCard } from "@web/components/ui/section-card"
 import { cn } from "@web/lib/utils"
 import type { Period } from "@web/lib/news-sample"
@@ -24,7 +25,7 @@ export function SectorBars({ sectors, period, index }: { sectors: [string, numbe
   const ROW = 34
 
   return (
-    <SectionCard label="Sectors at a glance" index={index} action={<span className="pr-2 text-xs text-muted-foreground">{period === "day" ? "Today" : "This week"}</span>}>
+    <SectionCard label="Sectors at a glance" icon={<LayoutGrid />} tone="orange" index={index} action={<span className="pr-2 text-xs text-muted-foreground">{period === "day" ? "Today" : "This week"}</span>}>
       <ol className="relative mx-5 my-2.5 flex-1" style={{ minHeight: rows.length * ROW }}>
         {rows.map((r) => {
           const width = grown ? (Math.abs(r.value) / max) * 50 : 0

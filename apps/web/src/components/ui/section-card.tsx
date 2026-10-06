@@ -13,6 +13,27 @@ export function SectionLabel({ children, className, id, as: Tag = "h2" }: { chil
   )
 }
 
+/** Tinted backgrounds for the icon chip, from the categorical palette so cards are told apart at a glance. */
+const TONES = {
+  primary: "bg-primary/15 text-primary",
+  blue: "bg-[color-mix(in_srgb,var(--series-1)_16%,transparent)] text-[--series-1]",
+  orange: "bg-[color-mix(in_srgb,var(--series-2)_16%,transparent)] text-[--series-2]",
+  amber: "bg-[color-mix(in_srgb,var(--series-4)_18%,transparent)] text-gold-ink",
+  pink: "bg-[color-mix(in_srgb,var(--series-5)_16%,transparent)] text-[--series-5]",
+  violet: "bg-[color-mix(in_srgb,var(--series-7)_16%,transparent)] text-[--series-7]",
+} as const
+
+export type ChipTone = keyof typeof TONES
+
+/** A small rounded square holding an icon, tinted to tell sections apart (the Fantasy page's vocabulary). */
+export function IconChip({ tone = "primary", children, className }: { tone?: ChipTone; children: React.ReactNode; className?: string }) {
+  return (
+    <span className={cn("grid size-6 shrink-0 place-items-center rounded-lg [&>svg]:size-3.5", TONES[tone], className)} aria-hidden>
+      {children}
+    </span>
+  )
+}
+
 /**
  * One card anatomy for the whole page: a labelled header row on a hairline,
  * an optional action on the right, then the body. Keeping every card the same
@@ -23,11 +44,16 @@ export function SectionCard({
   labelId,
   href,
   action,
+  icon,
+  tone,
   index = 0,
   className,
   children,
 }: {
   label: React.ReactNode
+  /** A lucide icon shown in a tinted chip before the label. */
+  icon?: React.ReactNode
+  tone?: ChipTone
   /** Names the card for screen readers when `label` isn't plain text. */
   labelId?: string
   href?: string
@@ -40,16 +66,19 @@ export function SectionCard({
   return (
     <Card className={cn("reveal flex flex-col overflow-hidden", className)} style={revealStyle(index)} aria-labelledby={id}>
       <div className="flex min-h-[52px] flex-wrap items-center justify-between gap-3 border-b py-2.5 pl-5 pr-3">
-        {href ? (
-          <Link href={href} className="group inline-flex items-center gap-1.5">
-            <SectionLabel id={id} className="transition-colors group-hover:text-foreground">
-              {label}
-            </SectionLabel>
-            <ChevronRight className="h-3 w-3 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden />
-          </Link>
-        ) : (
-          <SectionLabel id={id}>{label}</SectionLabel>
-        )}
+        <span className="flex items-center gap-2.5">
+          {icon ? <IconChip tone={tone}>{icon}</IconChip> : null}
+          {href ? (
+            <Link href={href} className="group inline-flex items-center gap-1.5">
+              <SectionLabel id={id} className="transition-colors group-hover:text-foreground">
+                {label}
+              </SectionLabel>
+              <ChevronRight className="h-3 w-3 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden />
+            </Link>
+          ) : (
+            <SectionLabel id={id}>{label}</SectionLabel>
+          )}
+        </span>
         {action}
       </div>
       {children}

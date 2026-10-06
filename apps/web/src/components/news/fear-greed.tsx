@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { AnimatedNumber } from "@web/components/ui/animated-number"
+import { Gauge } from "lucide-react"
 import { SectionCard } from "@web/components/ui/section-card"
 import { cn } from "@web/lib/utils"
 
@@ -49,9 +50,15 @@ export function FearGreed({ score, history, index }: { score: number; history: {
   const band = BANDS[active]!
 
   return (
-    <SectionCard label="Fear & Greed" index={index} action={<span className="pr-2 text-xs text-muted-foreground">Updated daily</span>}>
-      <div className="flex flex-col items-center px-5 pb-1.5 pt-5">
-        <svg viewBox="0 0 240 132" className="block h-auto w-full max-w-[280px]" role="img" aria-label={`Fear and Greed index ${score} out of 100, ${band.label}`}>
+    <SectionCard label="Fear & Greed" icon={<Gauge />} tone="amber" index={index} action={<span className="pr-2 text-xs text-muted-foreground">Updated daily</span>}>
+      <div className="relative flex flex-col items-center px-5 pb-1.5 pt-5">
+        {/* A soft wash in the reading's colour behind the dial. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 transition-[background] duration-700"
+          style={{ background: `radial-gradient(16rem 9rem at 50% 75%, color-mix(in srgb, ${band.stroke} 22%, transparent), transparent 70%)` }}
+        />
+        <svg viewBox="0 0 240 132" className="relative block h-auto w-full max-w-[280px]" role="img" aria-label={`Fear and Greed index ${score} out of 100, ${band.label}`}>
           {BANDS.map((b, i) => (
             <path
               key={b.label}
@@ -76,11 +83,11 @@ export function FearGreed({ score, history, index }: { score: number; history: {
           <circle cx={CX} cy={CY} r={7} fill="hsl(var(--foreground))" />
           <circle cx={CX} cy={CY} r={3} fill="hsl(var(--card))" />
         </svg>
-        <div className="mt-1.5 flex items-baseline gap-2.5">
+        <div className="relative mt-1.5 flex items-baseline gap-2.5">
           <AnimatedNumber value={shown} format={(v) => Math.round(v).toString()} durationMs={1400} className="numeric font-display text-[44px] font-semibold leading-none tracking-tighter" />
           <span className={cn("text-[15px] font-semibold", TONE_TEXT[band.tone])}>{band.label}</span>
         </div>
-        <div className="mt-2 flex w-full max-w-[280px] justify-between text-[11px] text-muted-foreground">
+        <div className="relative mt-2 flex w-full max-w-[280px] justify-between text-[11px] text-muted-foreground">
           <span>Extreme fear</span>
           <span>Neutral</span>
           <span>Extreme greed</span>
