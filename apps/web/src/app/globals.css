@@ -380,6 +380,16 @@
   transform: scale(0.97);
 }
 
+/* Content that swaps in place (a new period, a different day): a short soft
+   crossfade with a hint of focus-pull, so the change reads as a change. */
+.swap-in {
+  animation: swap-in 0.38s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+@keyframes swap-in {
+  from { opacity: 0; translate: 0 4px; filter: blur(3px); }
+  to { opacity: 1; translate: 0 0; filter: blur(0); }
+}
+
 /* Skeletons that fade away into real content instead of vanishing. */
 .skeleton-fade {
   animation: skeleton-out 0.25s ease-out both;

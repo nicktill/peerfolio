@@ -4,7 +4,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { signOut, useSession } from "next-auth/react"
-import { Gamepad2, LayoutDashboard, LogOut, Settings, Trophy, Users } from "lucide-react"
+import { Gamepad2, LayoutDashboard, LogOut, Newspaper, Settings, Trophy, Users } from "lucide-react"
 import { cn } from "@web/lib/utils"
 import { cacheClear } from "@web/lib/api-cache"
 import { slideStyle, useSlidingIndicator } from "@web/lib/use-sliding-indicator"
@@ -19,6 +19,7 @@ const LINKS = [
   { href: "/leagues", label: "Leagues", icon: Users },
   { href: "/fantasy", label: "Fantasy", icon: Gamepad2 },
   { href: "/board", label: "Board", icon: Trophy },
+  { href: "/news", label: "News", icon: Newspaper },
 ]
 
 export function AppNav() {
