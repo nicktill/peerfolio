@@ -28,11 +28,12 @@ if (!['localhost', '127.0.0.1'].includes(target.hostname) || target.pathname !==
 const sql = postgres(url, { onnotice: () => {} });
 await sql.unsafe(`CREATE TABLE IF NOT EXISTS users(id uuid PRIMARY KEY DEFAULT gen_random_uuid());
 CREATE TABLE IF NOT EXISTS accounts(id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id uuid NOT NULL REFERENCES users(id), source text DEFAULT 'manual', name text, current_balance numeric(20,4), updated_at timestamptz DEFAULT now());
-CREATE TABLE IF NOT EXISTS securities(id text PRIMARY KEY, ticker_symbol text, name text, type text, close_price numeric(20,6), close_price_as_of date, close_price_final boolean NOT NULL DEFAULT true, previous_close numeric(20,6), iso_currency_code text DEFAULT 'USD', market_ticker text, metadata_checked_at timestamptz, updated_at timestamptz DEFAULT now());
+CREATE TABLE IF NOT EXISTS securities(id text PRIMARY KEY, ticker_symbol text, name text, type text, close_price numeric(20,6), close_price_as_of date, close_price_final boolean NOT NULL DEFAULT true, previous_close numeric(20,6), quote_printed_at timestamptz, price_accepted_at timestamptz DEFAULT now(), iso_currency_code text DEFAULT 'USD', market_ticker text, metadata_checked_at timestamptz, updated_at timestamptz DEFAULT now());
 CREATE TABLE IF NOT EXISTS holdings(id uuid PRIMARY KEY DEFAULT gen_random_uuid(), account_id uuid REFERENCES accounts(id),user_id uuid REFERENCES users(id),security_id text REFERENCES securities(id),quantity numeric(24,8),cost_basis numeric(20,4),institution_value numeric(20,4),iso_currency_code text DEFAULT 'USD',updated_at timestamptz DEFAULT now(), UNIQUE(account_id,security_id));
 CREATE TABLE IF NOT EXISTS fantasy_positions(security_id text);
+CREATE TABLE IF NOT EXISTS background_leases(name text PRIMARY KEY, attempted_at timestamptz NOT NULL, expires_at timestamptz NOT NULL);
 CREATE TABLE IF NOT EXISTS provider_budgets(provider text PRIMARY KEY, tokens double precision NOT NULL, refilled_at timestamptz NOT NULL DEFAULT now(), blocked_until timestamptz, last_granted boolean NOT NULL DEFAULT true);`);
-await sql.unsafe('TRUNCATE holdings, fantasy_positions, accounts, securities, users, provider_budgets CASCADE');
+await sql.unsafe('TRUNCATE background_leases, holdings, fantasy_positions, accounts, securities, users, provider_budgets CASCADE');
 await sql.end();
 await build({entryPoints:[root+'/apps/web/src/lib/positions.ts'],outfile:path.join(temp,'positions.cjs'),bundle:true,platform:'node',format:'cjs',nodePaths:[path.join(root,'node_modules')],tsconfig:root+'/apps/web/tsconfig.json',plugins:[{name:'test-isolation',setup(b){
 b.onResolve({filter:/^server-only$/},()=>({path:'server-only',namespace:'stub'}));

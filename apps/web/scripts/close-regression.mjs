@@ -26,9 +26,10 @@ if (!['localhost', '127.0.0.1'].includes(target.hostname) || target.pathname !==
 const db = postgres(url, { onnotice: () => {} });
 await db.unsafe(`CREATE TABLE IF NOT EXISTS users(id uuid PRIMARY KEY DEFAULT gen_random_uuid());
 CREATE TABLE IF NOT EXISTS accounts(id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id uuid NOT NULL REFERENCES users(id), source text DEFAULT 'manual', name text, current_balance numeric(20,4), updated_at timestamptz DEFAULT now());
-CREATE TABLE IF NOT EXISTS securities(id text PRIMARY KEY, ticker_symbol text, name text, type text, close_price numeric(20,6), close_price_as_of date, close_price_final boolean NOT NULL DEFAULT true, previous_close numeric(20,6), iso_currency_code text DEFAULT 'USD', market_ticker text, metadata_checked_at timestamptz, updated_at timestamptz DEFAULT now());
+CREATE TABLE IF NOT EXISTS securities(id text PRIMARY KEY, ticker_symbol text, name text, type text, close_price numeric(20,6), close_price_as_of date, close_price_final boolean NOT NULL DEFAULT true, previous_close numeric(20,6), quote_printed_at timestamptz, price_accepted_at timestamptz DEFAULT now(), iso_currency_code text DEFAULT 'USD', market_ticker text, metadata_checked_at timestamptz, updated_at timestamptz DEFAULT now());
 CREATE TABLE IF NOT EXISTS holdings(id uuid PRIMARY KEY DEFAULT gen_random_uuid(), account_id uuid REFERENCES accounts(id),user_id uuid REFERENCES users(id),security_id text REFERENCES securities(id),quantity numeric(24,8),cost_basis numeric(20,4),institution_value numeric(20,4),iso_currency_code text DEFAULT 'USD',updated_at timestamptz DEFAULT now(), UNIQUE(account_id,security_id));
 CREATE TABLE IF NOT EXISTS fantasy_positions(security_id text);
+CREATE TABLE IF NOT EXISTS background_leases(name text PRIMARY KEY, attempted_at timestamptz NOT NULL, expires_at timestamptz NOT NULL);
 CREATE TABLE IF NOT EXISTS provider_budgets(provider text PRIMARY KEY, tokens double precision NOT NULL, refilled_at timestamptz NOT NULL DEFAULT now(), blocked_until timestamptz, last_granted boolean NOT NULL DEFAULT true);`);
 // One bundle for both services, so they share one module graph, as they do in the app.
 await build({stdin:{contents:"export * from './positions.ts'; export { ensureLivePrice } from './live-quotes.ts'; export { withProviderPatience } from './provider-fetch.ts'; export { createFinnhubProvider } from './finnhub.ts';",resolveDir:root+'/apps/web/src/lib',sourcefile:'entry.ts',loader:'ts'},outfile:path.join(temp,'services.cjs'),bundle:true,platform:'node',format:'cjs',nodePaths:[path.join(root,'node_modules')],tsconfig:root+'/apps/web/tsconfig.json',logLevel:'silent',plugins:[{name:'test-isolation',setup(b){
@@ -55,7 +56,7 @@ globalThis.fetch = async (input, init) => provider(String(input), init);
 
 /** Seeds a clean database, sets the provider budgets, and records every request that reaches a provider. */
 async function scenario(name, { rows, respond, budgets = {} }) {
-  await db.unsafe('TRUNCATE holdings, fantasy_positions, accounts, securities, users, provider_budgets CASCADE');
+  await db.unsafe('TRUNCATE background_leases, holdings, fantasy_positions, accounts, securities, users, provider_budgets CASCADE');
   for (const key of Object.keys(process.env)) if (/_PER_MINUTE|_BURST/.test(key)) delete process.env[key];
   // Generous unless a scenario is about the budget: the other scenarios test the catch-up itself.
   Object.assign(process.env, { FINNHUB_PER_MINUTE: '600', FINNHUB_BURST: '100', MASSIVE_PER_MINUTE: '600', MASSIVE_BURST: '100' }, budgets);

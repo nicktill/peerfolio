@@ -2,13 +2,13 @@ import { NextResponse } from "next/server"
 import { and, eq } from "drizzle-orm"
 import { db, holdings, securities } from "@web/db"
 import { investableTotal, writeDailySnapshot } from "@web/lib/plaid-sync"
-import { withUser } from "@web/lib/api"
+import { withPortfolioUser } from "@web/lib/api"
 import { removePosition, requireManualAccount } from "@web/lib/positions"
 import { recordAccountEvent } from "@web/lib/account-events"
 
 type Ctx = { params: Promise<{ id: string; holdingId: string }> }
 
-export const DELETE = withUser<Ctx>(async (userId, _request, { params }) => {
+export const DELETE = withPortfolioUser<Ctx>(async (userId, _request, { params }) => {
   const { id, holdingId } = await params
   const account = await requireManualAccount(userId, id)
 

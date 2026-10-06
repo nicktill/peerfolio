@@ -4,7 +4,7 @@ import { db, follows, portfolioSnapshots, users } from "@web/db"
 import { withPublic } from "@web/lib/api"
 import { getCurrentUserId } from "@web/lib/auth"
 import { scheduleLiveRefresh } from "@web/lib/live-quotes"
-import { refreshStalePrices } from "@web/lib/positions"
+import { scheduleCloseRefresh } from "@web/lib/positions"
 import { buildStandings, isRange, rangeStart, type Range } from "@web/lib/returns"
 import { loadSharedHoldings } from "@web/lib/social"
 
@@ -28,7 +28,7 @@ export const GET = withPublic<unknown>(async (request) => {
   const scope = url.searchParams.get("scope") === "following" ? "following" : "all"
 
   // Standings end on today's live value; bring prices up to date first.
-  await refreshStalePrices()
+  scheduleCloseRefresh()
   scheduleLiveRefresh()
 
   const viewerId = await getCurrentUserId()

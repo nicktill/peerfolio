@@ -1,6 +1,7 @@
-import { and, desc, eq, inArray, min, sql } from "drizzle-orm"
+import { getTableColumns, and, desc, eq, inArray, min, sql } from "drizzle-orm"
 import type { AccountBase, Holding as PlaidHolding, Security as PlaidSecurity } from "plaid"
-import { db, holdings, accounts, plaidItems, portfolioSnapshots, securities } from "@web/db"
+import { db, holdings, accounts, plaidItems, portfolioSnapshots, securities, portfolioFlowEvents, portfolioFlowBaselines, withPortfolioWrite } from "@web/db"
+import { externalAmount, investmentFlowPages } from "@web/lib/portfolio-flows"
 import { decrypt } from "@web/lib/crypto"
 import { getPlaidClient, isReauthRequired, plaidErrorCode } from "@web/lib/plaid"
 import { keepsEntryValue } from "@web/lib/ranges"
@@ -32,44 +33,48 @@ export type SyncResult = {
  * This is the only place an access token is decrypted. Callers pass an item id
  * they have already confirmed belongs to the requesting user.
  */
-export async function syncItem(itemRowId: string): Promise<SyncResult> {
-  const item = await db.query.plaidItems.findFirst({ where: eq(plaidItems.id, itemRowId) })
+type Item = typeof plaidItems.$inferSelect
+export type PreparedItem = { requestedAt: Date; item: Item; list?: AccountBase[]; positions?: { holdings: PlaidHolding[]; securities: PlaidSecurity[] }; error?: unknown }
+
+/** Network work stays outside a database transaction/connection lease. */
+export async function prepareItem(itemRowId: string, deadline = Infinity): Promise<PreparedItem> {
+  const [item] = await db.select({ ...getTableColumns(plaidItems), requestedAt: sql<string>`clock_timestamp()::text` }).from(plaidItems).where(eq(plaidItems.id, itemRowId))
   if (!item) throw new Error("Item not found")
-
-  const client = getPlaidClient()
-  const accessToken = decrypt(item.accessToken)
-
   try {
-    const { data } = await client.accountsGet({ access_token: accessToken })
-    const accountCount = await upsertPlaidAccounts(item.id, item.userId, data.accounts)
+    const client = getPlaidClient()
+    const access_token = decrypt(item.accessToken)
+    const { data } = await client.accountsGet({ access_token })
+    const investments = data.accounts.some(a => categorizeAccount(a.type, a.subtype) === "investment")
+    if (Date.now() > deadline - 10_000) throw new Error("Sync deadline reached")
+    const positions = investments ? (await client.investmentsHoldingsGet({ access_token })).data : undefined
+    return { requestedAt: new Date(item.requestedAt), item, list: data.accounts, positions }
+  } catch (error) { return { requestedAt: new Date(item.requestedAt), item, error } }
+}
 
-    // Holdings only exist for investment accounts; skip the call otherwise.
-    const hasInvestments = data.accounts.some(
-      (a) => categorizeAccount(a.type, a.subtype) === "investment",
-    )
-
-    let holdingCount = 0
-    if (hasInvestments) {
-      holdingCount = await syncHoldings(item.userId, accessToken)
-    }
-
-    await db
-      .update(plaidItems)
-      .set({ status: "active", errorCode: null, lastSyncedAt: new Date() })
-      .where(eq(plaidItems.id, item.id))
-
-    return { itemId: item.id, accounts: accountCount, holdings: holdingCount, status: "active" }
-  } catch (error) {
+export async function applyPreparedItem(prepared: PreparedItem): Promise<SyncResult> {
+  const { item, list, positions, error } = prepared
+  // The caller holds the user lock. An Item removed while HTTP was in flight
+  // must not be resurrected, even by a webhook or a delayed refresh.
+  const current = await db.query.plaidItems.findFirst({ where: eq(plaidItems.id, item.id) })
+  if (!current) throw new Error("Connection was removed during refresh")
+  if (current.lastSyncedAt && current.lastSyncedAt > prepared.requestedAt) {
+    return { itemId: item.id, accounts: 0, holdings: 0, status: current.status === "active" ? "active" : "error", errorCode: current.errorCode ?? undefined }
+  }
+  if (!list) {
     const code = plaidErrorCode(error)
     const status = isReauthRequired(code) ? "needs_reauth" : "error"
-
-    await db
-      .update(plaidItems)
-      .set({ status, errorCode: code, lastSyncedAt: new Date() })
-      .where(eq(plaidItems.id, item.id))
-
+    await db.update(plaidItems).set({ status, errorCode: code, lastSyncedAt: sql`clock_timestamp()` }).where(eq(plaidItems.id, item.id))
     return { itemId: item.id, accounts: 0, holdings: 0, status, errorCode: code ?? undefined }
   }
+  const accountCount = await upsertPlaidAccounts(item.id, item.userId, list)
+  const holdingCount = positions ? await syncHoldings(item.userId, positions) : 0
+  await db.update(plaidItems).set({ status: "active", errorCode: null, lastSyncedAt: sql`clock_timestamp()` }).where(eq(plaidItems.id, item.id))
+  return { itemId: item.id, accounts: accountCount, holdings: holdingCount, status: "active" }
+}
+
+export async function syncItem(itemRowId: string): Promise<SyncResult> {
+  const prepared = await prepareItem(itemRowId)
+  return withPortfolioWrite(prepared.item.userId, () => applyPreparedItem(prepared))
 }
 
 async function upsertPlaidAccounts(itemRowId: string, userId: string, list: AccountBase[]): Promise<number> {
@@ -115,9 +120,7 @@ async function upsertPlaidAccounts(itemRowId: string, userId: string, list: Acco
   return list.length
 }
 
-async function syncHoldings(userId: string, accessToken: string): Promise<number> {
-  const client = getPlaidClient()
-  const { data } = await client.investmentsHoldingsGet({ access_token: accessToken })
+async function syncHoldings(userId: string, data: { holdings: PlaidHolding[]; securities: PlaidSecurity[] }): Promise<number> {
 
   await upsertSecurities(data.securities)
 
@@ -242,6 +245,10 @@ export async function investableTotal(userId: string): Promise<number> {
  * and Board rank, so linking a 401(k) would otherwise read as a 100% gain.
  */
 export async function writeDailySnapshot(userId: string, externalFlow = 0, when: string = today()) {
+  return withPortfolioWrite(userId, () => writeDailySnapshotLocked(userId, externalFlow, when))
+}
+
+async function writeDailySnapshotLocked(userId: string, externalFlow: number, when: string) {
   const rows = await db
     .select()
     .from(accounts)
@@ -309,61 +316,70 @@ export async function writeDailySnapshot(userId: string, externalFlow = 0, when:
  * positive debits cash (buying stock), negative credits it (a deposit). We flip
  * the sign so a deposit reads as a positive inflow.
  */
-export async function fetchNetFlows(userId: string, since: string): Promise<number> {
-  const items = await db
-    .select()
-    .from(plaidItems)
-    .where(and(eq(plaidItems.userId, userId), eq(plaidItems.status, "active")))
-  if (items.length === 0) return 0
-
-  const client = getPlaidClient()
-  const EXTERNAL = new Set(["deposit", "withdrawal", "contribution", "distribution", "rollover", "transfer"])
-  let net = 0
-
-  for (const item of items) {
-    try {
-      const { data } = await client.investmentsTransactionsGet({
-        access_token: decrypt(item.accessToken),
-        start_date: since,
-        end_date: today(),
+type PreparedFlows = { itemId: string; events: { id: string; date: string; amount: number }[]; failed: boolean }
+async function prepareFlows(item: Item, baseline: string, investments: boolean, deadline = Infinity): Promise<PreparedFlows> {
+  if (!investments) return { itemId: item.id, events: [], failed: false }
+  try {
+    const checked = item.flowCheckedThrough ?? baseline
+    const lookback = new Date(`${checked}T00:00:00Z`).getTime() - 7 * 86_400_000
+    const since = [baseline, new Date(lookback).toISOString().slice(0, 10)].sort().at(-1)!
+    const list = await investmentFlowPages(async offset => {
+      if (Date.now() > deadline - 10_000) throw new Error("Sync deadline reached")
+      const { data } = await getPlaidClient().investmentsTransactionsGet({
+        access_token: decrypt(item.accessToken), start_date: since, end_date: today(), options: { count: 500, offset },
       })
-
-      for (const tx of data.investment_transactions) {
-        const subtype = String(tx.subtype ?? "").toLowerCase()
-        const type = String(tx.type ?? "").toLowerCase()
-        if (EXTERNAL.has(subtype) || type === "transfer") {
-          net += -tx.amount
-        }
-      }
-    } catch {
-      // A single unreachable institution shouldn't void the whole day's flows.
-      continue
-    }
-  }
-
-  return net
+      return data
+    })
+    return { itemId: item.id, failed: false, events: list.flatMap(tx => {
+      const amount = externalAmount(tx)
+      return amount === null ? [] : [{ id: `${item.id}:${tx.investment_transaction_id}`, date: tx.date, amount }]
+    }) }
+  } catch { return { itemId: item.id, events: [], failed: true } }
 }
 
-/** Full refresh for one user: every active item, then today's snapshot. */
-export async function syncUser(userId: string) {
-  const items = await db.select().from(plaidItems).where(eq(plaidItems.userId, userId))
-
-  const results: SyncResult[] = []
-  for (const item of items) {
-    if (item.status === "disconnected") continue
-    results.push(await syncItem(item.id))
+/** Provider calls happen before the atomic write. Retried DB transactions reuse
+ * the payload, so an overlapping run never repeats provider calls or flows. */
+export async function syncUser(userId: string, requestedItemId?: string, deadline = Infinity) {
+  const items = await db.select().from(plaidItems).where(and(eq(plaidItems.userId, userId), requestedItemId ? eq(plaidItems.id, requestedItemId) : undefined))
+  const first = await db.query.portfolioSnapshots.findFirst({ where: eq(portfolioSnapshots.userId, userId), orderBy: desc(portfolioSnapshots.date) })
+  const existingBaseline = await db.query.portfolioFlowBaselines.findFirst({ where: eq(portfolioFlowBaselines.userId, userId) })
+  const baselineDate = existingBaseline?.date ?? first?.date ?? today()
+  const eligible = items.filter(item => (item.status !== "disconnected" || requestedItemId)
+    && !(Number.isFinite(deadline) && item.status === "active" && item.flowCheckedThrough === today() && item.lastSyncedAt?.toISOString().slice(0,10) === today()))
+  const prepared: { item: PreparedItem; flows: PreparedFlows }[] = []
+  for (const item of eligible) {
+    if (Date.now() > deadline - 30_000) break
+    const value = await prepareItem(item.id, deadline)
+    const investments = !!value.list?.some(a => categorizeAccount(a.type, a.subtype) === "investment")
+    prepared.push({ item: value, flows: value.list ? await prepareFlows(item, baselineDate, investments, deadline) : { itemId: item.id, events: [], failed: true } })
   }
-
-  const lastSnapshot = await db.query.portfolioSnapshots.findFirst({
-    where: eq(portfolioSnapshots.userId, userId),
-    orderBy: desc(portfolioSnapshots.date),
+  return withPortfolioWrite(userId, async () => {
+    await db.insert(portfolioFlowBaselines).values({ userId, date: baselineDate }).onConflictDoNothing()
+    const baseline = await db.query.portfolioFlowBaselines.findFirst({ where: eq(portfolioFlowBaselines.userId, userId) })
+    const results: SyncResult[] = []
+    const flowFailures: string[] = []
+    let netFlows = 0
+    for (const payload of prepared) {
+      const current = await db.query.plaidItems.findFirst({ where: eq(plaidItems.id, payload.item.item.id) })
+      if (!current) continue
+      const before = current.flowsNeedBaseline ? await itemInvestable(current.id) : 0
+      const result = await applyPreparedItem(payload.item)
+      results.push(result)
+      if (current.flowsNeedBaseline && result.status === "active") netFlows += await itemInvestable(current.id) - before
+      if (current.flowsNeedBaseline && result.status === "active") await db.update(plaidItems).set({ flowsNeedBaseline: false }).where(eq(plaidItems.id, current.id))
+      if (payload.flows.failed) { flowFailures.push(current.id); continue }
+      for (const event of payload.flows.events) {
+        if (event.date <= baseline!.date || (current.flowBaselineDate && event.date <= current.flowBaselineDate)) continue
+        const inserted = await db.insert(portfolioFlowEvents).values({
+          id: event.id, userId, amount: event.amount.toFixed(4), transactionDate: event.date, appliedDate: today(),
+        }).onConflictDoNothing().returning({ amount: portfolioFlowEvents.amount })
+        netFlows += Number(inserted[0]?.amount ?? 0)
+      }
+      await db.update(plaidItems).set({ flowCheckedThrough: today(), flowsNeedBaseline: false }).where(eq(plaidItems.id, current.id))
+    }
+    const totals = await writeDailySnapshot(userId, netFlows)
+    return { results, totals, flowFailures, deferred: prepared.length < eligible.length, healthy: prepared.length === eligible.length && flowFailures.length === 0 && results.every(r => r.status === "active") }
   })
-
-  // Only count flows since the previous snapshot so nothing is double-counted.
-  const netFlows = lastSnapshot ? await fetchNetFlows(userId, lastSnapshot.date) : 0
-  const totals = await writeDailySnapshot(userId, netFlows)
-
-  return { results, totals }
 }
 
 /**
@@ -384,4 +400,10 @@ export async function listSyncableUserIds(): Promise<string[]> {
     )
 
   return rows.map((r) => r.userId)
+}
+
+async function itemInvestable(itemId: string) {
+  const rows = await db.select({ balance: accounts.currentBalance }).from(accounts)
+    .where(and(eq(accounts.itemId, itemId), eq(accounts.category, "investment"), eq(accounts.isActive, true)))
+  return rows.reduce((sum, a) => sum + Math.abs(Number(a.balance ?? 0)), 0)
 }

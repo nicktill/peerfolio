@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server"
 import { CountryCode } from "plaid"
 import { eq } from "drizzle-orm"
-import { db, plaidItems } from "@web/db"
+import { db, plaidItems, withPortfolioWrite } from "@web/db"
 import { encrypt } from "@web/lib/crypto"
 import { getPlaidClient, plaidErrorMessage } from "@web/lib/plaid"
-import { investableTotal, syncItem, writeDailySnapshot } from "@web/lib/plaid-sync"
+import { investableTotal, prepareItem, applyPreparedItem, writeDailySnapshot } from "@web/lib/plaid-sync"
 import { ApiError, readJson, withUser } from "@web/lib/api"
 
 type Body = {
@@ -65,6 +65,7 @@ export const POST = withUser<unknown>(async (userId, request) => {
         .update(plaidItems)
         .set({
           accessToken: encrypt(accessToken),
+          flowsNeedBaseline: existing.flowsNeedBaseline,
           institutionName,
           institutionId,
           institutionLogo,
@@ -79,15 +80,22 @@ export const POST = withUser<unknown>(async (userId, request) => {
           userId,
           plaidItemId,
           accessToken: encrypt(accessToken),
+          flowsNeedBaseline: true,
+          flowBaselineDate: new Date().toISOString().slice(0, 10),
           institutionName,
           institutionId,
           institutionLogo,
         })
         .returning()
 
-  const before = await investableTotal(userId)
-  const result = await syncItem(row!.id)
-  await writeDailySnapshot(userId, (await investableTotal(userId)) - before)
+  const prepared = await prepareItem(row!.id)
+  const result = await withPortfolioWrite(userId, async () => {
+    const before = await investableTotal(userId)
+    const result = await applyPreparedItem(prepared)
+    if (result.status === "active") await db.update(plaidItems).set({ flowsNeedBaseline: false }).where(eq(plaidItems.id, row!.id))
+    await writeDailySnapshot(userId, (await investableTotal(userId)) - before)
+    return result
+  })
 
   return NextResponse.json({
     item: {

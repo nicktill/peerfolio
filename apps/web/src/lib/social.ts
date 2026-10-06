@@ -154,3 +154,19 @@ export const REACTION_EMOJI = ["🔥", "🚀", "👏", "🧊", "🤝", "😤"] a
 
 export const isReactionEmoji = (v: string): v is (typeof REACTION_EMOJI)[number] =>
   (REACTION_EMOJI as readonly string[]).includes(v)
+
+/** Portfolio pills reuse one batch of return inputs across overlapping leagues. */
+export async function portfolioLeaguePills(userId: string) {
+  const leagues = await listLeaguesForUser(userId)
+  if (!leagues.length) return []
+  const memberships = await db.select({ leagueId: leagueMembers.leagueId, userId: users.id, name: users.name, handle: users.handle, image: users.image })
+    .from(leagueMembers).innerJoin(users, eq(leagueMembers.userId, users.id)).where(inArray(leagueMembers.leagueId, leagues.map(l => l.id)))
+  const unique = [...new Map(memberships.map(m => [m.userId, m])).values()]
+  const scored = await buildStandings(unique, "1M")
+  return leagues.map(league => {
+    const ids = new Set(memberships.filter(m => m.leagueId === league.id).map(m => m.userId))
+    const standings = scored.filter(s => ids.has(s.userId))
+    const index = standings.findIndex(s => s.userId === userId)
+    return { id: league.id, name: league.name, emoji: league.emoji, rank: index >= 0 && standings[index]!.hasHistory ? index + 1 : null, members: league.memberCount }
+  })
+}

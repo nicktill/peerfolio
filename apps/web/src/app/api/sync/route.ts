@@ -4,6 +4,6 @@ import { withUser } from "@web/lib/api"
 
 /** Manual "refresh now" from the dashboard. */
 export const POST = withUser<unknown>(async (userId) => {
-  const { results, totals } = await syncUser(userId)
-  return NextResponse.json({ results, totals })
+  const refreshed = await syncUser(userId)
+  return NextResponse.json(refreshed)
 })

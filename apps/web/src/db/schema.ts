@@ -109,6 +109,9 @@ export const plaidItems = pgTable(
     errorCode: text("error_code"),
     transactionsCursor: text("transactions_cursor"),
     consentExpiresAt: timestamp("consent_expires_at", { withTimezone: true }),
+    flowBaselineDate: date("flow_baseline_date"),
+    flowsNeedBaseline: boolean("flows_need_baseline").notNull().default(false),
+    flowCheckedThrough: date("flow_checked_through"),
     lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -167,6 +170,8 @@ export const securities = pgTable("securities", {
    * The close before `closePrice`, kept when a newer price arrives. It is what
    * "today's change" is measured against; null until a second price has been seen.
    */
+  quotePrintedAt: timestamp("quote_printed_at", { withTimezone: true }),
+  priceAcceptedAt: timestamp("price_accepted_at", { withTimezone: true }),
   previousClose: numeric("previous_close", { precision: 20, scale: 6 }),
   isoCurrencyCode: text("iso_currency_code").default("USD"),
   /**
@@ -666,3 +671,44 @@ export const newsAiSpend = pgTable(
 
 export type NewsItem = typeof newsItems.$inferSelect
 export type NewsBrief = typeof newsBriefs.$inferSelect
+
+/** External events are deduplicated independently of additive manual flows. */
+export const portfolioFlowEvents = pgTable("portfolio_flow_events", {
+  id: text("id").primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  amount: numeric("amount", { precision: 20, scale: 4 }).notNull(),
+  transactionDate: date("transaction_date").notNull(),
+  appliedDate: date("applied_date").notNull(),
+}, t => [index("portfolio_flow_events_user_idx").on(t.userId, t.appliedDate)])
+
+/** Legacy snapshots establish a cutover; old flows must not be applied again. */
+export const portfolioFlowBaselines = pgTable("portfolio_flow_baselines", {
+  userId: uuid("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  date: date("date").notNull(),
+})
+
+export const importAiSpend = pgTable("import_ai_spend", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull(),
+  reservedUsd: numeric("reserved_usd", { precision: 10, scale: 6 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [index("import_ai_spend_created_idx").on(t.createdAt), index("import_ai_spend_user_created_idx").on(t.userId, t.createdAt)])
+
+/** No user FK: removal must survive deletion of the user. Only encrypted
+ * tokens remain temporarily; a successful remote removal erases the row. */
+export const plaidRemovals = pgTable("plaid_removals", {
+  id: text("id").primaryKey(), accessToken: text("access_token").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+})
+
+export const snapshotSteps = pgTable("snapshot_steps", {
+  date: date("date").notNull(), step: text("step").notNull(),
+  status: text("status").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [uniqueIndex("snapshot_steps_date_step_idx").on(t.date, t.step)])
+
+export const backgroundLeases = pgTable("background_leases", {
+  name: text("name").primaryKey(),
+  attemptedAt: timestamp("attempted_at", { withTimezone: true }).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+})

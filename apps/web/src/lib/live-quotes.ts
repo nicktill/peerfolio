@@ -1,8 +1,8 @@
 import { after } from "next/server"
-import { eq } from "drizzle-orm"
+import { and, eq } from "drizzle-orm"
 import { db, securities } from "@web/db"
 import { isNewerClose } from "@web/lib/market-data"
-import { previousCloseOnUpdate } from "@web/lib/price-write"
+import { acceptsPrice, previousCloseOnUpdate } from "@web/lib/price-write"
 import { revalueSecurities } from "@web/lib/positions"
 import { acceptQuote, createQuoteProvider, isUsMarketOpen, quoteDate } from "@web/lib/quote-provider"
 import { claimBudget, claimLiveQuotesSql, recentClaimsSql, releaseClaimsSql } from "@web/lib/stale-prices"
@@ -77,11 +77,12 @@ export async function refreshLivePrices({
       continue
     }
     if (!isNewerClose(quoteDate(quote), row.close_price_as_of)) continue
-    await db
+    const accepted = await db
       .update(securities)
-      .set({ previousClose: previousCloseOnUpdate(quoteDate(quote)), closePrice: quote.price.toString(), closePriceAsOf: quoteDate(quote), closePriceFinal: false, updatedAt: new Date() })
-      .where(eq(securities.id, row.id))
-    updated.push(row.id)
+      .set({ quotePrintedAt: new Date(quote.asOf), priceAcceptedAt: new Date(), previousClose: previousCloseOnUpdate(quoteDate(quote)), closePrice: quote.price.toString(), closePriceAsOf: quoteDate(quote), closePriceFinal: false, updatedAt: new Date() })
+      .where(and(eq(securities.id, row.id), acceptsPrice(quoteDate(quote), false, new Date(quote.asOf))))
+      .returning({ id: securities.id })
+    if (accepted.length) updated.push(row.id)
   }
   await revalueSecurities(updated)
 
@@ -178,17 +179,24 @@ export async function ensureLivePrice(
       maxAgeSeconds > 0 &&
       existing.closePrice &&
       existing.closePriceAsOf?.slice(0, 10) === today &&
-      now.getTime() - existing.updatedAt.getTime() < maxAgeSeconds * 1000
-    if (fresh) return { price: Number(existing.closePrice), asOf: existing.closePriceAsOf!.slice(0, 10) }
+      !existing.closePriceFinal && existing.quotePrintedAt &&
+      now.getTime() - existing.quotePrintedAt.getTime() < maxAgeSeconds * 1000
+    if (fresh) return { price: Number(existing.closePrice), asOf: existing.closePriceAsOf!.slice(0, 10), printedAt: existing.quotePrintedAt!.toISOString() }
 
     const quote = (await provider.getQuotes([marketTicker])).quotes.get(marketTicker)
     if (!acceptQuote(quote, now)) return null
     if (!isNewerClose(quoteDate(quote), existing.closePriceAsOf)) return null
 
-    await db
+    const accepted = await db
       .update(securities)
-      .set({ previousClose: previousCloseOnUpdate(quoteDate(quote)), closePrice: quote.price.toString(), closePriceAsOf: quoteDate(quote), closePriceFinal: false, updatedAt: new Date() })
-      .where(eq(securities.id, securityId))
+      .set({ quotePrintedAt: new Date(quote.asOf), priceAcceptedAt: new Date(), previousClose: previousCloseOnUpdate(quoteDate(quote)), closePrice: quote.price.toString(), closePriceAsOf: quoteDate(quote), closePriceFinal: false, updatedAt: new Date() })
+      .where(and(eq(securities.id, securityId), acceptsPrice(quoteDate(quote), false, new Date(quote.asOf))))
+      .returning({ id: securities.id })
+    if (!accepted.length) {
+      const winner = await db.query.securities.findFirst({ where: eq(securities.id, securityId) })
+      const stored = winner?.quotePrintedAt && !winner.closePriceFinal ? { price: Number(winner.closePrice), asOf: winner.quotePrintedAt.toISOString() } : undefined
+      return acceptQuote(stored, now) ? { price: stored.price, asOf: quoteDate(stored), printedAt: stored.asOf } : null
+    }
     await revalueSecurities([securityId])
     return { price: quote.price, asOf: quoteDate(quote), printedAt: quote.asOf }
   } catch (error) {
