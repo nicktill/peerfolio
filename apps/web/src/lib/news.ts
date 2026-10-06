@@ -1,10 +1,11 @@
 import "server-only"
 import OpenAI from "openai"
-import { and, desc, eq, gte, lt, sql } from "drizzle-orm"
+import { after } from "next/server"
+import { and, desc, eq, gte, lt, max, sql } from "drizzle-orm"
 import { db } from "@web/db"
 import { newsAiSpend, newsBriefs, newsItems } from "@web/db/schema"
 import { fetchFeeds } from "@web/lib/news-feeds"
-import { briefTargets, briefWindow, NEWS_MODEL, selectItems, writeBrief, type BriefPeriod, type SpendLedger } from "@web/lib/news-brief"
+import { briefTargets, briefWindow, middayTarget, NEWS_MODEL, selectItems, writeBrief, type BriefPeriod, type SpendLedger } from "@web/lib/news-brief"
 
 /** Most the recaps may spend in a calendar month (UTC). Past it, recaps are written from headlines only. */
 const MONTHLY_BUDGET_USD = Number(process.env.NEWS_AI_MONTHLY_BUDGET_USD) || 1
@@ -12,6 +13,10 @@ const MONTHLY_BUDGET_USD = Number(process.env.NEWS_AI_MONTHLY_BUDGET_USD) || 1
 const KEEP_DAYS = 21
 /** Any constant works; it only has to be the same for every server taking the budget lock. */
 const BUDGET_LOCK = 4_207_001
+/** Held for a whole news run, so two visits (or a visit and the cron) never run it twice at once. */
+const RUN_LOCK = 4_207_002
+/** Headlines older than this are refreshed by the next visit. */
+const STALE_MS = 20 * 60_000
 
 const DAY = 86_400_000
 
@@ -98,7 +103,8 @@ export async function runNews(now = new Date(), { force = false }: { force?: boo
     await db
       .insert(newsItems)
       .values(items.map((i) => ({ source: i.source, title: i.title, url: i.url, summary: i.summary, publishedAt: i.publishedAt })))
-      .onConflictDoNothing({ target: newsItems.url })
+      // Touch existing rows too, so the newest fetchedAt says when the feeds were last read.
+      .onConflictDoUpdate({ target: newsItems.url, set: { fetchedAt: now } })
   }
   await db.delete(newsItems).where(lt(newsItems.publishedAt, new Date(now.getTime() - KEEP_DAYS * DAY)))
 
@@ -107,9 +113,61 @@ export async function runNews(now = new Date(), { force = false }: { force?: boo
     (await db.select({ id: newsBriefs.id }).from(newsBriefs).where(and(eq(newsBriefs.period, period), eq(newsBriefs.periodEnd, date))).limit(1)).length > 0
 
   const briefs = []
+  const midday = middayTarget(now)
   if (targets.day && (force || !(await exists("day", targets.day)))) briefs.push(await publish("day", targets.day, now))
   if (targets.week && (force || !(await exists("week", targets.week)))) briefs.push(await publish("week", targets.week, now))
-  return { fetched: items.length, feedFailures: failures, targets, briefs }
+  // The midday update only matters until that day's own recap exists.
+  if (midday && midday !== targets.day && (force || !(await exists("midday", midday)))) briefs.push(await publish("midday", midday, now))
+  return { fetched: items.length, feedFailures: failures, targets: { ...targets, midday }, briefs }
+}
+
+/** What a run would do right now: refresh stale headlines or write a recap that's due. */
+async function newsDue(now: Date) {
+  const [latest] = await db.select({ at: max(newsItems.fetchedAt) }).from(newsItems)
+  if (!latest?.at || now.getTime() - latest.at.getTime() > STALE_MS) return true
+  const targets = briefTargets(now)
+  const wanted: [BriefPeriod, string | null][] = [
+    ["day", targets.day],
+    ["week", targets.week],
+    ["midday", middayTarget(now) === targets.day ? null : middayTarget(now)],
+  ]
+  for (const [period, date] of wanted) {
+    if (!date) continue
+    const [row] = await db.select({ id: newsBriefs.id }).from(newsBriefs).where(and(eq(newsBriefs.period, period), eq(newsBriefs.periodEnd, date))).limit(1)
+    if (!row) return true
+  }
+  return false
+}
+
+/** Runs the news job unless another server already is. Returns null when it was already running. */
+export async function runNewsOnce(now = new Date(), options: { force?: boolean } = {}) {
+  return db.transaction(async (tx) => {
+    const [lock] = await tx.execute<{ got: boolean }>(sql`select pg_try_advisory_xact_lock(${RUN_LOCK}) as got`)
+    if (!lock?.got) return null
+    return runNews(now, options)
+  })
+}
+
+/**
+ * Called on page loads: if headlines are stale or a recap is due, refresh in
+ * the background after the response is sent. The cron and GitHub's scheduled
+ * calls are backups; whoever comes first does the work, and the lock makes
+ * sure only one does it.
+ */
+export function refreshNewsIfDue(now = new Date()) {
+  try {
+    after(async () => {
+      try {
+        if (!(await newsDue(now))) return
+        const run = await runNewsOnce(new Date())
+        if (run) console.info(`[news] refreshed on visit: ${run.fetched} items, ${run.briefs.length} recap(s)`)
+      } catch (error) {
+        console.error("[news] refresh on visit failed:", error instanceof Error ? error.message : error)
+      }
+    })
+  } catch {
+    // Outside a request there is nothing to attach to.
+  }
 }
 
 export type PublishedBrief = {
@@ -139,16 +197,19 @@ export async function readNews() {
       createdAt: row.createdAt.toISOString(),
     } satisfies PublishedBrief
   }
-  const [day, week, headlines] = await Promise.all([
+  const [day, week, midday, headlines] = await Promise.all([
     latest("day"),
     latest("week"),
+    latest("midday"),
     db
       .select({ source: newsItems.source, title: newsItems.title, url: newsItems.url, summary: newsItems.summary, publishedAt: newsItems.publishedAt })
       .from(newsItems)
       .orderBy(desc(newsItems.publishedAt))
       .limit(12),
   ])
-  return { day, week, headlines: headlines.map((h) => ({ ...h, publishedAt: h.publishedAt.toISOString() })) }
+  // The day's slot shows the freshest of the two: today's midday update until today's closing recap exists.
+  const today = midday && (!day || midday.periodEnd > day.periodEnd) ? midday : day
+  return { day: today, week, headlines: headlines.map((h) => ({ ...h, publishedAt: h.publishedAt.toISOString() })) }
 }
 
 export type NewsResponse = Awaited<ReturnType<typeof readNews>>

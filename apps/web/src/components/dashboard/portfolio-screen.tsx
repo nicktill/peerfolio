@@ -490,7 +490,7 @@ function MarketsToday() {
     <Link href="/news" className="group block border-t pt-5">
       <span className="flex items-center justify-between gap-3">
         <SectionLabel as="span" className="block transition-colors group-hover:text-foreground">Markets today</SectionLabel>
-        {when ? <span className="text-xs text-muted-foreground">After {when}’s close</span> : null}
+        {when ? <span className="text-xs text-muted-foreground">{brief?.period === "midday" ? `${when} midday update` : `After ${when}’s close`}</span> : null}
       </span>
       {brief ? (
         <>
