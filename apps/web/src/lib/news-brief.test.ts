@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { briefTargets, checkBrief, closeUtc, fallbackBrief, figures, isLastSessionOfWeek, MAX_ITEM_TEXT, selectItems, worstCaseUsd, writeBrief, promptInput, type Brief, type BriefItem, type SpendLedger } from "./news-brief.ts"
+import { briefTargets, checkBrief, closeUtc, costOf, fallbackBrief, figures, inputTokenBound, isLastSessionOfWeek, MAX_INPUT_TOKENS, MAX_OUTPUT_TOKENS, selectItems, worstCaseUsd, writeBrief, type Brief, type BriefItem, type SpendLedger } from "./news-brief.ts"
 
 const at = (iso: string) => new Date(iso)
 const raw = [
@@ -121,7 +121,7 @@ const shell = (body: string): Brief => ({
 test("the reviewer's case fails: direction flipped, millions made billions, a single-digit percent invented", () => {
   const items = one("Acme fell 2.3%; revenue was $12 million")
   const problems = checkBrief(shell("Acme gained 2.3%; revenue was $12 billion, up 7%."), items, "2026-10-06")
-  assert.ok(problems.some((p) => p.includes("2.3%") && p.includes("opposite")), problems.join(" | "))
+  assert.ok(problems.some((p) => p.includes("2.3%") && p.includes("moving up")), problems.join(" | "))
   assert.ok(problems.some((p) => p.includes("$12 billion")), problems.join(" | "))
   assert.ok(problems.some((p) => p.includes("7%")), problems.join(" | "))
   assert.deepEqual(checkBrief(shell("Acme fell 2.3% as revenue came in at $12 million."), items, "2026-10-06"), [])
@@ -154,12 +154,46 @@ test("every attempt is reserved first and settled at its actual cost", async () 
   assert.deepEqual(events, ["reserve true", "settle r1 4000", "reserve true", "settle r3 4000"])
 })
 
-test("the largest possible prompt has a bounded worst case", () => {
-  const long = "x".repeat(5000)
-  const items = Array.from({ length: 80 }, (_, i) => ({ id: `s${i + 1}`, source: "Wire", title: long, url: "https://x", summary: long, publishedAt: at("2026-10-06T20:00:00Z") }))
-  const input = promptInput("week", "2026-10-09", items)
-  assert.ok(input.length < 80 * (2 * MAX_ITEM_TEXT + 80) + 200)
-  assert.ok(worstCaseUsd(input) < 0.015, String(worstCaseUsd(input)))
+test("declines written after the figure or as a sign can't become gains", () => {
+  for (const source of ["Acme shares 2.3% lower", "Acme return: -2.3%", "Acme \u22122.3% on the day"]) {
+    const problems = checkBrief(shell("Acme gained 2.3%."), one(source), "2026-10-06")
+    assert.ok(problems.some((p) => p.includes("moving up")), `${source}: ${problems.join(" | ")}`)
+  }
+  assert.deepEqual(checkBrief(shell("Acme fell 2.3%."), one("Acme shares 2.3% lower"), "2026-10-06"), [])
+})
+
+test("a direction needs a source that states it; a figure without one may be quoted plainly", () => {
+  const items = one("Acme moved 2.3% on the day")
+  assert.ok(checkBrief(shell("Acme rose 2.3%."), items, "2026-10-06").some((p) => p.includes("moving up")))
+  assert.deepEqual(checkBrief(shell("Acme moved 2.3%."), items, "2026-10-06"), [])
+})
+
+test("the input bound covers every UTF-8 byte sent, so no language can exceed it", () => {
+  const input = "株価は2.3%下落した。".repeat(50)
+  assert.ok(inputTokenBound(input) >= new TextEncoder().encode(input).length)
+})
+
+test("oversized prompts drop old stories until the hard bound fits, and reservations stay under the cap", async () => {
+  const long = "株価は大きく下落した。".repeat(40) // ~400 chars, 3 bytes each: clipped to 300 chars
+  const big = Array.from({ length: 80 }, (_, i) => ({ id: `s${i + 1}`, source: "Wire", title: long, url: `https://x/${i}`, summary: long, publishedAt: at("2026-10-06T20:00:00Z") }))
+  const reservations: number[] = []
+  const prompts: string[] = []
+  const client = {
+    responses: {
+      create: async (req: { input: string }) => {
+        prompts.push(req.input)
+        return { output_text: JSON.stringify(good), usage: { input_tokens: 100, output_tokens: 100 } }
+      },
+    },
+  }
+  const ledger: SpendLedger = { reserve: async (usd) => (reservations.push(usd), "r"), settle: async () => {} }
+  await writeBrief({ client: client as never, period: "week", sessionDate: "2026-10-09", items: big, ledger })
+  const ceiling = costOf(MAX_INPUT_TOKENS, MAX_OUTPUT_TOKENS)
+  assert.ok(prompts.length > 0)
+  for (const p of prompts) assert.ok(inputTokenBound(p) <= MAX_INPUT_TOKENS, String(inputTokenBound(p)))
+  assert.equal(reservations.length, prompts.length)
+  reservations.forEach((r, i) => assert.ok(r <= ceiling && r === worstCaseUsd(prompts[i]!), String(r)))
+  assert.ok(ceiling < 0.02, String(ceiling))
 })
 
 test("closeUtc follows daylight saving", () => {

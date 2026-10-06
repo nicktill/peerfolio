@@ -43,11 +43,33 @@ export const MAX_OUTPUT_TOKENS = 4000
 /** Longest title or summary that reaches the prompt, so its size (and cost) is bounded. */
 export const MAX_ITEM_TEXT = 300
 
+/** Most input tokens one attempt may send, by the bound below. Prompts over it drop their oldest stories. */
+export const MAX_INPUT_TOKENS = 40_000
+/** Allowance for the request's framing (roles, message separators, format wrapper), in tokens. */
+const REQUEST_OVERHEAD_TOKENS = 512
+
+const utf8 = new TextEncoder()
+const bytes = (text: string) => utf8.encode(text).length
+
 /**
- * The most one attempt can cost, before sending it: input counted generously at
- * three characters a token (English runs nearer four), plus the full output cap.
+ * A hard upper bound on an attempt's input tokens, with no tokenizer: OpenAI's
+ * byte-level BPE never makes more tokens than the text has UTF-8 bytes, so the
+ * byte count of everything sent (instructions, prompt, response schema) plus a
+ * framing allowance can't be exceeded in any language.
  */
-export const worstCaseUsd = (input: string) => costOf(Math.ceil((SYSTEM.length + input.length) / 3) + 200, MAX_OUTPUT_TOKENS)
+export const inputTokenBound = (input: string) =>
+  bytes(SYSTEM) + bytes(input) + bytes(JSON.stringify(BRIEF_SCHEMA)) + REQUEST_OVERHEAD_TOKENS
+
+/** The most one attempt can cost: the input bound plus the full output cap, at the configured prices. */
+export const worstCaseUsd = (input: string) => costOf(inputTokenBound(input), MAX_OUTPUT_TOKENS)
+
+/** Retry feedback is capped so a retry's prompt stays inside the input limit too. */
+const FEEDBACK_ROOM = 4000
+const feedbackText = (problems: string[]) =>
+  `\n\nYour previous draft had these problems. Fix all of them:\n- ${problems
+    .slice(0, 8)
+    .map((p) => p.slice(0, 300))
+    .join("\n- ")}`.slice(0, FEEDBACK_ROOM)
 
 /**
  * Where spend is reserved before each attempt and settled after it. `reserve`
@@ -144,6 +166,38 @@ const UNITS: [RegExp, string][] = [
 const UP = /\b(up|rose|rise|rises|rising|gain|gains|gained|climb|climbs|climbed|jump|jumps|jumped|rall(?:y|ied|ies)|surge|surged|surges|advance|advanced|added|higher|soar|soared|increase|increased|grew|beat)\b/i
 const DOWN = /\b(down|fell|fall|falls|falling|drop|drops|dropped|slid|slide|slides|slip|slips|slipped|decline|declined|declines|lost|lose|loses|sank|sink|sinks|tumble|tumbled|plunge|plunged|lower|retreat|retreated|decrease|decreased|shed|missed)\b/i
 
+/** The last direction word in a span of text, or null. */
+function lastDirection(span: string): "up" | "down" | null {
+  let found: { at: number; dir: "up" | "down" } | null = null
+  for (const [re, dir] of [[UP, "up"], [DOWN, "down"]] as const) {
+    for (const m of span.matchAll(new RegExp(re.source, "gi"))) if (!found || m.index! > found.at) found = { at: m.index!, dir }
+  }
+  return found?.dir ?? null
+}
+
+/** The first direction word in a span of text, or null. */
+function firstDirection(span: string): "up" | "down" | null {
+  const up = span.search(UP)
+  const down = span.search(DOWN)
+  if (up === -1 && down === -1) return null
+  if (up === -1) return "down"
+  if (down === -1) return "up"
+  return up < down ? "up" : "down"
+}
+
+/**
+ * Which way a figure says something moved: its sign first ("-2.3%"), then the
+ * nearest direction word before it in the same clause ("fell 2.3%"), then just
+ * after it ("2.3% lower").
+ */
+function directionOf(text: string, start: number, end: number, sign: string | undefined): "up" | "down" | null {
+  if (sign === "+") return "up"
+  if (sign === "-" || sign === "\u2212") return "down"
+  const before = text.slice(Math.max(0, start - 40), start).split(/[.;:!?,]/).pop() ?? ""
+  const after = text.slice(end, end + 25).split(/[.;:!?,]/)[0] ?? ""
+  return lastDirection(before) ?? firstDirection(after)
+}
+
 /**
  * Every figure that makes a claim: its value, unit (%, bp, points, m/b/t),
  * whether it's money, and which way the words around it say it moved. A bare
@@ -152,20 +206,16 @@ const DOWN = /\b(down|fell|fall|falls|falling|drop|drops|dropped|slid|slide|slid
 export function claims(text: string): Claim[] {
   const out: Claim[] = []
   // "%" can't end on a word boundary, so it gets its own branch.
-  const re = /(\$)?\s?(\d[\d,]*(?:\.\d+)?)(?:\s?(%)|\s?(percent|per cent|bps|basis points?|points?|pts|million|billion|trillion|mn|bn|tn)\b|(?<=\d)([mbt])\b)?/gi
+  // A leading sign ("-2.3%", "−2.3%", "+0.4%") is kept: it says which way the figure moved.
+  const re = /([-+\u2212])?(\$)?\s?(\d[\d,]*(?:\.\d+)?)(?:\s?(%)|\s?(percent|per cent|bps|basis points?|points?|pts|million|billion|trillion|mn|bn|tn)\b|(?<=\d)([mbt])\b)?/gi
   for (const m of text.matchAll(re)) {
-    const digits = m[2]!.replace(/,/g, "")
-    const unitWord = (m[3] ?? m[4] ?? m[5] ?? "").toLowerCase()
+    const sign = m[1] && /[\w)]/.test(text[m.index! - 1] ?? "") ? undefined : m[1] // "10-2.3" is a range, not a sign
+    const digits = m[3]!.replace(/,/g, "")
+    const unitWord = (m[4] ?? m[5] ?? m[6] ?? "").toLowerCase()
     const unit = UNITS.find(([r]) => r.test(unitWord))?.[1] ?? ""
-    const money = Boolean(m[1])
+    const money = Boolean(m[2])
     if (!unit && !money && digits.replace(".", "").length < 2) continue
-    // The direction words just before the figure ("fell 2.3%", "up 0.4%").
-    const before = text.slice(Math.max(0, m.index! - 40), m.index!)
-    const near = before.split(/[.;!?]/).pop() ?? ""
-    const lastUp = near.search(new RegExp(`${UP.source}(?![\\s\\S]*${UP.source})`, "i"))
-    const lastDown = near.search(new RegExp(`${DOWN.source}(?![\\s\\S]*${DOWN.source})`, "i"))
-    const direction = lastUp === -1 && lastDown === -1 ? null : lastUp > lastDown ? "up" : "down"
-    out.push({ value: String(Number(digits)), unit, money, direction, raw: m[0].trim() })
+    out.push({ value: String(Number(digits)), unit, money, direction: directionOf(text, m.index!, m.index! + m[0].length, sign), raw: m[0].trim() })
   }
   return out
 }
@@ -177,12 +227,13 @@ export function figures(text: string) {
 
 /**
  * Whether a draft's claim is backed by one of the cited sources: same value,
- * same unit, same money-ness, and not stated in the opposite direction.
+ * unit and money-ness, and, when the draft says which way it moved, a source
+ * that says the same way. A source silent on direction doesn't back a direction.
  */
 function supported(claim: Claim, sources: Claim[]) {
   const same = sources.filter((s) => s.value === claim.value && s.unit === claim.unit && s.money === claim.money)
   if (same.length === 0) return "missing" as const
-  if (claim.direction && same.every((s) => s.direction && s.direction !== claim.direction)) return "direction" as const
+  if (claim.direction && !same.some((s) => s.direction === claim.direction)) return "direction" as const
   return "ok" as const
 }
 
@@ -216,7 +267,7 @@ export function checkBrief(brief: Brief, items: BriefItem[], sessionDate: string
     for (const claim of claims(text)) {
       const verdict = supported(claim, sources)
       if (verdict === "missing") problems.push(`${label}: "${claim.raw}" does not appear (with that unit) in the items it cites (${ids.join(", ") || "none"}). Use only figures from those items, or cite the item it comes from.`)
-      if (verdict === "direction") problems.push(`${label}: "${claim.raw}" is described moving the opposite way from the cited items. Match the direction they report.`)
+      if (verdict === "direction") problems.push(`${label}: "${claim.raw}" is described as moving ${claim.direction}, but the cited items don't say it moved ${claim.direction}. Use the direction they report, or none.`)
     }
   }
   checkPart("Headline", brief.headline, brief.sourceIds)
@@ -268,13 +319,20 @@ export async function writeBrief({
   })
   if (!client || items.length < 3) return result(fallbackBrief(items), true, [client ? "too few items" : "no AI client"])
 
-  const input = promptInput(period, sessionDate, items)
+  // Drop the oldest stories until the prompt, with room for retry feedback, is under the input limit.
+  let kept = items
+  let input = promptInput(period, sessionDate, kept)
+  while (kept.length > 3 && inputTokenBound(input) + FEEDBACK_ROOM > MAX_INPUT_TOKENS) {
+    kept = kept.slice(0, -1)
+    input = promptInput(period, sessionDate, kept)
+  }
+  if (inputTokenBound(input) + FEEDBACK_ROOM > MAX_INPUT_TOKENS) return result(fallbackBrief(items), true, ["prompt over the input limit"])
   let inputTokens = 0
   let outputTokens = 0
   let feedback: string[] = []
 
   for (let attempt = 0; attempt < 2; attempt++) {
-    const prompt = feedback.length ? `${input}\n\nYour previous draft had these problems. Fix all of them:\n- ${feedback.join("\n- ")}` : input
+    const prompt = feedback.length ? `${input}${feedbackText(feedback)}` : input
     const reserved = worstCaseUsd(prompt)
     const reservation = ledger ? await ledger.reserve(reserved) : null
     if (ledger && !reservation) {
@@ -296,7 +354,7 @@ export async function writeBrief({
       outputTokens += used.outputTokens
       if (reservation) await ledger!.settle(reservation, { ...used, costUsd: costOf(used.inputTokens, used.outputTokens) })
       const brief = JSON.parse(response.output_text) as Brief
-      feedback = checkBrief(brief, items, sessionDate)
+      feedback = checkBrief(brief, kept, sessionDate)
       if (feedback.length === 0) return result(brief, false, [], inputTokens, outputTokens)
     } catch (error) {
       // A failed request may still have been billed, so its reservation stands as the cost.
