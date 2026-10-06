@@ -6,14 +6,22 @@
 
 export type Period = "day" | "week"
 
+export type Move = { percent: number; points: number; path: number[] }
+
 export type IndexQuote = {
   key: string
   name: string
+  /** The fund that tracks the index, when the numbers are the fund's (the live data). */
+  symbol?: string
   price: number
   /** Percent change, then point change, then the path as percent from the start. */
-  day: { percent: number; points: number; path: number[] }
-  week: { percent: number; points: number; path: number[] }
+  day: Move
+  /** Null when there aren't enough daily bars to measure the week honestly. */
+  week: Move | null
 }
+
+/** [sector, day %, week % (null when unknown)]. */
+export type SectorMove = [string, number, number | null]
 
 export type Recap = {
   title: string
@@ -26,13 +34,14 @@ export type Recap = {
 export type EarningsReport = {
   symbol: string
   name: string
-  when: "before-open" | "after-close"
+  when: "before-open" | "after-close" | "during" | "unknown"
   epsEstimate: string
-  confirmed: boolean
+  /** Whether the company has confirmed the date. Only the sample knows; the live calendar doesn't say. */
+  confirmed?: boolean
   owned: boolean
 }
 
-export type EarningsDay = { dow: string; label: string; date: number; past?: boolean; today?: boolean; reports: EarningsReport[] }
+export type EarningsDay = { dow: string; label: string; date: number; iso?: string; past?: boolean; today?: boolean; reports: EarningsReport[] }
 
 export const INDEXES: IndexQuote[] = [
   {
@@ -70,7 +79,7 @@ export const RECAPS: Record<Period, Recap> = {
     title: "Daily recap",
     stamp: "Updated 4:20 PM ET",
     headline: "Chipmakers lead a quiet, upward session",
-    body: "Stocks edged higher as semiconductors and large-cap tech rallied. Small caps lagged and energy fell with oil. Bond yields were little changed ahead of Thursday’s jobless claims.",
+    body: "Stocks edged higher as semiconductors and large-cap tech rallied, lifting the Nasdaq more than the broader market. Small caps lagged and energy fell with oil.\n\nChipmakers led after an upbeat demand outlook from a major supplier, while software trailed for a second day. Bond yields were little changed ahead of Thursday’s jobless claims.",
     takeaways: [
       { title: "Tech carried the market", body: "Technology rose 1.24%, the best of 11 sectors." },
       { title: "Energy slipped", body: "The weakest sector, down 1.08% as oil fell." },
@@ -147,7 +156,7 @@ export const EARNINGS_WEEK: { label: string; days: EarningsDay[] } = {
 }
 
 /** S&P 500 sectors as [name, day %, week %]. */
-export const SECTORS: [string, number, number][] = [
+export const SECTORS: SectorMove[] = [
   ["Technology", 1.24, 2.81],
   ["Communication", 0.88, 1.92],
   ["Consumer disc.", 0.52, 1.1],

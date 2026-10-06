@@ -39,7 +39,18 @@ const TONE_BOX = { loss: "tint-loss text-loss-ink", gain: "tint-gain text-gain-i
  * overshoot and the score counts up alongside it, so the reading lands rather
  * than just appearing.
  */
-export function FearGreed({ score, history, index }: { score: number; history: { label: string; score: number }[]; index: number }) {
+export function FearGreed({
+  score,
+  history,
+  index,
+  source = null,
+}: {
+  score: number
+  history: { label: string; score: number }[]
+  index: number
+  /** Where the live reading comes from, credited and linked; null for the sample. */
+  source?: { label: string; href: string; asOf: string | null } | null
+}) {
   const [shown, setShown] = useState(0)
   useEffect(() => {
     const frame = requestAnimationFrame(() => setShown(score))
@@ -50,7 +61,16 @@ export function FearGreed({ score, history, index }: { score: number; history: {
   const band = BANDS[active]!
 
   return (
-    <SectionCard label="Fear & Greed" icon={<Gauge />} tone="amber" index={index} action={<span className="pr-2 text-xs text-muted-foreground">Updated daily</span>}>
+    <SectionCard label="Fear & Greed" icon={<Gauge />} tone="amber" index={index} action={
+        source ? (
+          <a href={source.href} target="_blank" rel="noopener noreferrer" className="pr-2 text-xs text-muted-foreground hover:text-foreground hover:underline">
+            {source.label}
+            {source.asOf ? ` · as of ${new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "short", day: "numeric" }).format(new Date(source.asOf))}` : ""}
+          </a>
+        ) : (
+          <span className="pr-2 text-xs text-muted-foreground">Updated daily</span>
+        )
+      }>
       <div className="relative flex flex-col items-center px-5 pb-1.5 pt-5">
         {/* A soft wash in the reading's colour behind the dial. */}
         <div
@@ -107,7 +127,9 @@ export function FearGreed({ score, history, index }: { score: number; history: {
           )
         })}
       </dl>
-      <p className="border-t px-5 pb-4 pt-2.5 text-xs text-muted-foreground">Stock-market sentiment, scored 0–100 from seven signals.</p>
+      <p className="border-t px-5 pb-4 pt-2.5 text-xs text-muted-foreground">
+        {source ? `${source.label}’s Fear & Greed Index: stock-market sentiment, scored 0–100 from seven signals.` : "Stock-market sentiment, scored 0–100 from seven signals."}
+      </p>
     </SectionCard>
   )
 }

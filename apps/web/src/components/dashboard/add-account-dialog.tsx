@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { CreditCard, Landmark, Plus, TrendingUp, Wallet, type LucideIcon } from "lucide-react"
+import { CreditCard, Landmark, Pencil, Plus, TrendingUp, Wallet, type LucideIcon } from "lucide-react"
 import { Button, type ButtonProps } from "@web/components/ui/button"
 import { Dialog } from "@web/components/ui/dialog"
 import { useToast } from "@web/components/ui/toast"
@@ -65,6 +65,86 @@ export function AddAccountButton({
         />
       </Dialog>
     </>
+  )
+}
+
+/**
+ * Renames an account added by hand or changes where it's held. The institution
+ * is what picks the brokerage's mark, so "Fidelity" gives a 401(k) Fidelity's logo.
+ */
+export function EditAccountButton({
+  account,
+  onSaved,
+  className,
+}: {
+  account: { id: string; name: string; institution: string }
+  onSaved: () => void
+  className?: string
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <Button variant="ghost" size="icon" className={className} onClick={() => setOpen(true)}>
+        <Pencil className="h-3.5 w-3.5" aria-hidden />
+        <span className="sr-only">Edit {account.name}</span>
+      </Button>
+      <Dialog open={open} onClose={() => setOpen(false)} title="Edit account" description="The institution sets the logo shown next to the account.">
+        {open ? (
+          <EditAccountForm
+            account={account}
+            onCancel={() => setOpen(false)}
+            onSaved={() => {
+              setOpen(false)
+              onSaved()
+            }}
+          />
+        ) : null}
+      </Dialog>
+    </>
+  )
+}
+
+function EditAccountForm({ account, onCancel, onSaved }: { account: { id: string; name: string; institution: string }; onCancel: () => void; onSaved: () => void }) {
+  const { toast } = useToast()
+  const [saving, setSaving] = useState(false)
+  const [name, setName] = useState(account.name)
+  const [institution, setInstitution] = useState(account.institution)
+  const [error, setError] = useState<string | undefined>()
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault()
+    if (!name.trim()) return setError("Give the account a name.")
+    setError(undefined)
+    setSaving(true)
+    try {
+      await mutate(`/api/accounts/${account.id}`, { method: "PATCH", body: { name: name.trim(), institutionLabel: institution.trim() || null } })
+      toast("Account updated.", "success")
+      onSaved()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Couldn't update that account.", "error")
+      setSaving(false)
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-5" noValidate>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Account name" error={error}>
+          <input data-autofocus value={name} onChange={(e) => setName(e.target.value)} maxLength={60} aria-invalid={!!error} className={inputClass} />
+        </Field>
+        <Field label="Institution (optional)">
+          <input value={institution} onChange={(e) => setInstitution(e.target.value)} placeholder="Fidelity" maxLength={60} className={inputClass} />
+        </Field>
+      </div>
+      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <Button type="button" variant="ghost" onClick={onCancel} className="h-11 sm:h-10">
+          Cancel
+        </Button>
+        <Button type="submit" loading={saving} className="h-11 sm:h-10">
+          Save
+        </Button>
+      </div>
+    </form>
   )
 }
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { ArrowDownRight, ArrowUpRight, ChevronRight, Eye, EyeOff, RefreshCw, ShieldCheck, Sparkles, Wallet } from "lucide-react"
+import { ChevronRight, Eye, EyeOff, RefreshCw, ShieldCheck, Sparkles, Wallet } from "lucide-react"
 import { Badge } from "@web/components/ui/badge"
 import { Delta } from "@web/components/ui/delta"
 import { TickerLogo } from "@web/components/ui/ticker-logo"
@@ -25,7 +25,8 @@ import { AddAccountButton } from "@web/components/dashboard/add-account-dialog"
 import { formatCurrency, formatDate, formatPercent } from "@web/lib/format"
 import { isUsMarketOpen } from "@web/lib/market-hours"
 import { cn } from "@web/lib/utils"
-import { mutate } from "@web/lib/use-api"
+import { mutate, useApi } from "@web/lib/use-api"
+import type { NewsResponse } from "@web/lib/news"
 import { defaultRange, rangeAvailability, rangeUnlockDays, RANGES, type Range } from "@web/lib/ranges"
 
 export type PortfolioResponse = {
@@ -45,7 +46,7 @@ export type PortfolioResponse = {
 }
 
 /** A fantasy (play-money) league you're in, as /api/fantasy lists them. */
-export type FantasyRow = { id: string; name: string; emoji: string; memberCount: number; yourReturn: number; isClosed: boolean }
+export type FantasyRow = { id: string; name: string; emoji: string; memberCount: number; yourReturn: number; yourRank: number | null; isClosed: boolean }
 
 /** Where the screen gets its numbers: the live API, or a fixture for the sign-in-free preview. */
 export type PortfolioSource = (range: Range) => {
@@ -54,8 +55,6 @@ export type PortfolioSource = (range: Range) => {
   error: string | null
   refetch: () => Promise<void> | void
 }
-
-type Metric = "value" | "return"
 
 const RANGE_NAMES: Record<Range, string> = { "1W": "week", "1M": "month", "3M": "3 months", "6M": "6 months", "1Y": "year", ALL: "period" }
 const usd = (v: number) => `$${new Intl.NumberFormat("en-US").format(v)}`
@@ -87,9 +86,6 @@ export function PortfolioScreen({
 }) {
   const { toast } = useToast()
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
-  // Two different questions: what is it worth (dollars, moved by deposits) and how
-  // have the investments done (time-weighted, deposits taken out).
-  const [metric, setMetric] = useState<Metric>("value")
   const [range, setRange] = useState<Range>("1M")
   // Until someone picks a range themselves, show the longest one their history can fill.
   const pickedRange = useRef(false)
@@ -169,14 +165,14 @@ export function PortfolioScreen({
   const nextRange = RANGES.filter((r) => !available[r]).sort((a, b) => unlockIn[a] - unlockIn[b])[0]
   const windowCoversAll = range === "ALL" || !available[range]
 
-  // Never draw the dollar line under a percentage or the other way round: each
-  // metric gets its own series, readout and footnote, so they can't be confused.
-  const isValue = metric === "value"
-  const series = isValue
-    ? data.history.map((p) => ({ date: p.date, value: p.netWorth }))
-    : data.performance.series.map((p) => ({ date: p.date, value: p.indexed }))
+  // One chart for both questions: the line is what it's worth (dollars, moved by
+  // deposits); the readout beside it is how the investments did on that date
+  // (time-weighted, deposits taken out), so neither number hides behind a toggle.
+  const series = data.history.map((p) => ({ date: p.date, value: p.netWorth }))
+  const returnOn = new Map(data.performance.series.map((p) => [p.date, p.indexed - 100]))
   const canChart = data.hasHistory && series.length >= 2
   const shown = canChart ? (hoverIndex != null ? series[hoverIndex] : series[series.length - 1]) : undefined
+  const shownReturn = shown ? (hoverIndex == null ? data.performance.percent : returnOn.get(shown.date)) : undefined
   const windowLabel = windowCoversAll && data.firstDate ? `since ${formatDate(data.firstDate)}` : `last ${RANGE_NAMES[range]}`
 
   const netWorthWhole = Math.floor(data.summary.netWorth)
@@ -261,45 +257,50 @@ export function PortfolioScreen({
               )}
             </p>
 
-            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
-              {data.today ? (
-                <span
-                  className={cn(
-                    "numeric inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[13px] font-semibold",
-                    data.today.amount >= 0 ? "tint-gain text-gain-ink" : "tint-loss text-loss-ink",
-                  )}
-                >
-                  {data.today.amount >= 0 ? <ArrowUpRight className="size-3.5" aria-hidden /> : <ArrowDownRight className="size-3.5" aria-hidden />}
-                  {hidden ? null : <>{signedUsd(data.today.amount)} </>}
-                  <span className={hidden ? "" : "font-medium opacity-80"}>{formatPercent(data.today.percent)}</span>
-                  <span className="font-medium opacity-80">{todayLabel}</span>
-                </span>
-              ) : null}
-              {data.allTime ? (
-                <span className="text-xs text-muted-foreground" title={`Across the ${Math.round(data.allTime.coverage * 100)}% of your holdings that have an average cost`}>
-                  Since purchase{" "}
-                  <span className={cn("numeric font-semibold", data.allTime.amount >= 0 ? "text-gain-ink" : "text-loss-ink")}>
-                    {hidden ? formatPercent(data.allTime.percent, 0) : `${signedUsd(data.allTime.amount)} (${formatPercent(data.allTime.percent, 0)})`}
-                  </span>
-                </span>
-              ) : null}
-            </div>
+            {/* Today, how the investments did, and since purchase: side by side, not behind a toggle. */}
+            <dl className="mt-5 grid grid-cols-1 overflow-hidden rounded-xl border sm:grid-cols-3">
+              <Stat label={todayLabel === "today" ? "Today" : `Last session (${todayLabel.replace(/^on /, "")})`}>
+                {data.today ? (
+                  <>
+                    <span className={cn("numeric text-lg font-semibold", data.today.amount >= 0 ? "text-gain-ink" : "text-loss-ink")}>
+                      {hidden ? formatPercent(data.today.percent) : signedUsd(data.today.amount)}
+                    </span>
+                    {hidden ? null : <span className={cn("numeric text-xs", data.today.amount >= 0 ? "text-gain-ink" : "text-loss-ink")}>{formatPercent(data.today.percent)}</span>}
+                  </>
+                ) : (
+                  <span className="text-sm text-muted-foreground">No change yet</span>
+                )}
+              </Stat>
+              <Stat label={`Investment return · ${windowLabel}`}>
+                {data.hasHistory ? (
+                  <>
+                    <span className={cn("numeric text-lg font-semibold", data.performance.percent >= 0 ? "text-gain-ink" : "text-loss-ink")}>
+                      {formatPercent(data.performance.percent)}
+                    </span>
+                    <span className="text-xs text-muted-foreground">Leaves out money you add or withdraw</span>
+                  </>
+                ) : (
+                  <span className="text-sm text-muted-foreground">Starts after your first day</span>
+                )}
+              </Stat>
+              <Stat label="Since purchase" title={data.allTime ? `Across the ${Math.round(data.allTime.coverage * 100)}% of your holdings that have an average cost` : undefined}>
+                {data.allTime ? (
+                  <>
+                    <span className={cn("numeric text-lg font-semibold", data.allTime.amount >= 0 ? "text-gain-ink" : "text-loss-ink")}>
+                      {hidden ? formatPercent(data.allTime.percent, 0) : signedUsd(data.allTime.amount)}
+                    </span>
+                    {hidden ? null : (
+                      <span className={cn("numeric text-xs", data.allTime.amount >= 0 ? "text-gain-ink" : "text-loss-ink")}>{formatPercent(data.allTime.percent, 0)}</span>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-sm text-muted-foreground">Add average costs to see this</span>
+                )}
+              </Stat>
+            </dl>
 
-            <div className="mt-7 flex flex-wrap items-center justify-between gap-3 border-t pt-5">
-              <Segmented<Metric>
-                options={[
-                  { value: "value", label: "Portfolio value" },
-                  { value: "return", label: "Investment return" },
-                ]}
-                value={metric}
-                onChange={(m) => {
-                  setHoverIndex(null)
-                  setMetric(m)
-                }}
-                size="sm"
-                label="Chart"
-              />
-              {rangeOptions.length > 1 ? (
+            {rangeOptions.length > 1 ? (
+              <div className="mt-6 flex justify-end">
                 <Segmented<Range>
                   options={rangeOptions}
                   value={range}
@@ -311,46 +312,39 @@ export function PortfolioScreen({
                   size="sm"
                   label="Time range"
                 />
-              ) : null}
-            </div>
+              </div>
+            ) : null}
 
             {canChart && shown ? (
               <>
-                <div className="mt-5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                  <span
-                    className={cn(
-                      "numeric text-2xl font-semibold tracking-tight",
-                      !isValue && (shown.value >= 100 ? "text-gain-ink" : "text-loss-ink"),
-                    )}
-                  >
-                    {isValue ? (hidden ? "••••••" : formatCurrency(shown.value)) : formatPercent(shown.value - 100)}
-                  </span>
+                <div className={cn("flex flex-wrap items-baseline gap-x-3 gap-y-1", rangeOptions.length > 1 ? "mt-2" : "mt-6")}>
+                  <span className="numeric text-2xl font-semibold tracking-tight">{hidden ? "••••••" : formatCurrency(shown.value)}</span>
+                  {shownReturn != null ? (
+                    <span className={cn("numeric text-sm font-semibold", shownReturn >= 0 ? "text-gain-ink" : "text-loss-ink")}>
+                      {formatPercent(shownReturn)} return
+                    </span>
+                  ) : null}
                   <span className="text-xs text-muted-foreground">
                     {hoverIndex != null
                       ? formatDate(shown.date)
-                      : isValue
-                        ? `Portfolio value · ${windowLabel}`
-                        : `Time-weighted return · ${windowLabel}${windowCoversAll ? ` · ${plural(data.performance.days, "day")} tracked` : ""}`}
+                      : `${windowLabel}${windowCoversAll ? ` · ${plural(data.performance.days, "day")} tracked` : ""}`}
                   </span>
                 </div>
-                {/* Keyed so a metric or range switch fades the new line in instead of morphing between unrelated shapes. */}
-                <div key={`${metric}-${range}`} className="swap-in -mx-1 mt-3">
+                {/* Keyed so a range switch fades the new line in instead of morphing between unrelated shapes. */}
+                <div key={range} className="swap-in -mx-1 mt-3">
                   <PerformanceChart
                     points={series}
                     height={300}
-                    indexed={!isValue}
-                    baseline={isValue ? undefined : 100}
                     showTooltip={false}
                     onHover={setHoverIndex}
-                    ariaLabel={isValue ? `Portfolio value in dollars over the last ${range}` : `Time-weighted return over the last ${range}`}
-                    valueFormatter={(v) => (isValue ? (hidden ? "Hidden" : formatCurrency(v)) : formatPercent(v - 100))}
+                    ariaLabel={`Portfolio value in dollars over the last ${range}`}
+                    valueFormatter={(v) => (hidden ? "Hidden" : formatCurrency(v))}
                   />
                 </div>
                 <p className="mt-4 text-xs leading-5 text-muted-foreground">
-                  {isValue
-                    ? "Value includes money you add or withdraw, so it isn’t a measure of how your investments did. Switch to Investment return for that."
-                    : "Time-weighted return leaves out money you add or withdraw, so it measures only how your investments did."}
-                  {!isValue && nextRange ? ` The ${nextRange} view unlocks in ${plural(unlockIn[nextRange], "day")}.` : ""}
+                  The line is your portfolio’s value, which moves when you add or withdraw money. The return leaves those out, so it shows only how
+                  your investments did.
+                  {nextRange ? ` The ${nextRange} view unlocks in ${plural(unlockIn[nextRange], "day")}.` : ""}
                 </p>
               </>
             ) : (
@@ -424,11 +418,7 @@ export function PortfolioScreen({
                       emoji={league.emoji}
                       name={league.name}
                       detail={plural(league.members, "member")}
-                      end={
-                        league.rank != null ? (
-                          <span className={cn("numeric font-display text-sm font-bold", league.rank === 1 ? "text-gold-ink" : "text-muted-foreground")}>#{league.rank}</span>
-                        ) : null
-                      }
+                      end={league.rank != null ? <RankBadge rank={league.rank} /> : null}
                     />
                   ))}
                 </LeagueGroup>
@@ -442,7 +432,12 @@ export function PortfolioScreen({
                       emoji={league.emoji}
                       name={league.name}
                       detail={plural(league.memberCount, "player")}
-                      end={<Delta value={league.yourReturn} size="sm" />}
+                      end={
+                        <span className="flex items-center gap-2.5">
+                          <Delta value={league.yourReturn} size="sm" />
+                          {league.yourRank != null ? <RankBadge rank={league.yourRank} /> : null}
+                        </span>
+                      }
                     />
                   ))}
                 </LeagueGroup>
@@ -450,13 +445,7 @@ export function PortfolioScreen({
             </section>
           ) : null}
 
-          <Link href="/news" className="group flex items-center justify-between gap-3 border-t pt-5">
-            <span>
-              <SectionLabel as="span" className="block transition-colors group-hover:text-foreground">Markets today</SectionLabel>
-              <span className="mt-1.5 block text-sm text-muted-foreground">Recap, sectors, sentiment and earnings for what you hold.</span>
-            </span>
-            <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden />
-          </Link>
+          <MarketsToday />
         </aside>
 
         <Reveal index={3} className="lg:col-start-1 lg:row-start-2">
@@ -488,6 +477,50 @@ function LeagueGroup({ title, note, href, children }: { title: string; note: str
       <ul className="mt-1 divide-y">{children}</ul>
     </div>
   )
+}
+
+/** The latest market recap in brief, linking to the full one on the News page. */
+function MarketsToday() {
+  const { data } = useApi<NewsResponse>("/api/news")
+  const brief = data?.day ?? null
+  const when = brief
+    ? new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "long" }).format(new Date(`${brief.periodEnd}T16:00:00Z`))
+    : null
+  return (
+    <Link href="/news" className="group block border-t pt-5">
+      <span className="flex items-center justify-between gap-3">
+        <SectionLabel as="span" className="block transition-colors group-hover:text-foreground">Markets today</SectionLabel>
+        {when ? <span className="text-xs text-muted-foreground">After {when}’s close</span> : null}
+      </span>
+      {brief ? (
+        <>
+          <span className="mt-2 block text-pretty font-display text-[17px] font-semibold leading-snug tracking-tight">{brief.headline}</span>
+          <span className="mt-1 line-clamp-3 text-sm leading-relaxed text-muted-foreground">{brief.body.split(/\n\s*\n/)[0]}</span>
+        </>
+      ) : (
+        <span className="mt-1.5 block text-sm text-muted-foreground">Recap, sectors, sentiment and earnings for what you hold.</span>
+      )}
+      <span className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-primary">
+        {brief ? "Read the full recap" : "Open News"}
+        <ChevronRight className="size-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
+      </span>
+    </Link>
+  )
+}
+
+/** One of the overview's three numbers. */
+function Stat({ label, title, children }: { label: string; title?: string; children: React.ReactNode }) {
+  return (
+    <div title={title} className="flex flex-col gap-0.5 border-b px-4 py-3 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0">
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="flex flex-col gap-0.5">{children}</dd>
+    </div>
+  )
+}
+
+/** Your place in a league: gold for first, quiet otherwise. */
+function RankBadge({ rank }: { rank: number }) {
+  return <span className={cn("numeric font-display text-sm font-bold", rank === 1 ? "text-gold-ink" : "text-muted-foreground")}>#{rank}</span>
 }
 
 function RailLink({ href, emoji, name, detail, end }: { href: string; emoji: string; name: string; detail: string; end: React.ReactNode }) {

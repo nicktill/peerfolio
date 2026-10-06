@@ -148,32 +148,32 @@ export async function listFantasyLeaguesForUser(userId: string) {
   scheduleLiveRefresh()
 
   const ids = rows.map((r) => r.league.id)
-  const memberIds = rows.map((r) => r.memberId)
-  const [counts, values, lastSnapshots] = await Promise.all([
-    db
-      .select({ leagueId: fantasyMembers.leagueId, count: sql<number>`count(*)::int` })
-      .from(fantasyMembers)
-      .where(inArray(fantasyMembers.leagueId, ids))
-      .groupBy(fantasyMembers.leagueId),
-    memberValues(memberIds),
-    latestSnapshots(memberIds),
-  ])
-  const countBy = new Map(counts.map((c) => [c.leagueId, c.count]))
+  // Everyone in these leagues, so your rank is worked out the same way the league page ranks.
+  const everyone = await db
+    .select({ id: fantasyMembers.id, leagueId: fantasyMembers.leagueId })
+    .from(fantasyMembers)
+    .where(inArray(fantasyMembers.leagueId, ids))
+  const everyoneIds = everyone.map((m) => m.id)
+  const [values, lastSnapshots] = await Promise.all([memberValues(everyoneIds), latestSnapshots(everyoneIds)])
 
-  return rows.map(({ league, memberId }) => ({
-    id: league.id,
-    name: league.name,
-    emoji: league.emoji,
-    accent: league.accent,
-    endsAt: league.endsAt,
-    isClosed: isClosed(league.endsAt),
-    memberCount: countBy.get(league.id) ?? 1,
+  return rows.map(({ league, memberId }) => {
+    const startingCash = n(league.startingCash)
     // Scored the same way as the league page, so a finished league shows its final return here too.
-    yourReturn: returnPct(
-      scoredValue(league.endsAt, lastSnapshots.get(memberId) ?? [], values.get(memberId) ?? n(league.startingCash)),
-      n(league.startingCash),
-    ),
-  }))
+    const scored = (id: string) => returnPct(scoredValue(league.endsAt, lastSnapshots.get(id) ?? [], values.get(id) ?? startingCash), startingCash)
+    const members = everyone.filter((m) => m.leagueId === league.id)
+    const standings = rankReturns(members.map((m) => ({ id: m.id, percent: scored(m.id) })))
+    return {
+      id: league.id,
+      name: league.name,
+      emoji: league.emoji,
+      accent: league.accent,
+      endsAt: league.endsAt,
+      isClosed: isClosed(league.endsAt),
+      memberCount: members.length || 1,
+      yourReturn: scored(memberId),
+      yourRank: standings.find((s) => s.id === memberId)?.rank ?? null,
+    }
+  })
 }
 
 type PositionRow = { memberId: string; securityId: string; ticker: string; name: string | null; shares: number; costBasis: number; price: number; priceAsOf: string | null }

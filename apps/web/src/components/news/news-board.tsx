@@ -13,13 +13,30 @@ import { SectorBars } from "@web/components/news/sector-bars"
 import { IconChip, SectionLabel } from "@web/components/ui/section-card"
 import { Activity } from "lucide-react"
 import { cn } from "@web/lib/utils"
-import { EARNINGS_WEEK, FEAR_GREED, HOLDING_MOVES, INDEXES, RECAPS, SECTORS, type Period } from "@web/lib/news-sample"
+import { EARNINGS_WEEK, FEAR_GREED, HOLDING_MOVES, INDEXES, RECAPS, SECTORS, type EarningsDay, type Period } from "@web/lib/news-sample"
+import type { EarningsWeekData, FearGreedReading, MarketBoard } from "@web/lib/news-market"
+import { CNN_FEAR_GREED_PAGE } from "@web/lib/news-market"
 import { isUsMarketOpen } from "@web/lib/market-hours"
 import { useApi } from "@web/lib/use-api"
 import type { NewsResponse, PublishedBrief } from "@web/lib/news"
 
 /** Your holdings' moves today, or "sample" for the preview's placeholder ones. */
 export type HoldingMoves = { symbol: string; percent: number }[] | "sample" | null
+
+type MarketResponse = { board: MarketBoard | null; earnings: EarningsWeekData | null; fearGreed: FearGreedReading | null }
+
+/** How many companies a day shows under "All": the biggest, plus any you own. */
+const EARNINGS_PER_DAY = 8
+
+/** The week's days with your holdings marked, trimmed to the biggest reports plus yours. */
+function markOwned(days: EarningsDay[], held: Set<string>): EarningsDay[] {
+  return days.map((d) => ({
+    ...d,
+    reports: d.reports
+      .map((r) => ({ ...r, owned: held.has(r.symbol) }))
+      .filter((r, i) => i < EARNINGS_PER_DAY || r.owned),
+  }))
+}
 
 const dayLabel = (date: string, opts: Intl.DateTimeFormatOptions) =>
   new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", ...opts }).format(new Date(`${date}T16:00:00Z`))
@@ -43,9 +60,15 @@ function toView(brief: PublishedBrief): RecapView {
  * page. One switch at the top (Today / This week) drives every card, so it
  * reads as a single briefing rather than a collection of widgets.
  */
-export function NewsBoard({ holdingMoves }: { holdingMoves: HoldingMoves }) {
+export function NewsBoard({ holdingMoves, held = [] }: { holdingMoves: HoldingMoves; held?: string[] }) {
   const [period, setPeriod] = useState<Period>("day")
   const { data: news } = useApi<NewsResponse>("/api/news")
+  // The preview shows the sample figures; the real page shows live data or, where a source is down, nothing.
+  const sample = holdingMoves === "sample"
+  const { data: market } = useApi<MarketResponse>(sample ? null : "/api/news/market")
+  const board = sample ? { indexes: INDEXES, sectors: SECTORS } : market?.board ?? null
+  const fearGreed = sample ? { ...FEAR_GREED, asOf: null as string | null } : market?.fearGreed ?? null
+  const earnings = sample ? EARNINGS_WEEK : market?.earnings ? { label: market.earnings.label, days: markOwned(market.earnings.days, new Set(held)) } : null
   const brief = period === "day" ? news?.day : news?.week
   const recap: RecapView = brief ? toView(brief) : { ...RECAPS[period], kind: "sample" }
   const moves =
@@ -58,7 +81,7 @@ export function NewsBoard({ holdingMoves }: { holdingMoves: HoldingMoves }) {
   const today = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "long", month: "long", day: "numeric" }).format(now).replace(", ", " · ")
   const open = isUsMarketOpen(now)
   // The hero takes the colour of the broad market's move.
-  const up = INDEXES[0]![period].percent >= 0
+  const up = (board?.indexes[0]?.[period]?.percent ?? board?.indexes[0]?.day.percent ?? 0) >= 0
 
   return (
     <div className="flex flex-col gap-5 pb-16 pt-2">
@@ -114,29 +137,44 @@ export function NewsBoard({ holdingMoves }: { holdingMoves: HoldingMoves }) {
         </header>
       </Reveal>
 
-      <section className="flex flex-col gap-2.5" aria-labelledby="news-markets">
-        <Reveal index={1} className="flex items-center justify-between gap-2 px-0.5">
-          <span className="flex items-center gap-2.5">
-            <IconChip tone="primary">
-              <Activity />
-            </IconChip>
-            <SectionLabel id="news-markets">Markets at a glance</SectionLabel>
-          </span>
-          <span className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Badge variant="outline" className="whitespace-nowrap border-dashed" title="Index, sector, sentiment and earnings figures are placeholders until a market-data licence is in place. The brief and stories are live.">
-              Sample figures
-            </Badge>
-            <span className="hidden sm:inline">{period === "day" ? "Today’s session" : "Last 5 sessions"}</span>
-          </span>
-        </Reveal>
-        <MarketStrip quotes={INDEXES} period={period} startIndex={1} />
-      </section>
+      {board && board.indexes.length > 0 ? (
+        <section className="flex flex-col gap-2.5" aria-labelledby="news-markets">
+          <Reveal index={1} className="flex items-center justify-between gap-2 px-0.5">
+            <span className="flex items-center gap-2.5">
+              <IconChip tone="primary">
+                <Activity />
+              </IconChip>
+              <SectionLabel id="news-markets">Markets at a glance</SectionLabel>
+            </span>
+            <span className="flex items-center gap-2 text-xs text-muted-foreground">
+              {sample ? (
+                <Badge variant="outline" className="whitespace-nowrap border-dashed">
+                  Sample figures
+                </Badge>
+              ) : (
+                <span className="hidden md:inline" title="Index levels are licensed data; these are the funds that track each index, whose moves match to within a few hundredths of a percent.">
+                  Tracked by index funds ·
+                </span>
+              )}
+              <span className="hidden sm:inline">{period === "day" ? "Today’s session" : "Last 5 sessions"}</span>
+            </span>
+          </Reveal>
+          <MarketStrip quotes={board.indexes} period={period} startIndex={1} />
+        </section>
+      ) : null}
 
       <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,1.85fr)_minmax(0,1fr)]">
         <MarketRecap recap={recap} moves={moves} swapKey={`${period}-${recap.kind}`} index={5} showHeadline={false} />
-        <FearGreed score={FEAR_GREED.score} history={FEAR_GREED.history} index={6} />
-        <EarningsWeek label={EARNINGS_WEEK.label} days={EARNINGS_WEEK.days} initialDay={3} index={7} />
-        <SectorBars sectors={SECTORS} period={period} index={8} />
+        {fearGreed ? (
+          <FearGreed
+            score={fearGreed.score}
+            history={fearGreed.history}
+            index={6}
+            source={sample ? null : { label: "CNN", href: CNN_FEAR_GREED_PAGE, asOf: fearGreed.asOf }}
+          />
+        ) : null}
+        {earnings ? <EarningsWeek label={earnings.label} days={earnings.days} initialDay={Math.max(0, earnings.days.findIndex((d) => d.today))} index={7} /> : null}
+        {board && board.sectors.length > 0 ? <SectorBars sectors={board.sectors} period={period} index={8} /> : null}
         {news?.headlines.length ? <TopStories headlines={news.headlines.slice(0, 10)} index={9} /> : null}
       </div>
     </div>
