@@ -108,8 +108,8 @@ export function PortfolioScreen({
     }
     setSyncing(true)
     try {
-      await mutate("/api/sync")
-      toast("Accounts refreshed.", "success")
+      const refreshed = await mutate("/api/sync") as { healthy?: boolean }
+      toast(refreshed.healthy === false ? "Some accounts could not refresh. Check your connections and try again." : "Accounts refreshed.", refreshed.healthy === false ? "error" : "success")
       await refetch()
     } catch (err) {
       toast(err instanceof Error ? err.message : "Couldn't refresh.", "error")

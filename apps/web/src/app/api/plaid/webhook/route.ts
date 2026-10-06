@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { eq } from "drizzle-orm"
 import { db, plaidItems } from "@web/db"
 import { isReauthRequired } from "@web/lib/plaid"
-import { syncItem, writeDailySnapshot } from "@web/lib/plaid-sync"
+import { syncUser } from "@web/lib/plaid-sync"
 import { verifyPlaidWebhook } from "@web/lib/plaid-webhook"
 
 type WebhookBody = {
@@ -60,8 +60,8 @@ export async function POST(request: Request) {
     (type === "HOLDINGS" && code === "DEFAULT_UPDATE") ||
     (type === "INVESTMENTS_TRANSACTIONS" && code === "DEFAULT_UPDATE")
   ) {
-    await syncItem(item.id)
-    await writeDailySnapshot(item.userId)
+    const refreshed = await syncUser(item.userId, item.id)
+    if (!refreshed.healthy) return NextResponse.json({ error: "Partial sync failure" }, { status: 503 })
   }
 
   return NextResponse.json({ ok: true })

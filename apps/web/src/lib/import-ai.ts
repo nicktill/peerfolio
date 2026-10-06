@@ -73,6 +73,13 @@ const TOOL = {
   },
 } as const
 
+/** UTF-8 bytes upper-bound tokens for the bounded text, system and tool schema.
+ * Full output capacity is reserved even when parsing or the provider fails. */
+export function importReservationUsd(text: string): number {
+  const bytes = Buffer.byteLength(text.slice(0, MAX_INPUT_CHARS) + SYSTEM + JSON.stringify(TOOL), "utf8") + 4096
+  return (bytes * 1 + 8192 * 5) / 1_000_000
+}
+
 export class ImportAiError extends Error {}
 
 export async function parseWithClaude(

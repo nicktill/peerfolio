@@ -42,7 +42,7 @@ import {
 import { displaySymbol, toMarketTicker, type AssetKind } from "@web/lib/market-data"
 import { ensureLivePrice, hasLiveQuotes, scheduleLiveRefresh } from "@web/lib/live-quotes"
 import { isTradingSession } from "@web/lib/market-hours"
-import { ensurePriced, refreshStalePrices } from "@web/lib/positions"
+import { ensurePriced, scheduleCloseRefresh } from "@web/lib/positions"
 
 /**
  * Fantasy leagues: everyone gets the same play cash, picks tickers, and is
@@ -144,7 +144,7 @@ export async function listFantasyLeaguesForUser(userId: string) {
     .where(eq(fantasyMembers.userId, userId))
     .orderBy(desc(fantasyLeagues.createdAt))
   if (rows.length === 0) return []
-  await refreshStalePrices()
+  scheduleCloseRefresh()
   scheduleLiveRefresh()
 
   const ids = rows.map((r) => r.league.id)
@@ -565,7 +565,7 @@ export async function loadFantasyLeague(userId: string, leagueId: string) {
   const startingCash = n(league.startingCash)
   // A finished league is frozen at its last snapshot, so only live ones need fresh prices.
   if (!isClosed(league.endsAt)) {
-    await refreshStalePrices()
+    scheduleCloseRefresh()
     scheduleLiveRefresh()
     scheduleOrderFills()
   }
@@ -579,11 +579,20 @@ export async function loadFantasyLeague(userId: string, leagueId: string) {
 
   const [positions, snapshots, feed, reactionRows, orders] = await Promise.all([
     loadPositions(memberIds),
-    db
-      .select({ memberId: fantasySnapshots.memberId, date: fantasySnapshots.date, value: fantasySnapshots.value })
-      .from(fantasySnapshots)
-      .where(inArray(fantasySnapshots.memberId, memberIds))
-      .orderBy(asc(fantasySnapshots.date)),
+    db.execute<{ memberId: string; date: string; value: string; pastDays: number }>(sql`
+      WITH history AS (
+        SELECT member_id AS "memberId", date::text AS date, value,
+          row_number() OVER (PARTITION BY member_id ORDER BY date) AS rn,
+          count(*) OVER (PARTITION BY member_id) AS n,
+          (count(*) FILTER (WHERE date <> ${today()}::date) OVER (PARTITION BY member_id))::int AS "pastDays",
+          min(date) FILTER (WHERE date >= ${league.endsAt?.toISOString().slice(0, 10) ?? "9999-12-31"}::date)
+            OVER (PARTITION BY member_id) AS final_date
+        FROM fantasy_snapshots WHERE member_id IN (${sql.join(memberIds.map(id => sql`${id}::uuid`), sql`, `)})
+      ) SELECT "memberId", date, value, "pastDays" FROM history
+        WHERE rn = 1 OR rn = n OR date::date = final_date
+          OR rn % greatest(1, ceil(n / 360.0)::bigint) = 0
+        ORDER BY date
+    `),
     loadFeed(leagueId),
     db
       .select({ toMemberId: fantasyReactions.toMemberId, emoji: fantasyReactions.emoji, count: sql<number>`count(*)::int` })
@@ -594,9 +603,10 @@ export async function loadFantasyLeague(userId: string, leagueId: string) {
   ])
 
   const positionsBy = new Map<string, PositionRow[]>()
-  for (const p of positions) positionsBy.set(p.memberId, [...(positionsBy.get(p.memberId) ?? []), p])
+  for (const p of positions) { const rows = positionsBy.get(p.memberId) ?? []; rows.push(p); positionsBy.set(p.memberId, rows) }
   const historyBy = new Map<string, { date: string; value: number }[]>()
-  for (const s of snapshots) historyBy.set(s.memberId, [...(historyBy.get(s.memberId) ?? []), { date: s.date, value: n(s.value) }])
+  const pastDaysBy = new Map<string, number>()
+  for (const s of snapshots) { const rows = historyBy.get(s.memberId) ?? []; rows.push({ date: s.date, value: n(s.value) }); historyBy.set(s.memberId, rows); pastDaysBy.set(s.memberId, s.pastDays) }
   const reactionsByMember = new Map<string, Record<string, number>>()
   for (const reaction of reactionRows) {
     const bucket = reactionsByMember.get(reaction.toMemberId) ?? {}
@@ -622,7 +632,7 @@ export async function loadFantasyLeague(userId: string, leagueId: string) {
         image: m.image,
         rank: 0,
         percent: returnPct(value, startingCash),
-        days: history.length + 1,
+        days: (pastDaysBy.get(m.id) ?? 0) + 1,
         spark,
         hasHistory: true,
         shareHoldings: true,
@@ -778,12 +788,9 @@ export async function snapshotFantasy() {
   const ids = all.filter((m) => wantsSnapshot(m.endsAt, last.get(m.memberId)?.[0]?.date ?? null)).map((m) => m.memberId)
   const values = await memberValues(ids)
   const date = today()
-  for (const [memberId, value] of values) {
-    await db
-      .insert(fantasySnapshots)
-      .values({ memberId, date, value: value.toFixed(6) })
-      .onConflictDoUpdate({ target: [fantasySnapshots.memberId, fantasySnapshots.date], set: { value: value.toFixed(6) } })
-  }
+  const entries = [...values].map(([memberId, value]) => ({ memberId, date, value: value.toFixed(6) }))
+  for (let offset = 0; offset < entries.length; offset += 500) await db.insert(fantasySnapshots).values(entries.slice(offset, offset + 500))
+    .onConflictDoUpdate({ target: [fantasySnapshots.memberId, fantasySnapshots.date], set: { value: sql`excluded.value` } })
   return { members: values.size }
 }
 
@@ -802,24 +809,29 @@ const MAX_PRICE_AGE_DAYS = 6
  * trade log and compared, and every held price is checked to exist and be
  * recent. Runs with the nightly job; any finding makes that run report failure.
  */
-export async function checkFantasyIntegrity(now = new Date()): Promise<IntegrityReport> {
-  const [members, trades, positions, held] = await Promise.all([
-    db
+export async function checkFantasyIntegrity(now = new Date(), memberIds?: string[]): Promise<IntegrityReport> {
+  if (memberIds?.length === 0) return { members: 0, mismatches: [], badPrices: [] }
+  const [members, trades, positions, held] = await db.transaction(tx => Promise.all([
+    tx
       .select({ id: fantasyMembers.id, cash: fantasyMembers.cash, startingCash: fantasyLeagues.startingCash })
       .from(fantasyMembers)
-      .innerJoin(fantasyLeagues, eq(fantasyMembers.leagueId, fantasyLeagues.id)),
-    db
+      .innerJoin(fantasyLeagues, eq(fantasyMembers.leagueId, fantasyLeagues.id))
+      .where(memberIds ? inArray(fantasyMembers.id, memberIds) : undefined),
+    tx
       .select({ memberId: fantasyTrades.memberId, securityId: fantasyTrades.securityId, side: fantasyTrades.side, shares: fantasyTrades.shares, price: fantasyTrades.price })
       .from(fantasyTrades)
+      .where(memberIds ? inArray(fantasyTrades.memberId, memberIds) : undefined)
       .orderBy(asc(fantasyTrades.createdAt)),
-    db
+    tx
       .select({ memberId: fantasyPositions.memberId, securityId: fantasyPositions.securityId, shares: fantasyPositions.shares, costBasis: fantasyPositions.costBasis })
-      .from(fantasyPositions),
-    db
+      .from(fantasyPositions)
+      .where(memberIds ? inArray(fantasyPositions.memberId, memberIds) : undefined),
+    tx
       .selectDistinct({ id: securities.id, price: securities.closePrice, asOf: securities.closePriceAsOf })
       .from(fantasyPositions)
-      .innerJoin(securities, eq(fantasyPositions.securityId, securities.id)),
-  ])
+      .innerJoin(securities, eq(fantasyPositions.securityId, securities.id))
+      .where(memberIds ? inArray(fantasyPositions.memberId, memberIds) : undefined),
+  ]), { isolationLevel: "repeatable read", accessMode: "read only" })
 
   const tradesBy = new Map<string, { securityId: string; side: "buy" | "sell"; shares: number; price: number }[]>()
   for (const t of trades) {

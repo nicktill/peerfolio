@@ -5,8 +5,8 @@ import { db, holdings, accounts, plaidItems, portfolioSnapshots, securities } fr
 import { withUser } from "@web/lib/api"
 import { scheduleLiveRefresh } from "@web/lib/live-quotes"
 import { allTimeGain, summarizeHoldings, todayChange, type PositionInput } from "@web/lib/dashboard-math"
-import { refreshStalePrices, scheduleMetadataRefresh } from "@web/lib/positions"
-import { buildLeagueStandings, listLeaguesForUser } from "@web/lib/social"
+import { scheduleCloseRefresh, scheduleMetadataRefresh } from "@web/lib/positions"
+import { portfolioLeaguePills } from "@web/lib/social"
 import { isRange, rangeStart, timeWeightedReturn, withLivePoint, type Range } from "@web/lib/returns"
 
 const n = (v: string | null) => (v == null ? 0 : Number(v))
@@ -39,7 +39,7 @@ export const GET = withUser<unknown>(async (userId, request) => {
 
   // Bring stored closes up to date first so balances below are current, not
   // last night's. Throttled and never throws.
-  await refreshStalePrices()
+  scheduleCloseRefresh()
   scheduleLiveRefresh()
   scheduleMetadataRefresh()
 
@@ -181,18 +181,7 @@ export const GET = withUser<unknown>(async (userId, request) => {
 
   // Where you stand in each league, for the pills by the headline. A failure
   // here must never cost someone their portfolio page.
-  const leaguePills = await listLeaguesForUser(userId)
-    .then((rows) =>
-      Promise.all(
-        rows.map(async (row) => {
-          const standing = await buildLeagueStandings(row.id, userId, "1M")
-            .then((all) => all.find((s) => s.isYou))
-            .catch(() => undefined)
-          return { id: row.id, name: row.name, emoji: row.emoji, rank: standing?.hasHistory ? standing.rank : null, members: row.memberCount }
-        }),
-      ),
-    )
-    .catch(() => [])
+  const leaguePills = await portfolioLeaguePills(userId).catch(() => [])
 
   const isVerified = accountRows.length > 0 && accountRows.every((a) => a.source === "plaid")
 

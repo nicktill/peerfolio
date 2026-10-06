@@ -2,23 +2,12 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { ApiError, readJson, withUser } from "@web/lib/api"
 import { ImportAiError, parseWithClaude } from "@web/lib/import-ai"
+import { reserveImport } from "@web/lib/import-budget"
 import { parseHoldingsText } from "@web/lib/import-parse"
 
 export const maxDuration = 60
 
 const Body = z.object({ text: z.string().min(3, "Paste something first").max(200_000, "That's too much to read at once") })
-
-/** Reads by the AI cost money, so each person gets a modest number an hour. */
-const AI_READS_PER_HOUR = 12
-const aiReads = new Map<string, number[]>()
-
-function takeAiRead(userId: string) {
-  const now = Date.now()
-  const recent = (aiReads.get(userId) ?? []).filter((t) => now - t < 3_600_000)
-  if (recent.length >= AI_READS_PER_HOUR) return false
-  aiReads.set(userId, [...recent, now])
-  return true
-}
 
 /**
  * Turns pasted or uploaded holdings into a preview. Nothing is saved here.
@@ -36,7 +25,7 @@ export const POST = withUser<unknown>(async (userId, request) => {
   if (!apiKey) {
     throw new ApiError("We couldn't read that as a table. Upload a CSV from your brokerage, or type one holding per line, like AAPL 10 @ 150.", 422)
   }
-  if (!takeAiRead(userId)) throw new ApiError("That's a lot of imports for one hour. Try again a bit later, or upload a CSV.", 429)
+  await reserveImport(userId, parsed.data.text)
 
   try {
     const outcome = await parseWithClaude(parsed.data.text, { apiKey })

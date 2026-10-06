@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { investableTotal, writeDailySnapshot } from "@web/lib/plaid-sync"
-import { ApiError, readJson, withUser } from "@web/lib/api"
-import { requireManualAccount, setPosition } from "@web/lib/positions"
+import { ApiError, readJson, withPortfolioUser } from "@web/lib/api"
+import { preparePositionPrice, requireManualAccount, setPosition } from "@web/lib/positions"
 import { recordAccountEvent } from "@web/lib/account-events"
 
 type Ctx = { params: Promise<{ id: string }> }
@@ -16,7 +16,7 @@ const Position = z.object({
 })
 
 /** Adds a position to a manual account, or changes how much of it is held. */
-export const POST = withUser<Ctx>(async (userId, request, { params }) => {
+export const POST = withPortfolioUser<Ctx>(async (userId, request, { params }) => {
   const { id } = await params
   const account = await requireManualAccount(userId, id)
   if (account.category !== "investment") throw new ApiError("Positions can only be added to investment accounts")
@@ -37,4 +37,11 @@ export const POST = withUser<Ctx>(async (userId, request, { params }) => {
   })
 
   return NextResponse.json({ ok: true }, { status: 201 })
+}, async (userId, request, { params }) => {
+  const { id } = await params
+  const account = await requireManualAccount(userId, id)
+  if (account.category !== "investment") throw new ApiError("Positions can only be added to investment accounts")
+  const parsed = Position.safeParse(await readJson(request))
+  if (!parsed.success) throw new ApiError(parsed.error.issues[0]?.message ?? "Invalid position")
+  await preparePositionPrice(parsed.data)
 })

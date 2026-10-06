@@ -1,9 +1,10 @@
+import { claimBackgroundLease, releaseBackgroundLease } from "@web/lib/background-lease"
 import { after } from "next/server"
-import { and, eq, inArray, isNotNull, isNull, lt, sql } from "drizzle-orm"
-import { accounts, db, holdings, securities } from "@web/db"
+import { DrizzleQueryError, and, eq, inArray, isNotNull, isNull, lt, sql } from "drizzle-orm"
+import { accounts, db, holdings, securities, withPortfolioWrite } from "@web/db"
 import { ApiError } from "@web/lib/api"
 import { isUsMarketOpen, latestCompletedSession } from "@web/lib/market-hours"
-import { previousCloseOnUpdate } from "@web/lib/price-write"
+import { acceptsPrice, previousCloseOnUpdate } from "@web/lib/price-write"
 import { acceptSessionClose, createQuoteProvider, quoteDate } from "@web/lib/quote-provider"
 import { createFinnhubProvider } from "@web/lib/finnhub"
 import { isPlanIdentifier } from "@web/lib/import-parse"
@@ -55,7 +56,7 @@ export async function ensurePriced(marketTicker: string, kind: AssetKind, { maxA
   const existing = await db.query.securities.findFirst({ where: eq(securities.id, securityId) })
   const fresh =
     existing?.closePrice && existing.closePriceAsOf &&
-    (maxAgeHours === undefined || Date.now() - existing.updatedAt.getTime() < maxAgeHours * 3_600_000)
+    (maxAgeHours === undefined || existing.priceAcceptedAt && Date.now() - existing.priceAcceptedAt.getTime() < maxAgeHours * 3_600_000)
   if (fresh) return { securityId, price: Number(existing.closePrice), asOf: existing.closePriceAsOf!, name: existing.name }
 
   const close = await previousClose(marketTicker).catch((error: unknown) => {
@@ -87,16 +88,19 @@ export async function ensurePriced(marketTicker: string, kind: AssetKind, { maxA
       tickerSymbol: displaySymbol(marketTicker),
       type: kind === "crypto" ? "cryptocurrency" : "equity",
       marketTicker,
+      priceAcceptedAt: new Date(),
       closePrice: close.price.toString(),
       closePriceAsOf: close.asOf,
       closePriceFinal: true,
     })
     .onConflictDoUpdate({
       target: securities.id,
-      set: { previousClose: previousCloseOnUpdate(close.asOf), closePrice: close.price.toString(), closePriceAsOf: close.asOf, closePriceFinal: true, updatedAt: new Date() },
+      setWhere: acceptsPrice(close.asOf, true),
+      set: { priceAcceptedAt: new Date(), previousClose: previousCloseOnUpdate(close.asOf), closePrice: close.price.toString(), closePriceAsOf: close.asOf, closePriceFinal: true, updatedAt: new Date() },
     })
 
-  return { securityId, price: close.price, asOf: close.asOf, name: existing?.name ?? null }
+  const stored = await db.query.securities.findFirst({ where: eq(securities.id, securityId) })
+  return { securityId, price: Number(stored!.closePrice), asOf: stored!.closePriceAsOf!, name: stored!.name }
 }
 
 /** A 404 naming the ticker, with close matches when the provider has any. */
@@ -321,6 +325,7 @@ async function primePrices(rows: { marketTicker: string; kind: AssetKind; name?:
       }
     }
   } catch (error) {
+    if (error instanceof DrizzleQueryError) throw error
     console.error("[positions] price priming failed:", error instanceof Error ? error.message : error)
   }
   return priced
@@ -339,6 +344,7 @@ async function storeFirstPrice(p: { marketTicker: string; kind: AssetKind; name?
       name: p.name ?? null,
       type: p.type ?? (p.kind === "crypto" ? "cryptocurrency" : "equity"),
       marketTicker: p.marketTicker,
+      priceAcceptedAt: new Date(),
       closePrice: p.price.toString(),
       closePriceAsOf: p.asOf,
       // It may be a live last trade; the catch-up confirms it against the official close.
@@ -346,7 +352,7 @@ async function storeFirstPrice(p: { marketTicker: string; kind: AssetKind; name?
     })
     .onConflictDoUpdate({
       target: securities.id,
-      set: { closePrice: p.price.toString(), closePriceAsOf: p.asOf, closePriceFinal: false, type: p.type ?? sql`${securities.type}`, updatedAt: new Date() },
+      set: { priceAcceptedAt: new Date(), closePrice: p.price.toString(), closePriceAsOf: p.asOf, closePriceFinal: false, type: p.type ?? sql`${securities.type}`, updatedAt: new Date() },
       setWhere: isNull(securities.closePrice),
     })
 }
@@ -385,7 +391,7 @@ async function ensureUnpriced(marketTicker: string, kind: AssetKind, name: strin
  * mention are removed afterwards, but only when every row went in, so a bad
  * ticker can never leave an account half-emptied.
  */
-export async function importPositions(accountId: string, userId: string, rows: ImportRowInput[], { replace }: { replace: boolean }): Promise<ImportResult> {
+export async function importPositions(accountId: string, userId: string, rows: ImportRowInput[], { replace, prepared }: { replace: boolean; prepared?: PreparedImportPrices }): Promise<ImportResult> {
   const result: ImportResult = { imported: 0, removed: 0, fromFile: [], failed: [], pending: [] }
 
   const keptSecurityIds = new Set<string>()
@@ -414,7 +420,8 @@ export async function importPositions(accountId: string, userId: string, rows: I
         keptSecurityIds.add(id)
         result.imported++
         result.fromFile.push(symbol)
-      } catch {
+      } catch (error) {
+        if (error instanceof DrizzleQueryError) throw error
         result.failed.push({ symbol, reason: "Couldn't save this plan holding. Try importing it again." })
       }
       continue
@@ -424,7 +431,7 @@ export async function importPositions(accountId: string, userId: string, rows: I
     else result.failed.push({ symbol: row.symbol, reason: `Doesn't look like a ${row.kind === "crypto" ? "coin" : "ticker"}` })
   }
 
-  const priced = await primePrices(usable)
+  const priced = prepared?.priced ?? await primePrices(usable)
 
   // No market data source prices a mutual fund (the free plans of Massive, Alpaca and
   // Finnhub all decline). The file itself says what each one is worth, so use that for
@@ -444,9 +451,10 @@ export async function importPositions(accountId: string, userId: string, rows: I
     const input = { symbol: row.symbol, kind: row.kind, quantity: row.quantity, avgCost: row.avgCost ?? undefined }
     const securityId = `mkt:${row.marketTicker}`
     try {
+      if (prepared?.errors.has(securityId)) throw prepared.errors.get(securityId)
       if (priced.has(securityId)) {
         await writeHolding(accountId, userId, securityId, input)
-      } else if (singleLookups < MAX_SINGLE_LOOKUPS) {
+      } else if (!prepared && singleLookups < MAX_SINGLE_LOOKUPS) {
         singleLookups++
         await upsertPosition(accountId, userId, input)
       } else {
@@ -457,6 +465,7 @@ export async function importPositions(accountId: string, userId: string, rows: I
       keptSecurityIds.add(securityId)
       result.imported++
     } catch (error) {
+      if (error instanceof DrizzleQueryError) throw error
       if (error instanceof ApiError && error.status === 404) {
         // The provider looked and this ticker isn't there: a real answer.
         result.failed.push({ symbol: row.symbol, reason: error.message })
@@ -524,18 +533,21 @@ export async function repricePositions() {
 
   const closes = await latestCloses(held.map((s) => s.marketTicker!))
 
+  const accepted: string[] = []
   for (const security of held) {
     const close = closes.get(security.marketTicker!)
     // Never step a price back: a live price from today outranks yesterday's close,
     // and today's official close (same date) replaces the live one.
     if (!close || !isNewerClose(close.asOf, security.asOf)) continue
-    await db
+    const changed = await db
       .update(securities)
-      .set({ previousClose: previousCloseOnUpdate(close.asOf), closePrice: close.price.toString(), closePriceAsOf: close.asOf, closePriceFinal: true, updatedAt: new Date() })
-      .where(eq(securities.id, security.id))
+      .set({ priceAcceptedAt: new Date(), previousClose: previousCloseOnUpdate(close.asOf), closePrice: close.price.toString(), closePriceAsOf: close.asOf, closePriceFinal: true, updatedAt: new Date() })
+      .where(and(eq(securities.id, security.id), acceptsPrice(close.asOf, true)))
+      .returning({ id: securities.id })
+    if (changed.length) accepted.push(security.id)
   }
 
-  await revalue()
+  await revalueSecurities(accepted)
   return { tickers: held.length, priced: closes.size }
 }
 
@@ -559,7 +571,7 @@ const SESSION_CLOSE_CALLS_PER_RUN = 50
  * still lack the latest session's official close. `unconfirmed` and `behind` cover
  * every held stock, counted in the database (see `closeFreshness`).
  */
-export type CatchUpResult = { refreshed: number; awaitingClose?: number; unconfirmed?: number; behind?: number; failed?: boolean }
+export type CatchUpResult = { deferred?: boolean; refreshed: number; awaitingClose?: number; unconfirmed?: number; behind?: number; failed?: boolean }
 
 /**
  * How fresh held stock prices are, counted in the database rather than from one run's
@@ -600,8 +612,11 @@ export async function refreshStalePrices({
 } = {}): Promise<CatchUpResult> {
   if (now - lastRefreshAttempt < minIntervalMinutes * 60_000) return { refreshed: 0 }
   lastRefreshAttempt = now
+  let lease: string | null = null
 
   try {
+    lease = await claimBackgroundLease("price-catchup", minIntervalMinutes * 60, 180)
+    if (!lease) return { refreshed: 0, deferred: true }
     const cutoff = new Date(now - maxAgeHours * 3_600_000)
     // Also look when the stored close is older than the latest finished session, so a
     // new official close is picked up shortly after it's published, not hours later.
@@ -763,25 +778,22 @@ export async function refreshStalePrices({
       ...fundsWaiting,
     ])
 
-    let refreshed = 0
+    const accepted: string[] = []
     for (const security of stale) {
       if (skipped.has(security.id)) continue
-      const found = closes.get(security.marketTicker!)
-      // A close that isn't newer than what we hold (weekend, holiday, or a live
-      // price from today) still counts as checked, but never replaces it.
-      const close = found && isNewerClose(found.asOf, security.asOf) ? found : undefined
+      const close = closes.get(security.marketTicker!)
       const final = !provisional.has(security.marketTicker!)
-      await db
-        .update(securities)
-        .set(
-          close
-            ? { previousClose: previousCloseOnUpdate(close.asOf), closePrice: close.price.toString(), closePriceAsOf: close.asOf, closePriceFinal: final, updatedAt: new Date() }
-            : { updatedAt: new Date() },
-        )
-        .where(eq(securities.id, security.id))
-      if (close) refreshed++
+      if (close) {
+        const changed = await db.update(securities).set({
+          previousClose: previousCloseOnUpdate(close.asOf), closePrice: close.price.toString(),
+          closePriceAsOf: close.asOf, closePriceFinal: final, priceAcceptedAt: new Date(), updatedAt: new Date(),
+        }).where(and(eq(securities.id, security.id), acceptsPrice(close.asOf, final))).returning({ id: securities.id })
+        if (changed.length) accepted.push(security.id)
+      }
+      await db.update(securities).set({ updatedAt: new Date() }).where(eq(securities.id, security.id))
     }
-    if (refreshed > 0) await revalue()
+    const refreshed = accepted.length
+    await revalueSecurities(accepted)
     // Stocks still without the latest session's official close after this run, so a
     // response (and the cron's log) says how fresh prices really are, not just what was tried.
     const freshness = await closeFreshness(catchUp.expectedDate)
@@ -792,6 +804,8 @@ export async function refreshStalePrices({
     // A failure shouldn't lock refreshing out for the whole interval: retry in a minute.
     lastRefreshAttempt = now - (minIntervalMinutes - 1) * 60_000
     return { refreshed: 0, failed: true }
+  } finally {
+    if (lease) await releaseBackgroundLease("price-catchup", lease).catch(error => console.error("[prices] lease release failed", error))
   }
 }
 
@@ -800,34 +814,74 @@ export async function refreshStalePrices({
  * With an account id, only that account — including one whose last position
  * was just removed, which drops to zero.
  */
-async function revalue(accountId?: string, securityIds?: string[]) {
-  const onlyAccount = accountId ? sql`AND h.account_id = ${accountId}` : sql``
-  const idList = securityIds && securityIds.length > 0 ? sql.join(securityIds.map((id) => sql`${id}`), sql`, `) : null
-  const onlySecurities = idList ? sql`AND h.security_id IN (${idList})` : sql``
-
-  await db.execute(sql`
-    UPDATE holdings h
-    SET institution_value = h.quantity * s.close_price, updated_at = now()
-    FROM securities s
-    WHERE s.id = h.security_id AND s.market_ticker IS NOT NULL ${onlyAccount} ${onlySecurities}
-  `)
-
-  // With a list of securities, only the accounts that hold them need a new balance.
+async function revalue(accountId?: string, securityIds?: string[], onlyUserId?: string) {
   const affected = accountId
-    ? sql`a.id = ${accountId}`
-    : idList
-      ? sql`a.id IN (SELECT account_id FROM holdings WHERE security_id IN (${idList}))`
-      : sql`EXISTS (SELECT 1 FROM holdings WHERE account_id = a.id)`
-
-  await db.execute(sql`
-    UPDATE accounts a
-    SET current_balance = COALESCE((SELECT sum(institution_value) FROM holdings WHERE account_id = a.id), 0),
-        updated_at = now()
-    WHERE a.source = 'manual' AND ${affected}
-  `)
+    ? await db.select({ id: accounts.id, userId: accounts.userId }).from(accounts).where(eq(accounts.id, accountId))
+    : await db.selectDistinct({ id: accounts.id, userId: accounts.userId }).from(accounts)
+      .innerJoin(holdings, eq(holdings.accountId, accounts.id))
+      .where(and(securityIds?.length ? inArray(holdings.securityId, securityIds) : undefined, onlyUserId ? eq(accounts.userId, onlyUserId) : undefined))
+  const byUser = new Map<string, string[]>()
+  for (const row of affected) { const ids = byUser.get(row.userId) ?? []; ids.push(row.id); byUser.set(row.userId, ids) }
+  for (const [userId, ids] of byUser) {
+    await withPortfolioWrite(userId, async () => {
+      const idList = sql.join(ids.map(id => sql`${id}`), sql`, `)
+      const onlySecurities = securityIds?.length ? sql`AND h.security_id IN (${sql.join(securityIds.map(id => sql`${id}`), sql`, `)})` : sql``
+      await db.execute(sql`
+        UPDATE holdings h SET institution_value = h.quantity * s.close_price, updated_at = now()
+        FROM securities s WHERE s.id = h.security_id AND s.market_ticker IS NOT NULL
+          AND h.account_id IN (${idList}) ${onlySecurities}
+      `)
+      await db.execute(sql`
+        UPDATE accounts a SET current_balance = COALESCE((SELECT sum(institution_value) FROM holdings WHERE account_id = a.id), 0), updated_at = now()
+        WHERE a.source = 'manual' AND a.id IN (${idList})
+      `)
+    })
+  }
 }
 
 /** Revalues only the holdings and manual accounts that depend on these securities. */
 export async function revalueSecurities(securityIds: string[]) {
   if (securityIds.length > 0) await revalue(undefined, securityIds)
+}
+
+/** Normalize existing prices before a structural before/after flow bracket. */
+export async function revalueUser(userId: string) {
+  await revalue(undefined, undefined, userId)
+}
+
+/** Stored reads never wait for global provider repair. A shared lease keeps
+ * cold serverless instances from all starting the same catch-up. */
+export function scheduleCloseRefresh() {
+  try { after(async () => { await refreshStalePrices() }) }
+  catch { /* The scheduled price job is the fallback outside request context. */ }
+}
+
+export type PreparedImportPrices = { priced: Set<string>; errors: Map<string, unknown> }
+
+/** Same provider/fallback limits as importPositions, but no portfolio lock is
+ * held while waiting for them. The transaction reuses prepared successes/errors. */
+export async function prepareImportPrices(rows: ImportRowInput[]): Promise<PreparedImportPrices> {
+  const usable = rows.flatMap(row => {
+    if (row.kind === "stock" && isPlanIdentifier(row.symbol.trim().toUpperCase())) return []
+    const marketTicker = toMarketTicker(row.symbol, row.kind)
+    return marketTicker ? [{ ...row, marketTicker }] : []
+  })
+  const priced = await primePrices(usable)
+  const errors = new Map<string, unknown>()
+  let lookups = 0
+  for (const row of usable) {
+    const id = `mkt:${row.marketTicker}`
+    // A valid statement price handles these in the transaction without a lookup.
+    if (priced.has(id) || (row.price && row.price > 0) || lookups >= MAX_SINGLE_LOOKUPS) continue
+    lookups++
+    try { await ensurePriced(row.marketTicker, row.kind); priced.add(id) }
+    catch (error) { errors.set(id, error) }
+  }
+  return { priced, errors }
+}
+
+export async function preparePositionPrice(input: PositionInput) {
+  if (input.kind === "stock" && isPlanIdentifier(input.symbol.trim().toUpperCase())) return
+  const ticker = toMarketTicker(input.symbol, input.kind)
+  if (ticker) await ensurePriced(ticker, input.kind)
 }

@@ -29,6 +29,7 @@ export function getPlaidClient(): PlaidApi {
     new Configuration({
       basePath: PlaidEnvironments[getPlaidEnv()],
       baseOptions: {
+        timeout: 10_000,
         headers: { "PLAID-CLIENT-ID": clientId, "PLAID-SECRET": secret },
       },
     }),

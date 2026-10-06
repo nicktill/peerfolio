@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm"
 import { z } from "zod"
 import { accounts, db } from "@web/db"
 import { investableTotal, writeDailySnapshot } from "@web/lib/plaid-sync"
-import { ApiError, readJson, withUser } from "@web/lib/api"
+import { ApiError, readJson, withPortfolioUser } from "@web/lib/api"
 import { accountHasPositions, requireManualAccount } from "@web/lib/positions"
 import { recordAccountEvent } from "@web/lib/account-events"
 
@@ -16,7 +16,7 @@ const UpdateAccount = z.object({
   balance: z.number().finite().nonnegative().optional(),
 })
 
-export const PATCH = withUser<Ctx>(async (userId, request, { params }) => {
+export const PATCH = withPortfolioUser<Ctx>(async (userId, request, { params }) => {
   const { id } = await params
   const account = await requireManualAccount(userId, id)
 
@@ -57,7 +57,7 @@ export const PATCH = withUser<Ctx>(async (userId, request, { params }) => {
   return NextResponse.json({ ok: true })
 })
 
-export const DELETE = withUser<Ctx>(async (userId, _request, { params }) => {
+export const DELETE = withPortfolioUser<Ctx>(async (userId, _request, { params }) => {
   const { id } = await params
   const account = await requireManualAccount(userId, id)
 

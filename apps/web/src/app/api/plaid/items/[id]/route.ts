@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server"
 import { and, eq } from "drizzle-orm"
-import { db, accounts, plaidItems } from "@web/db"
-import { decrypt } from "@web/lib/crypto"
-import { getPlaidClient } from "@web/lib/plaid"
-import { investableTotal, syncItem, writeDailySnapshot } from "@web/lib/plaid-sync"
+import { db, accounts, plaidItems, withPortfolioWrite } from "@web/db"
+import { investableTotal, syncUser, writeDailySnapshot } from "@web/lib/plaid-sync"
+import { queuePlaidRemoval } from "@web/lib/plaid-removal"
 import { ApiError, withUser } from "@web/lib/api"
 
 type Ctx = { params: Promise<{ id: string }> }
@@ -22,8 +21,8 @@ export const POST = withUser<Ctx>(async (userId, _request, { params }) => {
   await requireOwnedItem(userId, id)
 
   // A re-sync is not a structural change, so any movement is performance.
-  const result = await syncItem(id)
-  await writeDailySnapshot(userId)
+  const refreshed = await syncUser(userId, id)
+  const result = refreshed.results.find(r => r.itemId === id)
 
   return NextResponse.json({ result })
 })
@@ -31,7 +30,7 @@ export const POST = withUser<Ctx>(async (userId, _request, { params }) => {
 /**
  * Disconnects an institution.
  *
- * Calls Plaid's `/item/remove` first — skipping it would leave the Item live
+ * Queues Plaid's `/item/remove` durably — skipping it would leave the Item live
  * and billable forever. Local rows go regardless, so a Plaid-side failure can
  * never strand a connection the user asked to delete.
  */
@@ -39,16 +38,13 @@ export const DELETE = withUser<Ctx>(async (userId, _request, { params }) => {
   const { id } = await params
   const item = await requireOwnedItem(userId, id)
 
-  try {
-    await getPlaidClient().itemRemove({ access_token: decrypt(item.accessToken) })
-  } catch (error) {
-    console.error("[plaid] item/remove failed; removing locally anyway", error)
-  }
-
-  const before = await investableTotal(userId)
-  await db.delete(accounts).where(eq(accounts.itemId, item.id))
-  await db.delete(plaidItems).where(eq(plaidItems.id, item.id))
-  await writeDailySnapshot(userId, (await investableTotal(userId)) - before)
+  await withPortfolioWrite(userId, async () => {
+    await queuePlaidRemoval(item)
+    const before = await investableTotal(userId)
+    await db.delete(accounts).where(eq(accounts.itemId, item.id))
+    await db.delete(plaidItems).where(eq(plaidItems.id, item.id))
+    await writeDailySnapshot(userId, (await investableTotal(userId)) - before)
+  })
 
   return NextResponse.json({ ok: true })
 })

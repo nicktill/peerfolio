@@ -18,7 +18,7 @@ concurrency:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 7
     steps:
       - name: Call /api/cron/prices
         env:
@@ -31,7 +31,7 @@ jobs:
           fi
           # Anything but a 200 fails the run. A redirect (the bare domain redirects to www)
           # would otherwise look like success without the app ever being reached.
-          code=$(curl --silent --show-error --max-time 90 --retry 2 --retry-delay 10 \
+          code=$(curl --silent --show-error --max-time 310 --retry 0 \
             -o response.json -w '%{http_code}' \
             -H "Authorization: Bearer $CRON_SECRET" \
             "${APP_URL%/}/api/cron/prices")

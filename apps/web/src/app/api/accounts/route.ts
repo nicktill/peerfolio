@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm"
 import { z } from "zod"
 import { accounts, db } from "@web/db"
 import { investableTotal, writeDailySnapshot } from "@web/lib/plaid-sync"
-import { ApiError, readJson, withUser } from "@web/lib/api"
+import { ApiError, readJson, withUser, withPortfolioUser } from "@web/lib/api"
 import { recordAccountEvent } from "@web/lib/account-events"
 
 /**
@@ -40,7 +40,7 @@ export const GET = withUser<unknown>(async (userId) => {
   })
 })
 
-export const POST = withUser<unknown>(async (userId, request) => {
+export const POST = withPortfolioUser<unknown>(async (userId, request) => {
   const parsed = ManualAccount.safeParse(await readJson(request))
   if (!parsed.success) throw new ApiError(parsed.error.issues[0]?.message ?? "Invalid account")
 

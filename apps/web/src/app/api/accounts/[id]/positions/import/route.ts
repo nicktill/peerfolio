@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { investableTotal, writeDailySnapshot } from "@web/lib/plaid-sync"
-import { ApiError, readJson, withUser } from "@web/lib/api"
-import { importPositions, requireManualAccount } from "@web/lib/positions"
+import { ApiError, readJson, withPortfolioUser } from "@web/lib/api"
+import { importPositions, prepareImportPrices, type PreparedImportPrices, requireManualAccount } from "@web/lib/positions"
 import { recordAccountEvent } from "@web/lib/account-events"
 
 export const maxDuration = 60
@@ -29,7 +29,7 @@ const Body = z.object({
 })
 
 /** Saves a confirmed import into a manual investment account. */
-export const POST = withUser<Ctx>(async (userId, request, { params }) => {
+export const POST = withPortfolioUser<Ctx, PreparedImportPrices>(async (userId, request, { params }, prepared) => {
   const { id } = await params
   const account = await requireManualAccount(userId, id)
   if (account.category !== "investment") throw new ApiError("Positions can only be added to investment accounts")
@@ -40,7 +40,7 @@ export const POST = withUser<Ctx>(async (userId, request, { params }) => {
   // Money that arrives with the import is a flow, like a deposit: bringing your
   // holdings in must not read as a gain.
   const before = await investableTotal(userId)
-  const result = await importPositions(id, userId, parsed.data.rows, { replace: parsed.data.replace })
+  const result = await importPositions(id, userId, parsed.data.rows, { replace: parsed.data.replace, prepared })
   await writeDailySnapshot(userId, (await investableTotal(userId)) - before)
   await recordAccountEvent(userId, before, {
     action: "positions_imported",
@@ -56,4 +56,11 @@ export const POST = withUser<Ctx>(async (userId, request, { params }) => {
   })
 
   return NextResponse.json(result, { status: 200 })
+}, async (userId, request, { params }) => {
+  const { id } = await params
+  const account = await requireManualAccount(userId, id)
+  if (account.category !== "investment") throw new ApiError("Positions can only be added to investment accounts")
+  const parsed = Body.safeParse(await readJson(request))
+  if (!parsed.success) throw new ApiError(parsed.error.issues[0]?.message ?? "Invalid import")
+  return prepareImportPrices(parsed.data.rows)
 })

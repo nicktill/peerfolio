@@ -1,3 +1,4 @@
+import { withPortfolioWrite } from "@web/db"
 import { NextResponse } from "next/server"
 import { getCurrentUserId } from "@web/lib/auth"
 
@@ -69,4 +70,20 @@ export function assertCronAuthorized(request: Request) {
   const secret = process.env.CRON_SECRET
   if (!secret) throw new ApiError("CRON_SECRET is not configured", 500)
   if (request.headers.get("authorization") !== `Bearer ${secret}`) throw new ApiError("Forbidden", 403)
+}
+
+/** Auth/error handling stays outside the transaction so errors roll it back. */
+export function withPortfolioUser<T, P = void>(
+  handler: (userId: string, request: Request, context: T, prepared: P) => Promise<Response>,
+  prepare?: (userId: string, request: Request, context: T) => Promise<P>,
+) {
+  return withUser<T>(async (userId, request, context) => {
+    // Provider calls must finish before reserving a DB connection/lock.
+    const prepared = await prepare?.(userId, request.clone(), context)
+    return withPortfolioWrite(userId, async () => {
+      const { revalueUser } = await import("@web/lib/positions")
+      await revalueUser(userId)
+      return handler(userId, request.clone(), context, prepared as P)
+    })
+  })
 }

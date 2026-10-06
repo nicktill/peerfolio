@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import { describe, it } from "node:test"
+import { describe, it, test } from "node:test"
 import { ImportAiError, parseWithClaude } from "./import-ai.ts"
 
 const reply = (input: unknown, status = 200, extra: object = {}) =>
@@ -40,4 +40,11 @@ describe("parseWithClaude", () => {
     const out = await parseWithClaude("x", { apiKey: "k", fetchImpl: reply({ positions: [{ symbol: "AAPL", quantity: 1 }] }, 200, { stop_reason: "max_tokens" }) })
     assert.ok(out.warnings.some((w) => /cut short/.test(w)))
   })
+})
+
+test("import spending bound includes multibyte input and the whole output allowance", async () => {
+  const { importReservationUsd } = await import("./import-ai.ts")
+  assert.ok(importReservationUsd("😀".repeat(40_000)) > importReservationUsd("a".repeat(40_000)))
+  assert.equal(importReservationUsd("a".repeat(200_000)), importReservationUsd("a".repeat(40_000)))
+  assert.ok(importReservationUsd("abc") >= 8192 * 5 / 1_000_000)
 })

@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server"
 import { and, asc, eq, ne, sql } from "drizzle-orm"
 import { z } from "zod"
-import { db, follows, leagueMembers, leagues, plaidItems, portfolioSnapshots, users, waitlistSignups } from "@web/db"
+import { db, plaidRemovals, follows, leagueMembers, leagues, plaidItems, portfolioSnapshots, users, waitlistSignups } from "@web/db"
 import { ApiError, readJson, withUser } from "@web/lib/api"
-import { decrypt } from "@web/lib/crypto"
-import { getPlaidClient } from "@web/lib/plaid"
 
 export const GET = withUser<unknown>(async (userId) => {
   const user = await db.query.users.findFirst({ where: eq(users.id, userId) })
@@ -83,17 +81,8 @@ export const DELETE = withUser<unknown>(async (userId) => {
   if (!user) throw new ApiError("User not found", 404)
 
   const items = await db.select().from(plaidItems).where(eq(plaidItems.userId, userId))
-  for (const item of items) {
-    try {
-      await getPlaidClient().itemRemove({ access_token: decrypt(item.accessToken) })
-    } catch (error) {
-      // Same trade-off as disconnecting: a Plaid-side failure must not keep
-      // someone's data here after they asked for it to be gone.
-      console.error("[me] item/remove failed during account deletion", error)
-    }
-  }
-
   await db.transaction(async (tx) => {
+    for (const item of items) await tx.insert(plaidRemovals).values({ id: item.id, accessToken: item.accessToken }).onConflictDoNothing()
     // Leagues outlive their creator: hand each one to the longest-standing
     // remaining member. A league with nobody else in it goes with the account.
     const owned = await tx.select({ id: leagues.id }).from(leagues).where(eq(leagues.ownerId, userId))

@@ -16,7 +16,7 @@ export type { AccountEventInput }
 export async function recordAccountEvent(userId: string, investableBefore: number, input: AccountEventInput) {
   try {
     const after = await investableTotal(userId)
-    await db.insert(accountEvents).values(buildAccountEvent(userId, investableBefore, after, input))
+    await db.transaction(tx => tx.insert(accountEvents).values(buildAccountEvent(userId, investableBefore, after, input)))
   } catch (error) {
     console.error("[account-events] could not record", input.action, error)
   }
