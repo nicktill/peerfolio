@@ -63,13 +63,30 @@ export const inputTokenBound = (input: string) =>
 /** The most one attempt can cost: the input bound plus the full output cap, at the configured prices. */
 export const worstCaseUsd = (input: string) => costOf(inputTokenBound(input), MAX_OUTPUT_TOKENS)
 
-/** Retry feedback is capped so a retry's prompt stays inside the input limit too. */
+/** Retry feedback is capped, in UTF-8 bytes like the bound, so a retry's prompt stays inside the input limit too. */
 const FEEDBACK_ROOM = 4000
-const feedbackText = (problems: string[]) =>
-  `\n\nYour previous draft had these problems. Fix all of them:\n- ${problems
-    .slice(0, 8)
-    .map((p) => p.slice(0, 300))
-    .join("\n- ")}`.slice(0, FEEDBACK_ROOM)
+
+/** The longest prefix of `text` that fits in `max` UTF-8 bytes, cut on a character boundary. */
+export function clipBytes(text: string, max: number) {
+  let used = 0
+  let out = ""
+  for (const ch of text) {
+    const size = bytes(ch)
+    if (used + size > max) break
+    used += size
+    out += ch
+  }
+  return out
+}
+
+export const feedbackText = (problems: string[]) =>
+  clipBytes(
+    `\n\nYour previous draft had these problems. Fix all of them:\n- ${problems
+      .slice(0, 8)
+      .map((p) => p.slice(0, 300))
+      .join("\n- ")}`,
+    FEEDBACK_ROOM,
+  )
 
 /**
  * Where spend is reserved before each attempt and settled after it. `reserve`
@@ -153,7 +170,7 @@ export const BRIEF_SCHEMA = {
   },
 } as const
 
-export type Claim = { value: string; unit: string; money: boolean; direction: "up" | "down" | null; raw: string }
+export type Claim = { value: string; unit: string; money: boolean; direction: "up" | "down" | "ambiguous" | null; raw: string }
 
 const UNITS: [RegExp, string][] = [
   [/^(%|percent|per cent)$/i, "%"],
@@ -166,36 +183,36 @@ const UNITS: [RegExp, string][] = [
 const UP = /\b(up|rose|rise|rises|rising|gain|gains|gained|climb|climbs|climbed|jump|jumps|jumped|rall(?:y|ied|ies)|surge|surged|surges|advance|advanced|added|higher|soar|soared|increase|increased|grew|beat)\b/i
 const DOWN = /\b(down|fell|fall|falls|falling|drop|drops|dropped|slid|slide|slides|slip|slips|slipped|decline|declined|declines|lost|lose|loses|sank|sink|sinks|tumble|tumbled|plunge|plunged|lower|retreat|retreated|decrease|decreased|shed|missed)\b/i
 
-/** The last direction word in a span of text, or null. */
-function lastDirection(span: string): "up" | "down" | null {
-  let found: { at: number; dir: "up" | "down" } | null = null
-  for (const [re, dir] of [[UP, "up"], [DOWN, "down"]] as const) {
-    for (const m of span.matchAll(new RegExp(re.source, "gi"))) if (!found || m.index! > found.at) found = { at: m.index!, dir }
-  }
-  return found?.dir ?? null
-}
+/**
+ * Where one clause ends and the next begins: punctuation, or a word that joins
+ * two statements ("rose yesterday but is 2.3% lower", "fell 1% after rising 2%",
+ * "rose 2% on lower rates"). A figure's direction comes from its own clause only.
+ */
+const CLAUSE_BREAK = /[.;:!?,]|\b(?:but|while|whereas|although|though|yet|after|before|and|or|then|on|amid|despite|with|following|because|since|ahead)\b(?![-\w])/gi
 
-/** The first direction word in a span of text, or null. */
-function firstDirection(span: string): "up" | "down" | null {
-  const up = span.search(UP)
-  const down = span.search(DOWN)
-  if (up === -1 && down === -1) return null
-  if (up === -1) return "down"
-  if (down === -1) return "up"
-  return up < down ? "up" : "down"
+/** Every direction a span of text states. */
+function directionsIn(span: string) {
+  const found = new Set<"up" | "down">()
+  if (UP.test(span)) found.add("up")
+  if (DOWN.test(span)) found.add("down")
+  return found
 }
 
 /**
- * Which way a figure says something moved: its sign first ("-2.3%"), then the
- * nearest direction word before it in the same clause ("fell 2.3%"), then just
- * after it ("2.3% lower").
+ * Which way a figure says something moved: its sign first ("-2.3%"), else the
+ * direction words in the figure's own clause ("fell 2.3%", "2.3% lower"). A
+ * clause that says both ways is "ambiguous": it backs no direction, and a draft
+ * that writes one is sent back.
  */
-function directionOf(text: string, start: number, end: number, sign: string | undefined): "up" | "down" | null {
+function directionOf(text: string, start: number, end: number, sign: string | undefined): Claim["direction"] {
   if (sign === "+") return "up"
   if (sign === "-" || sign === "\u2212") return "down"
-  const before = text.slice(Math.max(0, start - 40), start).split(/[.;:!?,]/).pop() ?? ""
-  const after = text.slice(end, end + 25).split(/[.;:!?,]/)[0] ?? ""
-  return lastDirection(before) ?? firstDirection(after)
+  const before = text.slice(Math.max(0, start - 60), start).split(CLAUSE_BREAK).pop() ?? ""
+  const after = text.slice(end, end + 40).split(CLAUSE_BREAK)[0] ?? ""
+  const found = directionsIn(`${before} \u2022 ${after}`)
+  if (found.size === 0) return null
+  if (found.size === 2) return "ambiguous"
+  return [...found][0]!
 }
 
 /**
@@ -233,6 +250,7 @@ export function figures(text: string) {
 function supported(claim: Claim, sources: Claim[]) {
   const same = sources.filter((s) => s.value === claim.value && s.unit === claim.unit && s.money === claim.money)
   if (same.length === 0) return "missing" as const
+  if (claim.direction === "ambiguous") return "ambiguous" as const
   if (claim.direction && !same.some((s) => s.direction === claim.direction)) return "direction" as const
   return "ok" as const
 }
@@ -267,6 +285,7 @@ export function checkBrief(brief: Brief, items: BriefItem[], sessionDate: string
     for (const claim of claims(text)) {
       const verdict = supported(claim, sources)
       if (verdict === "missing") problems.push(`${label}: "${claim.raw}" does not appear (with that unit) in the items it cites (${ids.join(", ") || "none"}). Use only figures from those items, or cite the item it comes from.`)
+      if (verdict === "ambiguous") problems.push(`${label}: "${claim.raw}" sits in a clause that says it moved both up and down. Say plainly which way it moved, in its own clause.`)
       if (verdict === "direction") problems.push(`${label}: "${claim.raw}" is described as moving ${claim.direction}, but the cited items don't say it moved ${claim.direction}. Use the direction they report, or none.`)
     }
   }
@@ -332,7 +351,9 @@ export async function writeBrief({
   let feedback: string[] = []
 
   for (let attempt = 0; attempt < 2; attempt++) {
-    const prompt = feedback.length ? `${input}${feedbackText(feedback)}` : input
+    // Recheck the whole prompt every attempt: if feedback would push it past the limit, retry without it.
+    const withFeedback = feedback.length ? `${input}${feedbackText(feedback)}` : input
+    const prompt = inputTokenBound(withFeedback) <= MAX_INPUT_TOKENS ? withFeedback : input
     const reserved = worstCaseUsd(prompt)
     const reservation = ledger ? await ledger.reserve(reserved) : null
     if (ledger && !reservation) {

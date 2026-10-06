@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { briefTargets, checkBrief, closeUtc, costOf, fallbackBrief, figures, inputTokenBound, isLastSessionOfWeek, MAX_INPUT_TOKENS, MAX_OUTPUT_TOKENS, selectItems, worstCaseUsd, writeBrief, type Brief, type BriefItem, type SpendLedger } from "./news-brief.ts"
+import { briefTargets, checkBrief, claims, clipBytes, closeUtc, costOf, fallbackBrief, feedbackText, figures, inputTokenBound, isLastSessionOfWeek, MAX_INPUT_TOKENS, MAX_OUTPUT_TOKENS, selectItems, worstCaseUsd, writeBrief, type Brief, type BriefItem, type SpendLedger } from "./news-brief.ts"
 
 const at = (iso: string) => new Date(iso)
 const raw = [
@@ -194,6 +194,50 @@ test("oversized prompts drop old stories until the hard bound fits, and reservat
   assert.equal(reservations.length, prompts.length)
   reservations.forEach((r, i) => assert.ok(r <= ceiling && r === worstCaseUsd(prompts[i]!), String(r)))
   assert.ok(ceiling < 0.02, String(ceiling))
+})
+
+test("an earlier clause can't reverse a figure's direction", () => {
+  // The reviewer's case: "rose" belongs to yesterday, the 2.3% is today's decline.
+  const items = one("Acme rose yesterday but is 2.3% lower today.")
+  const problems = checkBrief(shell("Acme gained 2.3%."), items, "2026-10-06")
+  assert.ok(problems.some((p) => p.includes("2.3%") && p.includes("moving up")), problems.join(" | "))
+  assert.deepEqual(checkBrief(shell("Acme fell 2.3%."), items, "2026-10-06"), [])
+  assert.equal(claims("Acme fell 1% after rising 2.3%")[1]!.direction, "up")
+  assert.equal(claims("Stocks rose 2.3% on lower rates")[0]!.direction, "up")
+  assert.equal(claims("Dow up 1.2% and the Nasdaq down 0.5%").map((c) => c.direction).join(), "up,down")
+})
+
+test("a clause that says both ways backs no direction, and a draft can't use one", () => {
+  const items = one("Acme rose and fell 2.3% intraday") // "and" splits: 2.3% reads as down
+  assert.equal(claims("Acme gained 2.3% lower")[0]!.direction, "ambiguous")
+  const conflicted = one("Acme gained 2.3% lower")
+  assert.ok(checkBrief(shell("Acme rose 2.3%."), conflicted, "2026-10-06").some((p) => p.includes("moving up")))
+  assert.ok(checkBrief(shell("Acme climbed 2.3% lower."), items, "2026-10-06").some((p) => p.includes("both up and down")))
+  assert.deepEqual(checkBrief(shell("Acme moved 2.3%."), conflicted, "2026-10-06"), [])
+})
+
+test("retry feedback is clipped in UTF-8 bytes and every prompt stays under the input cap", async () => {
+  const bytes = (t: string) => new TextEncoder().encode(t).length
+  assert.equal(clipBytes("株価株価", 7), "株価") // never splits a character
+  assert.ok(bytes(feedbackText(Array.from({ length: 8 }, () => "株".repeat(300)))) <= 4000)
+
+  const long = "株価は大きく下落した。".repeat(40)
+  const big = Array.from({ length: 80 }, (_, i) => ({ id: `s${i + 1}`, source: "Wire", title: long, url: `https://x/${i}`, summary: long, publishedAt: at("2026-10-06T20:00:00Z") }))
+  const title = "株価".repeat(150)
+  const bad: Brief = { ...good, takeaways: [1, 2, 3].map((n) => ({ title: `${title}${n}`, body: "11% 22% 33% 44%", sourceIds: [] })) }
+  const prompts: string[] = []
+  const client = {
+    responses: {
+      create: async (req: { input: string }) => {
+        prompts.push(req.input)
+        return { output_text: JSON.stringify(prompts.length === 1 ? bad : good), usage: { input_tokens: 100, output_tokens: 100 } }
+      },
+    },
+  }
+  await writeBrief({ client: client as never, period: "week", sessionDate: "2026-10-09", items: big, ledger: { reserve: async () => "r", settle: async () => {} } })
+  assert.equal(prompts.length, 2)
+  assert.ok(prompts[1]!.includes("previous draft had these problems"))
+  for (const p of prompts) assert.ok(inputTokenBound(p) <= MAX_INPUT_TOKENS, String(inputTokenBound(p)))
 })
 
 test("closeUtc follows daylight saving", () => {
