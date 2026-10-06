@@ -14,7 +14,7 @@ A shared lease prevents duplicate attempts for a slot/day. Failed slots are not 
 
 Normal quote load is four morning plus fifteen afternoon Finnhub calls/trading day, plus earnings/name lookups and batched Alpaca charts/fallback. Keyed requests use the existing shared limiter. Provider capacity/failures can still prevent updates. CNN remains unofficial; saved sentiment retains its timestamp.
 
-Public News routes only read stored data. Personalized holdings opt out of provider refresh scheduling; other Portfolio consumers retain their behavior. Quotes, recaps and sector captures are timestamped. Weekly charts use the latest complete closing board. Calendar highlights are derived at read time.
+Public News routes only read stored data. News uses ticker badges instead of the logo proxy, avoiding cold-cache Massive lookups; other pages retain logos. Personalized holdings opt out of provider refresh scheduling; other Portfolio consumers retain their behavior. Quotes, recaps and sector captures are timestamped. Weekly charts use the latest complete closing board. Calendar highlights are derived at read time.
 
 AI retains the strict schema, cited-source numeric checks and spending ledger. Saved ETF quote facts are numbered sources alongside RSS headlines. The known entity-binding limitation is unchanged. Morning prompts explicitly say trading is in progress. A 40-second API timeout and job deadline guard attempts; absent key, failed checks, insufficient budget or time use headline fallback.
 

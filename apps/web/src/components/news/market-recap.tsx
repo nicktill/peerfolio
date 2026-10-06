@@ -126,7 +126,7 @@ export function MarketRecap({
             <ul className="flex flex-wrap gap-2">
               {moves.map((m) => (
                 <li key={m.symbol} className="press inline-flex items-center gap-2 rounded-full border bg-card py-1 pl-1 pr-1.5 transition-[translate,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-sm">
-                  <TickerLogo symbol={m.symbol} size="xs" className="size-6 rounded-full" />
+                  <TickerLogo imageEnabled={false} symbol={m.symbol} size="xs" className="size-6 rounded-full" />
                   <span className="text-[13px] font-semibold">{m.symbol}</span>
                   <Delta value={m.percent} size="sm" />
                 </li>

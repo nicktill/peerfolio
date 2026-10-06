@@ -102,7 +102,7 @@ export function EarningsWeek({ label, days, initialDay, index, className }: { la
             style={{ animationDelay: `${i * 55}ms` }}
           >
             <span className="flex min-w-0 items-center gap-3">
-              <TickerLogo symbol={r.symbol} size="sm" className="size-9 rounded-full" />
+              <TickerLogo imageEnabled={false} symbol={r.symbol} size="sm" className="size-9 rounded-full" />
               <span className="flex min-w-0 flex-col">
                 <span className="inline-flex items-center gap-1.5 text-sm font-semibold">
                   {r.symbol}
