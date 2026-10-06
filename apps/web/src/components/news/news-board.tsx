@@ -78,9 +78,12 @@ export function NewsBoard({ holdingMoves }: { holdingMoves: HoldingMoves }) {
               <div className="flex flex-wrap items-center gap-2">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-primary px-2.5 py-0.5 text-xs font-semibold text-primary-foreground">
                   <span className={cn("size-1.5 rounded-full bg-primary-foreground", open && "live-dot")} aria-hidden />
-                  {open ? "Markets open" : "Markets closed"}
+                  {/* Rendered on the server and again in the browser; a minute apart, these can differ. */}
+                  <span suppressHydrationWarning>{open ? "Markets open" : "Markets closed"}</span>
                 </span>
-                <span className="text-xs text-muted-foreground">{today}</span>
+                <span className="text-xs text-muted-foreground" suppressHydrationWarning>
+                  {today}
+                </span>
               </div>
               <SectionLabel as="span" className="mt-4 block">
                 {period === "day" ? "The daily brief" : "The weekly brief"}

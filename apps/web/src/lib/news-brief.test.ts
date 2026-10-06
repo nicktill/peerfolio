@@ -48,8 +48,9 @@ test("unknown source ids and wrong takeaway counts are rejected", () => {
   assert.ok(problems.some((p) => p.includes("s9")))
 })
 
-test("figures normalises thousands separators and ignores single digits", () => {
+test("figures normalises thousands separators and trailing zeros, and ignores single digits", () => {
   assert.deepEqual(figures("Up 1,250 points, 3 takeaways, 0.4%"), ["1250", "0.4"])
+  assert.deepEqual(figures("0.40% and 2.50"), ["0.4", "2.5"])
 })
 
 function fakeClient(drafts: unknown[]) {

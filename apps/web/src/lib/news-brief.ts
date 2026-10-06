@@ -109,9 +109,14 @@ export const BRIEF_SCHEMA = {
   },
 } as const
 
-/** Every figure in a text, normalised so "1,250" and "1250" match. Single digits are left alone ("3 takeaways"). */
+/**
+ * Every figure in a text, compared by value so "1,250" matches "1250" and "0.40" matches "0.4".
+ * Single digits are left alone ("3 takeaways", "Q3").
+ */
 export function figures(text: string) {
-  return (text.match(/\d[\d,]*(?:\.\d+)?/g) ?? []).map((n) => n.replace(/,/g, "")).filter((n) => n.length > 1)
+  return (text.match(/\d[\d,]*(?:\.\d+)?/g) ?? [])
+    .filter((n) => n.replace(/[,.]/g, "").length > 1)
+    .map((n) => String(Number(n.replace(/,/g, ""))))
 }
 
 /** What's wrong with a draft, or nothing. */

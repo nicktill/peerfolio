@@ -19,7 +19,9 @@ const isSession = (date: string) => regularSession(new Date(`${date}T16:00:00Z`)
 
 function client() {
   const apiKey = process.env.OPENAI_API_KEY
-  return apiKey ? new OpenAI({ apiKey, maxRetries: 1, timeout: 90_000 }) : null
+  // One attempt of at most a minute per call: writeBrief does its own single retry, and two recaps
+  // (day + week) of two attempts each must fit inside the route's 300-second limit.
+  return apiKey ? new OpenAI({ apiKey, maxRetries: 0, timeout: 60_000 }) : null
 }
 
 async function spentThisMonth(now: Date) {
