@@ -1,4 +1,4 @@
-import type { PortfolioResponse } from "@web/components/dashboard/portfolio-screen"
+import type { FantasyRow, PortfolioResponse } from "@web/components/dashboard/portfolio-screen"
 import type { AccountRow } from "@web/components/dashboard/accounts-card"
 import type { HoldingRow } from "@web/components/dashboard/holdings-table"
 import type { Range } from "@web/lib/ranges"
@@ -42,6 +42,9 @@ const ACCOUNTS: { id: string; name: string; institution: string; category: "inve
       { ticker: "PLTR", name: "Palantir Technologies", quantity: 60, price: 182.5, cost: 2_210, today: -0.84 },
       { ticker: "HOOD", name: "Robinhood Markets", quantity: 100, price: 114.2, cost: 3_510, today: 1.22 },
       { ticker: "BTC", name: "Bitcoin", kind: "crypto", quantity: 0.12, price: 121_500, cost: 7_020, today: -0.62 },
+      { ticker: "GOOGL", name: "Alphabet", quantity: 12, price: 246.3, cost: 1_940, today: 0.94 },
+      { ticker: "META", name: "Meta Platforms", quantity: 4, price: 731.6, cost: 1_610, today: -1.27 },
+      { ticker: "COST", name: "Costco", quantity: 2, price: 918.4, cost: 1_390, today: 0.18 },
     ],
   },
   {
@@ -200,3 +203,8 @@ export function demoPortfolio(range: Range): PortfolioResponse {
     isVerified: false,
   }
 }
+
+export const DEMO_FANTASY: FantasyRow[] = [
+  { id: "demo-fantasy-1", name: "Friday Night Picks", emoji: "🏈", memberCount: 6, yourReturn: 4.21, isClosed: false },
+  { id: "demo-fantasy-2", name: "Crypto Winter", emoji: "🥶", memberCount: 4, yourReturn: -2.35, isClosed: false },
+]

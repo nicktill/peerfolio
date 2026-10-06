@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { ArrowDownRight, ArrowUpRight, ChevronRight, Eye, EyeOff, RefreshCw, ShieldCheck, Sparkles, Wallet } from "lucide-react"
 import { Badge } from "@web/components/ui/badge"
+import { Delta } from "@web/components/ui/delta"
+import { TickerLogo } from "@web/components/ui/ticker-logo"
 import { Button } from "@web/components/ui/button"
 import { Card, CardContent } from "@web/components/ui/card"
 import { EmptyState } from "@web/components/ui/empty-state"
@@ -42,6 +44,9 @@ export type PortfolioResponse = {
   isVerified: boolean
 }
 
+/** A fantasy (play-money) league you're in, as /api/fantasy lists them. */
+export type FantasyRow = { id: string; name: string; emoji: string; memberCount: number; yourReturn: number; isClosed: boolean }
+
 /** Where the screen gets its numbers: the live API, or a fixture for the sign-in-free preview. */
 export type PortfolioSource = (range: Range) => {
   data: PortfolioResponse | null
@@ -70,7 +75,16 @@ const marketToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/
  * news), with every holding in an open section underneath. `demo` swaps the
  * server actions for a note, for the preview route.
  */
-export function PortfolioScreen({ useSource, demo = false }: { useSource: PortfolioSource; demo?: boolean }) {
+export function PortfolioScreen({
+  useSource,
+  useFantasy,
+  demo = false,
+}: {
+  useSource: PortfolioSource
+  /** The fantasy leagues for the rail, loaded separately from the portfolio. */
+  useFantasy: () => FantasyRow[] | null
+  demo?: boolean
+}) {
   const { toast } = useToast()
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
   // Two different questions: what is it worth (dollars, moved by deposits) and how
@@ -83,6 +97,7 @@ export function PortfolioScreen({ useSource, demo = false }: { useSource: Portfo
   const [syncing, setSyncing] = useState(false)
 
   const { data, loading, error, refetch } = useSource(range)
+  const fantasy = useFantasy()
 
   useEffect(() => {
     if (!data || pickedRange.current) return
@@ -172,6 +187,12 @@ export function PortfolioScreen({ useSource, demo = false }: { useSource: Portfo
 
   const cash = data.accounts.filter((a) => a.category === "cash").reduce((sum, a) => sum + a.balance, 0)
   const invested = data.summary.investableAssets
+
+  // Biggest moves today among what you hold, up and down, three of each.
+  const moving = data.holdings.filter((h) => h.todayPercent != null && h.todayPercent !== 0)
+  const gainers = [...moving].filter((h) => h.todayPercent! > 0).sort((a, b) => b.todayPercent! - a.todayPercent!).slice(0, 3)
+  const losers = [...moving].filter((h) => h.todayPercent! < 0).sort((a, b) => a.todayPercent! - b.todayPercent!).slice(0, 3)
+  const openFantasy = (fantasy ?? []).filter((f) => !f.isClosed)
 
   return (
     <div className="space-y-8">
@@ -373,31 +394,59 @@ export function PortfolioScreen({ useSource, demo = false }: { useSource: Portfo
             ) : null}
           </section>
 
-          {data.leagues.length > 0 ? (
-            <section aria-labelledby="rail-leagues" className="border-t pt-5">
+          {gainers.length + losers.length > 0 ? (
+            <section aria-labelledby="rail-movers" className="border-t pt-5">
               <div className="flex items-center justify-between">
-                <SectionLabel as="h2" id="rail-leagues">Your leagues</SectionLabel>
-                <Link href="/leagues" className="text-xs font-medium text-muted-foreground transition-colors hover:text-foreground">
-                  See all
-                </Link>
+                <SectionLabel as="h2" id="rail-movers">Today’s movers</SectionLabel>
+                <span className="text-xs text-muted-foreground">{todayLabel === "today" ? "Your holdings" : `Your holdings ${todayLabel}`}</span>
               </div>
-              <ul className="mt-2 divide-y">
-                {data.leagues.slice(0, 4).map((league) => (
-                  <li key={league.id}>
-                    <Link href={`/leagues/${league.id}`} className="group -mx-2 flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-secondary/50">
-                      <span className="text-lg" aria-hidden>{league.emoji}</span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium">{league.name}</span>
-                        <span className="block text-xs text-muted-foreground">{plural(league.members, "member")}</span>
-                      </span>
-                      {league.rank != null ? (
-                        <span className={cn("numeric font-display text-sm font-bold", league.rank === 1 ? "text-gold-ink" : "text-muted-foreground")}>#{league.rank}</span>
-                      ) : null}
-                      <ChevronRight className="size-3.5 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden />
-                    </Link>
+              <ul className="mt-2 space-y-0.5">
+                {[...gainers, ...losers].map((h) => (
+                  <li key={h.securityId} className="flex items-center gap-3 py-1.5">
+                    <TickerLogo symbol={h.ticker ?? "?"} kind={h.type === "cryptocurrency" ? "crypto" : "stock"} size="xs" className="size-6" />
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium">{h.ticker ?? h.name}</span>
+                    <Delta value={h.todayPercent!} size="sm" />
                   </li>
                 ))}
               </ul>
+            </section>
+          ) : null}
+
+          {data.leagues.length > 0 || openFantasy.length > 0 ? (
+            <section aria-labelledby="rail-leagues" className="border-t pt-5">
+              <SectionLabel as="h2" id="rail-leagues">Your leagues</SectionLabel>
+              {data.leagues.length > 0 ? (
+                <LeagueGroup title="Leagues" note="Real portfolios" href="/leagues">
+                  {data.leagues.slice(0, 4).map((league) => (
+                    <RailLink
+                      key={league.id}
+                      href={`/leagues/${league.id}`}
+                      emoji={league.emoji}
+                      name={league.name}
+                      detail={plural(league.members, "member")}
+                      end={
+                        league.rank != null ? (
+                          <span className={cn("numeric font-display text-sm font-bold", league.rank === 1 ? "text-gold-ink" : "text-muted-foreground")}>#{league.rank}</span>
+                        ) : null
+                      }
+                    />
+                  ))}
+                </LeagueGroup>
+              ) : null}
+              {openFantasy.length > 0 ? (
+                <LeagueGroup title="Fantasy" note="Play money" href="/fantasy">
+                  {openFantasy.slice(0, 4).map((league) => (
+                    <RailLink
+                      key={league.id}
+                      href={`/fantasy/${league.id}`}
+                      emoji={league.emoji}
+                      name={league.name}
+                      detail={plural(league.memberCount, "player")}
+                      end={<Delta value={league.yourReturn} size="sm" />}
+                    />
+                  ))}
+                </LeagueGroup>
+              ) : null}
             </section>
           ) : null}
 
@@ -421,5 +470,40 @@ export function PortfolioScreen({ useSource, demo = false }: { useSource: Portfo
         </Reveal>
       </div>
     </div>
+  )
+}
+
+/** One kind of league in the rail: a small heading with its own "See all", then rows. */
+function LeagueGroup({ title, note, href, children }: { title: string; note: string; href: string; children: React.ReactNode }) {
+  return (
+    <div className="mt-4">
+      <div className="flex items-baseline justify-between gap-2">
+        <h3 className="text-xs font-semibold">
+          {title} <span className="font-normal text-muted-foreground">· {note}</span>
+        </h3>
+        <Link href={href} className="text-xs font-medium text-muted-foreground transition-colors hover:text-foreground">
+          See all
+        </Link>
+      </div>
+      <ul className="mt-1 divide-y">{children}</ul>
+    </div>
+  )
+}
+
+function RailLink({ href, emoji, name, detail, end }: { href: string; emoji: string; name: string; detail: string; end: React.ReactNode }) {
+  return (
+    <li>
+      <Link href={href} className="group -mx-2 flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-secondary/50">
+        <span className="text-lg" aria-hidden>
+          {emoji}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium">{name}</span>
+          <span className="block text-xs text-muted-foreground">{detail}</span>
+        </span>
+        {end}
+        <ChevronRight className="size-3.5 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden />
+      </Link>
+    </li>
   )
 }
