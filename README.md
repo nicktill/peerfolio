@@ -111,10 +111,9 @@ exposes no historical portfolio value, so the series only grows forward from
 the day someone connects and can never be backfilled. Miss a day and that day
 is gone for everyone.
 
-It needs to be called once a day by something. Deliberately not committed as a
-`vercel.json` cron: cron availability and allowed schedules differ by Vercel
-plan, and an unsupported entry fails the whole deployment rather than just the
-cron. Set it up in whichever way suits your plan:
+The daily snapshot is scheduled in `apps/web/vercel.json` at 22:30 UTC.
+Confirm that your Vercel plan enables that job and inspect its run history. If
+you use an external scheduler instead, avoid also scheduling a duplicate job:
 
 - **Vercel dashboard** — Settings → Cron Jobs, path `/api/cron/snapshot`.
 - **Any external scheduler** (cron-job.org, GitHub Actions, your own box):
@@ -142,6 +141,105 @@ for US stocks and ETFs and one for crypto, however many positions exist.
 Point `PLAID_WEBHOOK_URL` at `https://<your-domain>/api/plaid/webhook`.
 Requests are signature-verified. Without a reachable webhook, connections that
 fall out of auth go stale silently instead of prompting a reconnect.
+
+### Plaid sync regression tests and rollout
+
+Before deploying the hardened sync, apply all committed migrations, including `0014_plaid_investment_flows`
+with `npm run db:migrate --workspace=@repo/web`. It adds a transaction ledger so
+manual refreshes and webhook retries cannot repeatedly count the same cash flow.
+This beta accepts USD accounts and holdings only; other currencies fail closed
+and preserve the last successful portfolio until currency conversion is supported.
+Short holdings are also rejected explicitly; signed investment-account equity
+(e.g. a negative margin balance) remains supported.
+New accounts treat their connection day as a baseline; performance begins the
+following UTC day. Initial-day balance changes are treated as capital, and late
+transactions dated on/before that baseline are excluded from later returns.
+The first successful import establishes a baseline; it does not reconstruct or
+repair old performance history. Late/corrected flows are accounted for when
+observed, so daily returns remain an approximation when institutions report late.
+
+Holdings are replaced atomically within the returned institution accounts, even
+when the new holdings list is empty. Removed accounts become inactive. Failed
+imports roll back financial changes and preserve the last successful sync time.
+Temporary/not-ready errors get two retries, then can recover through a later
+refresh, webhook (including `HISTORICAL_UPDATE`), or nightly job.
+
+Reconnect uses the existing Item, including across OAuth redirects. As a
+conservative beta policy, new Link connections to an already connected
+institution are rejected and the new Item is removed at Plaid. Multiple accounts
+inside one connection are supported; separate logins at the same institution
+require a future account-level duplicate check. Different institutions work normally.
+
+Run the regular regression suite with `npm run test --workspace=@repo/web`.
+For the database-backed test, start this disposable Postgres instance (no volumes):
+
+```sh
+docker run --rm -d --name peerfolio-plaid-test -e POSTGRES_PASSWORD=plaid-test -e POSTGRES_DB=plaid_test -p 127.0.0.1:55433:5432 postgres:16-alpine
+PLAID_TEST_DATABASE_URL=postgresql://postgres:plaid-test@127.0.0.1:55433/plaid_test npm run test:plaid-sync --workspace=@repo/web
+docker stop peerfolio-plaid-test
+```
+
+The database harness mocks Plaid API responses; it verifies persistence and
+concurrent imports without contacting a financial institution. A real Sandbox
+Link/OAuth/webhook walkthrough is still required with Sandbox credentials and
+`ENABLE_PLAID_SANDBOX=true`. Leave `PLAID_ENV=sandbox` until Production credentials
+and Investments access are actually available. Review bank-specific cash-flow
+classification and delayed transactions in a restricted real-data beta before
+relying on returns for public rankings.
+
+### Production release gate
+
+Review the branch before merging. First apply all committed migrations to an
+isolated Neon branch and run the database regressions above on their disposable
+local database. Confirm the preview build and Sandbox Link/OAuth flow. Then
+back up production, apply the migrations with the production `DATABASE_URL`,
+and deploy the reviewed code. Run migrations before deploying: old code tolerates
+the added columns/table, while new code requires them. Do not use `db:push` as a
+production migration substitute. A code rollback can leave the additive migrations in
+place; dropping either ledger loses accounting or quota history and is not a safe rollback.
+
+Set these variables in the deployment's Production environment without putting
+secret values in chat or logs: `PLAID_ENV=production`, `PLAID_CLIENT_ID`,
+`PLAID_SECRET` (the production secret), `ENCRYPTION_KEY`, `PLAID_REDIRECT_URI`,
+and `PLAID_WEBHOOK_URL`. Keep the encryption key stable across deployments.
+The redirect must be registered in Plaid's dashboard, and the webhook must be a
+reachable HTTPS `/api/plaid/webhook` endpoint. Authentication, `DATABASE_URL`,
+`CRON_SECRET`, and the daily snapshot scheduler must also be configured.
+`NEXT_PUBLIC_PLAID_LINKING` is generated by `next.config.ts` at build time from
+`PLAID_ENV`; do not set it separately. Redeploy after changing environment values.
+Only enable production once Investments access and production keys exist.
+
+### Restricted brokerage beta
+
+Brokerage linking starts disabled for every user, including admins. Set
+`ADMIN_EMAILS` to a comma-separated allowlist of actual Peerfolio sign-in emails,
+then open `/admin/brokerages` to enable selected users. Authorization is checked
+against the database on the server; hiding a button is not the access control.
+Turning access off prevents new connections while existing connections can still
+refresh, reconnect in update mode, and disconnect.
+
+`PLAID_PRODUCTION_ITEM_LIMIT` defaults to 10. Before enabling real connections,
+set `PLAID_PRODUCTION_ITEMS_PREVIOUSLY_USED` to Production Items already created
+before this tracker or outside this app. The durable budget reserves capacity
+before exchanging a public token, and conservatively retains uncertain attempts.
+Disconnects, cleanup, and user deletion do not restore capacity. Sandbox does
+not consume the Production budget. The admin page shows this app's accounting;
+it cannot automatically reconcile total team usage in Plaid's dashboard.
+
+Plaid's Trial plan allows 10 lifetime Production Items, and removal does not free
+a slot ([Plaid billing documentation](https://plaid.com/docs/account/billing/)).
+An Item is a connection and can include several brokerage accounts. Paid plans
+have different limits and billing; verify your actual plan before increasing the
+app's cap. Off-by-default access and the cap also limit paid beta exposure.
+
+For the first real-account beta, compare balances, quantities, cost basis, and
+cash positions with the brokerage. Refresh twice and confirm no duplicate
+positions/flows. Test reconnect and OAuth, disconnect and verify portfolio
+removal, then reconnect. Inspect sanitized Link/runtime errors and webhook
+activity. Deposits, withdrawals, transfers, and late transaction reporting need
+real-institution review before enabling public rankings. A mocked database test
+cannot verify actual Plaid permissions, institution coverage, OAuth configuration,
+webhook delivery, or institution-specific transaction classifications.
 
 ## Verified vs. manual accounts
 

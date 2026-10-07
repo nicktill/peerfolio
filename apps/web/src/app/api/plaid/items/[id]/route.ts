@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server"
-import { and, eq } from "drizzle-orm"
+import { and, eq, sql } from "drizzle-orm"
 import { db, accounts, plaidItems } from "@web/db"
 import { decrypt } from "@web/lib/crypto"
-import { getPlaidClient } from "@web/lib/plaid"
+import { getPlaidClient, plaidErrorCode } from "@web/lib/plaid"
 import { investableTotal, syncItem, writeDailySnapshot } from "@web/lib/plaid-sync"
 import { ApiError, withUser } from "@web/lib/api"
+
+export const maxDuration = 120
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -21,10 +23,9 @@ export const POST = withUser<Ctx>(async (userId, _request, { params }) => {
   const { id } = await params
   await requireOwnedItem(userId, id)
 
-  // A re-sync is not a structural change, so any movement is performance.
   const result = await syncItem(id)
-  await writeDailySnapshot(userId)
 
+  // Link repair succeeded even when data is still warming up; expose sync status.
   return NextResponse.json({ result })
 })
 
@@ -32,8 +33,8 @@ export const POST = withUser<Ctx>(async (userId, _request, { params }) => {
  * Disconnects an institution.
  *
  * Calls Plaid's `/item/remove` first — skipping it would leave the Item live
- * and billable forever. Local rows go regardless, so a Plaid-side failure can
- * never strand a connection the user asked to delete.
+ * and billable forever. If Plaid is unavailable, preserve the encrypted token so removal can be retried.
+ * Losing that token would strand a live, billable remote connection.
  */
 export const DELETE = withUser<Ctx>(async (userId, _request, { params }) => {
   const { id } = await params
@@ -42,13 +43,18 @@ export const DELETE = withUser<Ctx>(async (userId, _request, { params }) => {
   try {
     await getPlaidClient().itemRemove({ access_token: decrypt(item.accessToken) })
   } catch (error) {
-    console.error("[plaid] item/remove failed; removing locally anyway", error)
+    if (plaidErrorCode(error) !== "INVALID_ACCESS_TOKEN" && plaidErrorCode(error) !== "ITEM_NOT_FOUND") {
+      throw new ApiError("Could not disconnect from Plaid. Your connection was preserved; please try again shortly.", 502)
+    }
   }
 
-  const before = await investableTotal(userId)
-  await db.delete(accounts).where(eq(accounts.itemId, item.id))
-  await db.delete(plaidItems).where(eq(plaidItems.id, item.id))
-  await writeDailySnapshot(userId, (await investableTotal(userId)) - before)
+  await db.transaction(async (store) => {
+    await store.execute(sql`select pg_advisory_xact_lock(hashtext(${userId}))`)
+    const before = await investableTotal(userId, store)
+    await store.delete(accounts).where(eq(accounts.itemId, item.id))
+    await store.delete(plaidItems).where(eq(plaidItems.id, item.id))
+    await writeDailySnapshot(userId, (await investableTotal(userId, store)) - before, undefined, store)
+  })
 
   return NextResponse.json({ ok: true })
 })

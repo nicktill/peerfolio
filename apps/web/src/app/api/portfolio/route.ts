@@ -1,3 +1,5 @@
+import { accountBalance } from "@web/lib/account-balance"
+import { hasVerifiedAccounts } from "@web/lib/plaid-verification"
 import { effectiveSecurityType } from "@web/lib/known-etfs"
 import { NextResponse } from "next/server"
 import { and, asc, eq, gte, min } from "drizzle-orm"
@@ -43,7 +45,7 @@ export const GET = withUser<unknown>(async (userId, request) => {
   scheduleLiveRefresh()
   scheduleMetadataRefresh()
 
-  const [accountRows, items, holdingRows] = await Promise.all([
+  const [accountRows, items, allHoldingRows] = await Promise.all([
     db.select().from(accounts).where(and(eq(accounts.userId, userId), eq(accounts.isActive, true))),
     db.select().from(plaidItems).where(eq(plaidItems.userId, userId)),
     db
@@ -67,6 +69,10 @@ export const GET = withUser<unknown>(async (userId, request) => {
       .where(eq(holdings.userId, userId)),
   ])
 
+  // Revoked/removed accounts never contribute positions to allocation or performance.
+  const activeAccountIds = new Set(accountRows.map((a) => a.id))
+  const holdingRows = allHoldingRows.filter((h) => activeAccountIds.has(h.accountId))
+
   const start = rangeStart(range)
   const snapshotRows = await db
     .select()
@@ -88,7 +94,7 @@ export const GET = withUser<unknown>(async (userId, request) => {
   const accountsByItem = new Map(items.map((i) => [i.id, i]))
 
   const accountPayload = accountRows.map((account) => {
-    const balance = Math.abs(n(account.currentBalance))
+    const balance = accountBalance(n(account.currentBalance), account.category)
     const isLiability = LIABILITY.has(account.category)
 
     if (isLiability) totalLiabilities += balance
@@ -194,7 +200,7 @@ export const GET = withUser<unknown>(async (userId, request) => {
     )
     .catch(() => [])
 
-  const isVerified = accountRows.length > 0 && accountRows.every((a) => a.source === "plaid")
+  const isVerified = hasVerifiedAccounts(accountRows, items)
 
   // Snapshots are nightly, so end the series on today's live value.
   const points = withLivePoint(
@@ -215,7 +221,6 @@ export const GET = withUser<unknown>(async (userId, request) => {
     summary: { totalAssets, totalLiabilities, netWorth, investableAssets },
     accounts: accountPayload,
     items: items
-      .filter((i) => i.status !== "disconnected")
       .map((i) => ({
         id: i.id,
         institutionName: i.institutionName,

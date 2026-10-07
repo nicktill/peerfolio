@@ -1,4 +1,5 @@
 import { Configuration, PlaidApi, PlaidEnvironments } from "plaid"
+import { plaidEnvironment, plaidConfigured } from "@web/lib/plaid-config"
 
 /**
  * Plaid retired the `development` environment; sandbox and production are the
@@ -6,12 +7,12 @@ import { Configuration, PlaidApi, PlaidEnvironments } from "plaid"
  * accidentally touch real financial institutions.
  */
 function getPlaidEnv(): "sandbox" | "production" {
-  return process.env.PLAID_ENV === "production" ? "production" : "sandbox"
+  return plaidEnvironment(process.env.PLAID_ENV)
 }
 
 /** Whether new connections may be made. Mirrors NEXT_PUBLIC_PLAID_LINKING in next.config. */
 export function plaidLinkingEnabled(): boolean {
-  return getPlaidEnv() === "production" || process.env.ENABLE_PLAID_SANDBOX === "true"
+  return plaidConfigured(process.env) && (getPlaidEnv() === "production" || process.env.ENABLE_PLAID_SANDBOX === "true")
 }
 
 let cached: PlaidApi | null = null
@@ -30,6 +31,8 @@ export function getPlaidClient(): PlaidApi {
       basePath: PlaidEnvironments[getPlaidEnv()],
       baseOptions: {
         headers: { "PLAID-CLIENT-ID": clientId, "PLAID-SECRET": secret },
+        // Bound each request so retries and webhook processing fit the route budget.
+        timeout: 15_000,
       },
     }),
   )

@@ -44,7 +44,8 @@ async function snapshot() {
 
   for (const userId of userIds) {
     try {
-      await syncUser(userId)
+      const { results } = await syncUser(userId)
+      if (results.some((r) => r.status !== "active")) throw new Error("One or more Plaid connections failed to sync")
       succeeded++
     } catch (error) {
       failures.push({ userId, error: error instanceof Error ? error.message : "unknown" })

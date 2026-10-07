@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server"
-import { eq } from "drizzle-orm"
+import { eq, sql } from "drizzle-orm"
 import { db, plaidItems } from "@web/db"
-import { isReauthRequired } from "@web/lib/plaid"
-import { syncItem, writeDailySnapshot } from "@web/lib/plaid-sync"
+import { itemWebhookState } from "@web/lib/plaid-status"
+import { syncItem } from "@web/lib/plaid-sync"
 import { verifyPlaidWebhook } from "@web/lib/plaid-webhook"
+
+export const maxDuration = 120
 
 type WebhookBody = {
   webhook_type?: string
@@ -30,6 +32,9 @@ export async function POST(request: Request) {
   let body: WebhookBody
   try {
     body = JSON.parse(raw) as WebhookBody
+    if (!body || typeof body !== "object" || Array.isArray(body) || (body.item_id !== undefined && typeof body.item_id !== "string")) {
+      return NextResponse.json({ error: "Invalid webhook body" }, { status: 400 })
+    }
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
@@ -41,27 +46,24 @@ export async function POST(request: Request) {
   if (!item) return NextResponse.json({ ok: true })
 
   if (type === "ITEM") {
-    if (code === "ERROR") {
-      const errorCode = body.error?.error_code ?? null
-      await db
-        .update(plaidItems)
-        .set({ status: isReauthRequired(errorCode) ? "needs_reauth" : "error", errorCode })
-        .where(eq(plaidItems.id, item.id))
-    } else if (code === "PENDING_EXPIRATION" || code === "PENDING_DISCONNECT") {
-      await db.update(plaidItems).set({ status: "needs_reauth", errorCode: code }).where(eq(plaidItems.id, item.id))
-    } else if (code === "USER_PERMISSION_REVOKED" || code === "USER_ACCOUNT_REVOKED") {
-      await db.update(plaidItems).set({ status: "disconnected", errorCode: code }).where(eq(plaidItems.id, item.id))
-    }
+    await db.transaction(async (store) => {
+      await store.execute(sql`set local lock_timeout = '10s'`)
+      await store.execute(sql`select pg_advisory_xact_lock(hashtext(${item.userId}))`)
+      const current = await store.query.plaidItems.findFirst({ where: eq(plaidItems.id, item.id) })
+      if (!current) return
+      const update = itemWebhookState(current.status, code, body.error?.error_code)
+      if (update) await store.update(plaidItems).set(update).where(eq(plaidItems.id, item.id))
+    })
     return NextResponse.json({ ok: true })
   }
 
   // Fresh data available — pull it and re-stamp today's snapshot.
   if (
     (type === "HOLDINGS" && code === "DEFAULT_UPDATE") ||
-    (type === "INVESTMENTS_TRANSACTIONS" && code === "DEFAULT_UPDATE")
+    (type === "INVESTMENTS_TRANSACTIONS" && (code === "DEFAULT_UPDATE" || code === "HISTORICAL_UPDATE"))
   ) {
-    await syncItem(item.id)
-    await writeDailySnapshot(item.userId)
+    const result = await syncItem(item.id)
+    if (result.status !== "active") return NextResponse.json({ error: "Sync not ready" }, { status: 503 })
   }
 
   return NextResponse.json({ ok: true })

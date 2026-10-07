@@ -1,8 +1,8 @@
-import crypto from "crypto"
-import { importJWK, jwtVerify, decodeProtectedHeader, type JWK } from "jose"
+import { decodeProtectedHeader } from "jose"
 import { getPlaidClient } from "@web/lib/plaid"
 
-type CachedKey = { jwk: JWK; fetchedAt: number }
+import { verifySignedWebhook, type PlaidJWK } from "@web/lib/plaid-webhook-core"
+type CachedKey = { jwk: PlaidJWK; fetchedAt: number }
 const keyCache = new Map<string, CachedKey>()
 const KEY_TTL_MS = 24 * 60 * 60 * 1000
 
@@ -20,43 +20,23 @@ export async function verifyPlaidWebhook(rawBody: string, token: string | null):
   let kid: string
   try {
     const header = decodeProtectedHeader(token)
-    if (header.alg !== "ES256" || !header.kid) return false
+    if (header.alg !== "ES256" || !header.kid || header.kid.length > 256) return false
     kid = header.kid
   } catch {
     return false
   }
 
   const jwk = await getVerificationKey(kid)
-  if (!jwk) return false
-
-  try {
-    const key = await importJWK(jwk, "ES256")
-    const { payload } = await jwtVerify(token, key, { algorithms: ["ES256"] })
-
-    const claimed = (payload as { request_body_sha256?: string }).request_body_sha256
-    if (!claimed) return false
-
-    // Plaid allows a 5-minute replay window.
-    const issuedAt = typeof payload.iat === "number" ? payload.iat : 0
-    if (Date.now() / 1000 - issuedAt > 5 * 60) return false
-
-    const actual = crypto.createHash("sha256").update(rawBody, "utf8").digest("hex")
-    const a = Buffer.from(actual, "hex")
-    const b = Buffer.from(claimed, "hex")
-
-    return a.length === b.length && crypto.timingSafeEqual(a, b)
-  } catch {
-    return false
-  }
+  return jwk ? verifySignedWebhook(rawBody, token, jwk) : false
 }
 
-async function getVerificationKey(kid: string): Promise<JWK | null> {
+async function getVerificationKey(kid: string): Promise<PlaidJWK | null> {
   const cached = keyCache.get(kid)
   if (cached && Date.now() - cached.fetchedAt < KEY_TTL_MS) return cached.jwk
 
   try {
     const { data } = await getPlaidClient().webhookVerificationKeyGet({ key_id: kid })
-    const jwk = data.key as unknown as JWK
+    const jwk = data.key as unknown as PlaidJWK
     keyCache.set(kid, { jwk, fetchedAt: Date.now() })
     return jwk
   } catch {
