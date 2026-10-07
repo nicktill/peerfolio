@@ -52,3 +52,77 @@ export function estimateShares(amount: number, price: number | null): number | n
   if (price === null || !(price > 0) || !Number.isFinite(amount) || amount <= 0) return null
   return amount / price
 }
+
+/** Quick-pick fractions on the buy slider. 1 is "Max". */
+export const BUY_SPOTS = [0.1, 0.25, 0.5, 1] as const
+/** Quick-pick fractions on the sell slider. 1 is "All". */
+export const SELL_SPOTS = [0.25, 0.5, 0.75, 1] as const
+
+/**
+ * Pulls a 0–1 track position onto the nearest hotspot when the pointer is
+ * within `threshold` of it. Values between hotspots stay where they are.
+ *
+ * `held` is the hotspot already caught. It stays caught past the original
+ * threshold, so a thumb resting on a point doesn't flicker off from a pixel
+ * of pointer noise. Pulling farther lets go.
+ */
+export function snapFraction(
+  fraction: number,
+  spots: readonly number[],
+  threshold: number,
+  held: number | null = null,
+): { fraction: number; snapped: boolean } {
+  const clamped = Math.min(1, Math.max(0, Number.isFinite(fraction) ? fraction : 0))
+  if (held !== null && spots.some((spot) => Math.abs(spot - held) < 1e-9) && Math.abs(clamped - held) <= threshold * 1.75) {
+    return { fraction: held, snapped: true }
+  }
+  let best = clamped
+  let bestDist = threshold
+  let snapped = false
+  for (const spot of spots) {
+    const dist = Math.abs(clamped - spot)
+    if (dist <= bestDist) {
+      best = spot
+      bestDist = dist
+      snapped = true
+    }
+  }
+  return { fraction: best, snapped }
+}
+
+/** Snap distance as a fraction of the track: about 16px, never wider than 4%. */
+export function snapThreshold(trackWidthPx: number): number {
+  if (!(trackWidthPx > 0)) return 0.04
+  return Math.min(0.04, Math.max(0.02, 16 / trackWidthPx))
+}
+
+/** Where the slider thumb sits for the current amount field. "all" is the far end. */
+export function fractionFromAmount(amount: string, max: number): number {
+  if (!(max > 0)) return 0
+  if (amount === "all") return 1
+  const value = Number(amount)
+  if (!Number.isFinite(value) || value <= 0) return 0
+  return Math.min(1, value / max)
+}
+
+/**
+ * Amount-field text for a slider position. Buys are dollars to the cent.
+ * Selling the whole position is the string "all", which the form already treats
+ * as every share rather than a rounded count that can leave a remainder.
+ */
+export function amountFromFraction(side: "buy" | "sell", fraction: number, max: number, snapped: boolean): string {
+  if (!(max > 0) || !(fraction > 0)) return ""
+  const clamped = Math.min(1, fraction)
+  if (side === "sell" && clamped >= 1) return "all"
+  if (side === "buy") {
+    const spendable = Math.floor(max * 100) / 100
+    const dollars = snapped
+      ? Math.floor(spendable * clamped * 100) / 100
+      : Math.min(spendable, Math.round(max * clamped * 100) / 100)
+    return dollars > 0 ? dollars.toString() : ""
+  }
+  const shares = Math.min(max, Math.round(max * clamped * 10000) / 10000)
+  if (shares <= 0) return ""
+  if (shares >= max - 1e-8) return "all"
+  return shares.toString()
+}

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { checkTradeInput, estimateShares, sanitizeAmount } from "./trade-input.ts"
+import { amountFromFraction, checkTradeInput, estimateShares, fractionFromAmount, sanitizeAmount, snapFraction } from "./trade-input.ts"
 
 describe("sanitizeAmount", () => {
   it("keeps a single decimal point and limits decimals", () => {
@@ -46,6 +46,44 @@ describe("checkTradeInput", () => {
     assert.deepEqual(checkTradeInput("sell", "NVDA", "3", limits), { ok: false, message: "You only hold 2.5 shares." })
     assert.deepEqual(checkTradeInput("sell", "tsla", "1", { cash: 0, heldShares: null }), { ok: false, message: "You don't own any TSLA." })
     assert.equal(checkTradeInput("sell", "NVDA", "0", limits).ok, false)
+  })
+})
+
+describe("snapFraction", () => {
+  const spots = [0.1, 0.25, 0.5, 1]
+
+  it("leaves values that sit between hotspots", () => {
+    assert.deepEqual(snapFraction(0.17, spots, 0.04), { fraction: 0.17, snapped: false })
+    assert.deepEqual(snapFraction(0, spots, 0.04), { fraction: 0, snapped: false })
+  })
+
+  it("snaps when the pointer is close, and prefers the nearer spot", () => {
+    assert.deepEqual(snapFraction(0.12, spots, 0.04), { fraction: 0.1, snapped: true })
+    assert.deepEqual(snapFraction(0.97, spots, 0.04), { fraction: 1, snapped: true })
+    assert.deepEqual(snapFraction(1.4, spots, 0.04), { fraction: 1, snapped: true })
+  })
+
+  it("keeps a caught hotspot until the pointer is pulled farther away", () => {
+    assert.deepEqual(snapFraction(0.15, spots, 0.04, 0.1), { fraction: 0.1, snapped: true })
+    assert.deepEqual(snapFraction(0.2, spots, 0.04, 0.1), { fraction: 0.2, snapped: false })
+  })
+})
+
+describe("amountFromFraction", () => {
+  it("maps buy positions onto dollars, and an empty field at zero", () => {
+    assert.equal(amountFromFraction("buy", 0, 10_000, false), "")
+    assert.equal(amountFromFraction("buy", 0.1, 10_000, true), "1000")
+    assert.equal(amountFromFraction("buy", 1, 10_000.009, true), "10000")
+    assert.equal(amountFromFraction("buy", 0.33, 100, false), "33")
+  })
+
+  it("maps sell positions onto shares, and the far end onto all", () => {
+    assert.equal(amountFromFraction("sell", 0.25, 8, true), "2")
+    assert.equal(amountFromFraction("sell", 0.4, 10, false), "4")
+    assert.equal(amountFromFraction("sell", 1, 8, true), "all")
+    assert.equal(fractionFromAmount("all", 8), 1)
+    assert.equal(fractionFromAmount("2", 8), 0.25)
+    assert.equal(fractionFromAmount("", 8), 0)
   })
 })
 
