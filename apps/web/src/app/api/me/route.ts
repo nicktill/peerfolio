@@ -4,7 +4,9 @@ import { z } from "zod"
 import { db, follows, leagueMembers, leagues, plaidItems, portfolioSnapshots, users, waitlistSignups } from "@web/db"
 import { ApiError, readJson, withUser } from "@web/lib/api"
 import { decrypt } from "@web/lib/crypto"
-import { getPlaidClient } from "@web/lib/plaid"
+import { getPlaidClient, plaidErrorCode } from "@web/lib/plaid"
+
+export const maxDuration = 120
 
 export const GET = withUser<unknown>(async (userId) => {
   const user = await db.query.users.findFirst({ where: eq(users.id, userId) })
@@ -82,18 +84,22 @@ export const DELETE = withUser<unknown>(async (userId) => {
   const user = await db.query.users.findFirst({ where: eq(users.id, userId) })
   if (!user) throw new ApiError("User not found", 404)
 
-  const items = await db.select().from(plaidItems).where(eq(plaidItems.userId, userId))
-  for (const item of items) {
-    try {
-      await getPlaidClient().itemRemove({ access_token: decrypt(item.accessToken) })
-    } catch (error) {
-      // Same trade-off as disconnecting: a Plaid-side failure must not keep
-      // someone's data here after they asked for it to be gone.
-      console.error("[me] item/remove failed during account deletion", error)
-    }
-  }
-
   await db.transaction(async (tx) => {
+    // Serialize with Link exchange/sync so a new remote Item cannot appear mid-delete.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${userId}))`)
+    const items = await tx.select().from(plaidItems).where(eq(plaidItems.userId, userId))
+    for (const item of items) {
+      try {
+        await getPlaidClient().itemRemove({ access_token: decrypt(item.accessToken) })
+      } catch (error) {
+        const code = plaidErrorCode(error)
+        if (code !== "INVALID_ACCESS_TOKEN" && code !== "ITEM_NOT_FOUND") {
+          console.error("[me] remote cleanup failed", { itemId: item.id, userId, code })
+          throw new ApiError("Could not disconnect your brokerages from Plaid. Your account was preserved; please retry deletion shortly.", 502)
+        }
+      }
+    }
+
     // Leagues outlive their creator: hand each one to the longest-standing
     // remaining member. A league with nobody else in it goes with the account.
     const owned = await tx.select({ id: leagues.id }).from(leagues).where(eq(leagues.ownerId, userId))

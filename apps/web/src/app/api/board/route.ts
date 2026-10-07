@@ -78,7 +78,9 @@ export const GET = withPublic<unknown>(async (request) => {
     }
   }
 
-  const standings = await buildStandings(candidates, range)
+  // Stored eligibility can outlive a revoked/stale connection: recheck live health.
+  const standings = (await buildStandings(candidates, range)).filter((s) => s.isVerified && s.hasHistory)
+  standings.forEach((standing, index) => { standing.rank = index + 1 })
   const holdingsByUser = await loadSharedHoldings(standings.slice(0, 50).map((s) => s.userId))
 
   const bioByUser = new Map(candidates.map((c) => [c.userId, c.bio]))

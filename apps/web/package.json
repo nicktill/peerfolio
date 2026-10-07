@@ -14,7 +14,8 @@
     "db:studio": "drizzle-kit studio",
     "test": "node --test --experimental-strip-types \"src/**/*.test.ts\"",
     "db:seed": "node --experimental-strip-types scripts/seed.ts",
-    "db:reset": "drizzle-kit migrate && npm run db:seed"
+    "db:reset": "drizzle-kit migrate && npm run db:seed",
+    "test:plaid-sync": "node scripts/test-plaid-sync.mjs"
   },
   "dependencies": {
     "@next/eslint-plugin-next": "^15.1.3",
@@ -47,6 +48,7 @@
     "autoprefixer": "^10.4.20",
     "dotenv": "^18.0.3",
     "drizzle-kit": "^0.31.11",
+    "esbuild": "0.25.12",
     "eslint": "^9.17.0",
     "eslint-config-next": "^15.3.4",
     "postcss": "^8.5.1",

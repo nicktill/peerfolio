@@ -4,6 +4,7 @@ import { and, eq } from "drizzle-orm"
 import { db, plaidItems } from "@web/db"
 import { decrypt } from "@web/lib/crypto"
 import { getPlaidClient, plaidErrorMessage, plaidLinkingEnabled } from "@web/lib/plaid"
+import { assertBrokerageLinkingAllowed } from "@web/lib/plaid-access"
 import { ApiError, readJson, withUser } from "@web/lib/api"
 
 type Body = { itemId?: string }
@@ -15,9 +16,13 @@ type Body = { itemId?: string }
  * `needs_reauth` can be repaired without creating a duplicate connection.
  */
 export const POST = withUser<unknown>(async (userId, request) => {
-  const body = await readJson<Body>(request).catch(() => ({}) as Body)
+  const body = await readJson<Body>(request)
+  if (!body || (body.itemId !== undefined && typeof body.itemId !== "string")) throw new ApiError("Invalid connection request")
   // Repairing an existing connection stays possible; new ones wait for production.
-  if (!body.itemId && !plaidLinkingEnabled()) throw new ApiError("Brokerage linking is coming soon", 409)
+  if (!body.itemId) {
+    if (!plaidLinkingEnabled()) throw new ApiError("Brokerage linking is coming soon", 409)
+    await assertBrokerageLinkingAllowed(userId)
+  }
   const client = getPlaidClient()
 
   let accessToken: string | undefined
@@ -26,6 +31,7 @@ export const POST = withUser<unknown>(async (userId, request) => {
       where: and(eq(plaidItems.id, body.itemId), eq(plaidItems.userId, userId)),
     })
     if (!item) throw new ApiError("Connection not found", 404)
+    if (item.status === "disconnected") throw new ApiError("Access was revoked. Remove this connection and connect again.", 409)
     accessToken = decrypt(item.accessToken)
   }
 

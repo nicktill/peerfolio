@@ -4,8 +4,9 @@ import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { signOut, useSession } from "next-auth/react"
-import { Gamepad2, LayoutDashboard, LogOut, Newspaper, Settings, Trophy, Users } from "lucide-react"
+import { Gamepad2, LayoutDashboard, LogOut, Newspaper, Settings, ShieldCheck, Trophy, Users } from "lucide-react"
 import { cn } from "@web/lib/utils"
+import { useApi } from "@web/lib/use-api"
 import { cacheClear } from "@web/lib/api-cache"
 import { slideStyle, useSlidingIndicator } from "@web/lib/use-sliding-indicator"
 import { Avatar } from "@web/components/ui/avatar"
@@ -25,6 +26,7 @@ const LINKS = [
 export function AppNav() {
   const pathname = usePathname()
   const { data: session, status } = useSession()
+  const { data: brokerageAccess, error: accessError } = useApi<{ admin: boolean }>(status === "authenticated" ? "/api/plaid/access" : null, [], { refreshMs: 60_000 })
   const activeHref = LINKS.find((l) => pathname.startsWith(l.href))?.href ?? null
 
   const desktop = useSlidingIndicator<HTMLElement>(activeHref)
@@ -51,6 +53,12 @@ export function AppNav() {
 
           <div className="ml-auto flex items-center gap-1.5">
             <ThemeToggle />
+            {brokerageAccess?.admin && !accessError ? (
+              <Link href="/admin/brokerages" className={cn("press inline-flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-secondary", pathname.startsWith("/admin") && "bg-secondary")}>
+                <ShieldCheck aria-hidden className="h-4 w-4" />
+                <span className="sr-only">Manage brokerage access</span>
+              </Link>
+            ) : null}
             <Link
               href="/settings"
               className={cn(
