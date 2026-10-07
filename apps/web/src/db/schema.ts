@@ -59,6 +59,7 @@ export const users = pgTable(
      * publishable because the person deliberately published it.
      */
     isPublic: boolean("is_public").notNull().default(false),
+    brokerageLinkingEnabled: boolean("brokerage_linking_enabled").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -88,6 +89,18 @@ export const waitlistSignups = pgTable(
  * Plaid
  * ------------------------------------------------------------------ */
 
+/** Lifetime production exchange attempts survive disconnects and account deletion. */
+export const productionLinkAttempts = pgTable("production_link_attempts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  // Deliberately no FK: deleting a user must never replenish the production budget.
+  userId: uuid("user_id").notNull(),
+  publicTokenDigest: text("public_token_digest").notNull(),
+  status: text("status").notNull().default("reserved"),
+  plaidItemId: text("plaid_item_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+}, (t) => [uniqueIndex("production_link_attempts_token_idx").on(t.publicTokenDigest)])
+
 export const plaidItems = pgTable(
   "plaid_items",
   {
@@ -108,12 +121,25 @@ export const plaidItems = pgTable(
     /** Last Plaid error code, e.g. ITEM_LOGIN_REQUIRED. */
     errorCode: text("error_code"),
     transactionsCursor: text("transactions_cursor"),
+    flowsInitialized: boolean("flows_initialized").notNull().default(false),
     consentExpiresAt: timestamp("consent_expires_at", { withTimezone: true }),
+    /** Last successful complete financial import; errors never advance it. */
     lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("plaid_items_item_id_idx").on(t.plaidItemId), index("plaid_items_user_idx").on(t.userId)],
 )
+
+/** Transactions already incorporated into returns. Baseline activity predates tracking. */
+export const plaidInvestmentFlows = pgTable("plaid_investment_flows", {
+  transactionId: text("transaction_id").primaryKey(),
+  itemId: uuid("item_id").notNull().references(() => plaidItems.id, { onDelete: "cascade" }),
+  amount: numeric("amount", { precision: 20, scale: 4 }).notNull(),
+  baseline: boolean("baseline").notNull().default(false),
+  transactionDate: date("transaction_date"),
+  /** Plaid account identifier; scopes flow reconciliation to still-connected accounts. */
+  accountId: text("account_id").notNull(),
+}, (t) => [index("plaid_investment_flows_item_idx").on(t.itemId)])
 
 export const accounts = pgTable(
   "accounts",
@@ -139,6 +165,8 @@ export const accounts = pgTable(
     availableBalance: numeric("available_balance", { precision: 20, scale: 4 }),
     isoCurrencyCode: text("iso_currency_code").default("USD"),
     isActive: boolean("is_active").notNull().default(true),
+    /** First import/reactivation day is capital baseline, not measured performance. */
+    plaidBaselineDate: date("plaid_baseline_date"),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

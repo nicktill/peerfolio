@@ -1,6 +1,8 @@
+import { accountBalance } from "@web/lib/account-balance"
+import { hasVerifiedAccounts } from "@web/lib/plaid-verification"
 import { and, asc, eq, gte, inArray } from "drizzle-orm"
 import "server-only"
-import { accounts, db, portfolioSnapshots } from "@web/db"
+import { accounts, db, plaidItems, portfolioSnapshots } from "@web/db"
 import { rangeStart, sparkline, timeWeightedReturn, withLivePoint, type Range, type ReturnSummary, type SnapshotPoint } from "@web/lib/ranges"
 
 export * from "@web/lib/ranges"
@@ -49,14 +51,28 @@ export async function loadLivePoints(userIds: string[]): Promise<Map<string, Pic
   if (userIds.length === 0) return out
 
   const rows = await db
-    .select({ userId: accounts.userId, category: accounts.category, source: accounts.source, balance: accounts.currentBalance })
+    .select({ userId: accounts.userId, category: accounts.category, source: accounts.source, itemId: accounts.itemId, balance: accounts.currentBalance })
     .from(accounts)
     .where(and(inArray(accounts.userId, userIds), eq(accounts.isActive, true)))
+
+  const items = await db.select().from(plaidItems).where(inArray(plaidItems.userId, userIds))
+  const accountsByUser = new Map<string, typeof rows>()
+  const itemsByUser = new Map<string, typeof items>()
+  for (const row of rows) {
+    const list = accountsByUser.get(row.userId) ?? []
+    list.push(row)
+    accountsByUser.set(row.userId, list)
+  }
+  for (const item of items) {
+    const list = itemsByUser.get(item.userId) ?? []
+    list.push(item)
+    itemsByUser.set(item.userId, list)
+  }
 
   const acc = new Map<string, { assets: number; liabilities: number; investable: number; sawManual: boolean; count: number }>()
   for (const r of rows) {
     const a = acc.get(r.userId) ?? { assets: 0, liabilities: 0, investable: 0, sawManual: false, count: 0 }
-    const balance = Math.abs(n(r.balance))
+    const balance = accountBalance(n(r.balance), r.category)
     a.count++
     if (r.source === "manual") a.sawManual = true
     if (LIABILITY.has(r.category)) a.liabilities += balance
@@ -68,7 +84,7 @@ export async function loadLivePoints(userIds: string[]): Promise<Map<string, Pic
   }
 
   for (const [userId, a] of acc) {
-    out.set(userId, { netWorth: a.assets - a.liabilities, investableAssets: a.investable, isVerified: a.count > 0 && !a.sawManual })
+    out.set(userId, { netWorth: a.assets - a.liabilities, investableAssets: a.investable, isVerified: hasVerifiedAccounts(accountsByUser.get(userId) ?? [], itemsByUser.get(userId) ?? []) })
   }
   return out
 }

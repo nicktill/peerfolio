@@ -1,12 +1,13 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { usePlaidLink, type PlaidLinkOnSuccessMetadata } from "react-plaid-link"
-import { Building2, Clock } from "lucide-react"
+import { Building2 } from "lucide-react"
 import { Button, type ButtonProps } from "@web/components/ui/button"
 import { useToast } from "@web/components/ui/toast"
+import { connectionNotice } from "@web/lib/plaid-status"
 import { exchangePublicToken, pendingLinkToken } from "@web/lib/plaid-link"
-import { mutate } from "@web/lib/use-api"
+import { mutate, useApi } from "@web/lib/use-api"
 
 type Props = {
   onConnected: () => void
@@ -25,14 +26,8 @@ type Props = {
 const LINKING_ENABLED = process.env.NEXT_PUBLIC_PLAID_LINKING === "1"
 
 export function ConnectButton(props: Props) {
-  if (!LINKING_ENABLED && !props.itemId) {
-    return (
-      <Button size={props.size} className={props.className} variant="outline" disabled title="Brokerage linking is coming soon">
-        <Clock aria-hidden />
-        Brokerage linking soon
-      </Button>
-    )
-  }
+  const { data, error } = useApi<{ allowed: boolean }>(props.itemId ? null : "/api/plaid/access", [], { refreshMs: 60_000 })
+  if (!props.itemId && (!LINKING_ENABLED || error || !data?.allowed)) return null
   return <PlaidConnectButton {...props} />
 }
 
@@ -41,13 +36,21 @@ function PlaidConnectButton({ onConnected, itemId, children, ...buttonProps }: P
   const [linkToken, setLinkToken] = useState<string | null>(null)
   const [exchanging, setExchanging] = useState(false)
   const [unavailable, setUnavailable] = useState(false)
+  const [attempt, setAttempt] = useState(0)
+  const [expiration, setExpiration] = useState<number>(0)
+  const exchangeInFlight = useRef(false)
 
   useEffect(() => {
     let cancelled = false
+    setUnavailable(false)
+    setLinkToken(null)
 
-    mutate<{ linkToken: string }>("/api/plaid/link-token", { body: itemId ? { itemId } : {} })
+    mutate<{ linkToken: string; expiration: string }>("/api/plaid/link-token", { body: itemId ? { itemId } : {} })
       .then((data) => {
-        if (!cancelled) setLinkToken(data.linkToken)
+        if (!cancelled) {
+          setLinkToken(data.linkToken)
+          setExpiration(Date.parse(data.expiration))
+        }
       })
       .catch(() => {
         if (!cancelled) setUnavailable(true)
@@ -56,36 +59,47 @@ function PlaidConnectButton({ onConnected, itemId, children, ...buttonProps }: P
     return () => {
       cancelled = true
     }
-  }, [itemId])
+  }, [itemId, attempt])
 
   const onSuccess = useCallback(
     async (publicToken: string, metadata: PlaidLinkOnSuccessMetadata) => {
+      if (exchangeInFlight.current) return
+      exchangeInFlight.current = true
       pendingLinkToken.clear()
       setExchanging(true)
       try {
-        await exchangePublicToken(publicToken, metadata)
-        toast("Account connected.", "success")
+        const result = await exchangePublicToken(publicToken, metadata, itemId)
+        const notice = connectionNotice("item" in result ? result.item : result.result)
+        toast(notice.message, notice.tone)
         onConnected()
       } catch (error) {
         toast(error instanceof Error ? error.message : "Couldn't connect that account.", "error")
       } finally {
         setExchanging(false)
+        exchangeInFlight.current = false
+        setAttempt((value) => value + 1)
       }
     },
-    [onConnected, toast],
+    [onConnected, toast, itemId],
   )
 
   const { open, ready } = usePlaidLink({
     token: linkToken,
     onSuccess: (publicToken, metadata) => void onSuccess(publicToken, metadata),
-    onExit: () => pendingLinkToken.clear(),
+    onExit: (error) => {
+      pendingLinkToken.clear()
+      if (error) {
+        toast(error.display_message ?? "Connection interrupted. Please try again.", "error")
+        setAttempt((value) => value + 1)
+      }
+    },
   })
 
   if (unavailable) {
     return (
-      <Button {...buttonProps} disabled>
+      <Button {...buttonProps} onClick={() => setAttempt((value) => value + 1)}>
         <Building2 aria-hidden />
-        Connecting unavailable
+        Retry connection
       </Button>
     )
   }
@@ -94,11 +108,16 @@ function PlaidConnectButton({ onConnected, itemId, children, ...buttonProps }: P
     <Button
       {...buttonProps}
       onClick={() => {
+        if (!Number.isFinite(expiration) || expiration <= Date.now()) {
+          setAttempt((value) => value + 1)
+          toast("Connection session expired. Please try again.", "info")
+          return
+        }
         // Kept for /oauth-return in case an OAuth bank takes the user away.
-        pendingLinkToken.save(linkToken!)
+        pendingLinkToken.save(linkToken!, itemId, expiration)
         open()
       }}
-      disabled={!ready || !linkToken} loading={exchanging}>
+      disabled={!ready || !linkToken || exchanging} loading={exchanging}>
       {!exchanging ? <Building2 aria-hidden /> : null}
       {children ?? (itemId ? "Reconnect" : "Connect account")}
     </Button>

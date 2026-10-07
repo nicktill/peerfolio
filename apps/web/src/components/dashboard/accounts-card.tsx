@@ -20,6 +20,7 @@ import { Button } from "@web/components/ui/button"
 import { Delta } from "@web/components/ui/delta"
 import { useConfirm } from "@web/components/ui/confirm"
 import { useToast } from "@web/components/ui/toast"
+import { connectionNotice } from "@web/lib/plaid-status"
 import { ConnectButton } from "@web/components/dashboard/connect-button"
 import { AddAccountButton, EditAccountButton } from "@web/components/dashboard/add-account-dialog"
 import { ImportPositionsButton } from "@web/components/dashboard/import-positions-dialog"
@@ -111,7 +112,7 @@ export function AccountsCard({
     rows: accounts.filter((a) => a.category === key),
   })).filter((g) => g.rows.length > 0)
 
-  const needsAttention = items.filter((i) => i.status === "needs_reauth" || i.status === "error")
+  const needsAttention = items.filter((i) => i.status !== "active")
 
   async function disconnect(itemId: string, name: string) {
     const ok = await confirm({
@@ -178,13 +179,21 @@ export function AccountsCard({
             <AlertTriangle className="h-4 w-4 shrink-0 text-[--series-4]" aria-hidden />
             <p className="min-w-0 flex-1 text-sm">
               <span className="font-medium">{item.institutionName}</span>{" "}
-              {item.status === "needs_reauth"
-                ? "needs you to sign in again before it can update."
-                : "hit an error on its last sync."}
+              {connectionNotice(item).removeRequired
+                ? connectionNotice(item).message
+                : item.status === "needs_reauth"
+                  ? "needs you to sign in again before it can update."
+                  : "hit an error on its last sync."}
             </p>
-            <ConnectButton itemId={item.id} onConnected={onChange} size="sm" variant="outline">
-              Reconnect
-            </ConnectButton>
+            {connectionNotice(item).removeRequired ? (
+              <Button size="sm" variant="outline" disabled={busyId === item.id} onClick={() => void disconnect(item.id, item.institutionName)}>
+                Remove connection
+              </Button>
+            ) : (
+              <ConnectButton itemId={item.id} onConnected={onChange} size="sm" variant="outline">
+                Reconnect
+              </ConnectButton>
+            )}
           </div>
         ))}
 
@@ -323,8 +332,8 @@ export function AccountsCard({
               <div key={item.id} className="flex items-center gap-3 text-sm">
                 <InstitutionMark logo={item.institutionLogo} name={item.institutionName} size="sm" />
                 <span className="min-w-0 flex-1 truncate">{item.institutionName}</span>
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  Synced {formatRelativeTime(item.lastSyncedAt)}
+                <span className="shrink-0 text-xs text-muted-foreground" title="Last successful sync">
+                  {item.lastSyncedAt ? `Synced ${formatRelativeTime(item.lastSyncedAt)}` : "Awaiting first sync"}
                 </span>
                 <Button
                   variant="ghost"
