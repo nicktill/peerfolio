@@ -129,19 +129,60 @@ test("an Alpaca snapshot stands in for a missing quote: the session's bar agains
   assert.equal(quoteFromSnapshot({ dailyBar: { t: "2026-10-06T04:00:00Z", c: 101 } }), null)
 })
 
-test("funds Finnhub didn't answer are filled from Alpaca's snapshots", async () => {
+const snapshot = (c: number, pc = 100) => ({ dailyBar: { t: "2026-10-06T04:00:00Z", c }, prevDailyBar: { c: pc } })
+const snapshotsFor = (url: string, make: (symbol: string) => unknown) => {
+  const symbols = new URL(url).searchParams.get("symbols")!.split(",")
+  return new Response(JSON.stringify(Object.fromEntries(symbols.map((s) => [s, make(s)]))))
+}
+
+test("Alpaca prices every fund in one request and Finnhub isn't asked at all", async () => {
+  const urls: string[] = []
   const fetchImpl = async (url: string) => {
-    if (url.includes("finnhub.io")) {
-      const symbol = new URL(url).searchParams.get("symbol")!
-      return symbol === "SPY" ? new Response(JSON.stringify({ c: 100.5, d: 0.5, dp: 0.5, pc: 100, t: close })) : new Response("", { status: 429 })
-    }
-    if (url.includes("/snapshots")) {
-      const symbols = new URL(url).searchParams.get("symbols")!.split(",")
-      return new Response(JSON.stringify(Object.fromEntries(symbols.map((s) => [s, { dailyBar: { t: "2026-10-06T04:00:00Z", c: 99 }, prevDailyBar: { c: 100 } }]))))
-    }
+    urls.push(url)
+    if (url.includes("/snapshots")) return snapshotsFor(url, () => snapshot(99))
     return new Response(JSON.stringify({ bars: {} }))
   }
   const board = (await fetchMarketBoard({ finnhubKey: "k", alpaca: { keyId: "a", secret: "b" }, fetchImpl, now: at("2026-10-06T21:00:00Z") }))!
+  assert.equal(urls.filter((u) => u.includes("/snapshots")).length, 1)
+  assert.equal(urls.filter((u) => u.includes("finnhub.io")).length, 0)
+  assert.equal(board.indexes.length, 4)
+  assert.equal(board.sectors.length, 11)
+})
+
+test("funds Alpaca didn't answer are filled from Finnhub", async () => {
+  const finnhubAsked: string[] = []
+  const fetchImpl = async (url: string) => {
+    if (url.includes("finnhub.io")) {
+      const symbol = new URL(url).searchParams.get("symbol")!
+      finnhubAsked.push(symbol)
+      return new Response(JSON.stringify({ c: 100.5, d: 0.5, dp: 0.5, pc: 100, t: close }))
+    }
+    if (url.includes("/snapshots")) return snapshotsFor(url, (s) => (s === "SPY" ? undefined : snapshot(99)))
+    return new Response(JSON.stringify({ bars: {} }))
+  }
+  const board = (await fetchMarketBoard({ finnhubKey: "k", alpaca: { keyId: "a", secret: "b" }, fetchImpl, now: at("2026-10-06T21:00:00Z") }))!
+  assert.deepEqual(finnhubAsked, ["SPY"])
   assert.deepEqual(board.indexes.map((i) => [i.symbol, i.day.percent]), [["SPY", 0.5], ["QQQ", -1], ["DIA", -1], ["IWM", -1]])
   assert.equal(board.sectors.length, 11)
+})
+
+test("when Alpaca is down, Finnhub fills the whole board", async () => {
+  const fetchImpl = async (url: string) => {
+    if (url.includes("finnhub.io")) return new Response(JSON.stringify({ c: 100.5, d: 0.5, dp: 0.5, pc: 100, t: close }))
+    return new Response("", { status: 503 })
+  }
+  const board = (await fetchMarketBoard({ finnhubKey: "k", alpaca: { keyId: "a", secret: "b" }, fetchImpl, now: at("2026-10-06T21:00:00Z") }))!
+  assert.equal(board.indexes.length, 4)
+  assert.equal(board.sectors.length, 11)
+})
+
+test("without Alpaca keys the board comes from Finnhub alone", async () => {
+  const urls: string[] = []
+  const fetchImpl = async (url: string) => {
+    urls.push(url)
+    return new Response(JSON.stringify({ c: 100.5, d: 0.5, dp: 0.5, pc: 100, t: close }))
+  }
+  const board = (await fetchMarketBoard({ finnhubKey: "k", alpaca: null, fetchImpl, now: at("2026-10-06T21:00:00Z") }))!
+  assert.equal(urls.filter((u) => u.includes("finnhub.io")).length, 15)
+  assert.equal(board.indexes.length, 4)
 })

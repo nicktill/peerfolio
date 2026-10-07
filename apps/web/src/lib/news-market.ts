@@ -141,8 +141,8 @@ type Snapshot = { dailyBar?: { t?: unknown; c?: unknown }; prevDailyBar?: { c?: 
 
 /**
  * A quote built from Alpaca's snapshot: the session's bar against the one
- * before it. Used only for funds Finnhub didn't answer (its free allowance is
- * shared with live prices), so a busy minute doesn't empty the board.
+ * before it. The board's first choice, since one request covers every fund;
+ * Finnhub fills in only the funds Alpaca doesn't answer.
  */
 export function quoteFromSnapshot(snapshot: Snapshot | undefined): FinnhubQuote | null {
   const c = snapshot?.dailyBar?.c
@@ -194,15 +194,18 @@ export async function fetchMarketBoard({
   const symbols = [...INDEX_FUNDS.map((f) => f.symbol), ...SECTOR_FUNDS.map((f) => f.symbol)]
 
   const quotes = new Map<string, FinnhubQuote>()
-  // A few at a time, inside Finnhub's free allowance.
-  for (let i = 0; i < symbols.length; i += 4) {
-    const batch = symbols.slice(i, i + 4)
-    const got = finnhubKey ? await Promise.all(batch.map((s) => finnhubQuote(s, finnhubKey, fetchImpl))) : []
-    batch.forEach((s, j) => got[j] && quotes.set(s, got[j]!))
-  }
+  // Alpaca prices all fifteen in one request, and its allowance is far larger than
+  // Finnhub's, so ask it first, as the live prices do.
   if (alpaca) {
-    const fallback = await alpacaSnapshots(symbols.filter((sym) => !quotes.has(sym)), alpaca, fetchImpl)
-    for (const [sym, q] of fallback) quotes.set(sym, q)
+    for (const [sym, q] of await alpacaSnapshots(symbols, alpaca, fetchImpl)) quotes.set(sym, q)
+  }
+  // Finnhub only for what Alpaca left out. It is one call per fund, paced by its
+  // budget, so it is the slow path: a few at a time, inside its free allowance.
+  const missing = symbols.filter((sym) => !quotes.has(sym))
+  for (let i = 0; i < missing.length && finnhubKey; i += 4) {
+    const batch = missing.slice(i, i + 4)
+    const got = await Promise.all(batch.map((s) => finnhubQuote(s, finnhubKey, fetchImpl)))
+    batch.forEach((s, j) => got[j] && quotes.set(s, got[j]!))
   }
   // A quote more than four days old means the source is stuck, not that it's a long weekend.
   for (const [s, q] of quotes) if (now.getTime() - q.t * 1000 > 4 * DAY) quotes.delete(s)

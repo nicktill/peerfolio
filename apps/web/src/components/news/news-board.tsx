@@ -70,7 +70,8 @@ function toView(brief: PublishedBrief): RecapView {
  */
 export function NewsBoard({ holdingMoves, held = [] }: { holdingMoves: HoldingMoves; held?: string[] }) {
   const [period, setPeriod] = useState<Period>("day")
-  const { data: news } = useApi<NewsResponse>("/api/news")
+  const newsApi = useApi<NewsResponse>("/api/news")
+  const news = newsApi.data
   // The preview shows the sample figures; the real page shows live data or, where a source is down, nothing.
   const sample = holdingMoves === "sample"
   // Each part loads on its own, so a slow source never holds up the others.
@@ -78,6 +79,8 @@ export function NewsBoard({ holdingMoves, held = [] }: { holdingMoves: HoldingMo
   const earningsApi = useApi<Pick<MarketResponse, "earnings">>(sample ? null : "/api/news/market?part=earnings")
   const fearGreedApi = useApi<Pick<MarketResponse, "fearGreed">>(sample ? null : "/api/news/market?part=fear-greed")
   const pending = (api: { data: unknown; error: string | null }) => !sample && !api.data && !api.error
+  // Until the recap has answered, show its shape rather than a "lands after the close" note that the answer then replaces.
+  const newsPending = pending(newsApi)
   const board = sample ? { indexes: INDEXES, sectors: SECTORS } : boardApi.data?.board ?? null
   const fearGreed = sample ? { ...FEAR_GREED, asOf: null as string | null } : fearGreedApi.data?.fearGreed ?? null
   const earningsData = earningsApi.data?.earnings
@@ -94,9 +97,11 @@ export function NewsBoard({ holdingMoves, held = [] }: { holdingMoves: HoldingMo
   const now = new Date()
   const today = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "long", month: "long", day: "numeric" }).format(now).replace(", ", " · ")
   const open = isUsMarketOpen(now)
-  // The hero takes the colour of the broad market's move.
+  // The hero takes the colour of the broad market's move. Until the markets have answered it stays neutral,
+  // so it doesn't flash green and then turn red.
   const hasSectors = Boolean(board && board.sectors.length > 0)
-  const up = (board?.indexes[0]?.[period]?.percent ?? board?.indexes[0]?.day.percent ?? 0) >= 0
+  const lead = board?.indexes[0]
+  const direction: "up" | "down" | null = lead ? ((lead[period]?.percent ?? lead.day.percent) >= 0 ? "up" : "down") : null
 
   return (
     <div className="flex flex-col gap-5 pb-16 pt-2">
@@ -106,10 +111,10 @@ export function NewsBoard({ holdingMoves, held = [] }: { holdingMoves: HoldingMo
           <div
             aria-hidden
             className="absolute -right-20 -top-24 size-80 rounded-full blur-3xl transition-colors duration-700"
-            style={{ backgroundColor: `color-mix(in srgb, var(${up ? "--gain" : "--loss"}) 22%, transparent)` }}
+            style={{ backgroundColor: direction ? `color-mix(in srgb, var(${direction === "up" ? "--gain" : "--loss"}) 22%, transparent)` : "transparent" }}
           />
-          <span aria-hidden className="absolute -bottom-8 right-4 select-none text-[7rem] leading-none opacity-20 sm:text-[9rem]">
-            {up ? "📈" : "📉"}
+          <span aria-hidden className={cn("absolute -bottom-8 right-4 select-none text-[7rem] leading-none transition-opacity duration-700 sm:text-[9rem]", direction ? "opacity-20" : "opacity-0")}>
+            {direction === "down" ? "📉" : "📈"}
           </span>
           <div className="relative flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
             <div className="max-w-3xl">
@@ -127,18 +132,28 @@ export function NewsBoard({ holdingMoves, held = [] }: { holdingMoves: HoldingMo
                 {period === "day" ? "The daily brief" : "The weekly brief"}
               </SectionLabel>
               {/* The day's story is the page's headline. */}
-              <h1 key={`${period}-${recap?.headline}`} className="swap-in mt-2 text-balance font-display text-3xl font-semibold leading-[1.1] tracking-tight sm:text-[40px]">
-                {recap?.headline ?? (period === "day" ? "Today in the markets" : "This week in the markets")}
-              </h1>
-              <p className="mt-3 max-w-xl text-sm text-muted-foreground">
-                {!recap
-                  ? `The ${period === "day" ? "daily" : "weekly"} recap is written after ${period === "day" ? "each close" : "the week’s last close"}. Here’s the market as it stands.`
+              {newsPending ? (
+                // Same height as the headline and its line below, so nothing moves when they arrive.
+                <div aria-busy="true" aria-label="Loading the brief">
+                  <Skeleton className="mt-3 h-[34px] w-4/5 max-w-xl sm:h-[44px]" />
+                  <Skeleton className="mt-3 h-4 w-3/5 max-w-md" />
+                </div>
+              ) : (
+                <>
+                  <h1 key={`${period}-${recap?.headline}`} className="swap-in mt-2 text-balance font-display text-3xl font-semibold leading-[1.1] tracking-tight sm:text-[40px]">
+                    {recap?.headline ?? (period === "day" ? "Today in the markets" : "This week in the markets")}
+                  </h1>
+                  <p className="mt-3 max-w-xl text-sm text-muted-foreground">
+                    {!recap
+                      ? `The ${period === "day" ? "daily" : "weekly"} recap is written after ${period === "day" ? "each close" : "the week’s last close"}. Here’s the market as it stands.`
                   : recap.kind === "ai"
                   ? `What moved, why it mattered, and what’s next, written from ${recap.sources?.length ?? 0} stories and checked against them.`
                   : recap.kind === "fallback"
                     ? "Today’s biggest stories, straight from the publishers."
                     : "Your two-minute read on the markets. The live brief lands after each close."}
-              </p>
+                  </p>
+                </>
+              )}
             </div>
             <Segmented<Period>
               label="Time period"
@@ -190,6 +205,8 @@ export function NewsBoard({ holdingMoves, held = [] }: { holdingMoves: HoldingMo
       <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,1.85fr)_minmax(0,1fr)]">
         {recap ? (
           <MarketRecap recap={recap} moves={moves} swapKey={`${period}-${recap.kind}`} index={5} showHeadline={false} />
+        ) : newsPending ? (
+          <Skeleton className="min-h-[420px] rounded-2xl" aria-busy="true" aria-label="Loading the recap" />
         ) : (
           <SectionCard label={period === "day" ? "Daily recap" : "Weekly recap"} icon={<Sparkles />} tone="primary" index={5}>
             <div className="flex flex-1 flex-col items-center justify-center gap-1.5 px-6 py-12 text-center">
@@ -222,6 +239,7 @@ export function NewsBoard({ holdingMoves, held = [] }: { holdingMoves: HoldingMo
           />
         ) : null}
         {hasSectors ? <SectorBars sectors={board!.sectors} period={period} index={8} /> : null}
+        {newsPending ? <Skeleton className="min-h-[320px] rounded-2xl lg:col-span-2" /> : null}
         {news?.headlines.length ? <TopStories headlines={news.headlines.slice(0, 10)} index={9} /> : null}
       </div>
     </div>
