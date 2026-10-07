@@ -65,6 +65,8 @@ const GROUP_LABELS: Record<string, string> = {
 
 const GROUP_ORDER = ["investment", "cash", "other", "credit", "loan"]
 
+const OVERLAP_DISMISSED_KEY = "peerfolio:manual-overlap-dismissed"
+
 export function AccountsCard({
   accounts,
   items,
@@ -113,6 +115,30 @@ export function AccountsCard({
   })).filter((g) => g.rows.length > 0)
 
   const needsAttention = items.filter((i) => i.status !== "active")
+
+  // Linking a brokerage never replaces a hand-entered account, so the same money
+  // can be counted twice. Offer the choice instead of guessing which ones match.
+  // Read after mount so the server render and first client render agree.
+  const [overlapDismissed, setOverlapDismissed] = useState(true)
+  useEffect(() => {
+    try {
+      setOverlapDismissed(localStorage.getItem(OVERLAP_DISMISSED_KEY) === "1")
+    } catch {
+      setOverlapDismissed(false)
+    }
+  }, [])
+  const hasLinkedInvestment = accounts.some((a) => a.source === "plaid" && a.category === "investment")
+  const manualInvestments = accounts.filter((a) => a.source === "manual" && a.category === "investment")
+  const showOverlap = !overlapDismissed && hasLinkedInvestment && manualInvestments.length > 0
+
+  function dismissOverlap() {
+    setOverlapDismissed(true)
+    try {
+      localStorage.setItem(OVERLAP_DISMISSED_KEY, "1")
+    } catch {
+      // Private mode: the notice just comes back next visit.
+    }
+  }
 
   async function disconnect(itemId: string, name: string) {
     const ok = await confirm({
@@ -196,6 +222,33 @@ export function AccountsCard({
             )}
           </div>
         ))}
+
+        {showOverlap ? (
+          <div className="space-y-2 rounded-lg border border-border bg-secondary/50 p-3">
+            <p className="text-sm">
+              You&apos;ve linked a brokerage and still have {manualInvestments.length === 1 ? "an account" : "accounts"} you entered by hand. If{" "}
+              {manualInvestments.length === 1 ? "it holds" : "they hold"} the same money, remove {manualInvestments.length === 1 ? "it" : "them"} so it isn&apos;t counted twice.
+              Linked accounts can also qualify you for verified rankings; accounts entered by hand can&apos;t.
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              {manualInvestments.map((account) => (
+                <Button
+                  key={account.id}
+                  size="sm"
+                  variant="outline"
+                  disabled={busyId === account.id}
+                  onClick={() => void removeManual(account.id, account.name)}
+                >
+                  <Trash2 aria-hidden />
+                  Remove {account.name}
+                </Button>
+              ))}
+              <Button size="sm" variant="ghost" onClick={dismissOverlap}>
+                Keep both
+              </Button>
+            </div>
+          </div>
+        ) : null}
 
         {grouped.map((group) => (
           <div key={group.key}>
