@@ -18,7 +18,7 @@ concurrency:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 5
     steps:
       - name: Call /api/cron/prices
         env:
@@ -38,3 +38,25 @@ jobs:
           cat response.json
           echo
           [ "$code" = "200" ] || { echo "Expected HTTP 200, got $code" >&2; exit 1; }
+
+      # The News page's market cards take 15 quotes from a rate-limited provider,
+      # so whoever opens the page right after the cache expires waits for them.
+      # Asking here, on the schedule, means a visitor finds them already fetched.
+      # `warm` only skips the CDN copy; the page's own cache is what gets filled.
+      # A failure here never fails the run: it only means the next visitor waits.
+      - name: Warm the News page
+        if: always()
+        continue-on-error: true
+        env:
+          APP_URL: ${{ vars.PEERFOLIO_URL || 'https://www.peerfolio.org' }}
+        run: |
+          stamp=$(date +%s)
+          for part in board earnings fear-greed; do
+            curl --silent --show-error --max-time 75 -o /dev/null \
+              -w "$part: HTTP %{http_code} in %{time_total}s\n" \
+              "${APP_URL%/}/api/news/market?part=$part&warm=$stamp" &
+          done
+          curl --silent --show-error --max-time 75 -o /dev/null \
+            -w "news: HTTP %{http_code} in %{time_total}s\n" \
+            "${APP_URL%/}/api/news?warm=$stamp" &
+          wait
