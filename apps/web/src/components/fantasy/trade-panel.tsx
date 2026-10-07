@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Button } from "@web/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card"
 import { useToast } from "@web/components/ui/toast"
@@ -8,7 +8,7 @@ import { TickerCombobox } from "@web/components/fantasy/ticker-combobox"
 import { TradeReceipt, type Receipt } from "@web/components/fantasy/trade-receipt"
 import { fillsAtOpen } from "@web/lib/fantasy-rules"
 import { formatCurrency } from "@web/lib/format"
-import { checkTradeInput, estimateShares, sanitizeAmount } from "@web/lib/trade-input"
+import { amountFromFraction, BUY_SPOTS, checkTradeInput, estimateShares, fractionFromAmount, sanitizeAmount, SELL_SPOTS, snapFraction, snapThreshold } from "@web/lib/trade-input"
 import { mutate } from "@web/lib/use-api"
 import { cn } from "@web/lib/utils"
 
@@ -205,23 +205,12 @@ export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: 
               )}
             </p>
           </div>
-          <div className="grid grid-cols-4 gap-1.5">
-            {side === "buy"
-              ? [0.1, 0.25, 0.5, 1].map((f) => (
-                  <Quick key={f} onClick={() => setAmount((Math.floor(cash * f * 100) / 100).toString())}>
-                    {f === 1 ? "Max" : `${f * 100}%`}
-                  </Quick>
-                ))
-              : [0.25, 0.5, 0.75].map((f) => (
-                  <Quick key={f} disabled={!held} onClick={() => held && setAmount((held.shares * f).toFixed(4))}>
-                    {f * 100}%
-                  </Quick>
-                )).concat(
-                  <Quick key="all" disabled={!held} onClick={() => setAmount("all")}>
-                    All
-                  </Quick>,
-                )}
-          </div>
+          <AmountSlider
+            side={side}
+            max={side === "buy" ? cash : held?.shares ?? 0}
+            amount={amount}
+            onChange={setAmount}
+          />
           <Button type="submit" className="w-full" size="lg" loading={pending} variant={side === "sell" ? "outline" : "default"}>
             {side === "buy" ? (queues ? "Queue buy 🕘" : "Buy 🚀") : queues ? "Queue sell 🕘" : "Sell 💸"}
           </Button>
@@ -237,11 +226,201 @@ export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: 
   )
 }
 
-function Quick({ children, onClick, disabled }: { children: React.ReactNode; onClick: () => void; disabled?: boolean }) {
+const SPOT_LABEL: Record<"buy" | "sell", Record<number, string>> = {
+  buy: { 0.1: "10%", 0.25: "25%", 0.5: "50%", 1: "Max" },
+  sell: { 0.25: "25%", 0.5: "50%", 0.75: "75%", 1: "All" },
+}
+
+/**
+ * Dollars of buying power when buying, shares held when selling. Hotspots are
+ * the old quick-picks; the thumb snaps onto one when the pointer gets close.
+ */
+function AmountSlider({ side, max, amount, onChange }: { side: "buy" | "sell"; max: number; amount: string; onChange: (next: string) => void }) {
+  const barRef = useRef<HTMLDivElement>(null)
+  const dragging = useRef(false)
+  const caught = useRef<number | null>(null)
+  const easingOff = useRef(false)
+  const visualRef = useRef(0)
+  const targetRef = useRef(0)
+  const rafRef = useRef<number | null>(null)
+  const [visual, setVisual] = useState(0)
+  const spots = side === "buy" ? BUY_SPOTS : SELL_SPOTS
+  const usable = max > 0
+  const typed = amount === "all" ? 1 : max > 0 ? (Number(amount) || 0) / max : 0
+  const fraction = Math.min(1, Math.max(0, Number.isFinite(typed) ? typed : 0))
+  // An over-budget amount sits at the end of the track, but it is not "Max" or "All".
+  const active = typed <= 1.005 ? spots.find((spot) => Math.abs(fraction - spot) <= 0.005) : undefined
+
+  const stopEase = useCallback(() => {
+    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
+    rafRef.current = null
+  }, [])
+
+  // Ease onto a hotspot and back off one. A cancelled frame has to clear its id,
+  // or the next glide thinks one is already running and the thumb never moves.
+  const easeTo = useCallback((to: number) => {
+    targetRef.current = to
+    const reduce = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    if (reduce) {
+      stopEase()
+      visualRef.current = to
+      setVisual(to)
+      easingOff.current = false
+      return
+    }
+    if (rafRef.current !== null) return
+    const step = () => {
+      const delta = targetRef.current - visualRef.current
+      if (Math.abs(delta) < 0.006) {
+        visualRef.current = targetRef.current
+        setVisual(targetRef.current)
+        rafRef.current = null
+        easingOff.current = false
+        return
+      }
+      visualRef.current += delta * 0.25
+      setVisual(visualRef.current)
+      rafRef.current = requestAnimationFrame(step)
+    }
+    rafRef.current = requestAnimationFrame(step)
+  }, [stopEase])
+
+  useEffect(() => {
+    return () => stopEase()
+  }, [stopEase])
+
+  // Typing or a hotspot click. A drag places the thumb itself.
+  useEffect(() => {
+    if (dragging.current) return
+    easeTo(fraction)
+  }, [easeTo, fraction])
+
+  const apply = useCallback(
+    (clientX: number) => {
+      const rect = barRef.current?.getBoundingClientRect()
+      if (!rect || !(max > 0)) return
+      const raw = rect.width <= 0 ? 0 : (clientX - rect.left) / rect.width
+      const wasCaught = caught.current !== null
+      const snapped = snapFraction(raw, spots, snapThreshold(rect.width), caught.current)
+      const leaving = wasCaught && !snapped.snapped
+      caught.current = snapped.snapped ? snapped.fraction : null
+      onChange(amountFromFraction(side, snapped.fraction, max, snapped.snapped))
+      if (snapped.snapped) {
+        easingOff.current = false
+        easeTo(snapped.fraction)
+        return
+      }
+      // Keep easing after the pointer breaks out, so the thumb slides off the
+      // point and catches the finger instead of jumping to it.
+      if (leaving || easingOff.current) {
+        easingOff.current = true
+        easeTo(snapped.fraction)
+        return
+      }
+      easingOff.current = false
+      stopEase()
+      visualRef.current = snapped.fraction
+      setVisual(snapped.fraction)
+    },
+    [easeTo, max, onChange, side, spots, stopEase],
+  )
+
+  function onKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (!usable) return
+    const current = fractionFromAmount(amount, max)
+    let next: number | null = null
+    if (event.key === "Home") next = 0
+    else if (event.key === "End") next = 1
+    else if (event.key === "ArrowRight" || event.key === "ArrowUp") {
+      next = event.shiftKey ? (spots.find((spot) => spot > current + 1e-6) ?? 1) : Math.min(1, current + 0.01)
+    } else if (event.key === "ArrowLeft" || event.key === "ArrowDown") {
+      next = event.shiftKey ? ([...spots].reverse().find((spot) => spot < current - 1e-6) ?? 0) : Math.max(0, current - 0.01)
+    }
+    if (next === null) return
+    event.preventDefault()
+    const onSpot = spots.some((spot) => Math.abs(spot - next!) < 1e-9)
+    onChange(amountFromFraction(side, next, max, onSpot))
+  }
+
+  const valueNow = amount === "all" ? max : Number(amount) || 0
+  const valueText = !usable
+    ? side === "buy" ? "No buying power" : "No shares"
+    : side === "buy"
+      ? formatCurrency(valueNow)
+      : amount === "all"
+        ? `All ${fmtShares(max)} shares`
+        : `${fmtShares(valueNow)} shares`
+
   return (
-    <button type="button" onClick={onClick} disabled={disabled} className="rounded-lg border py-1.5 text-xs font-medium transition-colors hover:bg-secondary disabled:opacity-40">
-      {children}
-    </button>
+    <div className={cn("pt-0.5", !usable && "opacity-40")}>
+      <div
+        role="slider"
+        tabIndex={usable ? 0 : -1}
+        aria-label={side === "buy" ? "Buying power" : "Shares to sell"}
+        aria-valuemin={0}
+        aria-valuemax={usable ? max : 0}
+        aria-valuenow={usable ? valueNow : 0}
+        aria-valuetext={valueText}
+        aria-disabled={!usable || undefined}
+        aria-orientation="horizontal"
+        onPointerDown={(event) => {
+          if (!usable) return
+          event.currentTarget.setPointerCapture(event.pointerId)
+          dragging.current = true
+          apply(event.clientX)
+        }}
+        onPointerMove={(event) => {
+          if (dragging.current) apply(event.clientX)
+        }}
+        onPointerUp={(event) => {
+          if (!dragging.current) return
+          apply(event.clientX)
+          dragging.current = false
+          caught.current = null
+        }}
+        onKeyDown={onKeyDown}
+        className="group relative cursor-pointer py-2 outline-none touch-none focus-visible:outline-none"
+      >
+        <div ref={barRef} className="relative mx-2 h-1.5">
+          <div className="absolute inset-0 rounded-full bg-secondary" />
+          <div className="absolute inset-y-0 left-0 rounded-full bg-primary" style={{ width: `${visual * 100}%` }} />
+          {spots.map((spot) => (
+            <span
+              key={spot}
+              aria-hidden
+              className={cn(
+                "absolute top-1/2 size-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-primary/50 bg-background",
+                active === spot && "size-2 border-primary bg-primary",
+              )}
+              style={{ left: `${spot * 100}%` }}
+            />
+          ))}
+          <span
+            aria-hidden
+            className="absolute top-1/2 z-10 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-primary bg-background shadow-sm group-focus-visible:ring-2 group-focus-visible:ring-primary"
+            style={{ left: `${visual * 100}%` }}
+          />
+        </div>
+      </div>
+      <div className="relative mx-2 h-4">
+        {spots.map((spot) => (
+          <button
+            key={spot}
+            type="button"
+            disabled={!usable}
+            onClick={() => onChange(amountFromFraction(side, spot, max, true))}
+            className={cn(
+              "absolute top-0 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none",
+              spot === 1 ? "right-0" : "-translate-x-1/2",
+              active === spot && "font-semibold text-primary",
+            )}
+            style={spot === 1 ? undefined : { left: `${spot * 100}%` }}
+          >
+            {SPOT_LABEL[side][spot]}
+          </button>
+        ))}
+      </div>
+    </div>
   )
 }
 
