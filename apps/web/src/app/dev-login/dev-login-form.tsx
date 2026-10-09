@@ -21,7 +21,9 @@ export function DevLoginForm({ requirePasscode = false }: { requirePasscode?: bo
     const result = await signIn("dev-login", { email, passcode, redirect: false })
 
     if (result?.error) {
-      setError(requirePasscode ? "That passcode or account isn't allowed." : "No user with that email. Run `npm run db:seed` first.")
+      // NextAuth reports a plain refusal as "CredentialsSignin"; anything else is a message worth showing.
+      const detail = result.error !== "CredentialsSignin" ? result.error : null
+      setError(detail ?? (requirePasscode ? "That passcode or account isn't allowed." : "No user with that email. Run `npm run db:seed` first."))
       setPending(false)
       return
     }

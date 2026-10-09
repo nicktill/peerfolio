@@ -1,7 +1,28 @@
 import "server-only"
+import fs from "node:fs"
+import path from "node:path"
 import { eq } from "drizzle-orm"
+import { migrate } from "drizzle-orm/postgres-js/migrator"
 import { db, accounts, holdings, leagueMembers, leagues, plaidItems, portfolioSnapshots, securities, users } from "@web/db"
 import { DAYS, DEMO_PEOPLE, MIXES, SECURITIES, makeRandom } from "@web/lib/demo-data"
+
+/** Postgres "undefined_table", wherever the driver or drizzle nested it. */
+function isMissingTable(error: unknown): boolean {
+  for (let e = error as { code?: string; cause?: unknown } | undefined; e; e = e.cause as typeof e) {
+    if (e.code === "42P01") return true
+  }
+  return false
+}
+
+/**
+ * Applies the schema to a database that has none. Called only when the users table is missing,
+ * so an established database is never migrated from a preview.
+ */
+async function createSchema() {
+  const folder = [path.join(process.cwd(), "drizzle"), path.join(process.cwd(), "apps/web/drizzle")].find((dir) => fs.existsSync(dir))
+  if (!folder) throw new Error("Migration files aren't in this build")
+  await migrate(db, { migrationsFolder: folder })
+}
 
 /**
  * Creates one demo user, with a few months of history, an account and a league, if the
@@ -12,7 +33,15 @@ import { DAYS, DEMO_PEOPLE, MIXES, SECURITIES, makeRandom } from "@web/lib/demo-
  * signed into, so it can't wipe data that is already there.
  */
 export async function ensureDemoUser(email: string) {
-  const existing = await db.query.users.findFirst({ where: eq(users.email, email) })
+  const lookup = () => db.query.users.findFirst({ where: eq(users.email, email) })
+  let existing
+  try {
+    existing = await lookup()
+  } catch (error) {
+    if (!isMissingTable(error)) throw error
+    await createSchema()
+    existing = await lookup()
+  }
   if (existing) return existing
 
   const local = email.split("@")[0] ?? "demo"

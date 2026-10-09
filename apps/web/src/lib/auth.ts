@@ -67,16 +67,19 @@ const devLoginProvider = CredentialsProvider({
 
     if (mode === "preview" && (!passcodeMatches(credentials?.passcode) || !previewAllowlist().includes(email))) return null
 
-    let user = await db.query.users.findFirst({ where: eq(users.email, email) })
-    // A preview's demo database may be empty. The passcode and allowlist already passed, so build
-    // the demo account on first use instead of making someone run the seed script.
-    if (!user && mode === "preview") {
+    let user
+    if (mode === "preview") {
+      // The passcode and allowlist already passed. A preview's demo database may be empty or
+      // unmigrated, so set up what's missing instead of making someone run scripts by hand, and
+      // say what went wrong rather than a generic refusal.
       try {
         user = await ensureDemoUser(email)
       } catch (error) {
         console.error("Demo account setup failed", error)
-        return null
+        throw new Error(`Demo database setup failed: ${error instanceof Error ? error.message.slice(0, 160) : "unknown error"}`)
       }
+    } else {
+      user = await db.query.users.findFirst({ where: eq(users.email, email) })
     }
     if (!user) return null
 
