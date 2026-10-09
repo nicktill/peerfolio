@@ -13,7 +13,16 @@
       "outputs": [
         ".next/**",
         "!.next/cache/**"
-      ]
+      ],
+      "env": [
+        "PLAID_ENV",
+        "ENABLE_PLAID_SANDBOX"
+      ],
+      "passThroughEnv": [
+        "VERCEL_ENV",
+        "DATABASE_URL"
+      ],
+      "cache": false
     },
     "lint": {
       "dependsOn": [
