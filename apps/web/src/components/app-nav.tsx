@@ -45,7 +45,7 @@ export function AppNav() {
 
           <nav ref={desktop.containerRef} className="relative ml-4 hidden items-center gap-1 sm:flex">
             {/* One pill that glides to whichever page you're on. */}
-            <span aria-hidden className="absolute inset-y-0 left-0 rounded-lg bg-secondary" style={slideStyle(desktop.rect, desktop.ready)} />
+            <span aria-hidden className="absolute inset-y-0 left-0 rounded-lg bg-card shadow-[0_1px_2px_hsl(var(--foreground)/0.08),0_0_0_1px_hsl(var(--border))]" style={slideStyle(desktop.rect, desktop.ready)} />
             {LINKS.map((link) => (
               <NavLink key={link.href} {...link} active={activeHref === link.href} />
             ))}

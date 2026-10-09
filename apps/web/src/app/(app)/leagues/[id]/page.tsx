@@ -213,7 +213,7 @@ export default function LeaguePage({ params }: { params: Promise<{ id: string }>
 
           {waiting.length > 0 ? (
             <div className="mt-5 border-t pt-4">
-              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <h4 className="mb-2 text-[13px] font-semibold tracking-[-0.005em] text-muted-foreground">
                 Building history
               </h4>
               <ul className="flex flex-wrap gap-2">

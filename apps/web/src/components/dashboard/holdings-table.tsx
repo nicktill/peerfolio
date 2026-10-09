@@ -156,7 +156,7 @@ export function HoldingsTable({
           </div>
         ) : null}
 
-        <div className="mt-4 hidden grid-cols-[minmax(0,2fr)_minmax(140px,0.9fr)_minmax(90px,0.65fr)_minmax(90px,0.7fr)_minmax(95px,0.75fr)] gap-4 border-b pb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground md:grid">
+        <div className="mt-4 hidden grid-cols-[minmax(0,2fr)_minmax(140px,0.9fr)_minmax(90px,0.65fr)_minmax(90px,0.7fr)_minmax(95px,0.75fr)] gap-4 border-b pb-2 text-xs font-medium text-muted-foreground md:grid">
           <span>Name</span>
           <span>Weight</span>
           <span className="text-right">Value</span>
