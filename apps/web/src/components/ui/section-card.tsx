@@ -66,7 +66,8 @@ export function SectionCard({
   return (
     // Magic UI's Magic Card: a light follows the cursor across the card's border and surface.
     <MagicCard
-      className={cn("reveal flex flex-col rounded-2xl bg-card text-card-foreground shadow-card", className)}
+      className={cn("reveal rounded-2xl bg-card text-card-foreground shadow-card", className)}
+      contentClassName="flex flex-col"
       style={revealStyle(index)}
       aria-labelledby={id}
       {...CARD_GLOW}

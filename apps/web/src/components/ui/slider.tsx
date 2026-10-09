@@ -20,10 +20,27 @@ export const Slider = React.forwardRef<
     /** The thumb's accessible value text. */
     thumbLabel?: string
   }
->(({ className, bubble, ticks, activeTick, thumbLabel, ...props }, ref) => (
+>(({ className, bubble, ticks, activeTick, thumbLabel, onPointerDown, ...props }, ref) => {
+  // Held by a pointer (mouse or touch). The bubble shows while held, and on keyboard focus.
+  const [held, setHeld] = React.useState(false)
+  React.useEffect(() => {
+    if (!held) return
+    const release = () => setHeld(false)
+    window.addEventListener("pointerup", release)
+    window.addEventListener("pointercancel", release)
+    return () => {
+      window.removeEventListener("pointerup", release)
+      window.removeEventListener("pointercancel", release)
+    }
+  }, [held])
+  return (
   <SliderPrimitive.Root
     ref={ref}
     className={cn("group/slider relative flex h-7 w-full touch-none select-none items-center data-[disabled]:opacity-40", className)}
+    onPointerDown={(event) => {
+      setHeld(true)
+      onPointerDown?.(event)
+    }}
     {...props}
   >
     <SliderPrimitive.Track className="relative h-2 w-full grow rounded-full bg-secondary shadow-[inset_0_1px_2px_hsl(var(--foreground)/0.12)]">
@@ -47,7 +64,7 @@ export const Slider = React.forwardRef<
         "group/thumb relative block size-[22px] rounded-full border-[3px] border-primary bg-background outline-none",
         "shadow-[0_1px_2px_hsl(var(--foreground)/0.25),0_6px_14px_-4px_hsl(var(--primary)/0.55)]",
         "transition-[transform,box-shadow] duration-150 ease-out hover:scale-110 active:scale-125",
-        "focus-visible:ring-4 focus-visible:ring-primary/25",
+        "focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
       )}
     >
       {bubble ? (
@@ -56,7 +73,7 @@ export const Slider = React.forwardRef<
           className={cn(
             "numeric pointer-events-none absolute bottom-full left-1/2 mb-2.5 -translate-x-1/2 translate-y-1 whitespace-nowrap rounded-lg bg-foreground px-2 py-1 text-[11px] font-semibold text-background opacity-0 shadow-lg",
             "transition-[opacity,transform] duration-150 ease-out",
-            "group-active/thumb:translate-y-0 group-active/thumb:opacity-100 group-focus-visible/thumb:translate-y-0 group-focus-visible/thumb:opacity-100",
+            held ? "translate-y-0 opacity-100" : "group-focus-visible/thumb:translate-y-0 group-focus-visible/thumb:opacity-100",
           )}
         >
           {bubble}
@@ -65,5 +82,6 @@ export const Slider = React.forwardRef<
       ) : null}
     </SliderPrimitive.Thumb>
   </SliderPrimitive.Root>
-))
+  )
+})
 Slider.displayName = "Slider"

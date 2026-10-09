@@ -14,6 +14,8 @@ import { cn } from "@web/lib/utils"
 
 interface MagicCardBaseProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "color"> {
   children?: React.ReactNode
+  /** Peerfolio: classes for the wrapper around the children, e.g. `flex flex-col`. */
+  contentClassName?: string
   className?: string
   gradientSize?: number
   gradientFrom?: string
@@ -60,6 +62,7 @@ export function MagicCard(props: MagicCardProps) {
   const {
     children,
     className,
+    contentClassName,
     style: styleProp,
     mode: _mode, gradientSize: _gs, gradientColor: _gc, gradientOpacity: _go, gradientFrom: _gf, gradientTo: _gt,
     glowFrom: _a, glowTo: _b, glowAngle: _c, glowSize: _d, glowBlur: _e, glowOpacity: _f,
@@ -228,7 +231,7 @@ export function MagicCard(props: MagicCardProps) {
         />
       )}
       {/* Peerfolio: h-full, so a card's content can fill it. */}
-      <div className="relative z-40 h-full">{children}</div>
+      <div className={cn("relative z-40 h-full", contentClassName)}>{children}</div>
     </motion.div>
   )
 }

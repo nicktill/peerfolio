@@ -30,7 +30,7 @@ export function ConnectButton(props: Props) {
   // Everyone sees the button. It's live for approved accounts and greyed out as "coming soon" for the rest.
   if (!props.itemId && (!LINKING_ENABLED || error || !data?.allowed)) {
     return (
-      <Button size={props.size} className={props.className} variant="outline" disabled title="Brokerage linking is coming soon">
+      <Button type="button" size={props.size} className={props.className} variant="outline" disabled title="Brokerage linking is coming soon">
         <Clock aria-hidden />
         Brokerage linking soon
       </Button>

@@ -346,6 +346,7 @@ const SPOT_LABEL: Record<"buy" | "sell", Record<number, string>> = {
 function AmountSlider({ side, max, amount, onChange }: { side: "buy" | "sell"; max: number; amount: string; onChange: (next: string) => void }) {
   const rootRef = useRef<HTMLSpanElement>(null)
   const caught = useRef<number | null>(null)
+  const pointerDown = useRef(false)
   const spots = side === "buy" ? BUY_SPOTS : SELL_SPOTS
   const usable = max > 0
   const typed = amount === "all" ? 1 : max > 0 ? (Number(amount) || 0) / max : 0
@@ -365,6 +366,13 @@ function AmountSlider({ side, max, amount, onChange }: { side: "buy" | "sell"; m
 
   function change([tick]: number[]) {
     if (!usable || tick === undefined) return
+    // Snapping is for dragging. A key press moves one step (1%), which a snap zone would swallow.
+    if (!pointerDown.current) {
+      const fractionNow = tick / 1000
+      const onSpot = spots.some((spot) => Math.abs(spot - fractionNow) < 1e-9)
+      onChange(amountFromFraction(side, fractionNow, max, onSpot))
+      return
+    }
     const width = rootRef.current?.getBoundingClientRect().width ?? 280
     const snapped = snapFraction(tick / 1000, spots, snapThreshold(width), caught.current)
     caught.current = snapped.snapped ? snapped.fraction : null
@@ -372,7 +380,7 @@ function AmountSlider({ side, max, amount, onChange }: { side: "buy" | "sell"; m
   }
 
   return (
-    <div className={cn("pt-8", !usable && "opacity-40")}>
+    <div className="pt-8">
       <Slider
         ref={rootRef}
         aria-label={side === "buy" ? "Buying power" : "Shares to sell"}
@@ -382,8 +390,16 @@ function AmountSlider({ side, max, amount, onChange }: { side: "buy" | "sell"; m
         value={[Math.round(fraction * 1000)]}
         disabled={!usable}
         onValueChange={change}
-        onValueCommit={() => {
-          caught.current = null
+        onPointerDown={() => {
+          pointerDown.current = true
+          const release = () => {
+            pointerDown.current = false
+            caught.current = null
+            window.removeEventListener("pointerup", release)
+            window.removeEventListener("pointercancel", release)
+          }
+          window.addEventListener("pointerup", release)
+          window.addEventListener("pointercancel", release)
         }}
         thumbLabel={valueText}
         bubble={bubbleText}
@@ -399,7 +415,7 @@ function AmountSlider({ side, max, amount, onChange }: { side: "buy" | "sell"; m
             disabled={!usable}
             onClick={() => onChange(amountFromFraction(side, spot, max, true))}
             className={cn(
-              "absolute top-0 rounded-md px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:pointer-events-none",
+              "absolute top-0 rounded-md px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground outline-none transition-colors hover:bg-secondary hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary disabled:pointer-events-none",
               spot === 1 ? "right-0 translate-x-1" : "-translate-x-1/2",
               active === spot && "bg-primary/10 font-semibold text-primary hover:bg-primary/15 hover:text-primary",
             )}
