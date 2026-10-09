@@ -103,7 +103,7 @@ per preview URL, but only when all of these are set on the Preview environment:
 - `DEV_LOGIN_SECRET`: a passcode of at least 16 characters (`openssl rand -base64 24`)
 - `DEV_LOGIN_EMAILS`: comma-separated emails of the existing accounts it may open
 
-Point previews at a database that holds only demo accounts. A request needs both
+On a preview, an allowlisted account that doesn't exist yet is created on first sign-in, with sample history, an account and a league, so a fresh demo database needs no seeding. Point previews at a database that holds only demo accounts. A request needs both
 the passcode and an allowlisted email, and `VERCEL_ENV=production` always turns the
 login off, so the route 404s and the provider isn't registered there.
 

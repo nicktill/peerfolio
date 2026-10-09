@@ -4,6 +4,7 @@ import GoogleProvider from "next-auth/providers/google"
 import { getServerSession } from "next-auth"
 import { eq } from "drizzle-orm"
 import { db, users } from "@web/db"
+import { ensureDemoUser } from "@web/lib/demo-bootstrap"
 import { devLoginMode, passcodeMatches, previewAllowlist } from "@web/lib/dev-login"
 
 /**
@@ -66,7 +67,17 @@ const devLoginProvider = CredentialsProvider({
 
     if (mode === "preview" && (!passcodeMatches(credentials?.passcode) || !previewAllowlist().includes(email))) return null
 
-    const user = await db.query.users.findFirst({ where: eq(users.email, email) })
+    let user = await db.query.users.findFirst({ where: eq(users.email, email) })
+    // A preview's demo database may be empty. The passcode and allowlist already passed, so build
+    // the demo account on first use instead of making someone run the seed script.
+    if (!user && mode === "preview") {
+      try {
+        user = await ensureDemoUser(email)
+      } catch (error) {
+        console.error("Demo account setup failed", error)
+        return null
+      }
+    }
     if (!user) return null
 
     return { id: user.id, email: user.email, name: user.name, image: user.image }
