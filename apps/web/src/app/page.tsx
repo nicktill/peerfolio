@@ -14,7 +14,6 @@ import { TickerTape } from "@web/components/landing/ticker-tape"
 import { InView } from "@web/components/motion/in-view"
 import { BorderBeam } from "@web/components/magicui/border-beam"
 import { MagicCard } from "@web/components/magicui/magic-card"
-import { Magnetic } from "@web/components/ui/magnetic"
 import { revealStyle } from "@web/components/motion/reveal"
 import { getCurrentUserId } from "@web/lib/auth"
 import { SITE } from "@web/lib/site"
@@ -123,7 +122,7 @@ export default async function HomePage() {
               Private leagues ranked on returns. Friends see how well you invest, never how much.
             </p>
             <div style={revealStyle(3)} className="reveal mt-8 flex flex-wrap justify-center gap-3">
-              <Magnetic className="inline-block"><SignInButton shine /></Magnetic>
+              <SignInButton shine />
               <a
                 href="#how"
                 className="inline-flex h-11 items-center gap-2 rounded-full border bg-card px-5 text-sm font-medium transition-colors hover:bg-secondary"
@@ -230,7 +229,7 @@ export default async function HomePage() {
               find out who actually knows what they&apos;re doing. No brokerage needed.
             </p>
             <div className="relative mt-6">
-              <Magnetic className="inline-block"><SignInButton /></Magnetic>
+              <SignInButton />
             </div>
             <span aria-hidden className="absolute -right-4 -top-6 select-none text-[9rem] leading-none opacity-15 sm:text-[12rem]">
               🏈
@@ -245,7 +244,7 @@ export default async function HomePage() {
             <h2 className="mt-4 text-balance text-3xl font-semibold tracking-tight sm:text-5xl">Start your league. Settle the debate.</h2>
             <p className="mt-3 text-muted-foreground">Your history starts the day you join. So does the trash talk.</p>
             <div className="mt-8">
-              <Magnetic className="inline-block"><SignInButton /></Magnetic>
+              <SignInButton />
             </div>
           </InView>
         </section>
