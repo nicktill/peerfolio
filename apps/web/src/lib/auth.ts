@@ -4,7 +4,7 @@ import GoogleProvider from "next-auth/providers/google"
 import { getServerSession } from "next-auth"
 import { eq } from "drizzle-orm"
 import { db, users } from "@web/db"
-import { ensureDemoUser } from "@web/lib/demo-bootstrap"
+import { ensureDemoUser, rootMessage } from "@web/lib/demo-bootstrap"
 import { devLoginMode, passcodeMatches, previewAllowlist } from "@web/lib/dev-login"
 
 /**
@@ -76,7 +76,7 @@ const devLoginProvider = CredentialsProvider({
         user = await ensureDemoUser(email)
       } catch (error) {
         console.error("Demo account setup failed", error)
-        throw new Error(`Demo database setup failed: ${error instanceof Error ? error.message.slice(0, 160) : "unknown error"}`)
+        throw new Error(`Demo database setup failed: ${rootMessage(error).slice(0, 200)}`)
       }
     } else {
       user = await db.query.users.findFirst({ where: eq(users.email, email) })

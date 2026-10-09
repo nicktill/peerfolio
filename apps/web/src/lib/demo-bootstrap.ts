@@ -6,19 +6,35 @@ import { migrate } from "drizzle-orm/postgres-js/migrator"
 import { db, accounts, holdings, leagueMembers, leagues, plaidItems, portfolioSnapshots, securities, users } from "@web/db"
 import { DAYS, DEMO_PEOPLE, MIXES, SECURITIES, makeRandom } from "@web/lib/demo-data"
 
-/** Postgres "undefined_table", wherever the driver or drizzle nested it. */
-function isMissingTable(error: unknown): boolean {
+/** Postgres error code, wherever the driver or drizzle nested it. */
+function pgCode(error: unknown): string | undefined {
   for (let e = error as { code?: string; cause?: unknown } | undefined; e; e = e.cause as typeof e) {
-    if (e.code === "42P01") return true
+    if (typeof e.code === "string" && /^[0-9A-Z]{5}$/.test(e.code)) return e.code
   }
-  return false
+  return undefined
 }
 
+/** The deepest message in an error chain: drizzle's own wrapper only repeats the SQL. */
+export function rootMessage(error: unknown): string {
+  let message = error instanceof Error ? error.message : "unknown error"
+  for (let e = (error as { cause?: unknown } | undefined)?.cause as { message?: string; cause?: unknown } | undefined; e; e = e.cause as typeof e) {
+    if (typeof e.message === "string") message = e.message
+  }
+  return message
+}
+
+// 42P01: a table is missing. 42703: a column is missing, so the schema is older than this build.
+const SCHEMA_BEHIND = new Set(["42P01", "42703"])
+
 /**
- * Applies the schema to a database that has none. Called only when the users table is missing,
- * so an established database is never migrated from a preview.
+ * Brings a demo database's schema up to this build by applying pending migrations. Only runs when
+ * `DEV_LOGIN_DEMO_DATABASE=true`, the owner's statement that this database is disposable demo data,
+ * so a preview can never migrate a database nobody marked that way.
  */
-async function createSchema() {
+async function applyMigrations() {
+  if (process.env.DEV_LOGIN_DEMO_DATABASE !== "true") {
+    throw new Error("The demo database's schema is out of date and DEV_LOGIN_DEMO_DATABASE isn't set to let a preview upgrade it")
+  }
   const folder = [path.join(process.cwd(), "drizzle"), path.join(process.cwd(), "apps/web/drizzle")].find((dir) => fs.existsSync(dir))
   if (!folder) throw new Error("Migration files aren't in this build")
   await migrate(db, { migrationsFolder: folder })
@@ -38,8 +54,9 @@ export async function ensureDemoUser(email: string) {
   try {
     existing = await lookup()
   } catch (error) {
-    if (!isMissingTable(error)) throw error
-    await createSchema()
+    const code = pgCode(error)
+    if (!code || !SCHEMA_BEHIND.has(code)) throw error
+    await applyMigrations()
     existing = await lookup()
   }
   if (existing) return existing
