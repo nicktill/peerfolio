@@ -22,17 +22,25 @@ type Props = {
  * The access token never comes back here — the server stores it encrypted and
  * returns only our own item id.
  */
-/** Set at build time from PLAID_ENV; see next.config.ts. */
-const LINKING_ENABLED = process.env.NEXT_PUBLIC_PLAID_LINKING === "1"
+type Access = { allowed: boolean; code?: "paused" | "off" | "unconfigured" | "full"; reason?: string }
+
+const UNAVAILABLE: Record<string, { label: string; title: string }> = {
+  paused: { label: "Brokerage linking paused", title: "Brokerage linking is paused for now." },
+  full: { label: "Brokerage linking is full", title: "Brokerage linking is full right now. Check back soon." },
+  off: { label: "Brokerage linking soon", title: "Brokerage linking is coming soon." },
+  unconfigured: { label: "Brokerage linking soon", title: "Brokerage linking is coming soon." },
+}
 
 export function ConnectButton(props: Props) {
-  const { data, error } = useApi<{ allowed: boolean }>(props.itemId ? null : "/api/plaid/access", [], { refreshMs: 60_000 })
-  // Everyone sees the button. It's live for approved accounts and greyed out as "coming soon" for the rest.
-  if (!props.itemId && (!LINKING_ENABLED || error || !data?.allowed)) {
+  const { data, error } = useApi<Access>(props.itemId ? null : "/api/plaid/access", [], { refreshMs: 60_000 })
+  // Everyone sees the button. The server decides, live, whether it's usable for this account:
+  // it's live for approved accounts and greyed out, with the reason, for the rest.
+  if (!props.itemId && (error || !data?.allowed)) {
+    const shown = error ? { label: "Brokerage linking unavailable", title: "Couldn't check brokerage access. Try again shortly." } : UNAVAILABLE[data?.code ?? "off"]!
     return (
-      <Button type="button" size={props.size} className={props.className} variant="outline" disabled title="Brokerage linking is coming soon">
+      <Button type="button" size={props.size} className={props.className} variant="outline" disabled title={data?.reason ? `${shown.title} (${data.reason})` : shown.title}>
         <Clock aria-hidden />
-        Brokerage linking soon
+        {shown.label}
       </Button>
     )
   }
