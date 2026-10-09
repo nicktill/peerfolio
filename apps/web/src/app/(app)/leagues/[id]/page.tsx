@@ -205,8 +205,8 @@ export default function LeaguePage({ params }: { params: Promise<{ id: string }>
             />
           ) : (
             <ul className="divide-y">
-              {ranked.map((standing) => (
-                <StandingRow key={standing.userId} standing={standing} onReact={react} showSource={false} tone="app" />
+              {ranked.map((standing, i) => (
+                <StandingRow key={standing.userId} standing={standing} onReact={react} showSource={false} tone="app" index={i} />
               ))}
             </ul>
           )}

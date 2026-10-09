@@ -1,56 +1,58 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-
-const prefersReducedMotion = () =>
-  typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
+import { animate, useInView, useReducedMotion } from "motion/react"
 
 /**
  * A number that eases to its new value instead of jumping, so a refresh or a
- * trade *feels* like something happened. The first value shows immediately
- * (no count-up from zero on page load), and reduced motion skips the easing.
- * Screen readers get the final text, not every frame.
+ * trade *feels* like something happened. By default the first value shows
+ * immediately; `countUp` instead counts up from zero the first time it scrolls
+ * into view, for a headline figure. Reduced motion skips the easing, and screen
+ * readers get the final text, not every frame.
  */
 export function AnimatedNumber({
   value,
   format,
   durationMs = 700,
+  countUp = false,
   className,
 }: {
   value: number
   format: (value: number) => string
   durationMs?: number
+  countUp?: boolean
   className?: string
 }) {
-  const [shown, setShown] = useState(value)
-  const from = useRef(value)
-  const raf = useRef<number | null>(null)
+  const reduceMotion = useReducedMotion()
+  const ref = useRef<HTMLSpanElement>(null)
+  const inView = useInView(ref, { once: true, margin: "0px 0px -8% 0px" })
+  const [shown, setShown] = useState(countUp ? 0 : value)
+  const from = useRef(countUp ? 0 : value)
+  const waiting = useRef(countUp)
 
   useEffect(() => {
-    const start = from.current
-    if (start === value || prefersReducedMotion()) {
+    if (waiting.current) {
+      if (!inView) return
+      waiting.current = false
+    }
+    if (reduceMotion || from.current === value) {
       from.current = value
       setShown(value)
       return
     }
-
-    const t0 = performance.now()
-    const step = (now: number) => {
-      const t = Math.min(1, (now - t0) / durationMs)
-      const eased = 1 - Math.pow(1 - t, 3)
-      const current = start + (value - start) * eased
-      from.current = current
-      setShown(current)
-      if (t < 1) raf.current = requestAnimationFrame(step)
-    }
-    raf.current = requestAnimationFrame(step)
-    return () => {
-      if (raf.current !== null) cancelAnimationFrame(raf.current)
-    }
-  }, [value, durationMs])
+    const controls = animate(from.current, value, {
+      duration: (countUp && from.current === 0 ? Math.max(durationMs, 1400) : durationMs) / 1000,
+      ease: [0.22, 1, 0.36, 1],
+      onUpdate: (latest) => {
+        from.current = latest
+        setShown(latest)
+      },
+    })
+    return () => controls.stop()
+  }, [value, durationMs, reduceMotion, countUp, inView])
 
   return (
-    <span className={className}>
+    <span ref={ref} className={className}>
       <span aria-hidden>{format(shown)}</span>
       <span className="sr-only">{format(value)}</span>
     </span>

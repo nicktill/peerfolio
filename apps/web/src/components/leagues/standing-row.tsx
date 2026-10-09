@@ -41,6 +41,7 @@ export function StandingRow({
   onReact,
   showSource = true,
   tone = "landing",
+  index = 0,
 }: {
   standing: Standing
   onReact?: (toUserId: string, emoji: string) => void
@@ -48,6 +49,8 @@ export function StandingRow({
   showSource?: boolean
   /** "app" marks you in ink, not green, so your row never looks like a win when you're last. */
   tone?: "landing" | "app"
+  /** Position in the list, so rows arrive one after another. */
+  index?: number
 }) {
   const [open, setOpen] = useState(false)
 
@@ -55,7 +58,9 @@ export function StandingRow({
     // Rows glide to their new rank when the ranking changes (a new window, a reaction, a refresh).
     <motion.li
       layout="position"
-      transition={{ type: "spring", stiffness: 420, damping: 38 }}
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ layout: { type: "spring", stiffness: 420, damping: 38 }, default: { type: "spring", stiffness: 380, damping: 34, delay: Math.min(index, 8) * 0.06 } }}
       className={cn(
         "py-3",
         standing.isYou && (tone === "app" ? "surface-you -mx-2 rounded-xl px-3" : "-mx-2 rounded-lg bg-accent/40 px-2"),

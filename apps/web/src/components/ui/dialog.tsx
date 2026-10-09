@@ -1,8 +1,9 @@
 "use client"
 
-import { useEffect, useId, useRef } from "react"
+import { useEffect, useId, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { X } from "lucide-react"
+import { AnimatePresence, motion } from "motion/react"
 import { cn } from "@web/lib/utils"
 
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
@@ -34,6 +35,9 @@ export function Dialog({
   onCloseRef.current = onClose
   const titleId = useId()
   const descriptionId = useId()
+  // The portal needs `document`, so it waits for the client: the server and the first client render both draw nothing.
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
 
   useEffect(() => {
     if (!open) return
@@ -76,23 +80,34 @@ export function Dialog({
     }
   }, [open])
 
-  if (!open) return null
+  if (!mounted) return null
 
   return createPortal(
-    <div
-      className="dialog-backdrop fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-[2px] sm:items-center sm:p-6"
+    <AnimatePresence>
+      {open ? (
+    <motion.div
+      key="dialog"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-[2px] sm:items-center sm:p-6"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0, transition: { duration: 0.16 } }}
+      transition={{ duration: 0.2 }}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose()
       }}
     >
-      <div
+      <motion.div
         ref={panel}
+        initial={{ opacity: 0, y: 28, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 14, scale: 0.98, transition: { duration: 0.15 } }}
+        transition={{ type: "spring", stiffness: 440, damping: 34 }}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
         className={cn(
-          "dialog-panel surface relative flex max-h-[92dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl border bg-card shadow-2xl sm:rounded-3xl",
+          "surface relative flex max-h-[92dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl border bg-card shadow-2xl sm:rounded-3xl",
           className,
         )}
       >
@@ -117,8 +132,10 @@ export function Dialog({
           </button>
         </header>
         <div className="overflow-y-auto px-5 pb-5 sm:px-6 sm:pb-6 safe-bottom">{children}</div>
-      </div>
-    </div>,
+      </motion.div>
+    </motion.div>
+      ) : null}
+    </AnimatePresence>,
     document.body,
   )
 }

@@ -13,6 +13,7 @@ import { SignInButton } from "@web/components/landing/sign-in-button"
 import { TickerTape } from "@web/components/landing/ticker-tape"
 import { InView } from "@web/components/motion/in-view"
 import { BorderBeam } from "@web/components/ui/border-beam"
+import { Magnetic } from "@web/components/ui/magnetic"
 import { SpotlightCard } from "@web/components/ui/spotlight-card"
 import { revealStyle } from "@web/components/motion/reveal"
 import { getCurrentUserId } from "@web/lib/auth"
@@ -50,6 +51,46 @@ const POINTS = [
   },
 ]
 
+/** What your league sees: the return, never the balance. */
+function ReturnOnlyVisual() {
+  return (
+    <div className="w-full max-w-xs shrink-0 space-y-2 rounded-2xl border bg-background/70 p-4 shadow-sm" aria-hidden>
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-muted-foreground">Your league sees</span>
+        <span className="numeric rounded-full bg-[var(--gain)]/12 px-2 py-0.5 text-sm font-semibold text-gain-ink">+12.4%</span>
+      </div>
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-muted-foreground">Your balance</span>
+        <span className="numeric select-none rounded-md bg-secondary px-2 py-0.5 text-sm font-semibold blur-[5px]">$148,210</span>
+      </div>
+    </div>
+  )
+}
+
+/** A deposit moves the balance but not the return. */
+function DepositVisual() {
+  return (
+    <div className="mt-6 flex items-center gap-2 text-xs" aria-hidden>
+      <span className="numeric rounded-full border bg-background/70 px-2.5 py-1 font-medium">+$500 deposit</span>
+      <span className="text-muted-foreground">→</span>
+      <span className="numeric rounded-full bg-secondary px-2.5 py-1 font-semibold">return +0.00%</span>
+    </div>
+  )
+}
+
+/** Positions typed in by hand. */
+function TypeItInVisual() {
+  return (
+    <div className="flex w-full max-w-sm shrink-0 flex-wrap gap-2 sm:justify-end" aria-hidden>
+      {["VTI 52%", "VXUS 20%", "AAPL 9%", "NVDA 12%", "BND 7%"].map((chip) => (
+        <span key={chip} className="numeric rounded-full border bg-background/70 px-3 py-1 text-xs font-semibold shadow-sm">
+          {chip}
+        </span>
+      ))}
+    </div>
+  )
+}
+
 export default async function HomePage() {
   if (await getCurrentUserId()) redirect("/dashboard")
 
@@ -79,7 +120,7 @@ export default async function HomePage() {
               Private leagues ranked on returns. Friends see how well you invest, never how much.
             </p>
             <div style={revealStyle(3)} className="reveal mt-8 flex flex-wrap justify-center gap-3">
-              <SignInButton />
+              <Magnetic className="inline-block"><SignInButton /></Magnetic>
               <a
                 href="#how"
                 className="inline-flex h-11 items-center gap-2 rounded-full border bg-card px-5 text-sm font-medium transition-colors hover:bg-secondary"
@@ -132,15 +173,22 @@ export default async function HomePage() {
           </ol>
         </section>
 
-        <section className="mx-auto grid max-w-6xl gap-8 px-4 pb-16 sm:grid-cols-3 sm:pb-24">
+        <section className="mx-auto grid max-w-6xl gap-4 px-4 pb-16 sm:grid-cols-3 sm:pb-24">
           {POINTS.map((point, i) => (
-            <InView key={point.title} index={i}>
-              <SpotlightCard className="h-full rounded-2xl p-5 -m-5">
-                <span className="grid size-10 place-items-center rounded-xl bg-secondary text-xl transition-transform duration-300 group-hover/spot:-rotate-6 group-hover/spot:scale-110" aria-hidden>
-                  {point.emoji}
-                </span>
-                <h3 className="mt-4 font-semibold">{point.title}</h3>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">{point.body}</p>
+            <InView key={point.title} index={i} className={i === 0 ? "sm:col-span-2" : i === 2 ? "sm:col-span-3" : undefined}>
+              <SpotlightCard className="h-full rounded-3xl border bg-card p-6 transition-colors hover:border-primary/40 sm:p-8">
+                <div className={i === 0 || i === 2 ? "flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between" : undefined}>
+                  <div className="max-w-md">
+                    <span className="grid size-11 place-items-center rounded-2xl bg-secondary text-2xl transition-transform duration-300 group-hover/spot:-rotate-6 group-hover/spot:scale-110" aria-hidden>
+                      {point.emoji}
+                    </span>
+                    <h3 className="mt-5 text-lg font-semibold tracking-tight">{point.title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">{point.body}</p>
+                  </div>
+                  {i === 0 ? <ReturnOnlyVisual /> : null}
+                  {i === 1 ? <DepositVisual /> : null}
+                  {i === 2 ? <TypeItInVisual /> : null}
+                </div>
               </SpotlightCard>
             </InView>
           ))}
@@ -175,7 +223,7 @@ export default async function HomePage() {
               find out who actually knows what they&apos;re doing. No brokerage needed.
             </p>
             <div className="relative mt-6">
-              <SignInButton />
+              <Magnetic className="inline-block"><SignInButton /></Magnetic>
             </div>
             <span aria-hidden className="absolute -right-4 -top-6 select-none text-[9rem] leading-none opacity-15 sm:text-[12rem]">
               🏈
@@ -190,7 +238,7 @@ export default async function HomePage() {
             <h2 className="mt-4 text-balance text-3xl font-semibold tracking-tight sm:text-5xl">Start your league. Settle the debate.</h2>
             <p className="mt-3 text-muted-foreground">Your history starts the day you join. So does the trash talk.</p>
             <div className="mt-8">
-              <SignInButton />
+              <Magnetic className="inline-block"><SignInButton /></Magnetic>
             </div>
           </InView>
         </section>
