@@ -164,14 +164,22 @@ try {
   assert.equal((await loadLivePoints([user!.id])).get(user!.id)!.netWorth, -200)
   balance = 1600
   await syncItem(item!.id)
+  // A line we can't show (non-USD, no value, short) is left out; it never takes the connection down,
+  // and the account balance (net worth) is unchanged.
   holdingList[0]!.iso_currency_code = 'EUR'
-  assert.equal((await syncItem(item!.id)).status, 'error')
+  assert.equal((await syncItem(item!.id)).status, 'active')
   assert.equal(Number((await db.select().from(accounts))[0]!.currentBalance), 1600)
+  assert.equal((await db.select().from(holdings)).length, 0)
   holdingList[0]!.iso_currency_code = 'USD'
   holdingList[0]!.institution_value = null
-  assert.equal((await syncItem(item!.id)).status, 'error')
-  assert.equal((await db.select().from(holdings)).length, 1)
+  assert.equal((await syncItem(item!.id)).status, 'active')
+  assert.equal((await db.select().from(holdings)).length, 0)
+  holdingList[0]!.institution_value = -500
+  assert.equal((await syncItem(item!.id)).status, 'active')
+  assert.equal((await db.select().from(holdings)).length, 0)
   holdingList[0]!.institution_value = 1000
+  assert.equal((await syncItem(item!.id)).status, 'active')
+  assert.equal((await db.select().from(holdings)).length, 1)
   accountCurrency = 'EUR'
   assert.equal((await syncItem(item!.id)).status, 'error')
   assert.equal(Number((await db.select().from(accounts))[0]!.currentBalance), 1600)

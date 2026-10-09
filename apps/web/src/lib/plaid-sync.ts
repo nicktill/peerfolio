@@ -3,7 +3,7 @@ import type { AccountBase, Holding as PlaidHolding, Security as PlaidSecurity } 
 import { db, holdings, accounts, plaidItems, portfolioSnapshots, securities, plaidInvestmentFlows } from "@web/db"
 import { decrypt } from "@web/lib/crypto"
 import { getPlaidClient, isReauthRequired, plaidErrorCode } from "@web/lib/plaid"
-import { flowChanges, investmentHistoryStart, investmentPages, retryPlaid } from "@web/lib/plaid-sync-core"
+import { flowChanges, investmentHistoryStart, investmentPages, mergeDuplicateHoldings, retryPlaid, splitUsableHoldings } from "@web/lib/plaid-sync-core"
 import { keepsEntryValue } from "@web/lib/ranges"
 import { categorizeAccount, type AccountCategory } from "@web/lib/account-category"
 import { accountBalance } from "@web/lib/account-balance"
@@ -76,10 +76,11 @@ export async function syncItem(itemRowId: string, deadline = Date.now() + 90_000
         if (sameSnapshot.balances.iso_currency_code !== "USD" || sameSnapshot.balances.unofficial_currency_code) throw new SyncValidationError("UNSUPPORTED_CURRENCY", "Investment balances must be in USD")
         return { ...a, balances: sameSnapshot.balances }
       })
-      for (const holding of holdingData?.holdings ?? []) {
-        if (holding.iso_currency_code !== "USD" || holding.unofficial_currency_code) throw new SyncValidationError("UNSUPPORTED_CURRENCY", "Investment holdings must be in USD")
-        if (holding.institution_value == null || !Number.isFinite(holding.institution_value) || holding.quantity == null || !Number.isFinite(holding.quantity)) throw new SyncValidationError("INVESTMENT_DATA_UNAVAILABLE", "Investment holding valuation unavailable")
-        if (holding.institution_value < 0 || holding.quantity < 0) throw new SyncValidationError("UNSUPPORTED_INVESTMENT_POSITION", "Short investment positions are unsupported")
+      // One odd line (crypto, a margin debit, a short) must not take the whole connection down.
+      if (holdingData) {
+        const { kept, skipped } = splitUsableHoldings(holdingData.holdings)
+        if (skipped.length) console.warn(`[plaid-sync] left out ${skipped.length} holding line(s) for item ${item.id}: ${[...new Set(skipped.map((s) => s.reason))].join(", ")}`)
+        holdingData.holdings = mergeDuplicateHoldings(kept)
       }
       // Structural capital must use the same authoritative balances as the import.
       const structuralFlow = importedAccounts.filter((a) => baselineAccounts.has(a.account_id) && categorizeAccount(a.type, a.subtype) === "investment")
@@ -237,8 +238,9 @@ async function upsertSecurities(list: PlaidSecurity[], store: SyncDb) {
         tickerSymbol: sqlExcluded("ticker_symbol"),
         name: sqlExcluded("name"),
         type: sqlExcluded("type"),
-        closePrice: sqlExcluded("close_price"),
-        closePriceAsOf: sqlExcluded("close_price_as_of"),
+        // Keep a price we already have when Plaid sends none (cash sweeps, some funds).
+        closePrice: sql`coalesce(excluded.close_price, ${securities.closePrice})`,
+        closePriceAsOf: sql`coalesce(excluded.close_price_as_of, ${securities.closePriceAsOf})`,
         updatedAt: sqlExcluded("updated_at"),
       },
     })

@@ -41,11 +41,13 @@ async function snapshot() {
   const userIds = await listSyncableUserIds()
   let succeeded = 0
   const failures: { userId: string; error: string }[] = []
+  // One person's connection needing attention is their data problem, not a failed job: report it, don't turn the cron red.
+  let brokenConnections = 0
 
   for (const userId of userIds) {
     try {
       const { results } = await syncUser(userId)
-      if (results.some((r) => r.status !== "active")) throw new Error("One or more Plaid connections failed to sync")
+      brokenConnections += results.filter((r) => r.status !== "active").length
       succeeded++
     } catch (error) {
       failures.push({ userId, error: error instanceof Error ? error.message : "unknown" })
@@ -83,5 +85,5 @@ async function snapshot() {
   const pricingBroken =
     "error" in pricing || (pricing.tickers > 0 && pricing.priced === 0) || !!pricing.failed || (pricing.unconfirmed ?? 0) > 0
   const healthy = !pricingBroken && !("error" in fantasy) && !integrityBroken && failures.length === 0
-  return NextResponse.json({ healthy, pricing, fantasy, integrity, users: userIds.length, succeeded, failures }, { status: healthy ? 200 : 500 })
+  return NextResponse.json({ healthy, pricing, fantasy, integrity, users: userIds.length, succeeded, brokenConnections, failures }, { status: healthy ? 200 : 500 })
 }

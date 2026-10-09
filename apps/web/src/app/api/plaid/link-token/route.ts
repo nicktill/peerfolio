@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server"
 import { CountryCode, Products } from "plaid"
+import type { InvestmentAccountSubtype } from "plaid"
 import { and, eq } from "drizzle-orm"
 import { db, plaidItems } from "@web/db"
 import { decrypt } from "@web/lib/crypto"
 import { getPlaidClient, plaidErrorMessage, plaidLinkingEnabled } from "@web/lib/plaid"
+import { plaidEnvironment } from "@web/lib/plaid-config"
 import { assertBrokerageLinkingAllowed } from "@web/lib/plaid-access"
 import { ApiError, readJson, withUser } from "@web/lib/api"
 import { assertPlaidActive } from "@web/lib/plaid-switch"
@@ -24,6 +26,12 @@ export const POST = withUser<unknown>(async (userId, request) => {
   if (!body.itemId) {
     if (!plaidLinkingEnabled()) throw new ApiError("Brokerage linking is coming soon", 409)
     await assertBrokerageLinkingAllowed(userId)
+  }
+  // Bank logins (Fidelity, Schwab, Robinhood) go through OAuth and need these. Without them Link fails
+  // for the person with an unhelpful error, so say it's not ready instead.
+  if (!body.itemId && plaidEnvironment(process.env.PLAID_ENV) === "production" && (!process.env.PLAID_REDIRECT_URI || !process.env.PLAID_WEBHOOK_URL)) {
+    console.error("[plaid] PLAID_REDIRECT_URI and PLAID_WEBHOOK_URL must be set in production")
+    throw new ApiError("Brokerage linking isn't fully set up yet. Check back soon.", 503)
   }
   const client = getPlaidClient()
 
@@ -46,7 +54,12 @@ export const POST = withUser<unknown>(async (userId, request) => {
       // Update mode rejects `products`; the item keeps the ones it was created with.
       ...(accessToken
         ? { access_token: accessToken }
-        : { products: [Products.Investments] }),
+        : {
+            products: [Products.Investments],
+            // Peerfolio is about investments. Offering checking or credit accounts would add accounts whose
+            // balances never refresh, and they would count toward the verified net worth.
+            account_filters: { investment: { account_subtypes: ["all" as InvestmentAccountSubtype] } },
+          }),
       ...(process.env.PLAID_REDIRECT_URI ? { redirect_uri: process.env.PLAID_REDIRECT_URI } : {}),
       ...(process.env.PLAID_WEBHOOK_URL ? { webhook: process.env.PLAID_WEBHOOK_URL } : {}),
     })
