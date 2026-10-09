@@ -81,6 +81,7 @@ export function NewsBoard({ holdingMoves, held = [] }: { holdingMoves: HoldingMo
   const pending = (api: { data: unknown; error: string | null }) => !sample && !api.data && !api.error
   // Until the recap has answered, show its shape rather than a "lands after the close" note that the answer then replaces.
   const newsPending = pending(newsApi)
+  const boardPending = pending(boardApi)
   const board = sample ? { indexes: INDEXES, sectors: SECTORS } : boardApi.data?.board ?? null
   const fearGreed = sample ? { ...FEAR_GREED, asOf: null as string | null } : fearGreedApi.data?.fearGreed ?? null
   const earningsData = earningsApi.data?.earnings
@@ -169,14 +170,8 @@ export function NewsBoard({ holdingMoves, held = [] }: { holdingMoves: HoldingMo
         </header>
       </Reveal>
 
-      {pending(boardApi) ? (
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-busy="true" aria-label="Loading markets">
-          {[0, 1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-[148px] rounded-2xl" />
-          ))}
-        </div>
-      ) : null}
-      {board && board.indexes.length > 0 ? (
+      {/* The section and its header are there from the first paint; only the cards inside arrive, so nothing is pushed down. */}
+      {boardPending || (board && board.indexes.length > 0) ? (
         <section className="flex flex-col gap-2.5" aria-labelledby="news-markets">
           <Reveal index={1} className="flex items-center justify-between gap-2 px-0.5">
             <span className="flex items-center gap-2.5">
@@ -198,7 +193,15 @@ export function NewsBoard({ holdingMoves, held = [] }: { holdingMoves: HoldingMo
               <span className="hidden sm:inline">{period === "day" ? "Today’s session" : "Last 5 sessions"}</span>
             </span>
           </Reveal>
-          <MarketStrip quotes={board.indexes} period={period} startIndex={1} />
+          {board && board.indexes.length > 0 ? (
+            <MarketStrip quotes={board.indexes} period={period} startIndex={1} />
+          ) : (
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-busy="true" aria-label="Loading markets">
+              {[0, 1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-[148px] rounded-2xl" />
+              ))}
+            </div>
+          )}
         </section>
       ) : null}
 
@@ -217,7 +220,7 @@ export function NewsBoard({ holdingMoves, held = [] }: { holdingMoves: HoldingMo
             </div>
           </SectionCard>
         )}
-        {pending(fearGreedApi) ? <Skeleton className="min-h-[420px] rounded-2xl" /> : null}
+        {/* Each card keeps its slot while it loads, so the grid is the same shape before and after. */}
         {fearGreed ? (
           <FearGreed
             score={fearGreed.score}
@@ -225,20 +228,22 @@ export function NewsBoard({ holdingMoves, held = [] }: { holdingMoves: HoldingMo
             index={6}
             source={sample ? null : { label: "CNN", href: CNN_FEAR_GREED_PAGE, asOf: fearGreed.asOf }}
           />
+        ) : pending(fearGreedApi) ? (
+          <Skeleton className="min-h-[420px] rounded-2xl" />
         ) : null}
-        {pending(earningsApi) ? <Skeleton className="min-h-[420px] rounded-2xl" /> : null}
-        {pending(boardApi) ? <Skeleton className="min-h-[420px] rounded-2xl" /> : null}
         {earnings ? (
           <EarningsWeek
             label={earnings.label}
             days={earnings.days}
             initialDay={Math.max(0, earnings.days.findIndex((d) => d.today))}
             index={7}
-            // Full width when there's no sector card beside it.
-            className={hasSectors ? undefined : "lg:col-span-2"}
+            // Full width only once the sectors are known to be missing.
+            className={hasSectors || boardPending ? undefined : "lg:col-span-2"}
           />
+        ) : pending(earningsApi) ? (
+          <Skeleton className="min-h-[420px] rounded-2xl" />
         ) : null}
-        {hasSectors ? <SectorBars sectors={board!.sectors} period={period} index={8} /> : null}
+        {hasSectors ? <SectorBars sectors={board!.sectors} period={period} index={8} /> : boardPending ? <Skeleton className="min-h-[420px] rounded-2xl" /> : null}
         {newsPending ? <Skeleton className="min-h-[320px] rounded-2xl lg:col-span-2" /> : null}
         {news?.headlines.length ? <TopStories headlines={news.headlines.slice(0, 10)} index={9} /> : null}
       </div>
