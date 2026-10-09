@@ -41,15 +41,18 @@ export async function getBrokerageAccess(userId: string) {
   const production = plaidEnvironment(process.env.PLAID_ENV) === "production"
   const enabled = plaidLinkingEnabled()
   const paused = await plaidPaused()
-  const reason = paused ? "Brokerage connections are paused" : !user.brokerageLinkingEnabled ? "Brokerage linking has not been enabled for your account"
-    : !enabled ? "Brokerage linking is not configured"
-      : production && capacity.available === 0 ? "Production connection limit reached" : undefined
-  return { allowed: !reason, admin: isAdminEmail(user.email, process.env.ADMIN_EMAILS), capacity, reason }
+  const blocked = paused ? { code: "paused", reason: "Brokerage connections are paused" } as const
+    : !user.brokerageLinkingEnabled ? { code: "off", reason: "Brokerage linking has not been enabled for your account" } as const
+      : !enabled ? { code: "unconfigured", reason: "Brokerage linking is not configured" } as const
+        : production && capacity.available === 0 ? { code: "full", reason: "Production connection limit reached" } as const : null
+  const admin = isAdminEmail(user.email, process.env.ADMIN_EMAILS)
+  // `code` lets the button say why it's unavailable. The reason text and the budget are for the owner only.
+  return { allowed: !blocked, admin, code: blocked?.code, ...(admin ? { capacity, reason: blocked?.reason } : {}) }
 }
 
 export async function assertBrokerageLinkingAllowed(userId: string) {
   const access = await getBrokerageAccess(userId)
-  if (!access.allowed) throw new ApiError(access.reason ?? "Brokerage linking unavailable", 403)
+  if (!access.allowed) throw new ApiError(("reason" in access && access.reason) || "Brokerage linking unavailable", 403)
 }
 
 /** Commit before calling Plaid: rollback/timeout cannot replenish the lifetime budget. */
