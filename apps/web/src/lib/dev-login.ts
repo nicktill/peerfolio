@@ -22,7 +22,7 @@ export function devLoginMode(env: NodeJS.ProcessEnv = process.env): DevLoginMode
 }
 
 /** The people `ensureDemoUser` builds, matching the handles in demo-data. */
-export const DEMO_EMAILS = ["nick", "maya", "deshawn", "priya", "sam"].map((handle) => `${handle}@example.com`)
+export const DEMO_EMAILS = ["theo", "maya", "deshawn", "priya", "sam"].map((handle) => `${handle}@example.com`)
 
 /** Accounts the preview login may open: `DEV_LOGIN_EMAILS` if set, otherwise the demo people. */
 export function previewAllowlist(env: NodeJS.ProcessEnv = process.env): string[] {

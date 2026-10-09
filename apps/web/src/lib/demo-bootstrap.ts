@@ -124,7 +124,7 @@ async function createDemoPerson(email: string) {
     .returning({ id: accounts.id })
 
   await db.insert(holdings).values(
-    (MIXES[handle] ?? MIXES.nick!).map(([securityId, value]) => ({
+    (MIXES[handle] ?? MIXES.theo!).map(([securityId, value]) => ({
       accountId: brokerage!.id,
       userId,
       securityId,
@@ -145,27 +145,27 @@ async function ensureDemoWorld(me: { id: string; handle: string | null }) {
     const user = (await db.query.users.findFirst({ where: eq(users.email, email) })) ?? (await createDemoPerson(email))
     if (user) ids[person.handle] = user.id
   }
-  if (!ids.nick || !ids.maya) return
+  if (!ids.theo || !ids.maya) return
 
   // "The Group Chat": everyone, with a few reactions and follows so the social screens aren't bare.
   const [league] = await db
     .insert(leagues)
-    .values({ name: "The Group Chat", description: "Bragging rights only", emoji: "🏆", accent: "emerald", ownerId: ids.nick, inviteCode: "BCDF2345" })
+    .values({ name: "The Group Chat", description: "Bragging rights only", emoji: "🏆", accent: "emerald", ownerId: ids.theo, inviteCode: "BCDF2345" })
     .onConflictDoNothing()
     .returning({ id: leagues.id })
   const leagueId = league?.id ?? (await db.query.leagues.findFirst({ where: eq(leagues.inviteCode, "BCDF2345") }))?.id
   if (leagueId) {
-    const members = [...Object.entries(ids).map(([handle, userId]) => ({ userId, role: handle === "nick" ? ("owner" as const) : ("member" as const) })), ...(Object.values(ids).includes(me.id) ? [] : [{ userId: me.id, role: "member" as const }])]
+    const members = [...Object.entries(ids).map(([handle, userId]) => ({ userId, role: handle === "theo" ? ("owner" as const) : ("member" as const) })), ...(Object.values(ids).includes(me.id) ? [] : [{ userId: me.id, role: "member" as const }])]
     await db.insert(leagueMembers).values(members.map((m) => ({ leagueId, ...m }))).onConflictDoNothing()
     if (league) {
       await db.insert(reactions).values([
-        { leagueId, fromUserId: ids.maya, toUserId: ids.nick, emoji: "🔥" },
-        { leagueId, fromUserId: ids.deshawn!, toUserId: ids.nick, emoji: "👏" },
-        { leagueId, fromUserId: ids.nick, toUserId: ids.priya!, emoji: "😤" },
+        { leagueId, fromUserId: ids.maya, toUserId: ids.theo, emoji: "🔥" },
+        { leagueId, fromUserId: ids.deshawn!, toUserId: ids.theo, emoji: "👏" },
+        { leagueId, fromUserId: ids.theo, toUserId: ids.priya!, emoji: "😤" },
       ]).onConflictDoNothing()
       await db.insert(follows).values([
-        { followerId: ids.nick, followingId: ids.maya },
-        { followerId: ids.nick, followingId: ids.priya! },
+        { followerId: ids.theo, followingId: ids.maya },
+        { followerId: ids.theo, followingId: ids.priya! },
       ]).onConflictDoNothing()
     }
   }
@@ -230,11 +230,11 @@ async function ensureDemoFantasyLeague(ids: Record<string, string>, meId: string
     }
   }
 
-  if (memberIds.maya && memberIds.nick && memberIds.priya && memberIds.deshawn) {
+  if (memberIds.maya && memberIds.theo && memberIds.priya && memberIds.deshawn) {
     await db
       .insert(fantasyReactions)
       .values([
-        { fromMemberId: memberIds.nick, toMemberId: memberIds.maya, emoji: "🔥" },
+        { fromMemberId: memberIds.theo, toMemberId: memberIds.maya, emoji: "🔥" },
         { fromMemberId: memberIds.deshawn, toMemberId: memberIds.maya, emoji: "👏" },
         { fromMemberId: memberIds.maya, toMemberId: memberIds.priya, emoji: "😤" },
       ])

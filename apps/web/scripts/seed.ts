@@ -81,7 +81,7 @@ async function main() {
         plaidItemId: `demo-item-${person.handle}`,
         // Not a real token; the demo never calls Plaid.
         accessToken: "demo-not-a-real-token",
-        institutionName: person.handle === "nick" ? "Charles Schwab" : "Fidelity",
+        institutionName: person.handle === "theo" ? "Charles Schwab" : "Fidelity",
         status: "active",
         lastSyncedAt: new Date(),
       })
@@ -146,7 +146,7 @@ async function seedSocial(ids: Record<string, string>) {
       description: "Bragging rights only",
       emoji: "🏆",
       accent: "emerald",
-      ownerId: ids.nick!,
+      ownerId: ids.theo!,
       inviteCode: "BCDF2345",
     })
     .returning({ id: schema.leagues.id })
@@ -155,19 +155,19 @@ async function seedSocial(ids: Record<string, string>) {
     DEMO_PEOPLE.map((person) => ({
       leagueId: league!.id,
       userId: ids[person.handle]!,
-      role: person.handle === "nick" ? ("owner" as const) : ("member" as const),
+      role: person.handle === "theo" ? ("owner" as const) : ("member" as const),
     })),
   )
 
   await db.insert(schema.reactions).values([
-    { leagueId: league!.id, fromUserId: ids.maya!, toUserId: ids.nick!, emoji: "🔥" },
-    { leagueId: league!.id, fromUserId: ids.deshawn!, toUserId: ids.nick!, emoji: "👏" },
-    { leagueId: league!.id, fromUserId: ids.nick!, toUserId: ids.priya!, emoji: "😤" },
+    { leagueId: league!.id, fromUserId: ids.maya!, toUserId: ids.theo!, emoji: "🔥" },
+    { leagueId: league!.id, fromUserId: ids.deshawn!, toUserId: ids.theo!, emoji: "👏" },
+    { leagueId: league!.id, fromUserId: ids.theo!, toUserId: ids.priya!, emoji: "😤" },
   ])
 
   await db.insert(schema.follows).values([
-    { followerId: ids.nick!, followingId: ids.maya! },
-    { followerId: ids.nick!, followingId: ids.priya! },
+    { followerId: ids.theo!, followingId: ids.maya! },
+    { followerId: ids.theo!, followingId: ids.priya! },
   ])
 
   console.log("  League 'The Group Chat' — invite code BCDF2345")

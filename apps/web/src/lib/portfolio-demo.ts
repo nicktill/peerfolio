@@ -5,56 +5,51 @@ import type { Range } from "@web/lib/ranges"
 
 /**
  * An invented portfolio for the sign-in-free preview of the Portfolio page:
- * a Roth IRA, a taxable account, a 401(k) and cash, with a year of history.
+ * a brokerage account, a Roth IRA, a 401(k) and cash, with a year of history.
  * Nothing here belongs to a real person.
  */
 
 type Lot = { ticker: string; name: string; kind?: "stock" | "crypto"; quantity: number; price: number; cost: number; today: number }
 
-const ETFS = new Set(["VOO", "QQQ", "FXAIX"])
+const ETFS = new Set(["VTI", "SCHD", "VXUS", "QQQM", "VTSAX"])
 
 const ACCOUNTS: { id: string; name: string; institution: string; category: "investment" | "cash"; cash?: number; lots: Lot[] }[] = [
   {
-    id: "demo-roth",
-    name: "Roth IRA",
-    institution: "Fidelity",
+    id: "demo-brokerage",
+    name: "Brokerage",
+    institution: "Charles Schwab",
     category: "investment",
     lots: [
-      { ticker: "NVDA", name: "NVIDIA", quantity: 30, price: 186.4, cost: 1_420, today: 2.31 },
-      { ticker: "VOO", name: "Vanguard S&P 500 ETF", quantity: 10, price: 618.2, cost: 4_210, today: 0.42 },
-      { ticker: "HOOD", name: "Robinhood Markets", quantity: 50, price: 114.2, cost: 1_760, today: 1.22 },
-      { ticker: "PLTR", name: "Palantir Technologies", quantity: 27, price: 182.5, cost: 590, today: -0.84 },
-      { ticker: "AAPL", name: "Apple", quantity: 25, price: 254.1, cost: 4_380, today: 1.12 },
-      { ticker: "MSFT", name: "Microsoft", quantity: 8, price: 512.3, cost: 2_960, today: 0.36 },
-      { ticker: "AMZN", name: "Amazon", quantity: 15, price: 221.8, cost: 2_250, today: -0.41 },
-      { ticker: "SOFI", name: "SoFi Technologies", quantity: 120, price: 27.4, cost: 1_080, today: 3.05 },
+      { ticker: "MSFT", name: "Microsoft", quantity: 14, price: 512.3, cost: 5_350, today: 0.36 },
+      { ticker: "V", name: "Visa", quantity: 12, price: 341.2, cost: 3_300, today: 0.28 },
+      { ticker: "COST", name: "Costco", quantity: 3, price: 918.4, cost: 2_420, today: 0.18 },
+      { ticker: "DIS", name: "Walt Disney", quantity: 20, price: 112.6, cost: 2_180, today: -0.55 },
+      { ticker: "SBUX", name: "Starbucks", quantity: 25, price: 86.4, cost: 2_610, today: -0.72 },
+      { ticker: "NKE", name: "Nike", quantity: 18, price: 71.9, cost: 1_580, today: 0.9 },
+      { ticker: "JNJ", name: "Johnson & Johnson", quantity: 10, price: 178.3, cost: 1_520, today: 0.12 },
+      { ticker: "KO", name: "Coca-Cola", quantity: 40, price: 69.8, cost: 2_380, today: 0.05 },
     ],
   },
   {
-    id: "demo-individual",
-    name: "Individual",
-    institution: "Robinhood",
+    id: "demo-roth",
+    name: "Roth IRA",
+    institution: "E*TRADE",
     category: "investment",
     lots: [
-      { ticker: "VOO", name: "Vanguard S&P 500 ETF", quantity: 37, price: 618.2, cost: 18_900, today: 0.42 },
-      { ticker: "QQQ", name: "Invesco QQQ Trust", quantity: 20, price: 598.4, cost: 8_450, today: 0.71 },
-      { ticker: "AMD", name: "Advanced Micro Devices", quantity: 22.5, price: 164.7, cost: 2_390, today: 1.86 },
-      { ticker: "PLTR", name: "Palantir Technologies", quantity: 60, price: 182.5, cost: 2_210, today: -0.84 },
-      { ticker: "HOOD", name: "Robinhood Markets", quantity: 100, price: 114.2, cost: 3_510, today: 1.22 },
-      { ticker: "BTC", name: "Bitcoin", kind: "crypto", quantity: 0.12, price: 121_500, cost: 7_020, today: -0.62 },
-      { ticker: "GOOGL", name: "Alphabet", quantity: 12, price: 246.3, cost: 1_940, today: 0.94 },
-      { ticker: "META", name: "Meta Platforms", quantity: 4, price: 731.6, cost: 1_610, today: -1.27 },
-      { ticker: "COST", name: "Costco", quantity: 2, price: 918.4, cost: 1_390, today: 0.18 },
+      { ticker: "SCHD", name: "Schwab U.S. Dividend Equity ETF", quantity: 220, price: 28.1, cost: 5_200, today: 0.31 },
+      { ticker: "VTI", name: "Vanguard Total Stock Market ETF", quantity: 24, price: 331.4, cost: 6_040, today: 0.4 },
+      { ticker: "VXUS", name: "Vanguard Total International Stock ETF", quantity: 60, price: 74.2, cost: 3_700, today: 0.22 },
+      { ticker: "QQQM", name: "Invesco NASDAQ 100 ETF", quantity: 14, price: 247.5, cost: 2_600, today: 0.68 },
     ],
   },
   {
     id: "demo-401k",
     name: "401(k)",
-    institution: "Vanguard",
+    institution: "Empower",
     category: "investment",
-    lots: [{ ticker: "FXAIX", name: "Fidelity 500 Index Fund", quantity: 410, price: 228.1, cost: 71_300, today: 0.42 }],
+    lots: [{ ticker: "VTSAX", name: "Vanguard Total Stock Market Index Admiral", quantity: 160, price: 156.4, cost: 19_800, today: 0.4 }],
   },
-  { id: "demo-cash", name: "High-yield savings", institution: "Ally Bank", category: "cash", cash: 6_635.42, lots: [] },
+  { id: "demo-cash", name: "Everyday checking", institution: "Chase", category: "cash", cash: 3_860.17, lots: [] },
 ]
 
 const round2 = (v: number) => Math.round(v * 100) / 100

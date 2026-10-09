@@ -5,10 +5,10 @@ import { signIn } from "next-auth/react"
 import { Button } from "@web/components/ui/button"
 
 /** Matches the handles created by `npm run db:seed`. */
-const SEEDED = ["nick", "maya", "deshawn", "priya", "sam"]
+const SEEDED = ["theo", "maya", "deshawn", "priya", "sam"]
 
 export function DevLoginForm({ requirePasscode = false, preview = false, emails }: { requirePasscode?: boolean; preview?: boolean; emails?: string[] }) {
-  const [email, setEmail] = useState(requirePasscode ? "" : "nick@example.com")
+  const [email, setEmail] = useState(requirePasscode ? "" : "theo@example.com")
   // A preview with no passcode is one click on a demo person; there is nothing to type.
   const oneClick = preview && !requirePasscode
   const [passcode, setPasscode] = useState("")
