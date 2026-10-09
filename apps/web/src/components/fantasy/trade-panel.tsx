@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Button } from "@web/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card"
+import { useConfirm } from "@web/components/ui/confirm"
 import { useToast } from "@web/components/ui/toast"
 import { TickerCombobox } from "@web/components/fantasy/ticker-combobox"
 import { TradeReceipt, type Receipt } from "@web/components/fantasy/trade-receipt"
@@ -32,11 +33,14 @@ const asOfLabel = (asOf: string) => new Date(`${asOf.slice(0, 10)}T12:00:00Z`).t
  */
 export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: string; cash: number; positions: Held[]; onTraded: () => void }) {
   const { toast } = useToast()
+  const confirm = useConfirm()
   const [side, setSide] = useState<"buy" | "sell">("buy")
   const [symbol, setSymbol] = useState("")
   const [amount, setAmount] = useState("")
   const [pending, setPending] = useState(false)
   const [burst, setBurst] = useState(0)
+  const [cashBurst, setCashBurst] = useState(0)
+  const [cashingOut, setCashingOut] = useState(false)
   const [receipt, setReceipt] = useState<Receipt | null>(null)
   const closeReceipt = useCallback(() => setReceipt(null), [])
   const [touched, setTouched] = useState(false)
@@ -122,9 +126,57 @@ export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: 
     }
   }
 
+  // Sells every holding through the same endpoint a single sell uses, one after
+  // another, so one bad ticker can't sink the rest. The list refreshes once at the end.
+  async function sellAll() {
+    if (cashingOut || positions.length === 0) return
+    const total = positions.reduce((sum, p) => sum + p.value, 0)
+    const ok = await confirm({
+      title: "Cash out everything? 🏦",
+      description: `That's all ${positions.length} ${positions.length === 1 ? "holding" : "holdings"}, about ${formatCurrency(total)}. ${queues ? "The market's closed, so these queue and fill after the open." : "They fill at live prices."} No more diamond hands. Play money only.`,
+      confirmLabel: "Sell it all 💸",
+      tone: "danger",
+    })
+    if (!ok) return
+
+    setCashingOut(true)
+    let sold = 0
+    let queuedCount = 0
+    const failed: string[] = []
+    let firstError = ""
+    for (const p of positions) {
+      try {
+        const result = await mutate<{ queued?: true }>(`/api/fantasy/${leagueId}/trade`, { body: { side: "sell", symbol: p.ticker, shares: "all" } })
+        if (result.queued) queuedCount += 1
+        else sold += 1
+      } catch (error) {
+        failed.push(p.ticker)
+        firstError ||= error instanceof Error ? error.message : "Trade failed."
+      }
+    }
+    setCashingOut(false)
+    if (sold + queuedCount > 0) {
+      setCashBurst((b) => b + 1)
+      setAmount("")
+      setTouched(false)
+      onTraded()
+      try {
+        navigator.vibrate?.([12, 40, 12, 40, 12])
+      } catch {
+        // No haptics here; nothing to do.
+      }
+    }
+    if (failed.length === 0) {
+      toast(queuedCount > 0 ? `Cash-out queued for ${queuedCount} ${queuedCount === 1 ? "holding" : "holdings"}. Fills after the open. 🎉` : "Cashed out! Every position is sold and you're ready for the next big thing. 🎉", "success")
+    } else {
+      toast(`${failed.join(", ")} didn't sell: ${firstError} The rest went through, so try those again.`, "error")
+    }
+  }
+
   return (
     <Card className="relative overflow-visible">
       {burst > 0 ? <Burst key={burst} /> : null}
+      {cashBurst > 0 ? <Burst key={`cash-${cashBurst}`} pieces={["💸", "💰", "🤑", "💵", "🎉", "💸", "💰", "🎉"]} /> : null}
       {receipt ? <TradeReceipt receipt={receipt} onDone={closeReceipt} /> : null}
       <CardHeader className="flex-row items-center justify-between">
         <CardTitle>Make a move</CardTitle>
@@ -211,9 +263,26 @@ export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: 
             amount={amount}
             onChange={setAmount}
           />
-          <Button type="submit" className="w-full" size="lg" loading={pending} variant={side === "sell" ? "outline" : "default"}>
+          <Button type="submit" className="w-full" size="lg" loading={pending} disabled={cashingOut} variant={side === "sell" ? "outline" : "default"}>
             {side === "buy" ? (queues ? "Queue buy 🕘" : "Buy 🚀") : queues ? "Queue sell 🕘" : "Sell 💸"}
           </Button>
+          {side === "sell" ? (
+            <Button
+              type="button"
+              variant="secondary"
+              className="group w-full"
+              loading={cashingOut}
+              disabled={positions.length === 0 || pending}
+              onClick={sellAll}
+            >
+              {cashingOut ? "Cashing out…" : positions.length === 0 ? "Nothing to cash out yet" : (
+                <>
+                  <span aria-hidden className="inline-block transition-transform duration-200 group-hover:-rotate-12 group-hover:scale-125 motion-reduce:transition-none">🤑</span>
+                  Cash out everything
+                </>
+              )}
+            </Button>
+          ) : null}
           <p className="text-[11px] leading-4 text-muted-foreground">
             {queues
               ? "The market's closed, so this waits and fills at the live price after the 9:30am ET open. You can cancel it until then."
@@ -424,9 +493,8 @@ function AmountSlider({ side, max, amount, onChange }: { side: "buy" | "sell"; m
   )
 }
 
-/** A little celebration on every buy. Hidden when motion is reduced. */
-function Burst() {
-  const pieces = ["🚀", "💎", "📈", "🔥", "💰", "🚀", "📈", "💎"]
+/** A little celebration on every buy and cash-out. Hidden when motion is reduced. */
+function Burst({ pieces = ["🚀", "💎", "📈", "🔥", "💰", "🚀", "📈", "💎"] }: { pieces?: string[] }) {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-x-0 top-1/2 z-20 flex justify-center motion-reduce:hidden">
       {pieces.map((p, i) => (
