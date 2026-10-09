@@ -94,10 +94,18 @@ Port 3000 taken? `PORT=3200 npm run dev --workspace=@repo/web`. Set
 `NEXTAUTH_URL` to the same port in `.env.local` — if it disagrees, sign-in
 hangs instead of failing loudly.
 
-The developer login exists behind two independent locks — a non-production
-build *and* `ENABLE_DEV_LOGIN=true` — because a provider that accepts an email
-with no password is a full account takeover if it ever ships. In a production
-build the route 404s and the provider isn't registered at all.
+The developer login is off by default and never runs in production. Locally it
+needs only `ENABLE_DEV_LOGIN=true` in a non-production build. It also works on a
+Vercel **preview** deployment, so a branch can be reviewed without an OAuth app
+per preview URL, but only when all of these are set on the Preview environment:
+
+- `ENABLE_DEV_LOGIN=true`
+- `DEV_LOGIN_SECRET`: a passcode of at least 16 characters (`openssl rand -base64 24`)
+- `DEV_LOGIN_EMAILS`: comma-separated emails of the existing accounts it may open
+
+Point previews at a database that holds only demo accounts. A request needs both
+the passcode and an allowlisted email, and `VERCEL_ENV=production` always turns the
+login off, so the route 404s and the provider isn't registered there.
 
 For the real thing you need a Postgres URL (Neon and Supabase both work),
 Google OAuth credentials and Plaid sandbox keys. `apps/web/.env.example`

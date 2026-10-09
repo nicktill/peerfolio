@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import { motion, useMotionValue, useReducedMotion, useSpring, useTransform } from "motion/react"
 import { Button } from "@web/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card"
 import { useConfirm } from "@web/components/ui/confirm"
@@ -308,11 +309,9 @@ function AmountSlider({ side, max, amount, onChange }: { side: "buy" | "sell"; m
   const barRef = useRef<HTMLDivElement>(null)
   const dragging = useRef(false)
   const caught = useRef<number | null>(null)
-  const easingOff = useRef(false)
-  const visualRef = useRef(0)
-  const targetRef = useRef(0)
-  const rafRef = useRef<number | null>(null)
-  const [visual, setVisual] = useState(0)
+  const [isDragging, setIsDragging] = useState(false)
+  const [focused, setFocused] = useState(false)
+  const reduceMotion = useReducedMotion()
   const spots = side === "buy" ? BUY_SPOTS : SELL_SPOTS
   const usable = max > 0
   const typed = amount === "all" ? 1 : max > 0 ? (Number(amount) || 0) / max : 0
@@ -320,78 +319,33 @@ function AmountSlider({ side, max, amount, onChange }: { side: "buy" | "sell"; m
   // An over-budget amount sits at the end of the track, but it is not "Max" or "All".
   const active = typed <= 1.005 ? spots.find((spot) => Math.abs(fraction - spot) <= 0.005) : undefined
 
-  const stopEase = useCallback(() => {
-    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
-    rafRef.current = null
-  }, [])
-
-  // Ease onto a hotspot and back off one. A cancelled frame has to clear its id,
-  // or the next glide thinks one is already running and the thumb never moves.
-  const easeTo = useCallback((to: number) => {
-    targetRef.current = to
-    const reduce = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    if (reduce) {
-      stopEase()
-      visualRef.current = to
-      setVisual(to)
-      easingOff.current = false
-      return
-    }
-    if (rafRef.current !== null) return
-    const step = () => {
-      const delta = targetRef.current - visualRef.current
-      if (Math.abs(delta) < 0.006) {
-        visualRef.current = targetRef.current
-        setVisual(targetRef.current)
-        rafRef.current = null
-        easingOff.current = false
-        return
-      }
-      visualRef.current += delta * 0.25
-      setVisual(visualRef.current)
-      rafRef.current = requestAnimationFrame(step)
-    }
-    rafRef.current = requestAnimationFrame(step)
-  }, [stopEase])
-
-  useEffect(() => {
-    return () => stopEase()
-  }, [stopEase])
+  // Where the thumb is drawn. A stiff spring follows the real value, so a snap
+  // onto a hotspot, a click on a label, and typing all glide, while a drag still
+  // tracks the pointer closely. Reduced motion jumps straight there.
+  const target = useMotionValue(fraction)
+  const position = useSpring(target, { stiffness: 620, damping: 42, mass: 0.7 })
+  const fillWidth = useTransform(position, (v) => `${v * 100}%`)
+  const thumbLeft = useTransform(position, (v) => `${v * 100}%`)
 
   // Typing or a hotspot click. A drag places the thumb itself.
   useEffect(() => {
     if (dragging.current) return
-    easeTo(fraction)
-  }, [easeTo, fraction])
+    target.set(fraction)
+    if (reduceMotion) position.jump(fraction)
+  }, [fraction, position, reduceMotion, target])
 
   const apply = useCallback(
     (clientX: number) => {
       const rect = barRef.current?.getBoundingClientRect()
       if (!rect || !(max > 0)) return
       const raw = rect.width <= 0 ? 0 : (clientX - rect.left) / rect.width
-      const wasCaught = caught.current !== null
       const snapped = snapFraction(raw, spots, snapThreshold(rect.width), caught.current)
-      const leaving = wasCaught && !snapped.snapped
       caught.current = snapped.snapped ? snapped.fraction : null
       onChange(amountFromFraction(side, snapped.fraction, max, snapped.snapped))
-      if (snapped.snapped) {
-        easingOff.current = false
-        easeTo(snapped.fraction)
-        return
-      }
-      // Keep easing after the pointer breaks out, so the thumb slides off the
-      // point and catches the finger instead of jumping to it.
-      if (leaving || easingOff.current) {
-        easingOff.current = true
-        easeTo(snapped.fraction)
-        return
-      }
-      easingOff.current = false
-      stopEase()
-      visualRef.current = snapped.fraction
-      setVisual(snapped.fraction)
+      target.set(snapped.fraction)
+      if (reduceMotion) position.jump(snapped.fraction)
     },
-    [easeTo, max, onChange, side, spots, stopEase],
+    [max, onChange, position, reduceMotion, side, spots, target],
   )
 
   function onKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
@@ -420,6 +374,8 @@ function AmountSlider({ side, max, amount, onChange }: { side: "buy" | "sell"; m
         ? `All ${fmtShares(max)} shares`
         : `${fmtShares(valueNow)} shares`
 
+  const bubbleText = !usable ? "" : side === "buy" ? formatCurrency(valueNow) : amount === "all" ? "All" : fmtShares(valueNow)
+
   return (
     <div className={cn("pt-0.5", !usable && "opacity-40")}>
       <div
@@ -436,6 +392,7 @@ function AmountSlider({ side, max, amount, onChange }: { side: "buy" | "sell"; m
           if (!usable) return
           event.currentTarget.setPointerCapture(event.pointerId)
           dragging.current = true
+          setIsDragging(true)
           apply(event.clientX)
         }}
         onPointerMove={(event) => {
@@ -445,14 +402,22 @@ function AmountSlider({ side, max, amount, onChange }: { side: "buy" | "sell"; m
           if (!dragging.current) return
           apply(event.clientX)
           dragging.current = false
+          setIsDragging(false)
           caught.current = null
         }}
+        onPointerCancel={() => {
+          dragging.current = false
+          setIsDragging(false)
+          caught.current = null
+        }}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
         onKeyDown={onKeyDown}
         className="group relative cursor-pointer py-2 outline-none touch-none focus-visible:outline-none"
       >
         <div ref={barRef} className="relative mx-2 h-1.5">
           <div className="absolute inset-0 rounded-full bg-secondary" />
-          <div className="absolute inset-y-0 left-0 rounded-full bg-primary" style={{ width: `${visual * 100}%` }} />
+          <motion.div className="absolute inset-y-0 left-0 rounded-full bg-primary" style={{ width: fillWidth }} />
           {spots.map((spot) => (
             <span
               key={spot}
@@ -464,11 +429,24 @@ function AmountSlider({ side, max, amount, onChange }: { side: "buy" | "sell"; m
               style={{ left: `${spot * 100}%` }}
             />
           ))}
-          <span
+          <motion.span
             aria-hidden
             className="absolute top-1/2 z-10 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-primary bg-background shadow-sm group-focus-visible:ring-2 group-focus-visible:ring-primary"
-            style={{ left: `${visual * 100}%` }}
+            style={{ left: thumbLeft }}
+            animate={{ scale: isDragging ? 1.3 : 1 }}
+            transition={{ type: "spring", stiffness: 500, damping: 28 }}
           />
+          {/* The live amount rides above the thumb while you hold it. */}
+          <motion.span
+            aria-hidden
+            className="numeric pointer-events-none absolute bottom-full z-20 mb-3 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground px-1.5 py-0.5 text-[11px] font-semibold text-background shadow-md"
+            style={{ left: thumbLeft }}
+            initial={false}
+            animate={{ opacity: usable && (isDragging || focused) ? 1 : 0, y: usable && (isDragging || focused) ? 0 : 4 }}
+            transition={{ type: "spring", stiffness: 500, damping: 32 }}
+          >
+            {bubbleText}
+          </motion.span>
         </div>
       </div>
       <div className="relative mx-2 h-4">

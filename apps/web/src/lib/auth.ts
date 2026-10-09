@@ -4,6 +4,7 @@ import GoogleProvider from "next-auth/providers/google"
 import { getServerSession } from "next-auth"
 import { eq } from "drizzle-orm"
 import { db, users } from "@web/db"
+import { devLoginMode, passcodeMatches, previewAllowlist } from "@web/lib/dev-login"
 
 /**
  * Seeds a handle from the display name, never the email.
@@ -45,24 +46,25 @@ async function upsertUser(profile: { email: string; name?: string | null; image?
 }
 
 /**
- * Sign in as a seeded user without configuring an OAuth app.
+ * Sign in as an existing user without configuring an OAuth app.
  *
- * Behind two independent locks — a non-production build *and* an explicit
- * opt-in flag — because a provider that trusts an email with no password is a
- * full account takeover if it ever ships. It also only matches users that
- * already exist, so it can't be used to mint new accounts.
+ * `devLoginMode` decides where it may run: locally with just the opt-in flag, or on a Vercel
+ * *preview* with a passcode and an allowlist of accounts, and never in production. It only
+ * matches users that already exist, so it can't be used to mint new accounts.
  */
-const devLoginEnabled = process.env.NODE_ENV !== "production" && process.env.ENABLE_DEV_LOGIN === "true"
-
 const devLoginProvider = CredentialsProvider({
   id: "dev-login",
   name: "Developer login",
-  credentials: { email: { label: "Email", type: "email" } },
+  credentials: { email: { label: "Email", type: "email" }, passcode: { label: "Passcode", type: "password" } },
   async authorize(credentials) {
-    if (!devLoginEnabled) return null
+    // Checked on every attempt, not once at startup, so no stale module state can leave it on.
+    const mode = devLoginMode()
+    if (mode === "off") return null
 
     const email = credentials?.email?.trim().toLowerCase()
     if (!email) return null
+
+    if (mode === "preview" && (!passcodeMatches(credentials?.passcode) || !previewAllowlist().includes(email))) return null
 
     const user = await db.query.users.findFirst({ where: eq(users.email, email) })
     if (!user) return null
@@ -77,7 +79,7 @@ export const authOptions: NextAuthOptions = {
       clientId: process.env.GOOGLE_CLIENT_ID ?? "",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
     }),
-    ...(devLoginEnabled ? [devLoginProvider] : []),
+    ...(devLoginMode() !== "off" ? [devLoginProvider] : []),
   ],
   secret: process.env.NEXTAUTH_SECRET,
   session: { strategy: "jwt" },

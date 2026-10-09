@@ -11,7 +11,7 @@ export function SignInButton({ compact = false }: { compact?: boolean }) {
     <Button
       size={compact ? "sm" : "lg"}
       variant={compact ? "outline" : "default"}
-      className={compact ? "rounded-full" : undefined}
+      className={compact ? "rounded-full" : "btn-shine relative overflow-hidden"}
       loading={pending}
       onClick={() => {
         setPending(true)

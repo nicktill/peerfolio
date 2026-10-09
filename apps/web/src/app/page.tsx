@@ -8,6 +8,8 @@ import { ChatBubble } from "@web/components/landing/chat-bubble"
 import { HeroBackdrop } from "@web/components/landing/hero-backdrop"
 import { LeaguePreview } from "@web/components/landing/league-preview"
 import { RotatingWord } from "@web/components/landing/rotating-word"
+import { ScrollTilt } from "@web/components/landing/scroll-tilt"
+import { SpotlightCard } from "@web/components/landing/spotlight-card"
 import { SignInButton } from "@web/components/landing/sign-in-button"
 import { TickerTape } from "@web/components/landing/ticker-tape"
 import { InView } from "@web/components/motion/in-view"
@@ -97,9 +99,9 @@ export default async function HomePage() {
             <ChatBubble from="Jordan" className="-bottom-8 left-[38%] -rotate-1" delay={3}>
               who let me buy the dip again 😭
             </ChatBubble>
-            <div className="rounded-3xl border bg-card/40 p-2 shadow-2xl shadow-primary/10 backdrop-blur sm:p-4">
+            <ScrollTilt className="rounded-3xl border bg-card/40 p-2 shadow-2xl shadow-primary/10 backdrop-blur sm:p-4">
               <LeaguePreview />
-            </div>
+            </ScrollTilt>
           </div>
         </section>
 
@@ -116,12 +118,14 @@ export default async function HomePage() {
           </InView>
           <ol className="mt-10 grid gap-4 sm:grid-cols-3">
             {STEPS.map((step, i) => (
-              <InView as="li" index={i} key={step.title} className="group rounded-2xl border bg-card p-6 hover:border-primary/40">
-                <span className="numeric font-mono text-4xl font-semibold text-primary/30 transition-colors group-hover:text-primary">
-                  0{i + 1}
-                </span>
-                <h3 className="mt-4 font-semibold">{step.title}</h3>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">{step.body}</p>
+              <InView as="li" index={i} key={step.title} className="group">
+                <SpotlightCard className="h-full rounded-2xl border bg-card p-6 transition-colors hover:border-primary/40">
+                  <span className="numeric font-mono text-4xl font-semibold text-primary/30 transition-colors group-hover:text-primary">
+                    0{i + 1}
+                  </span>
+                  <h3 className="mt-4 font-semibold">{step.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{step.body}</p>
+                </SpotlightCard>
               </InView>
             ))}
           </ol>
@@ -130,11 +134,13 @@ export default async function HomePage() {
         <section className="mx-auto grid max-w-6xl gap-8 px-4 pb-16 sm:grid-cols-3 sm:pb-24">
           {POINTS.map((point, i) => (
             <InView key={point.title} index={i}>
-              <span className="grid size-10 place-items-center rounded-xl bg-secondary text-xl" aria-hidden>
-                {point.emoji}
-              </span>
-              <h3 className="mt-4 font-semibold">{point.title}</h3>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">{point.body}</p>
+              <SpotlightCard className="h-full rounded-2xl p-5 -m-5">
+                <span className="grid size-10 place-items-center rounded-xl bg-secondary text-xl transition-transform duration-300 group-hover/spot:-rotate-6 group-hover/spot:scale-110" aria-hidden>
+                  {point.emoji}
+                </span>
+                <h3 className="mt-4 font-semibold">{point.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">{point.body}</p>
+              </SpotlightCard>
             </InView>
           ))}
         </section>

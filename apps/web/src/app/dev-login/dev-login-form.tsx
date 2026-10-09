@@ -7,8 +7,9 @@ import { Button } from "@web/components/ui/button"
 /** Matches the handles created by `npm run db:seed`. */
 const SEEDED = ["nick", "maya", "deshawn", "priya", "sam"]
 
-export function DevLoginForm() {
-  const [email, setEmail] = useState("nick@example.com")
+export function DevLoginForm({ requirePasscode = false }: { requirePasscode?: boolean }) {
+  const [email, setEmail] = useState(requirePasscode ? "" : "nick@example.com")
+  const [passcode, setPasscode] = useState("")
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -17,10 +18,10 @@ export function DevLoginForm() {
     setPending(true)
     setError(null)
 
-    const result = await signIn("dev-login", { email, redirect: false })
+    const result = await signIn("dev-login", { email, passcode, redirect: false })
 
     if (result?.error) {
-      setError("No user with that email. Run `npm run db:seed` first.")
+      setError(requirePasscode ? "That passcode or account isn't allowed." : "No user with that email. Run `npm run db:seed` first.")
       setPending(false)
       return
     }
@@ -30,7 +31,7 @@ export function DevLoginForm() {
 
   return (
     <form onSubmit={submit} className="mt-6 space-y-4">
-      <div className="flex flex-wrap gap-1.5">
+      <div className={requirePasscode ? "hidden" : "flex flex-wrap gap-1.5"}>
         {SEEDED.map((handle) => (
           <button
             key={handle}
@@ -50,6 +51,18 @@ export function DevLoginForm() {
         className="h-10 w-full rounded-lg border bg-background px-3 text-sm"
         aria-label="Email"
       />
+
+      {requirePasscode ? (
+        <input
+          type="password"
+          value={passcode}
+          onChange={(e) => setPasscode(e.target.value)}
+          autoComplete="off"
+          className="h-10 w-full rounded-lg border bg-background px-3 text-sm"
+          aria-label="Passcode"
+          placeholder="Passcode"
+        />
+      ) : null}
 
       {error ? (
         <p role="alert" className="text-sm text-loss-ink">

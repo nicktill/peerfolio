@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
 import { AlertTriangle, CheckCircle2, Info, X } from "lucide-react"
+import { AnimatePresence, motion } from "motion/react"
 import { cn } from "@web/lib/utils"
 
 type ToastTone = "success" | "error" | "info"
@@ -31,9 +32,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         aria-live="polite"
         className="pointer-events-none fixed inset-x-0 bottom-0 z-[100] flex flex-col items-center gap-2 p-4 safe-bottom sm:inset-x-auto sm:right-4 sm:items-end"
       >
-        {toasts.map((t) => (
-          <ToastCard key={t.id} toast={t} onDismiss={dismiss} />
-        ))}
+        <AnimatePresence initial={false} mode="popLayout">
+          {toasts.map((t) => (
+            <ToastCard key={t.id} toast={t} onDismiss={dismiss} />
+          ))}
+        </AnimatePresence>
       </div>
     </ToastContext.Provider>
   )
@@ -54,7 +57,14 @@ function ToastCard({ toast, onDismiss }: { toast: Toast; onDismiss: (id: number)
   const { icon: Icon, className } = TONES[toast.tone]
 
   return (
-    <div className="animate-rise-in pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-xl border bg-card p-3.5 shadow-lg">
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 16, scale: 0.96 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.94, transition: { duration: 0.16 } }}
+      transition={{ type: "spring", stiffness: 520, damping: 34 }}
+      className="pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-xl border bg-card p-3.5 shadow-lg"
+    >
       <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", className)} aria-hidden />
       <p className="flex-1 text-sm leading-snug">{toast.message}</p>
       <button
@@ -65,7 +75,7 @@ function ToastCard({ toast, onDismiss }: { toast: Toast; onDismiss: (id: number)
         <X className="h-4 w-4" aria-hidden />
         <span className="sr-only">Dismiss</span>
       </button>
-    </div>
+    </motion.div>
   )
 }
 
