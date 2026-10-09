@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { BorderBeam } from "@web/components/ui/border-beam"
 import { Clock, Infinity as Forever, Plus, Users } from "lucide-react"
 import { Button } from "@web/components/ui/button"
 import { Delta } from "@web/components/ui/delta"
@@ -34,6 +35,7 @@ export default function FantasyPage() {
     <div className="space-y-6">
       <header className="reveal relative overflow-hidden rounded-3xl border bg-card p-6 sm:p-8" style={revealStyle(0)}>
         <div className="hero-grid absolute inset-0 opacity-70" aria-hidden />
+        <BorderBeam size={200} duration={11} />
         <div className="absolute -right-16 -top-16 size-64 rounded-full bg-primary/20 blur-3xl" aria-hidden />
         <span aria-hidden className="absolute -bottom-6 right-4 select-none text-[7rem] leading-none opacity-20 sm:text-[9rem]">
           🏈

@@ -9,10 +9,11 @@ import { HeroBackdrop } from "@web/components/landing/hero-backdrop"
 import { LeaguePreview } from "@web/components/landing/league-preview"
 import { RotatingWord } from "@web/components/landing/rotating-word"
 import { ScrollTilt } from "@web/components/landing/scroll-tilt"
-import { SpotlightCard } from "@web/components/landing/spotlight-card"
 import { SignInButton } from "@web/components/landing/sign-in-button"
 import { TickerTape } from "@web/components/landing/ticker-tape"
 import { InView } from "@web/components/motion/in-view"
+import { BorderBeam } from "@web/components/ui/border-beam"
+import { SpotlightCard } from "@web/components/ui/spotlight-card"
 import { revealStyle } from "@web/components/motion/reveal"
 import { getCurrentUserId } from "@web/lib/auth"
 import { SITE } from "@web/lib/site"
@@ -164,6 +165,7 @@ export default async function HomePage() {
 
         <section className="mx-auto max-w-6xl px-4 pb-16 sm:pb-24">
           <InView className="relative overflow-hidden rounded-3xl border border-primary/40 bg-accent/40 p-8 sm:p-12">
+            <BorderBeam size={220} duration={10} />
             <span className="inline-flex items-center gap-1.5 rounded-full bg-primary px-2.5 py-0.5 text-xs font-semibold text-primary-foreground">
               <Sparkles className="size-3.5" aria-hidden /> New
             </span>

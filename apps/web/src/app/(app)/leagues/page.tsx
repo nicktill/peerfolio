@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import { SpotlightCard } from "@web/components/ui/spotlight-card"
 import { Plus, Users } from "lucide-react"
 import { Button } from "@web/components/ui/button"
 import { Card, CardContent } from "@web/components/ui/card"
@@ -75,7 +76,7 @@ export default function LeaguesPage() {
               key={league.id}
               href={`/leagues/${league.id}`}
               style={revealStyle(i + 1)}
-              className="reveal press group relative overflow-hidden rounded-xl border bg-card p-5 transition-[box-shadow,transform] hover:-translate-y-0.5 hover:shadow-md"
+              className="reveal press group relative overflow-hidden rounded-xl border bg-card transition-[box-shadow,transform] hover:-translate-y-0.5 hover:shadow-md"
             >
               <div
                 className={cn(
@@ -84,7 +85,7 @@ export default function LeaguesPage() {
                 )}
                 aria-hidden
               />
-              <div className="relative">
+              <SpotlightCard className="h-full p-5">
                 <div className="flex items-start gap-3">
                   <span className="text-2xl" aria-hidden>
                     {league.emoji}
@@ -101,7 +102,7 @@ export default function LeaguesPage() {
                   <span className="numeric">{league.memberCount}</span>
                   {league.role === "owner" ? <span className="ml-2">· You run this one</span> : null}
                 </div>
-              </div>
+              </SpotlightCard>
             </Link>
           ))}
         </div>

@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { EyeOff } from "lucide-react"
+import { motion } from "motion/react"
 import { Avatar } from "@web/components/ui/avatar"
 import { Delta } from "@web/components/ui/delta"
 import { Sparkline } from "@web/components/ui/sparkline"
@@ -51,7 +52,10 @@ export function StandingRow({
   const [open, setOpen] = useState(false)
 
   return (
-    <li
+    // Rows glide to their new rank when the ranking changes (a new window, a reaction, a refresh).
+    <motion.li
+      layout="position"
+      transition={{ type: "spring", stiffness: 420, damping: 38 }}
       className={cn(
         "py-3",
         standing.isYou && (tone === "app" ? "surface-you -mx-2 rounded-xl px-3" : "-mx-2 rounded-lg bg-accent/40 px-2"),
@@ -152,7 +156,7 @@ export function StandingRow({
           ) : null}
         </div>
       </div>
-    </li>
+    </motion.li>
   )
 }
 
