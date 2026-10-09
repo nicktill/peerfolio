@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "next build",
+    "build": "node scripts/migrate-on-deploy.mjs && next build",
     "dev": "next dev",
     "lint": "eslint . --max-warnings 0",
     "start": "next start",
