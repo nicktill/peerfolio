@@ -177,7 +177,7 @@ export default function BoardPage() {
               description={`Traders show up after ${data?.minHistoryDays ?? 7} days of verified history, which needs a linked brokerage. Linking is coming soon. Until then, leagues are where the action is.`}
               action={
                 <Button asChild>
-                  <Link href="/leagues">Start a league</Link>
+                  <Link href="/leagues?create=1">Start a league</Link>
                 </Button>
               }
             />

@@ -50,7 +50,7 @@ export default function FantasyPage() {
           <div className="mt-5 flex flex-wrap gap-2">
             <Button onClick={() => setMode(mode === "create" ? "none" : "create")}>
               <Plus aria-hidden />
-              Start a league
+              Start fantasy league
             </Button>
             <Button variant="outline" onClick={() => setMode(mode === "join" ? "none" : "join")}>
               Join with a code

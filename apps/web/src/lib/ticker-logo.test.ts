@@ -1,56 +1,51 @@
 import assert from "node:assert/strict"
-import { beforeEach, describe, it } from "node:test"
-import { lookupTickerLogo } from "./ticker-logo.ts"
+import { describe, it } from "node:test"
+import { lookupTickerLogo, parqetLogoUrl } from "./ticker-logo.ts"
 
-const DETAILS = "https://api.massive.com/v3/reference/tickers/AAPL"
-const ICON = "https://x/icon.png"
+const AAPL = parqetLogoUrl("AAPL")
 
-/** Stub fetch answering each URL with a status (and JSON body for the details). */
-function stubFetch(answers: Record<string, { status: number; body?: unknown }>) {
+/** Stub fetch answering each URL with a status and content type. */
+function stubFetch(answers: Record<string, { status: number; type?: string }>) {
   const calls: string[] = []
   const fetchImpl = (async (input: string | URL | Request) => {
     const url = String(input)
     calls.push(url)
-    const answer = Object.entries(answers).find(([prefix]) => url.startsWith(prefix))?.[1] ?? { status: 404 }
-    return new Response(answer.body === undefined ? "png" : JSON.stringify(answer.body), { status: answer.status })
+    const answer = answers[url] ?? { status: 404 }
+    return new Response(answer.status === 200 ? "<svg></svg>" : null, {
+      status: answer.status,
+      headers: answer.type ? { "content-type": answer.type } : undefined,
+    })
   }) as typeof fetch
   return { fetchImpl, calls }
 }
 
-const withIcon = { status: 200, body: { results: { name: "Apple Inc.", branding: { icon_url: ICON } } } }
-
 describe("lookupTickerLogo", () => {
-  beforeEach(() => {
-    process.env.MASSIVE_API_KEY = "test"
+  it("asks Parqet with a hyphen for a dotted share class", () => {
+    assert.equal(parqetLogoUrl("BRK.B"), "https://assets.parqet.com/logos/symbol/BRK-B")
+    assert.equal(parqetLogoUrl("AAPL"), "https://assets.parqet.com/logos/symbol/AAPL")
   })
 
-  it("returns the image when Massive has one", async () => {
-    const { fetchImpl, calls } = stubFetch({ [DETAILS]: withIcon, [ICON]: { status: 200 } })
-    const logo = await lookupTickerLogo("AAPL", "test", fetchImpl)
+  it("returns the image when Parqet has one", async () => {
+    const { fetchImpl, calls } = stubFetch({ [AAPL]: { status: 200, type: "image/svg+xml" } })
+    const logo = await lookupTickerLogo("AAPL", fetchImpl)
     assert.equal(logo.kind, "found")
-    assert.deepEqual(calls, [DETAILS, ICON])
+    assert.deepEqual(calls, [AAPL])
   })
 
-  it("is none when the ticker is unknown or has no branding", async () => {
-    assert.equal((await lookupTickerLogo("AAPL", "test", stubFetch({ [DETAILS]: { status: 404 } }).fetchImpl)).kind, "none")
-    const bare = stubFetch({ [DETAILS]: { status: 200, body: { results: { name: "Apple Inc." } } } })
-    assert.equal((await lookupTickerLogo("AAPL", "test", bare.fetchImpl)).kind, "none")
+  it("is none when Parqet has no logo", async () => {
+    const { fetchImpl } = stubFetch({ [AAPL]: { status: 404 } })
+    assert.equal((await lookupTickerLogo("AAPL", fetchImpl)).kind, "none")
   })
 
-  it("is none when the image itself is gone", async () => {
-    const { fetchImpl } = stubFetch({ [DETAILS]: withIcon, [ICON]: { status: 404 } })
-    assert.equal((await lookupTickerLogo("AAPL", "test", fetchImpl)).kind, "none")
+  it("is unavailable when the response is not an image", async () => {
+    const { fetchImpl } = stubFetch({ [AAPL]: { status: 200, type: "text/html" } })
+    assert.equal((await lookupTickerLogo("AAPL", fetchImpl)).kind, "unavailable")
   })
 
-  it("is unavailable, not none, when the details request is refused for budget", async () => {
-    const { fetchImpl } = stubFetch({ [DETAILS]: { status: 429, body: { error: "spent" } } })
-    assert.equal((await lookupTickerLogo("AAPL", "test", fetchImpl)).kind, "unavailable")
-  })
-
-  it("is unavailable when the image request is refused or fails", async () => {
+  it("is unavailable when Parqet is down or rate limits", async () => {
     for (const status of [429, 500]) {
-      const { fetchImpl } = stubFetch({ [DETAILS]: withIcon, [ICON]: { status } })
-      assert.equal((await lookupTickerLogo("AAPL", "test", fetchImpl)).kind, "unavailable")
+      const { fetchImpl } = stubFetch({ [AAPL]: { status } })
+      assert.equal((await lookupTickerLogo("AAPL", fetchImpl)).kind, "unavailable")
     }
   })
 
@@ -58,6 +53,6 @@ describe("lookupTickerLogo", () => {
     const fetchImpl = (async () => {
       throw new TypeError("fetch failed")
     }) as typeof fetch
-    assert.equal((await lookupTickerLogo("AAPL", "test", fetchImpl)).kind, "unavailable")
+    assert.equal((await lookupTickerLogo("AAPL", fetchImpl)).kind, "unavailable")
   })
 })

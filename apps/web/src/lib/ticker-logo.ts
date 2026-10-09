@@ -1,25 +1,28 @@
-import { massiveFetch, tickerDetails } from "./market-data.ts"
-
 /**
- * What a logo lookup found, kept apart so the route can cache each differently:
- * - `found`: the image, cached for a month.
- * - `none`: Massive says there is no logo, so a miss is cached for a day.
- * - `unavailable`: we couldn't ask (budget spent, cooldown, a provider error), so
- *   nothing is cached and the next page view asks again.
+ * Company icons from Parqet's public logo CDN, one request per ticker.
+ * The logo route caches a hit for a month, so a ticker is fetched once.
+ *
+ * - `found`: an image, cached for a month.
+ * - `none`: Parqet has no logo (404), so a miss is cached for a day.
+ * - `unavailable`: the CDN could not be asked, so nothing is cached and the next view tries again.
  */
 export type LogoLookup = { kind: "found"; image: Response } | { kind: "none" } | { kind: "unavailable" }
 
-/** The icon (or logo) for `marketTicker`. Costs up to two Massive requests. */
-export async function lookupTickerLogo(marketTicker: string, key: string, fetchImpl: typeof fetch = massiveFetch): Promise<LogoLookup> {
-  try {
-    const details = await tickerDetails(marketTicker, fetchImpl)
-    const source = details?.iconUrl ?? details?.logoUrl
-    if (!source) return { kind: "none" }
+const PARQET = "https://assets.parqet.com/logos/symbol"
 
-    // The image is served by Massive with our key, so it spends from the same budget.
-    const image = await fetchImpl(source, { headers: { Authorization: `Bearer ${key}` } })
-    if (image.ok) return { kind: "found", image }
-    return image.status === 404 ? { kind: "none" } : { kind: "unavailable" }
+/** Parqet writes share classes with a hyphen (BRK-B); tickers here use a dot (BRK.B). */
+export function parqetLogoUrl(marketTicker: string): string {
+  return `${PARQET}/${encodeURIComponent(marketTicker.replaceAll(".", "-"))}`
+}
+
+/** The icon for `marketTicker`, or a miss when Parqet has none. */
+export async function lookupTickerLogo(marketTicker: string, fetchImpl: typeof fetch = fetch): Promise<LogoLookup> {
+  try {
+    const image = await fetchImpl(parqetLogoUrl(marketTicker), { signal: AbortSignal.timeout(8_000) })
+    const type = image.headers.get("content-type") ?? ""
+    if (image.ok && type.startsWith("image/")) return { kind: "found", image }
+    if (image.status === 404) return { kind: "none" }
+    return { kind: "unavailable" }
   } catch {
     return { kind: "unavailable" }
   }
