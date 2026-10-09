@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Plus, Users } from "lucide-react"
 import { Button } from "@web/components/ui/button"
@@ -34,6 +34,11 @@ const ACCENTS: Record<string, string> = {
 export default function LeaguesPage() {
   const { data, loading, refetch } = useApi<{ leagues: LeagueSummary[] }>("/api/leagues")
   const [mode, setMode] = useState<"none" | "create" | "join">("none")
+
+  // The board's empty state links here with ?create=1 so the form is already open.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("create") === "1") setMode("create")
+  }, [])
 
   return (
     <div className="space-y-6">
