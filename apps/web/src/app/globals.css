@@ -73,6 +73,8 @@
 
     /* Ambient texture behind the signed-in app (see .app-bg). */
     --glow-a: 0.10;
+    /* How strong the drifting colour washes are: a touch lighter on the cream page than on the dark one. */
+    --aurora-a: 0.6;
     --grain-o: 0.05;
     --dot-o: 0.09;
     --surface-hi: 0 0% 100% / 1;
@@ -131,6 +133,7 @@
     --gold-ink: #e0b544;
 
     --glow-a: 0.16;
+    --aurora-a: 1;
     --grain-o: 0.07;
     --dot-o: 0.07;
     --surface-hi: 0 0% 100% / 0.06;
@@ -628,7 +631,7 @@
   initial-value: #1baf7a;
 }
 .app-bg {
-  --mood: hsl(var(--primary));
+  --mood: hsl(162 64% 44%);
   transition: --mood 1.6s ease;
 }
 .app-bg[data-mood="up"] {
