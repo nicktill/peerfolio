@@ -1,4 +1,7 @@
 /** Small, injectable helpers shared by the sync and its regression tests. */
+/** How long to keep asking while Plaid is still extracting a new Item's data (it can take a minute or more). */
+const NOT_READY_WAITS = [2000, 3000, 5000, 8000, 10000]
+
 export async function retryPlaid<T>(request: () => Promise<T>, wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)), deadline = Infinity): Promise<T> {
   const checkBudget = (extra = 0) => { if (Date.now() + extra >= deadline) throw new Error("Plaid sync deadline exceeded") }
   for (let attempt = 0; ; attempt++) {
@@ -10,12 +13,63 @@ export async function retryPlaid<T>(request: () => Promise<T>, wait = (ms: numbe
       const networkCode = (error as { code?: string } | null)?.code
       const retryable = code === "PRODUCT_NOT_READY" || code === "INSTITUTION_NOT_RESPONDING" || response?.status === 429 || (response?.status ?? 0) >= 500
         || ["ECONNABORTED", "ETIMEDOUT", "ECONNRESET", "EAI_AGAIN"].includes(networkCode ?? "")
-      if (!retryable || attempt >= 2) throw error
-      const delay = 1000 * 2 ** attempt
+      const notReady = code === "PRODUCT_NOT_READY"
+      if (!retryable || attempt >= (notReady ? NOT_READY_WAITS.length : 2)) throw error
+      const delay = notReady ? NOT_READY_WAITS[attempt]! : 1000 * 2 ** attempt
       checkBudget(delay)
       await wait(delay)
     }
   }
+}
+
+export type HoldingLine = {
+  account_id: string
+  security_id: string
+  quantity: number | null
+  institution_value: number | null
+  cost_basis?: number | null
+  iso_currency_code?: string | null
+  unofficial_currency_code?: string | null
+}
+
+/**
+ * Splits a broker's holdings into the lines we can show and the ones we can't (crypto and other
+ * non-USD lines, margin debits and short positions, lines with no value). An odd line used to fail
+ * the whole connection; now only that line is left out. The account's own balance is still the
+ * source of truth for net worth and returns, so skipping a line never changes those.
+ */
+export function splitUsableHoldings<T extends HoldingLine>(list: T[]): { kept: T[]; skipped: { line: T; reason: string }[] } {
+  const kept: T[] = []
+  const skipped: { line: T; reason: string }[] = []
+  for (const line of list) {
+    const value = line.institution_value
+    const quantity = line.quantity
+    const reason =
+      line.iso_currency_code !== "USD" || line.unofficial_currency_code ? "not in US dollars"
+        : value == null || !Number.isFinite(value) || quantity == null || !Number.isFinite(quantity) ? "no value reported"
+          : value < 0 || quantity < 0 ? "short or margin position"
+            : null
+    if (reason) skipped.push({ line, reason })
+    else kept.push(line)
+  }
+  return { kept, skipped }
+}
+
+/** Combines lines for the same security in the same account (separate lots, sub-positions) into one. */
+export function mergeDuplicateHoldings<T extends HoldingLine>(list: T[]): T[] {
+  const merged = new Map<string, T>()
+  for (const line of list) {
+    const key = `${line.account_id}\u0000${line.security_id}`
+    const existing = merged.get(key)
+    if (!existing) {
+      merged.set(key, { ...line })
+      continue
+    }
+    existing.quantity = (existing.quantity ?? 0) + (line.quantity ?? 0)
+    existing.institution_value = (existing.institution_value ?? 0) + (line.institution_value ?? 0)
+    if (existing.cost_basis != null || line.cost_basis != null) existing.cost_basis = (existing.cost_basis ?? 0) + (line.cost_basis ?? 0)
+  }
+  return [...merged.values()]
 }
 
 export type InvestmentFlow = { investment_transaction_id: string; account_id: string; amount: number; type: string; subtype?: string | null; date?: string }
