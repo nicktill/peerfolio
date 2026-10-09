@@ -13,7 +13,6 @@ import { SignInButton } from "@web/components/landing/sign-in-button"
 import { TickerTape } from "@web/components/landing/ticker-tape"
 import { InView } from "@web/components/motion/in-view"
 import { BackgroundBeams } from "@web/components/aceternity/background-beams"
-import { PointerHighlight } from "@web/components/aceternity/pointer-highlight"
 import { AnimatedShinyText } from "@web/components/magicui/animated-shiny-text"
 import { BorderBeam } from "@web/components/magicui/border-beam"
 import { MagicCard } from "@web/components/magicui/magic-card"
@@ -250,10 +249,7 @@ export default async function HomePage() {
             <p className="text-4xl" aria-hidden>🏆</p>
             <h2 className="mt-4 text-balance text-3xl font-semibold tracking-tight sm:text-5xl">
               Start your league.{" "}
-              {/* Aceternity's Pointer Highlight draws a box round the line and drops a cursor on its corner. */}
-              <PointerHighlight rectangleClassName="rounded-md border-primary/60" pointerClassName="h-5 w-5 text-primary" containerClassName="px-2">
-                <span>Settle the debate.</span>
-              </PointerHighlight>
+              Settle the debate.
             </h2>
             <p className="mt-3 text-muted-foreground">Your history starts the day you join. So does the trash talk.</p>
             <div className="mt-8">
