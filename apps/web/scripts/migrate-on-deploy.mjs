@@ -5,7 +5,9 @@
 // production build, and never fails the build: if it can't run, the old schema stays and
 // the app falls back where it was written to (see lib/plaid-switch.ts). Previews and local
 // builds skip it, so a preview can never touch the production database.
+import { readFileSync } from "node:fs"
 import postgres from "postgres"
+import { riskyStatement } from "./migration-safety.mjs"
 import { drizzle } from "drizzle-orm/postgres-js"
 import { migrate } from "drizzle-orm/postgres-js/migrator"
 
@@ -16,6 +18,18 @@ if (process.env.VERCEL_ENV !== "production" || !process.env.DATABASE_URL) {
 
 const client = postgres(process.env.DATABASE_URL, { max: 1, onnotice: () => {} })
 try {
+  // Only additive migrations run on their own. One that could lose data waits for a person.
+  const journal = JSON.parse(readFileSync("./drizzle/meta/_journal.json", "utf8"))
+  const applied = await client`select max(created_at)::bigint as last from drizzle.__drizzle_migrations`.catch(() => [{ last: 0 }])
+  const lastApplied = Number(applied[0]?.last ?? 0)
+  const pending = journal.entries.filter((entry) => entry.when > lastApplied)
+  for (const entry of pending) {
+    const risky = riskyStatement(readFileSync(`./drizzle/${entry.tag}.sql`, "utf8"))
+    if (risky) {
+      console.error(`[migrate] NOT applying: ${entry.tag} contains a statement that could lose data (${risky}). Run db:migrate yourself after checking a backup. Continuing the build.`)
+      process.exit(0)
+    }
+  }
   await migrate(drizzle(client), { migrationsFolder: "./drizzle" })
   console.log("[migrate] database is up to date")
 } catch (error) {

@@ -12,7 +12,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "test": "node --test --experimental-strip-types \"src/**/*.test.ts\"",
+    "test": "node --test --experimental-strip-types \"src/**/*.test.ts\" \"scripts/*.test.mjs\"",
     "db:seed": "node --experimental-strip-types scripts/seed.ts",
     "db:reset": "drizzle-kit migrate && npm run db:seed",
     "test:plaid-sync": "node scripts/test-plaid-sync.mjs"
