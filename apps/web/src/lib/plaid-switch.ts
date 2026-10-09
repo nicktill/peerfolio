@@ -13,9 +13,17 @@ let cached: { at: number; paused: boolean } | null = null
 export async function plaidPaused(): Promise<boolean> {
   if (pausedByEnv()) return true
   if (cached && Date.now() - cached.at < CACHE_MS) return cached.paused
-  const row = await db.query.appSettings.findFirst({ where: eq(appSettings.key, KEY) })
-  cached = { at: Date.now(), paused: row?.value === "true" }
-  return cached.paused
+  let paused = false
+  try {
+    const row = await db.query.appSettings.findFirst({ where: eq(appSettings.key, KEY) })
+    paused = row?.value === "true"
+  } catch (error) {
+    // Migrations aren't applied on deploy. Until `app_settings` exists the switch reads as "on",
+    // so a missing table can't take syncing down. The env override above still works.
+    console.error("[plaid-switch] could not read the switch", error instanceof Error ? error.message : error)
+  }
+  cached = { at: Date.now(), paused }
+  return paused
 }
 
 export async function setPlaidPaused(paused: boolean, adminUserId: string): Promise<void> {
@@ -27,7 +35,7 @@ export async function setPlaidPaused(paused: boolean, adminUserId: string): Prom
 }
 
 export async function plaidPauseInfo() {
-  const row = await db.query.appSettings.findFirst({ where: eq(appSettings.key, KEY) })
+  const row = await db.query.appSettings.findFirst({ where: eq(appSettings.key, KEY) }).catch(() => undefined)
   return { paused: await plaidPaused(), byEnv: pausedByEnv(), changedAt: row?.updatedAt ?? null }
 }
 
