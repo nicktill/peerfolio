@@ -251,7 +251,10 @@
     transition-duration: 0.01ms !important;
   }
 
-  .skeleton::after {
+  .skeleton::after,
+  .animate-marquee,
+  .animate-marquee-vertical,
+  .animate-shiny-text {
     animation: none;
   }
 }
@@ -286,18 +289,6 @@
 
 @keyframes caret-blink {
   50% { opacity: 0; }
-}
-
-.marquee {
-  animation: marquee 40s linear infinite;
-}
-
-.marquee:hover {
-  animation-play-state: paused;
-}
-
-@keyframes marquee {
-  to { transform: translateX(-50%); }
 }
 
 .float-y {
@@ -631,4 +622,20 @@
 }
 .app-bg[data-mood="down"] {
   --mood: var(--loss);
+}
+
+/*
+ * The circular reveal when the theme changes (Magic UI's Animated Theme Toggler). The browser's own
+ * cross-fade is switched off so the reveal is the only transition.
+ */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+[data-magicui-theme-vt="active"]::view-transition-group(root) {
+  animation-duration: var(--magicui-theme-toggle-vt-duration, 400ms);
+}
+[data-magicui-theme-vt="active"]::view-transition-new(root) {
+  clip-path: var(--magicui-theme-vt-clip-from);
 }

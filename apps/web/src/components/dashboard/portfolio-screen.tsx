@@ -13,7 +13,7 @@ import { Segmented } from "@web/components/ui/segmented"
 import { SectionLabel } from "@web/components/ui/section-card"
 import { Reveal, revealStyle } from "@web/components/motion/reveal"
 import { DashboardSkeleton } from "@web/components/skeletons"
-import { AnimatedNumber } from "@web/components/ui/animated-number"
+import { HeadlineNumber } from "@web/components/ui/headline-number"
 import { plural } from "@web/lib/plural"
 import { useToast } from "@web/components/ui/toast"
 import { type AllocationSlice } from "@web/components/charts/allocation-bar"
@@ -57,8 +57,6 @@ export type PortfolioSource = (range: Range) => {
 }
 
 const RANGE_NAMES: Record<Range, string> = { "1W": "week", "1M": "month", "3M": "3 months", "6M": "6 months", "1Y": "year", ALL: "period" }
-// Whole dollars, so a count-up never shows a stray fraction mid-way.
-const usd = (v: number) => `$${new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(v)}`
 /** Signed dollars: cents while the amount is small, whole dollars once it isn't. */
 const signedUsd = (v: number) => {
   const abs = Math.abs(v)
@@ -250,7 +248,7 @@ export function PortfolioScreen({
                 "••••••"
               ) : (
                 <>
-                  <AnimatedNumber className="numeric" value={netWorthWhole} format={usd} countUp="net-worth" />
+                  <HeadlineNumber className="numeric" id="net-worth" value={netWorthWhole} currency />
                   <span className="numeric text-[0.5em] text-muted-foreground" style={{ letterSpacing: "-0.02em" }}>
                     .{String(cents).padStart(2, "0")}
                   </span>

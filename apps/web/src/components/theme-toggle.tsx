@@ -1,9 +1,14 @@
 "use client"
 import { useTheme } from "next-themes"
 import { useEffect, useState } from "react"
-import { Moon, Sun } from "lucide-react"
-import { Button } from "@web/components/ui/button"
+import { AnimatedThemeToggler } from "@web/components/magicui/animated-theme-toggler"
+import { buttonVariants } from "@web/components/ui/button"
+import { cn } from "@web/lib/utils"
 
+/**
+ * Light/dark switch that wipes the new theme across the page from the button (Magic UI's Animated Theme
+ * Toggler, using the View Transitions API where the browser has it). next-themes still owns the saved choice.
+ */
 export function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
@@ -12,18 +17,15 @@ export function ThemeToggle() {
   // until after hydration rather than guessing and flipping.
   useEffect(() => setMounted(true), [])
 
+  const dark = mounted && resolvedTheme === "dark"
+
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-      aria-label={mounted ? `Switch to ${resolvedTheme === "dark" ? "light" : "dark"} mode` : "Toggle theme"}
-    >
-      {mounted && resolvedTheme === "dark" ? (
-        <Sun className="h-4 w-4" aria-hidden />
-      ) : (
-        <Moon className="h-4 w-4" aria-hidden />
-      )}
-    </Button>
+    <AnimatedThemeToggler
+      theme={dark ? "dark" : "light"}
+      onThemeChange={setTheme}
+      duration={550}
+      className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "[&_svg]:size-4")}
+      aria-label={mounted ? `Switch to ${dark ? "light" : "dark"} mode` : "Toggle theme"}
+    />
   )
 }

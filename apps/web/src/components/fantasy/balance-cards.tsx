@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { ArrowDownRight, ArrowUpRight, Coins, Minus, Wallet, Briefcase } from "lucide-react"
-import { AnimatedNumber } from "@web/components/ui/animated-number"
+import { HeadlineNumber } from "@web/components/ui/headline-number"
 import { cn } from "@web/lib/utils"
 import { TiltCard } from "@web/components/ui/tilt-card"
 import { formatCurrency } from "@web/lib/format"
@@ -61,7 +61,7 @@ export function PortfolioStat({ value, cash, startingCash }: { value: number; ca
         Portfolio value
       </dt>
       <dd className="relative mt-1.5">
-        <AnimatedNumber className="numeric block text-xl font-semibold" value={value} format={formatCurrency} countUp="fantasy-value" />
+        <HeadlineNumber className="numeric block text-xl font-semibold" id="fantasy-value" value={value} currency />
         <span
           className={cn(
             "numeric mt-0.5 flex items-center gap-1 text-xs font-medium",
@@ -119,7 +119,7 @@ export function CashStat({ cash, value }: { cash: number; value: number }) {
         Cash to spend
       </dt>
       <dd className="relative mt-1.5">
-        <AnimatedNumber className="numeric block text-xl font-semibold" value={cash} format={formatCurrency} countUp="fantasy-cash" />
+        <HeadlineNumber className="numeric block text-xl font-semibold" id="fantasy-cash" value={cash} currency />
         {hasCash ? (
           <span className="numeric mt-0.5 flex items-center gap-1.5 text-xs font-medium text-gold-ink">
             <span className="live-dot size-1.5 shrink-0 rounded-full bg-[var(--series-4)]" aria-hidden />
