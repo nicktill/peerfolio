@@ -12,6 +12,9 @@ import { ScrollTilt } from "@web/components/landing/scroll-tilt"
 import { SignInButton } from "@web/components/landing/sign-in-button"
 import { TickerTape } from "@web/components/landing/ticker-tape"
 import { InView } from "@web/components/motion/in-view"
+import { BackgroundBeams } from "@web/components/aceternity/background-beams"
+import { PointerHighlight } from "@web/components/aceternity/pointer-highlight"
+import { AnimatedShinyText } from "@web/components/magicui/animated-shiny-text"
 import { BorderBeam } from "@web/components/magicui/border-beam"
 import { MagicCard } from "@web/components/magicui/magic-card"
 import { revealStyle } from "@web/components/motion/reveal"
@@ -110,7 +113,9 @@ export default async function HomePage() {
                 <span className="absolute inline-flex size-full animate-ping rounded-full bg-[var(--gain)] opacity-60 motion-reduce:hidden" />
                 <span className="relative inline-flex size-2 rounded-full bg-[var(--gain)]" />
               </span>
-              Season&apos;s live. Bragging rights on the line.
+              <AnimatedShinyText className="mx-0 max-w-none text-xs font-medium text-foreground/80 dark:text-foreground/80">
+                Season&apos;s live. Bragging rights on the line.
+              </AnimatedShinyText>
             </span>
             <h1 style={revealStyle(1)} className="reveal mt-6 text-balance text-[7vw] font-semibold leading-[1.05] tracking-tight sm:text-[6vw] lg:text-7xl">
               {/* Top line is fixed and white; the whole line below is green and keeps changing. */}
@@ -239,9 +244,17 @@ export default async function HomePage() {
 
         <section className="relative isolate overflow-hidden border-t">
           <HeroBackdrop />
+          {/* Aceternity's Background Beams: light threads that run across the closing call to action. */}
+          <BackgroundBeams className="-z-10 opacity-60" />
           <InView className="mx-auto flex max-w-6xl flex-col items-center px-4 py-20 text-center sm:py-28">
             <p className="text-4xl" aria-hidden>🏆</p>
-            <h2 className="mt-4 text-balance text-3xl font-semibold tracking-tight sm:text-5xl">Start your league. Settle the debate.</h2>
+            <h2 className="mt-4 text-balance text-3xl font-semibold tracking-tight sm:text-5xl">
+              Start your league.{" "}
+              {/* Aceternity's Pointer Highlight draws a box round the line and drops a cursor on its corner. */}
+              <PointerHighlight rectangleClassName="rounded-md border-primary/60" pointerClassName="h-5 w-5 text-primary" containerClassName="px-2">
+                <span>Settle the debate.</span>
+              </PointerHighlight>
+            </h2>
             <p className="mt-3 text-muted-foreground">Your history starts the day you join. So does the trash talk.</p>
             <div className="mt-8">
               <SignInButton />

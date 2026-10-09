@@ -1,7 +1,9 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import confetti from "canvas-confetti"
 import { motion, useMotionValue, useReducedMotion, useSpring, useTransform } from "motion/react"
+import { Confetti, type ConfettiRef } from "@web/components/magicui/confetti"
 import { Button } from "@web/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card"
 import { useConfirm } from "@web/components/ui/confirm"
@@ -40,7 +42,8 @@ export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: 
   const [amount, setAmount] = useState("")
   const [pending, setPending] = useState(false)
   const [burst, setBurst] = useState(0)
-  const [cashBurst, setCashBurst] = useState(0)
+  const confettiRef = useRef<ConfettiRef>(null)
+  const cashButtonRef = useRef<HTMLButtonElement>(null)
   const [cashingOut, setCashingOut] = useState(false)
   const [receipt, setReceipt] = useState<Receipt | null>(null)
   const closeReceipt = useCallback(() => setReceipt(null), [])
@@ -129,6 +132,15 @@ export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: 
 
   // Sells every holding through the same endpoint a single sell uses, one after
   // another, so one bad ticker can't sink the rest. The list refreshes once at the end.
+  // Money emoji and brand-coloured confetti burst from the Sell All button (Magic UI's Confetti on canvas-confetti).
+  function celebrateCashOut() {
+    const rect = cashButtonRef.current?.getBoundingClientRect()
+    const origin = rect ? { x: (rect.left + rect.width / 2) / window.innerWidth, y: (rect.top + rect.height / 2) / window.innerHeight } : { x: 0.5, y: 0.7 }
+    const money = ["💸", "💰", "🤑"].map((text) => confetti.shapeFromText({ text, scalar: 2 }))
+    void confettiRef.current?.fire({ origin, shapes: money, scalar: 2, particleCount: 26, spread: 80, startVelocity: 42, gravity: 0.9, ticks: 240, disableForReducedMotion: true })
+    void confettiRef.current?.fire({ origin, particleCount: 100, spread: 110, startVelocity: 48, colors: ["#1baf7a", "#0a7152", "#f5b942", "#ffffff"], disableForReducedMotion: true })
+  }
+
   async function sellAll() {
     if (cashingOut || positions.length === 0) return
     const total = positions.reduce((sum, p) => sum + p.value, 0)
@@ -157,7 +169,7 @@ export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: 
     }
     setCashingOut(false)
     if (sold + queuedCount > 0) {
-      setCashBurst((b) => b + 1)
+      celebrateCashOut()
       setAmount("")
       setTouched(false)
       onTraded()
@@ -177,7 +189,7 @@ export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: 
   return (
     <Card className="relative overflow-visible">
       {burst > 0 ? <Burst key={burst} /> : null}
-      {cashBurst > 0 ? <Burst key={`cash-${cashBurst}`} pieces={["💸", "💰", "🤑", "💵", "🎉", "💸", "💰", "🎉"]} /> : null}
+      <Confetti ref={confettiRef} manualstart className="pointer-events-none fixed inset-0 z-[70] size-full" />
       {receipt ? <TradeReceipt receipt={receipt} onDone={closeReceipt} /> : null}
       <CardHeader className="flex-row items-center justify-between">
         <CardTitle>Make a move</CardTitle>
@@ -270,6 +282,7 @@ export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: 
           {side === "sell" ? (
             <Button
               type="button"
+              ref={cashButtonRef}
               variant="secondary"
               className="group w-full"
               loading={cashingOut}

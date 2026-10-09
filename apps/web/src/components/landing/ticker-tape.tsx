@@ -1,4 +1,5 @@
 import { DEMO_STANDINGS } from "@web/components/landing/demo"
+import { Marquee } from "@web/components/magicui/marquee"
 
 const EVENTS = [
   ...DEMO_STANDINGS.map((s) => ({
@@ -8,7 +9,7 @@ const EVENTS = [
 ]
 const CHATTER = ["You took the lead 👑", "DeShawn is holding strong 🧊", "Jordan bought the dip. Again. 😤", "Sam moved up to #3", "Week 4 closes Friday ⏰"]
 
-/** Scoreboard crawl of league moves. Paused for reduced motion. */
+/** Scoreboard crawl of league moves. Still with reduced motion. */
 export function TickerTape() {
   const items = EVENTS.flatMap((e, i) => [
     <span key={`e${i}`} className="numeric font-mono text-xs font-semibold">
@@ -25,13 +26,10 @@ export function TickerTape() {
 
   return (
     <div className="relative overflow-hidden border-y bg-card/60 py-3 [mask-image:linear-gradient(90deg,transparent,#000_8%,#000_92%,transparent)]">
-      <div className="marquee flex w-max">
-        {[0, 1].map((copy) => (
-          <div key={copy} aria-hidden={copy === 1} className="flex shrink-0 items-center gap-10 pr-10">
-            {items}
-          </div>
-        ))}
-      </div>
+      {/* Magic UI's Marquee; it slows to a stop under the cursor. */}
+      <Marquee pauseOnHover repeat={4} className="p-0 [--duration:55s] [--gap:2.5rem]">
+        {items}
+      </Marquee>
     </div>
   )
 }

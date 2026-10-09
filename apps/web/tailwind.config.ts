@@ -69,6 +69,12 @@ const config = {
   			sm: 'calc(var(--radius) - 4px)'
   		},
 		keyframes: {
+			'marquee-x': { from: { transform: 'translateX(0)' }, to: { transform: 'translateX(calc(-100% - var(--gap)))' } },
+			'marquee-y': { from: { transform: 'translateY(0)' }, to: { transform: 'translateY(calc(-100% - var(--gap)))' } },
+			'shiny-text': {
+				'0%, 90%, 100%': { 'background-position': 'calc(-100% - var(--shiny-width)) 0' },
+				'30%, 60%': { 'background-position': 'calc(100% + var(--shiny-width)) 0' }
+			},
 			'shimmer-slide': { to: { transform: 'translate(calc(100cqw - 100%), 0)' } },
 			'spin-around': {
 				'0%': { transform: 'translateZ(0) rotate(0)' },
@@ -94,6 +100,9 @@ const config = {
 			}
 		},
   		animation: {
+			'marquee': 'marquee-x var(--duration) infinite linear',
+			'marquee-vertical': 'marquee-y var(--duration) linear infinite',
+			'shiny-text': 'shiny-text 8s infinite',
 			'shimmer-slide': 'shimmer-slide var(--speed) ease-in-out infinite alternate',
 			'spin-around': 'spin-around calc(var(--speed) * 2) infinite linear',
   			'accordion-down': 'accordion-down 0.2s ease-out',
