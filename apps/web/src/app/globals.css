@@ -72,9 +72,6 @@
     --gold-ink: #8a6500;
 
     /* Ambient texture behind the signed-in app (see .app-bg). */
-    --glow-a: 0.10;
-    /* How strong the drifting colour washes are: a touch lighter on the cream page than on the dark one. */
-    --aurora-a: 0.6;
     --grain-o: 0.05;
     --dot-o: 0.09;
     --surface-hi: 0 0% 100% / 1;
@@ -132,8 +129,6 @@
     --loss-ink: #f27b7b;
     --gold-ink: #e0b544;
 
-    --glow-a: 0.16;
-    --aurora-a: 1;
     --grain-o: 0.07;
     --dot-o: 0.07;
     --surface-hi: 0 0% 100% / 0.06;
@@ -522,7 +517,7 @@
    ========================================================================== */
 
 @layer components {
-  /* Glow and dot grid fade out below the first screen; grain sits on top. */
+  /* The dot grid fades out below the first screen; grain sits on top. The only colour in the background is the cursor's light (see Aurora). */
   .app-bg {
     position: relative;
     isolation: isolate;
@@ -533,10 +528,7 @@
     inset: 0;
     z-index: -2;
     pointer-events: none;
-    background:
-      radial-gradient(52rem 30rem at 6% -8%, color-mix(in srgb, var(--mood) calc(var(--glow-a) * 100%), transparent), transparent 62%),
-      radial-gradient(40rem 26rem at 104% 2%, color-mix(in srgb, var(--series-1) 12%, transparent), transparent 62%),
-      radial-gradient(hsl(var(--foreground) / var(--dot-o)) 1px, transparent 1.3px) 0 0 / 22px 22px;
+    background: radial-gradient(hsl(var(--foreground) / var(--dot-o)) 1px, transparent 1.3px) 0 0 / 22px 22px;
     -webkit-mask-image: linear-gradient(#000 0, #000 240px, transparent 640px);
     mask-image: linear-gradient(#000 0, #000 240px, transparent 640px);
   }
