@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server"
-import { and, eq, sql } from "drizzle-orm"
-import { db, accounts, plaidItems } from "@web/db"
-import { decrypt } from "@web/lib/crypto"
-import { getPlaidClient, plaidErrorCode } from "@web/lib/plaid"
-import { investableTotal, syncItem, writeDailySnapshot } from "@web/lib/plaid-sync"
+import { and, eq } from "drizzle-orm"
+import { db, plaidItems } from "@web/db"
+import { disconnectItem } from "@web/lib/plaid-disconnect"
+import { syncItem } from "@web/lib/plaid-sync"
 import { ApiError, withUser } from "@web/lib/api"
 
 export const maxDuration = 120
@@ -40,21 +39,7 @@ export const DELETE = withUser<Ctx>(async (userId, _request, { params }) => {
   const { id } = await params
   const item = await requireOwnedItem(userId, id)
 
-  try {
-    await getPlaidClient().itemRemove({ access_token: decrypt(item.accessToken) })
-  } catch (error) {
-    if (plaidErrorCode(error) !== "INVALID_ACCESS_TOKEN" && plaidErrorCode(error) !== "ITEM_NOT_FOUND") {
-      throw new ApiError("Could not disconnect from Plaid. Your connection was preserved; please try again shortly.", 502)
-    }
-  }
-
-  await db.transaction(async (store) => {
-    await store.execute(sql`select pg_advisory_xact_lock(hashtext(${userId}))`)
-    const before = await investableTotal(userId, store)
-    await store.delete(accounts).where(eq(accounts.itemId, item.id))
-    await store.delete(plaidItems).where(eq(plaidItems.id, item.id))
-    await writeDailySnapshot(userId, (await investableTotal(userId, store)) - before, undefined, store)
-  })
+  await disconnectItem(item)
 
   return NextResponse.json({ ok: true })
 })

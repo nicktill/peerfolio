@@ -3,6 +3,7 @@ import { CountryCode } from "plaid"
 import { and, eq, ne, sql } from "drizzle-orm"
 import { db, plaidItems } from "@web/db"
 import { encrypt } from "@web/lib/crypto"
+import { assertPlaidActive } from "@web/lib/plaid-switch"
 import { getPlaidClient, plaidErrorMessage, plaidLinkingEnabled } from "@web/lib/plaid"
 import { syncItem } from "@web/lib/plaid-sync"
 import { assertBrokeragePermission, reserveProductionLinkAttempt, finishProductionLinkAttempt } from "@web/lib/plaid-access"
@@ -21,6 +22,7 @@ type Body = {
  * only ever learns our own item row id.
  */
 export const POST = withUser<unknown>(async (userId, request) => {
+  await assertPlaidActive()
   const body = await readJson<Body>(request)
   if (!plaidLinkingEnabled()) throw new ApiError("Brokerage linking is coming soon", 409)
   if (!body || typeof body.publicToken !== "string" || !body.publicToken.trim()) throw new ApiError("publicToken is required")

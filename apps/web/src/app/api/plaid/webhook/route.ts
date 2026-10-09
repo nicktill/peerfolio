@@ -4,6 +4,7 @@ import { db, plaidItems } from "@web/db"
 import { itemWebhookState } from "@web/lib/plaid-status"
 import { syncItem } from "@web/lib/plaid-sync"
 import { verifyPlaidWebhook } from "@web/lib/plaid-webhook"
+import { plaidPaused } from "@web/lib/plaid-switch"
 
 export const maxDuration = 120
 
@@ -21,6 +22,8 @@ type WebhookBody = {
  * user notices their numbers stopped moving.
  */
 export async function POST(request: Request) {
+  // Paused: acknowledge so Plaid stops retrying, and touch nothing (not even its key endpoint).
+  if (await plaidPaused()) return NextResponse.json({ ok: true, paused: true })
   // Verification hashes the exact bytes Plaid signed, so read the body as text.
   const raw = await request.text()
 

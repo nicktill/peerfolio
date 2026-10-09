@@ -212,6 +212,14 @@ export const securities = pgTable("securities", {
  * One row per price provider: a token bucket shared by every server, so all of
  * them together stay inside the provider's allowance (see lib/provider-budget.ts).
  */
+/** Small operator switches that must change without a deploy (see lib/plaid-switch.ts). */
+export const appSettings = pgTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: text("updated_by"),
+})
+
 export const providerBudgets = pgTable("provider_budgets", {
   provider: text("provider").primaryKey(),
   tokens: doublePrecision("tokens").notNull(),

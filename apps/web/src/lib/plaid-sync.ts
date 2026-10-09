@@ -7,6 +7,7 @@ import { flowChanges, investmentHistoryStart, investmentPages, retryPlaid } from
 import { keepsEntryValue } from "@web/lib/ranges"
 import { categorizeAccount, type AccountCategory } from "@web/lib/account-category"
 import { accountBalance } from "@web/lib/account-balance"
+import { assertPlaidActive, plaidPaused } from "@web/lib/plaid-switch"
 
 export { categorizeAccount, type AccountCategory }
 
@@ -40,6 +41,7 @@ class SyncValidationError extends Error {
 }
 
 export async function syncItem(itemRowId: string, deadline = Date.now() + 90_000): Promise<SyncResult> {
+  await assertPlaidActive()
   const item = await db.query.plaidItems.findFirst({ where: eq(plaidItems.id, itemRowId) })
   if (!item) throw new Error("Item not found")
   try {
@@ -359,7 +361,9 @@ export async function writeDailySnapshot(userId: string, externalFlow = 0, when:
 /** Full refresh for one user: every active item, then today's snapshot. */
 export async function syncUser(userId: string) {
   const deadline = Date.now() + 90_000
-  const items = await db.select().from(plaidItems).where(eq(plaidItems.userId, userId))
+  // While paused nothing reaches Plaid; the last synced numbers stay as they are.
+  const paused = await plaidPaused()
+  const items = paused ? [] : await db.select().from(plaidItems).where(eq(plaidItems.userId, userId))
 
   const results: SyncResult[] = []
   for (const item of items) {
@@ -379,7 +383,7 @@ export async function syncUser(userId: string) {
     return writeDailySnapshot(userId, 0, today(), store)
   }) : null
 
-  return { results, totals }
+  return { results, totals, paused }
 }
 
 /**

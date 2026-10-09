@@ -113,6 +113,13 @@
       "when": 1791340511954,
       "tag": "0015_brokerage_access",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1791563655155,
+      "tag": "0016_plaid_kill_switch",
+      "breakpoints": true
     }
   ]
 }
