@@ -53,7 +53,7 @@ export function Aurora() {
     }
   }, [reduceMotion, lean.x, lean.y, pointX, pointY])
 
-  const light = useMotionTemplate`radial-gradient(460px circle at ${pointX}px ${pointY}px, color-mix(in srgb, var(--mood) 11%, transparent), transparent 72%)`
+  const light = useMotionTemplate`radial-gradient(460px circle at ${pointX}px ${pointY}px, color-mix(in srgb, var(--mood) 7%, transparent), transparent 72%)`
   const dotMask = useMotionTemplate`radial-gradient(230px circle at ${pointX}px ${pointY}px, #000, transparent 78%)`
 
   if (reduceMotion) return null
@@ -94,7 +94,7 @@ export function Aurora() {
         className="pointer-events-none fixed inset-0"
         style={{
           zIndex: -1,
-          background: "radial-gradient(color-mix(in srgb, var(--mood) 60%, transparent) 1.1px, transparent 1.6px) 0 0 / 22px 22px",
+          background: "radial-gradient(color-mix(in srgb, var(--mood) 40%, transparent) 1.1px, transparent 1.6px) 0 0 / 22px 22px",
           WebkitMaskImage: dotMask,
           maskImage: dotMask,
         }}
