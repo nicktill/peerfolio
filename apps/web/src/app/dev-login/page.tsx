@@ -2,6 +2,9 @@ import { notFound } from "next/navigation"
 import { devLoginMode } from "@web/lib/dev-login"
 import { DevLoginForm } from "./dev-login-form"
 
+// The guard reads runtime env, so this must never be prerendered at build time.
+export const dynamic = "force-dynamic"
+
 /**
  * Sign in as an existing user without an OAuth app.
  *
