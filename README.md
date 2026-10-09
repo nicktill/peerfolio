@@ -97,16 +97,14 @@ hangs instead of failing loudly.
 The developer login is off by default and never runs in production. Locally it
 needs only `ENABLE_DEV_LOGIN=true` in a non-production build. It also works on a
 Vercel **preview** deployment, so a branch can be reviewed without an OAuth app
-per preview URL, but only when all of these are set on the Preview environment:
+per preview URL, but only when these are set on the Preview environment:
 
 - `ENABLE_DEV_LOGIN=true`
-- `DEV_LOGIN_SECRET`: a passcode of at least 16 characters (`openssl rand -base64 24`)
-- `DEV_LOGIN_EMAILS`: comma-separated emails of the existing accounts it may open
-- optionally `DEV_LOGIN_DEMO_DATABASE=true`: you're stating the preview's database is disposable demo data, which lets the login apply pending migrations to it
+- `DEV_LOGIN_DEMO_DATABASE=true`: you're stating the preview's `DATABASE_URL` is a disposable demo database. Without it the login stays off, so a preview that points at real data can never offer it. It also lets the login apply pending migrations.
+- optionally `DEV_LOGIN_SECRET` (16+ characters): if set, a passcode is asked for. Otherwise the page is one click on a demo person.
+- optionally `DEV_LOGIN_EMAILS`: comma-separated emails it may open. Defaults to the five demo people.
 
-On a preview, an allowlisted account that doesn't exist yet is created on first sign-in along with a demo world (four other players, "The Group Chat" league, and a "Friday Draft" fantasy league with standings and a trade feed), so a fresh demo database needs no seeding. Point previews at a database that holds only demo accounts. A request needs both
-the passcode and an allowlisted email, and `VERCEL_ENV=production` always turns the
-login off, so the route 404s and the provider isn't registered there.
+On a preview, a demo account that doesn't exist yet is created on first sign-in along with a demo world (four other players, "The Group Chat" league, and a "Friday Draft" fantasy league with standings and a trade feed), so a fresh demo database needs no seeding. Point previews at a database that holds only demo accounts. `VERCEL_ENV=production` always turns the login off, so the route 404s and the provider isn't registered there.
 
 For the real thing you need a Postgres URL (Neon and Supabase both work),
 Google OAuth credentials and Plaid sandbox keys. `apps/web/.env.example`

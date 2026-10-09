@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation"
-import { devLoginMode } from "@web/lib/dev-login"
+import { devLoginMode, passcodeRequired, previewAllowlist } from "@web/lib/dev-login"
 import { DevLoginForm } from "./dev-login-form"
 
 // The guard reads runtime env, so this must never be prerendered at build time.
@@ -21,10 +21,10 @@ export default function DevLoginPage() {
       <h1 className="text-2xl font-semibold tracking-tight">Developer login</h1>
       <p className="mt-2 text-sm text-muted-foreground">
         {mode === "preview"
-          ? "Preview deployments only. Enter the passcode and one of the allowed accounts."
+          ? "Preview deployments only, on a demo database. Pick a demo person to look around."
           : "Local development only. Pick a seeded account, or enter any email that exists in your database."}
       </p>
-      <DevLoginForm requirePasscode={mode === "preview"} />
+      <DevLoginForm preview={mode === "preview"} requirePasscode={mode === "preview" && passcodeRequired()} emails={mode === "preview" ? previewAllowlist() : undefined} />
     </main>
   )
 }
