@@ -14,7 +14,7 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true, // This will stop warnings from blocking deployment
   },
   // The preview login can create an empty demo database's tables, which needs the migration files at runtime.
-  outputFileTracingIncludes: { "/api/auth/[...nextauth]": ["./drizzle/**/*"] },
+  outputFileTracingIncludes: { "/api/auth/*": ["./drizzle/**/*"] },
   // The pre-launch waitlist is gone; old links land on the homepage instead.
   async redirects() {
     return [{ source: "/waitlist", destination: "/", permanent: true }];

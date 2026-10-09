@@ -35,8 +35,11 @@ async function applyMigrations() {
   if (process.env.DEV_LOGIN_DEMO_DATABASE !== "true") {
     throw new Error("The demo database's schema is out of date and DEV_LOGIN_DEMO_DATABASE isn't set to let a preview upgrade it")
   }
-  const folder = [path.join(process.cwd(), "drizzle"), path.join(process.cwd(), "apps/web/drizzle")].find((dir) => fs.existsSync(dir))
-  if (!folder) throw new Error("Migration files aren't in this build")
+  // Where the files land depends on how the host lays out a monorepo, so look in the likely places.
+  const cwd = process.cwd()
+  const roots = [cwd, path.join(cwd, "apps/web"), path.join(cwd, ".."), path.join(cwd, "../apps/web"), path.join(cwd, "../..")]
+  const folder = roots.map((root) => path.join(root, "drizzle")).find((dir) => fs.existsSync(path.join(dir, "meta/_journal.json")))
+  if (!folder) throw new Error(`Migration files aren't in this build (looked from ${cwd})`)
   await migrate(db, { migrationsFolder: folder })
 }
 
