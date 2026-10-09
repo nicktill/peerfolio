@@ -64,7 +64,11 @@ export function StandingRow({
       transition={{ layout: { type: "spring", stiffness: 420, damping: 38 }, default: { type: "spring", stiffness: 380, damping: 34, delay: Math.min(index, 5) * 0.05 } }}
       className={cn(
         "py-3",
-        standing.isYou && (tone === "app" ? "surface-you -mx-2 rounded-xl px-3" : "-mx-2 rounded-lg bg-accent/40 px-2"),
+        standing.isYou
+          ? tone === "app"
+            ? "surface-you -mx-2 rounded-xl px-3"
+            : "-mx-2 rounded-lg bg-accent/40 px-2"
+          : "-mx-2 rounded-xl px-2 transition-colors duration-200 hover:bg-muted/50",
       )}
     >
       <div className="flex items-center gap-3">

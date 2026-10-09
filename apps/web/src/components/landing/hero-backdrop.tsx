@@ -1,4 +1,6 @@
-/** Grid paper, a few lit cells and two soft glows behind the hero. Pure CSS. */
+import { CursorTorch } from "@web/components/landing/cursor-torch"
+
+/** Grid paper, a few lit cells and two soft glows behind the hero, lit up around the cursor. */
 const LIT = [
   [3, 2], [7, 1], [11, 3], [15, 2], [5, 5], [13, 6], [2, 7], [17, 5], [9, 7],
 ] as const
@@ -7,6 +9,7 @@ export function HeroBackdrop() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
       <div className="hero-grid absolute inset-0" />
+      <CursorTorch />
       {LIT.map(([x, y], i) => (
         <span
           key={i}

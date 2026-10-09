@@ -149,6 +149,23 @@
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
+    font-optical-sizing: auto;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Headlines break into even lines instead of leaving a lone word. */
+  h1, h2, h3 {
+    text-wrap: balance;
+  }
+
+  ::selection {
+    background: hsl(var(--primary) / 0.22);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
   }
 
   /* Money and percentages must not reflow as digits change. */
