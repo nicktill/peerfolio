@@ -14,7 +14,7 @@
     "@repo/ui": "*",
       "react": "19.0.0",
   "react-dom": "19.0.0",
-  "next": "15.3.4"
+  "next": "15.5.27"
   },
   "devDependencies": {
     "@repo/eslint-config": "*",
