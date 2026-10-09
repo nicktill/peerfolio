@@ -61,7 +61,7 @@ export function PortfolioStat({ value, cash, startingCash }: { value: number; ca
         Portfolio value
       </dt>
       <dd className="relative mt-1.5">
-        <AnimatedNumber className="numeric block text-xl font-semibold" value={value} format={formatCurrency} countUp />
+        <AnimatedNumber className="numeric block text-xl font-semibold" value={value} format={formatCurrency} countUp="fantasy-value" />
         <span
           className={cn(
             "numeric mt-0.5 flex items-center gap-1 text-xs font-medium",
@@ -119,7 +119,7 @@ export function CashStat({ cash, value }: { cash: number; value: number }) {
         Cash to spend
       </dt>
       <dd className="relative mt-1.5">
-        <AnimatedNumber className="numeric block text-xl font-semibold" value={cash} format={formatCurrency} countUp />
+        <AnimatedNumber className="numeric block text-xl font-semibold" value={cash} format={formatCurrency} countUp="fantasy-cash" />
         {hasCash ? (
           <span className="numeric mt-0.5 flex items-center gap-1.5 text-xs font-medium text-gold-ink">
             <span className="live-dot size-1.5 shrink-0 rounded-full bg-[var(--series-4)]" aria-hidden />

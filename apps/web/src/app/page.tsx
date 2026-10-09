@@ -12,9 +12,9 @@ import { ScrollTilt } from "@web/components/landing/scroll-tilt"
 import { SignInButton } from "@web/components/landing/sign-in-button"
 import { TickerTape } from "@web/components/landing/ticker-tape"
 import { InView } from "@web/components/motion/in-view"
-import { BorderBeam } from "@web/components/ui/border-beam"
+import { BorderBeam } from "@web/components/magicui/border-beam"
+import { MagicCard } from "@web/components/magicui/magic-card"
 import { Magnetic } from "@web/components/ui/magnetic"
-import { SpotlightCard } from "@web/components/ui/spotlight-card"
 import { revealStyle } from "@web/components/motion/reveal"
 import { getCurrentUserId } from "@web/lib/auth"
 import { SITE } from "@web/lib/site"
@@ -24,6 +24,9 @@ export const metadata: Metadata = { alternates: { canonical: "/" } }
 
 /** Tells Google the site's name (so it shows "Peerfolio", not the bare domain) and where it lives. */
 const structuredData = { "@context": "https://schema.org", "@type": "WebSite", name: SITE.name, url: SITE.baseUrl, description: SITE.description }
+
+/** The glow every Magic Card on this page uses, in the brand colour. */
+const GLOW = { gradientSize: 220, gradientFrom: "hsl(var(--primary))", gradientTo: "hsl(var(--primary) / 0.35)", gradientColor: "hsl(var(--primary) / 0.1)", gradientOpacity: 1 } as const
 
 const RIVALS = ["friends", "the group chat", "your roommates", "your coworkers", "your dad"] as const
 
@@ -70,7 +73,7 @@ function ReturnOnlyVisual() {
 /** A deposit moves the balance but not the return. */
 function DepositVisual() {
   return (
-    <div className="mt-6 flex items-center gap-2 text-xs" aria-hidden>
+    <div className="mt-auto flex flex-wrap items-center gap-2 pt-6 text-xs" aria-hidden>
       <span className="numeric rounded-full border bg-background/70 px-2.5 py-1 font-medium">+$500 deposit</span>
       <span className="text-muted-foreground">→</span>
       <span className="numeric rounded-full bg-secondary px-2.5 py-1 font-semibold">return +0.00%</span>
@@ -120,7 +123,7 @@ export default async function HomePage() {
               Private leagues ranked on returns. Friends see how well you invest, never how much.
             </p>
             <div style={revealStyle(3)} className="reveal mt-8 flex flex-wrap justify-center gap-3">
-              <Magnetic className="inline-block"><SignInButton /></Magnetic>
+              <Magnetic className="inline-block"><SignInButton shine /></Magnetic>
               <a
                 href="#how"
                 className="inline-flex h-11 items-center gap-2 rounded-full border bg-card px-5 text-sm font-medium transition-colors hover:bg-secondary"
@@ -161,13 +164,15 @@ export default async function HomePage() {
           <ol className="mt-10 grid gap-4 sm:grid-cols-3">
             {STEPS.map((step, i) => (
               <InView as="li" index={i} key={step.title} className="group">
-                <SpotlightCard className="h-full rounded-2xl border bg-card p-6 transition-colors hover:border-primary/40">
-                  <span className="numeric font-mono text-4xl font-semibold text-primary/30 transition-colors group-hover:text-primary">
-                    0{i + 1}
-                  </span>
-                  <h3 className="mt-4 font-semibold">{step.title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{step.body}</p>
-                </SpotlightCard>
+                <div className="h-full rounded-2xl">
+                  <MagicCard className="h-full p-6" {...GLOW}>
+                    <span className="numeric font-mono text-4xl font-semibold text-primary/30 transition-colors group-hover:text-primary">
+                      0{i + 1}
+                    </span>
+                    <h3 className="mt-4 font-semibold">{step.title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">{step.body}</p>
+                  </MagicCard>
+                </div>
               </InView>
             ))}
           </ol>
@@ -176,10 +181,11 @@ export default async function HomePage() {
         <section className="mx-auto grid max-w-6xl gap-4 px-4 pb-16 sm:grid-cols-3 sm:pb-24">
           {POINTS.map((point, i) => (
             <InView key={point.title} index={i} className={i === 0 ? "sm:col-span-2" : i === 2 ? "sm:col-span-3" : undefined}>
-              <SpotlightCard className="h-full rounded-3xl border bg-card p-6 transition-colors hover:border-primary/40 sm:p-8">
-                <div className={i === 0 || i === 2 ? "flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between" : undefined}>
+              <div className="h-full rounded-3xl">
+              <MagicCard className="h-full p-6 sm:p-8" {...GLOW}>
+                <div className={i === 1 ? "flex h-full flex-col" : "flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between"}>
                   <div className="max-w-md">
-                    <span className="grid size-11 place-items-center rounded-2xl bg-secondary text-2xl transition-transform duration-300 group-hover/spot:-rotate-6 group-hover/spot:scale-110" aria-hidden>
+                    <span className="grid size-11 place-items-center rounded-2xl bg-secondary text-2xl transition-transform duration-300 group-hover:-rotate-6 group-hover:scale-110" aria-hidden>
                       {point.emoji}
                     </span>
                     <h3 className="mt-5 text-lg font-semibold tracking-tight">{point.title}</h3>
@@ -189,7 +195,8 @@ export default async function HomePage() {
                   {i === 1 ? <DepositVisual /> : null}
                   {i === 2 ? <TypeItInVisual /> : null}
                 </div>
-              </SpotlightCard>
+              </MagicCard>
+              </div>
             </InView>
           ))}
         </section>
@@ -213,7 +220,7 @@ export default async function HomePage() {
 
         <section className="mx-auto max-w-6xl px-4 pb-16 sm:pb-24">
           <InView className="relative overflow-hidden rounded-3xl border border-primary/40 bg-accent/40 p-8 sm:p-12">
-            <BorderBeam size={220} duration={10} />
+            <BorderBeam size={220} duration={10} colorFrom="hsl(var(--primary))" colorTo="hsl(var(--primary) / 0)" />
             <span className="inline-flex items-center gap-1.5 rounded-full bg-primary px-2.5 py-0.5 text-xs font-semibold text-primary-foreground">
               <Sparkles className="size-3.5" aria-hidden /> New
             </span>

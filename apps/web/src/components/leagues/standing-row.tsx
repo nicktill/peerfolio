@@ -59,8 +59,9 @@ export function StandingRow({
     <motion.li
       layout="position"
       initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ layout: { type: "spring", stiffness: 420, damping: 38 }, default: { type: "spring", stiffness: 380, damping: 34, delay: Math.min(index, 8) * 0.06 } }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "0px 0px -6% 0px" }}
+      transition={{ layout: { type: "spring", stiffness: 420, damping: 38 }, default: { type: "spring", stiffness: 380, damping: 34, delay: Math.min(index, 5) * 0.05 } }}
       className={cn(
         "py-3",
         standing.isYou && (tone === "app" ? "surface-you -mx-2 rounded-xl px-3" : "-mx-2 rounded-lg bg-accent/40 px-2"),

@@ -104,7 +104,7 @@ per preview URL, but only when all of these are set on the Preview environment:
 - `DEV_LOGIN_EMAILS`: comma-separated emails of the existing accounts it may open
 - optionally `DEV_LOGIN_DEMO_DATABASE=true`: you're stating the preview's database is disposable demo data, which lets the login apply pending migrations to it
 
-On a preview, an allowlisted account that doesn't exist yet is created on first sign-in, with sample history, an account and a league, so a fresh demo database needs no seeding. Point previews at a database that holds only demo accounts. A request needs both
+On a preview, an allowlisted account that doesn't exist yet is created on first sign-in along with a demo world (four other players, "The Group Chat" league, and a "Friday Draft" fantasy league with standings and a trade feed), so a fresh demo database needs no seeding. Point previews at a database that holds only demo accounts. A request needs both
 the passcode and an allowlisted email, and `VERCEL_ENV=production` always turns the
 login off, so the route 404s and the provider isn't registered there.
 

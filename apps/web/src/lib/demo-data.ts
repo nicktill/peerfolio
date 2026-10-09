@@ -32,3 +32,12 @@ export const MIXES: Record<string, [string, number][]> = {
 }
 
 export const DAYS = 120
+
+/** The "Friday Draft" fantasy league: where each player stands after 45 days of a $100,000 start. */
+export const DEMO_FANTASY: { handle: string; returnPct: number; cash: number; picks: [string, number][] }[] = [
+  { handle: "maya", returnPct: 8.95, cash: 11500, picks: [["demo-nvda", 0.5], ["demo-msft", 0.3], ["demo-aapl", 0.2]] },
+  { handle: "priya", returnPct: 5.28, cash: 6000, picks: [["demo-nvda", 0.65], ["demo-aapl", 0.35]] },
+  { handle: "nick", returnPct: 2.64, cash: 22000, picks: [["demo-vti", 0.55], ["demo-vxus", 0.25], ["demo-nvda", 0.2]] },
+  { handle: "deshawn", returnPct: 1.52, cash: 31000, picks: [["demo-vti", 0.6], ["demo-bnd", 0.4]] },
+  { handle: "sam", returnPct: 0.97, cash: 9000, picks: [["demo-vti", 0.5], ["demo-vxus", 0.3], ["demo-msft", 0.2]] },
+]

@@ -326,6 +326,8 @@ function AmountSlider({ side, max, amount, onChange }: { side: "buy" | "sell"; m
   const position = useSpring(target, { stiffness: 620, damping: 42, mass: 0.7 })
   const fillWidth = useTransform(position, (v) => `${v * 100}%`)
   const thumbLeft = useTransform(position, (v) => `${v * 100}%`)
+  // The bubble stays inside the track at either end instead of hanging off it.
+  const bubbleLeft = useTransform(position, (v) => `clamp(1.75rem, ${v * 100}%, calc(100% - 1.75rem))`)
 
   // Typing or a hotspot click. A drag places the thumb itself.
   useEffect(() => {
@@ -440,7 +442,7 @@ function AmountSlider({ side, max, amount, onChange }: { side: "buy" | "sell"; m
           <motion.span
             aria-hidden
             className="numeric pointer-events-none absolute bottom-full z-20 mb-3 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground px-1.5 py-0.5 text-[11px] font-semibold text-background shadow-md"
-            style={{ left: thumbLeft }}
+            style={{ left: bubbleLeft }}
             initial={false}
             animate={{ opacity: usable && (isDragging || focused) ? 1 : 0, y: usable && (isDragging || focused) ? 0 : 4 }}
             transition={{ type: "spring", stiffness: 500, damping: 32 }}

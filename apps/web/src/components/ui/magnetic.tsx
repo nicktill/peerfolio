@@ -3,7 +3,7 @@
 import { motion, useMotionValue, useReducedMotion, useSpring } from "motion/react"
 
 /** Draws a button a little toward the cursor as it nears, and lets go when it leaves. Mouse only. */
-export function Magnetic({ children, strength = 0.28, className }: { children: React.ReactNode; strength?: number; className?: string }) {
+export function Magnetic({ children, strength = 0.18, className }: { children: React.ReactNode; strength?: number; className?: string }) {
   const reduceMotion = useReducedMotion()
   const x = useSpring(useMotionValue(0), { stiffness: 220, damping: 18, mass: 0.5 })
   const y = useSpring(useMotionValue(0), { stiffness: 220, damping: 18, mass: 0.5 })

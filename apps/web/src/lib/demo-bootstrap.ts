@@ -1,10 +1,28 @@
 import "server-only"
 import fs from "node:fs"
 import path from "node:path"
-import { eq } from "drizzle-orm"
+import { eq, sql } from "drizzle-orm"
 import { migrate } from "drizzle-orm/postgres-js/migrator"
-import { db, accounts, holdings, leagueMembers, leagues, plaidItems, portfolioSnapshots, securities, users } from "@web/db"
-import { DAYS, DEMO_PEOPLE, MIXES, SECURITIES, makeRandom } from "@web/lib/demo-data"
+import {
+  db,
+  accounts,
+  fantasyLeagues,
+  fantasyMembers,
+  fantasyPositions,
+  fantasyReactions,
+  fantasySnapshots,
+  fantasyTrades,
+  follows,
+  holdings,
+  leagueMembers,
+  leagues,
+  plaidItems,
+  portfolioSnapshots,
+  reactions,
+  securities,
+  users,
+} from "@web/db"
+import { DAYS, DEMO_FANTASY, DEMO_PEOPLE, MIXES, SECURITIES, makeRandom } from "@web/lib/demo-data"
 
 /** Postgres error code, wherever the driver or drizzle nested it. */
 function pgCode(error: unknown): string | undefined {
@@ -43,27 +61,10 @@ async function applyMigrations() {
   await migrate(db, { migrationsFolder: folder })
 }
 
-/**
- * Creates one demo user, with a few months of history, an account and a league, if the
- * email isn't in the database yet. Used only by the preview developer login, so a fresh demo
- * database is usable without running the seed script.
- *
- * Unlike `scripts/seed.ts` it never truncates anything: it only adds rows for the account being
- * signed into, so it can't wipe data that is already there.
- */
-export async function ensureDemoUser(email: string) {
-  const lookup = () => db.query.users.findFirst({ where: eq(users.email, email) })
-  let existing
-  try {
-    existing = await lookup()
-  } catch (error) {
-    const code = pgCode(error)
-    if (!code || !SCHEMA_BEHIND.has(code)) throw error
-    await applyMigrations()
-    existing = await lookup()
-  }
-  if (existing) return existing
+const isoDay = (daysAgo: number) => new Date(Date.now() - daysAgo * 86_400_000).toISOString().slice(0, 10)
 
+/** One demo person: the user row, a few months of portfolio history, an account and holdings. */
+async function createDemoPerson(email: string) {
   const local = email.split("@")[0] ?? "demo"
   const handle = local.replace(/[^a-z0-9]/gi, "").toLowerCase().slice(0, 20) || "demo"
   const index = Math.max(0, DEMO_PEOPLE.findIndex((p) => p.handle === handle))
@@ -76,7 +77,7 @@ export async function ensureDemoUser(email: string) {
     .values({ email, name: known ? person.name : handle, handle, isPublic: true, bio: known ? person.bio : null })
     .onConflictDoNothing()
     .returning()
-  // Lost a race with another request creating the same demo user.
+  // Lost a race with another request creating the same person.
   if (!created) return db.query.users.findFirst({ where: eq(users.email, email) })
 
   const userId = created.id
@@ -86,14 +87,13 @@ export async function ensureDemoUser(email: string) {
 
   const rows = []
   for (let i = DAYS; i >= 0; i--) {
-    const date = new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10)
     invested *= 1 + person.drift + (random() - 0.5) * person.volatility
     const netFlows = i % 30 === 0 && i !== DAYS ? 500 : 0
     invested += netFlows
     const totalAssets = invested + cash
     rows.push({
       userId,
-      date,
+      date: isoDay(i),
       totalAssets: totalAssets.toFixed(4),
       totalLiabilities: liabilities.toFixed(4),
       netWorth: (totalAssets - liabilities).toFixed(4),
@@ -104,18 +104,14 @@ export async function ensureDemoUser(email: string) {
   }
   await db.insert(portfolioSnapshots).values(rows)
 
-  await db.insert(securities).values(SECURITIES.map((s) => ({ ...s, closePrice: "100" }))).onConflictDoNothing()
+  await db
+    .insert(securities)
+    .values(SECURITIES.map((s) => ({ ...s, closePrice: "100", closePriceAsOf: isoDay(0) })))
+    .onConflictDoUpdate({ target: securities.id, set: { closePrice: sql`excluded.close_price`, closePriceAsOf: sql`excluded.close_price_as_of` } })
 
   const [item] = await db
     .insert(plaidItems)
-    .values({
-      userId,
-      plaidItemId: `demo-item-${handle}`,
-      accessToken: "demo-not-a-real-token",
-      institutionName: "Fidelity",
-      status: "active",
-      lastSyncedAt: new Date(),
-    })
+    .values({ userId, plaidItemId: `demo-item-${handle}`, accessToken: "demo-not-a-real-token", institutionName: "Fidelity", status: "active", lastSyncedAt: new Date() })
     .returning({ id: plaidItems.id })
 
   const [brokerage] = await db
@@ -138,18 +134,140 @@ export async function ensureDemoUser(email: string) {
     })),
   )
 
+  return created
+}
+
+/** The shared world around one signed-in demo user: the other four people, a league, follows and a fantasy league. */
+async function ensureDemoWorld(me: { id: string; handle: string | null }) {
+  const ids: Record<string, string> = {}
+  for (const person of DEMO_PEOPLE) {
+    const email = `${person.handle}@example.com`
+    const user = (await db.query.users.findFirst({ where: eq(users.email, email) })) ?? (await createDemoPerson(email))
+    if (user) ids[person.handle] = user.id
+  }
+  if (!ids.nick || !ids.maya) return
+
+  // "The Group Chat": everyone, with a few reactions and follows so the social screens aren't bare.
   const [league] = await db
     .insert(leagues)
-    .values({
-      name: "The Group Chat",
-      description: "Bragging rights only",
-      emoji: "🏆",
-      accent: "emerald",
-      ownerId: userId,
-      inviteCode: Array.from({ length: 8 }, () => "BCDFGHJKMNPQRSTVWXZ23456789"[Math.floor(Math.random() * 27)]).join(""),
-    })
+    .values({ name: "The Group Chat", description: "Bragging rights only", emoji: "🏆", accent: "emerald", ownerId: ids.nick, inviteCode: "BCDF2345" })
+    .onConflictDoNothing()
     .returning({ id: leagues.id })
-  await db.insert(leagueMembers).values({ leagueId: league!.id, userId, role: "owner" })
+  const leagueId = league?.id ?? (await db.query.leagues.findFirst({ where: eq(leagues.inviteCode, "BCDF2345") }))?.id
+  if (leagueId) {
+    const members = [...Object.entries(ids).map(([handle, userId]) => ({ userId, role: handle === "nick" ? ("owner" as const) : ("member" as const) })), ...(Object.values(ids).includes(me.id) ? [] : [{ userId: me.id, role: "member" as const }])]
+    await db.insert(leagueMembers).values(members.map((m) => ({ leagueId, ...m }))).onConflictDoNothing()
+    if (league) {
+      await db.insert(reactions).values([
+        { leagueId, fromUserId: ids.maya, toUserId: ids.nick, emoji: "🔥" },
+        { leagueId, fromUserId: ids.deshawn!, toUserId: ids.nick, emoji: "👏" },
+        { leagueId, fromUserId: ids.nick, toUserId: ids.priya!, emoji: "😤" },
+      ]).onConflictDoNothing()
+      await db.insert(follows).values([
+        { followerId: ids.nick, followingId: ids.maya },
+        { followerId: ids.nick, followingId: ids.priya! },
+      ]).onConflictDoNothing()
+    }
+  }
 
-  return created
+  await ensureDemoFantasyLeague(ids, me.id)
+}
+
+/**
+ * "Friday Draft": a fantasy league with five players at different points in a 45-day race, so the
+ * standings, race chart, balance cards and trade feed all have something to show. Positions are in the
+ * demo securities, which sit at a flat $100, so each player's value is the cash and shares set here.
+ */
+async function ensureDemoFantasyLeague(ids: Record<string, string>, meId: string) {
+  const inviteCode = "DEMO2345"
+  if (await db.query.fantasyLeagues.findFirst({ where: eq(fantasyLeagues.inviteCode, inviteCode) })) return
+
+  const [league] = await db
+    .insert(fantasyLeagues)
+    .values({ name: "Friday Draft", emoji: "🏈", accent: "emerald", ownerId: ids.maya!, inviteCode, startingCash: "100000", maxPositionPct: 40, endsAt: new Date(Date.now() + 59 * 86_400_000) })
+    .onConflictDoNothing()
+    .returning({ id: fantasyLeagues.id })
+  if (!league) return // another request is building it
+
+  const random = makeRandom(7)
+  const memberIds: Record<string, string> = {}
+  const start = 100_000
+  for (const plan of DEMO_FANTASY) {
+    const userId = ids[plan.handle]
+    if (!userId) continue
+    const finalValue = start * (1 + plan.returnPct / 100)
+    const investedTotal = finalValue - plan.cash
+
+    const [member] = await db
+      .insert(fantasyMembers)
+      .values({ leagueId: league.id, userId, cash: plan.cash.toFixed(6) })
+      .returning({ id: fantasyMembers.id })
+    memberIds[plan.handle] = member!.id
+
+    // A 45-day path that wanders and ends on the target, so the race chart has a story.
+    const snapshots = []
+    for (let day = 45; day >= 1; day--) {
+      const progress = (45 - day) / 44
+      const wobble = (random() - 0.5) * 0.012 * start * (1 - progress * 0.6)
+      snapshots.push({ memberId: member!.id, date: isoDay(day), value: (start + (finalValue - start) * Math.pow(progress, 1.15) + wobble).toFixed(6) })
+    }
+    await db.insert(fantasySnapshots).values(snapshots)
+
+    for (const [securityId, weight] of plan.picks) {
+      const amount = investedTotal * weight
+      const shares = amount / 100
+      await db.insert(fantasyPositions).values({ memberId: member!.id, securityId, shares: shares.toFixed(8), costBasis: (amount * (0.88 + random() * 0.1)).toFixed(6) })
+      await db.insert(fantasyTrades).values({
+        leagueId: league.id,
+        memberId: member!.id,
+        securityId,
+        side: "buy",
+        shares: shares.toFixed(8),
+        price: "100.000000",
+        priceAsOf: isoDay(1 + Math.floor(random() * 30)),
+        createdAt: new Date(Date.now() - (1 + random() * 30) * 86_400_000),
+      })
+    }
+  }
+
+  if (memberIds.maya && memberIds.nick && memberIds.priya && memberIds.deshawn) {
+    await db
+      .insert(fantasyReactions)
+      .values([
+        { fromMemberId: memberIds.nick, toMemberId: memberIds.maya, emoji: "🔥" },
+        { fromMemberId: memberIds.deshawn, toMemberId: memberIds.maya, emoji: "👏" },
+        { fromMemberId: memberIds.maya, toMemberId: memberIds.priya, emoji: "😤" },
+      ])
+      .onConflictDoNothing()
+  }
+
+  // A signed-in user who isn't one of the five still gets a seat, with the starting stack.
+  if (!Object.values(ids).includes(meId)) {
+    await db.insert(fantasyMembers).values({ leagueId: league.id, userId: meId, cash: "100000.000000" }).onConflictDoNothing()
+  }
+}
+
+/**
+ * Finds or builds one demo user for the preview developer login, with the whole demo world around
+ * them (other players, a league, a fantasy league), so a fresh demo database is usable without
+ * running the seed script.
+ *
+ * Unlike `scripts/seed.ts` it never truncates anything: it only adds rows that are missing.
+ */
+export async function ensureDemoUser(email: string) {
+  const lookup = () => db.query.users.findFirst({ where: eq(users.email, email) })
+  let existing
+  try {
+    existing = await lookup()
+  } catch (error) {
+    const code = pgCode(error)
+    if (!code || !SCHEMA_BEHIND.has(code)) throw error
+    await applyMigrations()
+    existing = await lookup()
+  }
+  const user = existing ?? (await createDemoPerson(email))
+  if (!user) return user
+  // Idempotent, so a demo user created before the fantasy league existed gets it on the next sign-in.
+  await ensureDemoWorld(user)
+  return user
 }

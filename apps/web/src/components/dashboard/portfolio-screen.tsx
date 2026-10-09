@@ -249,7 +249,7 @@ export function PortfolioScreen({
                 "••••••"
               ) : (
                 <>
-                  <AnimatedNumber className="numeric" value={netWorthWhole} format={usd} countUp />
+                  <AnimatedNumber className="numeric" value={netWorthWhole} format={usd} countUp="net-worth" />
                   <span className="numeric text-[0.5em] text-muted-foreground" style={{ letterSpacing: "-0.02em" }}>
                     .{String(cents).padStart(2, "0")}
                   </span>

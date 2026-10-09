@@ -11,7 +11,7 @@ import { cn } from "@web/lib/utils"
 export function TiltCard({
   className,
   style,
-  max = 5,
+  max = 3,
   children,
 }: {
   className?: string

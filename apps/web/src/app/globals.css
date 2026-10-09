@@ -599,24 +599,3 @@
     animation-name: dialog-pop;
   }
 }
-
-/* A slow sheen that sweeps across the primary call to action. */
-.btn-shine::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / 0.28) 50%, transparent 65%);
-  transform: translateX(-120%);
-  animation: btn-shine 4.5s ease-in-out 1.2s infinite;
-  pointer-events: none;
-}
-.btn-shine:hover::after {
-  animation-duration: 1.4s;
-}
-@keyframes btn-shine {
-  0%, 55% { transform: translateX(-120%); }
-  100% { transform: translateX(120%); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .btn-shine::after { animation: none; }
-}

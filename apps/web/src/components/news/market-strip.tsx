@@ -2,7 +2,6 @@
 
 import { useId } from "react"
 import { Card } from "@web/components/ui/card"
-import { TiltCard } from "@web/components/ui/tilt-card"
 import { Delta } from "@web/components/ui/delta"
 import { AnimatedNumber } from "@web/components/ui/animated-number"
 import { revealStyle } from "@web/components/motion/reveal"
@@ -33,21 +32,18 @@ function IndexCard({ quote, period, index }: { quote: IndexQuote; period: Period
   if (!move) {
     // The week can't be measured without enough daily bars; say so rather than show the day's move under a week label.
     return (
-      <TiltCard className="h-full" style={revealStyle(index)}>
-      <Card className="stat-card reveal flex h-full flex-col gap-1 p-3.5">
+      <Card className="stat-card reveal flex h-full flex-col gap-1 p-3.5" style={revealStyle(index)}>
         <Name quote={quote} />
         <AnimatedNumber value={quote.price} format={price} className="numeric text-[21px] font-semibold tracking-tight" />
         <span className="text-xs text-muted-foreground">This week’s move isn’t available yet.</span>
       </Card>
-      </TiltCard>
     )
   }
   const g = geometry(move.path)
   const color = move.percent >= 0 ? "var(--gain)" : "var(--loss)"
 
   return (
-    <TiltCard className="h-full" style={revealStyle(index)}>
-    <Card className={cn("stat-card reveal group flex h-full flex-col gap-1 p-3.5 pb-2", move.percent >= 0 ? "stat-card-up" : "stat-card-down")}>
+    <Card className={cn("stat-card reveal group flex h-full flex-col gap-1 p-3.5 pb-2", move.percent >= 0 ? "stat-card-up" : "stat-card-down")} style={revealStyle(index)}>
       <div className="flex items-center justify-between gap-2">
         <Name quote={quote} />
         <Delta value={move.percent} size="sm" />
@@ -71,7 +67,6 @@ function IndexCard({ quote, period, index }: { quote: IndexQuote; period: Period
         <circle cx={g.end.x} cy={g.end.y} r={3} fill={color} className="race-end" />
       </svg>
     </Card>
-    </TiltCard>
   )
 }
 
