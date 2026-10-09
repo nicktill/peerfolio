@@ -5,7 +5,7 @@ import { getServerSession } from "next-auth"
 import { eq } from "drizzle-orm"
 import { db, users } from "@web/db"
 import { ensureDemoUser, rootMessage } from "@web/lib/demo-bootstrap"
-import { devLoginMode, passcodeMatches, previewAllowlist } from "@web/lib/dev-login"
+import { devLoginMode, passcodeMatches, passcodeRequired, previewAllowlist } from "@web/lib/dev-login"
 
 /**
  * Seeds a handle from the display name, never the email.
@@ -65,7 +65,7 @@ const devLoginProvider = CredentialsProvider({
     const email = credentials?.email?.trim().toLowerCase()
     if (!email) return null
 
-    if (mode === "preview" && (!passcodeMatches(credentials?.passcode) || !previewAllowlist().includes(email))) return null
+    if (mode === "preview" && ((passcodeRequired() && !passcodeMatches(credentials?.passcode)) || !previewAllowlist().includes(email))) return null
 
     let user
     if (mode === "preview") {

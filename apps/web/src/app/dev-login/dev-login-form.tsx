@@ -7,18 +7,19 @@ import { Button } from "@web/components/ui/button"
 /** Matches the handles created by `npm run db:seed`. */
 const SEEDED = ["nick", "maya", "deshawn", "priya", "sam"]
 
-export function DevLoginForm({ requirePasscode = false }: { requirePasscode?: boolean }) {
+export function DevLoginForm({ requirePasscode = false, preview = false, emails }: { requirePasscode?: boolean; preview?: boolean; emails?: string[] }) {
   const [email, setEmail] = useState(requirePasscode ? "" : "nick@example.com")
+  // A preview with no passcode is one click on a demo person; there is nothing to type.
+  const oneClick = preview && !requirePasscode
   const [passcode, setPasscode] = useState("")
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  async function submit(event: React.FormEvent) {
-    event.preventDefault()
+  async function enter(as: string) {
     setPending(true)
     setError(null)
 
-    const result = await signIn("dev-login", { email, passcode, redirect: false })
+    const result = await signIn("dev-login", { email: as, passcode, redirect: false })
 
     if (result?.error) {
       // NextAuth reports a plain refusal as "CredentialsSignin"; anything else is a message worth showing.
@@ -29,6 +30,31 @@ export function DevLoginForm({ requirePasscode = false }: { requirePasscode?: bo
     }
 
     window.location.href = "/dashboard"
+  }
+
+  function submit(event: React.FormEvent) {
+    event.preventDefault()
+    void enter(email)
+  }
+
+  if (oneClick) {
+    return (
+      <div className="mt-6 space-y-3">
+        <div className="grid gap-2">
+          {(emails ?? []).map((address) => (
+            <Button key={address} type="button" variant="outline" disabled={pending} onClick={() => void enter(address)} className="justify-between">
+              <span className="capitalize">{address.split("@")[0]}</span>
+              <span className="text-xs font-normal text-muted-foreground">{address}</span>
+            </Button>
+          ))}
+        </div>
+        {error ? (
+          <p role="alert" className="text-sm text-loss-ink">
+            {error}
+          </p>
+        ) : null}
+      </div>
+    )
   }
 
   return (
