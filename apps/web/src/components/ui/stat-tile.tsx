@@ -21,11 +21,11 @@ export function StatTile({
   className?: string
 }) {
   return (
-    <div className={cn("rounded-xl border bg-card p-5", className)}>
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+    <div className={cn("group rounded-2xl border bg-card p-5 shadow-card transition-[transform,box-shadow] duration-300 hover:-translate-y-0.5 hover:shadow-pop", className)}>
+      <p className="text-[13px] font-medium tracking-[-0.005em] text-muted-foreground">{label}</p>
       <p
         className={cn(
-          "numeric mt-2 font-semibold tracking-tight",
+          "numeric mt-2 font-display font-semibold tracking-[-0.03em]",
           emphasis ? "text-3xl sm:text-4xl" : "text-2xl",
         )}
       >

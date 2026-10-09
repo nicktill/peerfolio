@@ -252,7 +252,7 @@ export function AccountsCard({
 
         {grouped.map((group) => (
           <div key={group.key}>
-            <h3 className={cn("mb-1.5 flex items-baseline justify-between font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground", variant === "card" ? "px-2" : "px-0")}>
+            <h3 className={cn("mb-1.5 flex items-baseline justify-between text-[12.5px] font-medium tracking-[-0.005em] text-muted-foreground", variant === "card" ? "px-2" : "px-0")}>
               <span>{group.label}</span>
               <span className={cn("numeric normal-case tracking-normal", group.key === "credit" || group.key === "loan" ? "text-loss-ink" : "")}>
                 {group.key === "credit" || group.key === "loan" ? "−" : ""}
@@ -380,7 +380,7 @@ export function AccountsCard({
 
         {items.length > 0 ? (
           <div className="space-y-2 border-t pt-4">
-            <h3 className="px-2 font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Connections</h3>
+            <h3 className="px-2 text-[12.5px] font-medium tracking-[-0.005em] text-muted-foreground">Connections</h3>
             {items.map((item) => (
               <div key={item.id} className="flex items-center gap-3 text-sm">
                 <InstitutionMark logo={item.institutionLogo} name={item.institutionName} size="sm" />

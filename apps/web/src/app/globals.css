@@ -75,7 +75,8 @@
     --grain-o: 0.05;
     --dot-o: 0.09;
     --surface-hi: 0 0% 100% / 1;
-    --shadow-card: 0 1px 2px rgb(20 20 10 / 0.04), 0 10px 28px -14px rgb(20 20 10 / 0.16);
+    --shadow-card: 0 1px 1px rgb(20 20 10 / 0.03), 0 2px 4px -1px rgb(20 20 10 / 0.04), 0 14px 30px -16px rgb(20 20 10 / 0.16);
+    --shadow-pop: 0 2px 4px rgb(20 20 10 / 0.05), 0 18px 40px -12px rgb(20 20 10 / 0.22);
   }
 
   .dark {
@@ -132,7 +133,8 @@
     --grain-o: 0.07;
     --dot-o: 0.07;
     --surface-hi: 0 0% 100% / 0.06;
-    --shadow-card: 0 1px 0 rgb(0 0 0 / 0.5), 0 14px 32px -14px rgb(0 0 0 / 0.7);
+    --shadow-card: 0 1px 0 rgb(0 0 0 / 0.5), 0 2px 6px rgb(0 0 0 / 0.25), 0 18px 36px -16px rgb(0 0 0 / 0.75);
+    --shadow-pop: 0 2px 6px rgb(0 0 0 / 0.4), 0 24px 48px -12px rgb(0 0 0 / 0.8);
   }
 }
 
@@ -358,8 +360,8 @@
 /* Sections arrive one after another: <Reveal index={n}>. */
 .reveal {
   /* `backwards`, not `both`: once finished, the element's own styles (hover lifts) apply again. */
-  animation: reveal 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
-  animation-delay: calc(var(--i, 0) * 70ms);
+  animation: reveal 0.42s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: calc(min(var(--i, 0), 6) * 40ms);
 }
 
 /* `translate`, not `transform`: the standalone property leaves rotations and hover lifts alone. */
@@ -370,11 +372,12 @@
 
 /* Below-the-fold pieces (components/motion/in-view.tsx): hidden until they scroll into view, then ease in. */
 .rv-show {
-  transition: opacity 0.65s ease, translate 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: opacity 0.65s ease, translate 0.65s cubic-bezier(0.22, 1, 0.36, 1), filter 0.65s ease;
   transition-delay: calc(var(--i, 0) * 80ms);
 }
 .rv-hidden {
   opacity: 0;
+  filter: blur(6px);
   translate: 0 18px;
 }
 

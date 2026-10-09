@@ -12,8 +12,10 @@ import { useTheme } from "next-themes"
 
 import { cn } from "@web/lib/utils"
 
-interface MagicCardBaseProps {
+interface MagicCardBaseProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "color"> {
   children?: React.ReactNode
+  /** Peerfolio: classes for the wrapper around the children, e.g. `flex flex-col`. */
+  contentClassName?: string
   className?: string
   gradientSize?: number
   gradientFrom?: string
@@ -56,9 +58,17 @@ function isOrbMode(props: MagicCardProps): props is MagicCardOrbProps {
 }
 
 export function MagicCard(props: MagicCardProps) {
+  // Peerfolio: pass aria-*, style and the like through to the card.
   const {
     children,
     className,
+    contentClassName,
+    style: styleProp,
+    mode: _mode, gradientSize: _gs, gradientColor: _gc, gradientOpacity: _go, gradientFrom: _gf, gradientTo: _gt,
+    glowFrom: _a, glowTo: _b, glowAngle: _c, glowSize: _d, glowBlur: _e, glowOpacity: _f,
+    ...rest
+  } = props as unknown as MagicCardBaseProps & Record<string, unknown>
+  const {
     gradientSize = 200,
     gradientColor = "#262626",
     gradientOpacity = 0.8,
@@ -159,6 +169,7 @@ export function MagicCard(props: MagicCardProps) {
 
   return (
     <motion.div
+      {...(rest as Record<string, unknown>)}
       className={cn(
         "group relative isolate overflow-hidden rounded-[inherit] border border-transparent",
         className
@@ -167,6 +178,7 @@ export function MagicCard(props: MagicCardProps) {
       onPointerLeave={() => reset("leave")}
       onPointerEnter={() => reset("enter")}
       style={{
+        ...(styleProp as object),
         background: useMotionTemplate`
           linear-gradient(hsl(var(--card)) 0 0) padding-box,
           radial-gradient(${gradientSize}px circle at ${mouseX}px ${mouseY}px,
@@ -219,7 +231,7 @@ export function MagicCard(props: MagicCardProps) {
         />
       )}
       {/* Peerfolio: h-full, so a card's content can fill it. */}
-      <div className="relative z-40 h-full">{children}</div>
+      <div className={cn("relative z-40 h-full", contentClassName)}>{children}</div>
     </motion.div>
   )
 }

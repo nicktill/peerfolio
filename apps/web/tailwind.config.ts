@@ -68,7 +68,9 @@ const config = {
   			md: 'calc(var(--radius) - 2px)',
   			sm: 'calc(var(--radius) - 4px)'
   		},
+		boxShadow: { card: 'var(--shadow-card)', pop: 'var(--shadow-pop)' },
 		keyframes: {
+			shine: { '0%': { 'background-position': '0% 0%' }, '50%': { 'background-position': '100% 100%' }, to: { 'background-position': '0% 0%' } },
 			'marquee-x': { from: { transform: 'translateX(0)' }, to: { transform: 'translateX(calc(-100% - var(--gap)))' } },
 			'marquee-y': { from: { transform: 'translateY(0)' }, to: { transform: 'translateY(calc(-100% - var(--gap)))' } },
 			'shiny-text': {
@@ -100,6 +102,7 @@ const config = {
 			}
 		},
   		animation: {
+			'shine': 'shine var(--duration) infinite linear',
 			'marquee': 'marquee-x var(--duration) infinite linear',
 			'marquee-vertical': 'marquee-y var(--duration) linear infinite',
 			'shiny-text': 'shiny-text 8s infinite',

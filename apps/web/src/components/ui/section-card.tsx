@@ -1,13 +1,13 @@
 import Link from "next/link"
 import { ChevronRight } from "lucide-react"
-import { Card } from "@web/components/ui/card"
+import { MagicCard } from "@web/components/magicui/magic-card"
 import { revealStyle } from "@web/components/motion/reveal"
 import { cn } from "@web/lib/utils"
 
 /** The small uppercase label every card (and section) opens with. */
 export function SectionLabel({ children, className, id, as: Tag = "h2" }: { children: React.ReactNode; className?: string; id?: string; as?: "h1" | "h2" | "span" }) {
   return (
-    <Tag id={id} className={cn("font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground", className)}>
+    <Tag id={id} className={cn("font-display text-[14px] font-semibold tracking-[-0.01em] text-foreground/80", className)}>
       {children}
     </Tag>
   )
@@ -64,7 +64,14 @@ export function SectionCard({
 }) {
   const id = labelId ?? (typeof label === "string" ? `card-${label.toLowerCase().replace(/[^a-z]+/g, "-")}` : undefined)
   return (
-    <Card className={cn("reveal flex flex-col overflow-hidden", className)} style={revealStyle(index)} aria-labelledby={id}>
+    // Magic UI's Magic Card: a light follows the cursor across the card's border and surface.
+    <MagicCard
+      className={cn("reveal rounded-2xl bg-card text-card-foreground shadow-card", className)}
+      contentClassName="flex flex-col"
+      style={revealStyle(index)}
+      aria-labelledby={id}
+      {...CARD_GLOW}
+    >
       <div className="flex min-h-[52px] flex-wrap items-center justify-between gap-3 border-b py-2.5 pl-5 pr-3">
         <span className="flex items-center gap-2.5">
           {icon ? <IconChip tone={tone}>{icon}</IconChip> : null}
@@ -82,6 +89,15 @@ export function SectionCard({
         {action}
       </div>
       {children}
-    </Card>
+    </MagicCard>
   )
 }
+
+/** The light a card throws under the cursor: brand green on the border, a faint wash on the surface. */
+export const CARD_GLOW = {
+  gradientSize: 260,
+  gradientFrom: "hsl(var(--primary))",
+  gradientTo: "hsl(var(--primary) / 0.3)",
+  gradientColor: "hsl(var(--primary) / 0.07)",
+  gradientOpacity: 1,
+} as const

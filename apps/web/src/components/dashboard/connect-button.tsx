@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { usePlaidLink, type PlaidLinkOnSuccessMetadata } from "react-plaid-link"
-import { Building2 } from "lucide-react"
+import { Building2, Clock } from "lucide-react"
 import { Button, type ButtonProps } from "@web/components/ui/button"
 import { useToast } from "@web/components/ui/toast"
 import { connectionNotice } from "@web/lib/plaid-status"
@@ -27,7 +27,15 @@ const LINKING_ENABLED = process.env.NEXT_PUBLIC_PLAID_LINKING === "1"
 
 export function ConnectButton(props: Props) {
   const { data, error } = useApi<{ allowed: boolean }>(props.itemId ? null : "/api/plaid/access", [], { refreshMs: 60_000 })
-  if (!props.itemId && (!LINKING_ENABLED || error || !data?.allowed)) return null
+  // Everyone sees the button. It's live for approved accounts and greyed out as "coming soon" for the rest.
+  if (!props.itemId && (!LINKING_ENABLED || error || !data?.allowed)) {
+    return (
+      <Button type="button" size={props.size} className={props.className} variant="outline" disabled title="Brokerage linking is coming soon">
+        <Clock aria-hidden />
+        Brokerage linking soon
+      </Button>
+    )
+  }
   return <PlaidConnectButton {...props} />
 }
 

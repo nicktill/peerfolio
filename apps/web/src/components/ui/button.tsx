@@ -5,22 +5,27 @@ import { Loader2 } from "lucide-react"
 import { cn } from "@web/lib/utils"
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-[background-color,color,box-shadow,transform] duration-200 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+  // One physical feel for every button: it lifts on hover, presses in on click, and shows a keyboard ring.
+  "relative inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-medium tracking-[-0.005em] outline-none transition-[background-color,color,box-shadow,transform,border-color,filter] duration-200 ease-out focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background active:translate-y-px active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
   {
     variants: {
       variant: {
+        // A gradient with a lit top edge, and a sheen that sweeps across on hover.
         default:
-          "bg-primary text-primary-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.28)] hover:bg-primary/90 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.28),0_8px_22px_-8px_hsl(var(--primary)/0.65)]",
-        secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        outline: "border bg-card hover:bg-secondary",
-        ghost: "hover:bg-secondary",
-        destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+          "isolate overflow-hidden bg-gradient-to-b from-primary to-[hsl(var(--primary)/0.84)] text-primary-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_0_0_1px_hsl(var(--primary)/0.55),0_1px_2px_rgba(0,0,0,0.18),0_6px_14px_-6px_hsl(var(--primary)/0.55)] before:pointer-events-none before:absolute before:-z-10 before:inset-y-0 before:-left-1/2 before:w-1/3 before:-skew-x-[20deg] before:bg-white/25 before:opacity-0 before:transition-[left,opacity] before:duration-700 hover:-translate-y-px hover:brightness-[1.06] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_0_0_1px_hsl(var(--primary)/0.55),0_2px_4px_rgba(0,0,0,0.16),0_12px_22px_-8px_hsl(var(--primary)/0.7)] hover:before:left-[130%] hover:before:opacity-100",
+        secondary:
+          "bg-secondary text-secondary-foreground shadow-[inset_0_1px_0_hsl(var(--surface-hi)),0_0_0_1px_hsl(var(--border))] hover:bg-secondary/70 hover:shadow-[inset_0_1px_0_hsl(var(--surface-hi)),0_0_0_1px_hsl(var(--foreground)/0.14)]",
+        outline:
+          "border bg-card shadow-[0_1px_2px_hsl(var(--foreground)/0.06)] hover:-translate-y-px hover:border-foreground/25 hover:bg-secondary/60 hover:shadow-[0_6px_14px_-8px_hsl(var(--foreground)/0.25)]",
+        ghost: "hover:bg-secondary active:bg-secondary/70",
+        destructive:
+          "bg-destructive text-destructive-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_1px_2px_rgba(0,0,0,0.18)] hover:-translate-y-px hover:bg-destructive/90",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
         default: "h-10 px-4 [&_svg]:size-4",
-        sm: "h-8 px-3 text-xs [&_svg]:size-3.5",
-        lg: "h-11 px-6 [&_svg]:size-4",
+        sm: "h-8 rounded-lg px-3 text-xs [&_svg]:size-3.5",
+        lg: "h-11 px-6 text-[15px] [&_svg]:size-4",
         icon: "h-10 w-10 [&_svg]:size-4",
       },
     },

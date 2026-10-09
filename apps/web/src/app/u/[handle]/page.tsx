@@ -140,7 +140,7 @@ export default function ProfilePage({ params }: { params: Promise<{ handle: stri
             <div className="grid grid-cols-3 gap-3 [&>*]:min-w-0 sm:grid-cols-6">
               {RANGES.map((r) => (
                 <div key={r} className="rounded-lg border bg-card p-3 text-center">
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{r}</p>
+                  <p className="text-xs font-medium text-muted-foreground">{r}</p>
                   <p className="numeric mt-1 text-sm font-semibold">
                     {formatPercent(data.performance.byRange[r] ?? 0, 1)}
                   </p>
