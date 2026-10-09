@@ -372,11 +372,12 @@
 
 /* Below-the-fold pieces (components/motion/in-view.tsx): hidden until they scroll into view, then ease in. */
 .rv-show {
-  transition: opacity 0.65s ease, translate 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: opacity 0.65s ease, translate 0.65s cubic-bezier(0.22, 1, 0.36, 1), filter 0.65s ease;
   transition-delay: calc(var(--i, 0) * 80ms);
 }
 .rv-hidden {
   opacity: 0;
+  filter: blur(6px);
   translate: 0 18px;
 }
 

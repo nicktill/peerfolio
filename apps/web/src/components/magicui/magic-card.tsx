@@ -61,9 +61,7 @@ export function MagicCard(props: MagicCardProps) {
     children,
     className,
     style: styleProp,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     mode: _mode, gradientSize: _gs, gradientColor: _gc, gradientOpacity: _go, gradientFrom: _gf, gradientTo: _gt,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     glowFrom: _a, glowTo: _b, glowAngle: _c, glowSize: _d, glowBlur: _e, glowOpacity: _f,
     ...rest
   } = props as unknown as MagicCardBaseProps & Record<string, unknown>
