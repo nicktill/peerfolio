@@ -6,6 +6,7 @@ import { ApiError } from "@web/lib/api"
 import { plaidLinkingEnabled } from "@web/lib/plaid"
 import { plaidEnvironment } from "@web/lib/plaid-config"
 import { isAdminEmail, productionBudgetSettings } from "@web/lib/plaid-access-core"
+import { plaidPaused } from "@web/lib/plaid-switch"
 
 type Store = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0]
 
@@ -39,7 +40,8 @@ export async function getBrokerageAccess(userId: string) {
   const capacity = await productionCapacity()
   const production = plaidEnvironment(process.env.PLAID_ENV) === "production"
   const enabled = plaidLinkingEnabled()
-  const reason = !user.brokerageLinkingEnabled ? "Brokerage linking has not been enabled for your account"
+  const paused = await plaidPaused()
+  const reason = paused ? "Brokerage connections are paused" : !user.brokerageLinkingEnabled ? "Brokerage linking has not been enabled for your account"
     : !enabled ? "Brokerage linking is not configured"
       : production && capacity.available === 0 ? "Production connection limit reached" : undefined
   return { allowed: !reason, admin: isAdminEmail(user.email, process.env.ADMIN_EMAILS), capacity, reason }

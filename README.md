@@ -143,6 +143,14 @@ Before writing snapshots it reprices manual positions from the previous
 session's closes (`MASSIVE_API_KEY`). That's two market data calls a night, one
 for US stocks and ETFs and one for crypto, however many positions exist.
 
+### Plaid kill switch
+
+Plaid bills each linked connection monthly until it is removed, so there is a way to stop it quickly. On `/admin/brokerages` (owner only, via `ADMIN_EMAILS`):
+
+- **Pause Plaid** stops new links, syncs, webhooks and every paid call, and keeps all connections and their last numbers. Reversible. People can still disconnect.
+- **Emergency shutdown** disconnects every linked brokerage for every user (`/item/remove` at Plaid, then the linked accounts here). It needs a typed confirmation and cannot be undone. Manual accounts are untouched. If some removals fail they are kept and listed, so run it again.
+- Break-glass: set `PLAID_KILL_SWITCH=true` in Vercel and redeploy to pause even if the admin page can't load.
+
 ### Plaid webhooks
 
 Point `PLAID_WEBHOOK_URL` at `https://<your-domain>/api/plaid/webhook`.

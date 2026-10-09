@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Building2, Search } from "lucide-react"
+import { PlaidKillSwitch } from "@web/components/admin/plaid-kill-switch"
 import { Button } from "@web/components/ui/button"
 import { Card, CardContent } from "@web/components/ui/card"
 import { useToast } from "@web/components/ui/toast"
@@ -46,6 +47,8 @@ export default function BrokerageAdminPage() {
         <h1 className="flex items-center gap-2 text-2xl font-semibold"><Building2 aria-hidden className="size-6" />Brokerage access</h1>
         <p className="mt-2 text-sm text-muted-foreground">Enable real brokerage linking for selected users. New users start with access disabled.</p>
       </div>
+
+      <PlaidKillSwitch />
 
       {error ? <p role="alert" className="text-sm text-loss-ink">{error}</p> : null}
       {loading && !data ? <p role="status" className="text-sm text-muted-foreground">Loading brokerage access…</p> : null}
