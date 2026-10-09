@@ -72,7 +72,6 @@
     --gold-ink: #8a6500;
 
     /* Ambient texture behind the signed-in app (see .app-bg). */
-    --glow-a: 0.10;
     --grain-o: 0.05;
     --dot-o: 0.09;
     --surface-hi: 0 0% 100% / 1;
@@ -130,7 +129,6 @@
     --loss-ink: #f27b7b;
     --gold-ink: #e0b544;
 
-    --glow-a: 0.16;
     --grain-o: 0.07;
     --dot-o: 0.07;
     --surface-hi: 0 0% 100% / 0.06;
@@ -149,6 +147,23 @@
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
+    font-optical-sizing: auto;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Headlines break into even lines instead of leaving a lone word. */
+  h1, h2, h3 {
+    text-wrap: balance;
+  }
+
+  ::selection {
+    background: hsl(var(--primary) / 0.22);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
   }
 
   /* Money and percentages must not reflow as digits change. */
@@ -502,7 +517,7 @@
    ========================================================================== */
 
 @layer components {
-  /* Glow and dot grid fade out below the first screen; grain sits on top. */
+  /* The dot grid fades out below the first screen; grain sits on top. The only colour in the background is the cursor's light (see Aurora). */
   .app-bg {
     position: relative;
     isolation: isolate;
@@ -513,10 +528,7 @@
     inset: 0;
     z-index: -2;
     pointer-events: none;
-    background:
-      radial-gradient(52rem 30rem at 6% -8%, hsl(var(--primary) / var(--glow-a)), transparent 62%),
-      radial-gradient(40rem 26rem at 104% 2%, color-mix(in srgb, var(--series-1) 12%, transparent), transparent 62%),
-      radial-gradient(hsl(var(--foreground) / var(--dot-o)) 1px, transparent 1.3px) 0 0 / 22px 22px;
+    background: radial-gradient(hsl(var(--foreground) / var(--dot-o)) 1px, transparent 1.3px) 0 0 / 22px 22px;
     -webkit-mask-image: linear-gradient(#000 0, #000 240px, transparent 640px);
     mask-image: linear-gradient(#000 0, #000 240px, transparent 640px);
   }
@@ -598,4 +610,25 @@
   .dialog-panel {
     animation-name: dialog-pop;
   }
+}
+
+/*
+ * The mood colour of the cursor light in the signed-in app: green when the market is up on the day, red
+ * when it is down, the brand colour otherwise. Registered as a <color> so a change eases over a second and a half
+ * instead of switching (AppShell sets data-mood).
+ */
+@property --mood {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #1baf7a;
+}
+.app-bg {
+  --mood: hsl(162 64% 44%);
+  transition: --mood 1.6s ease;
+}
+.app-bg[data-mood="up"] {
+  --mood: var(--gain);
+}
+.app-bg[data-mood="down"] {
+  --mood: var(--loss);
 }

@@ -103,7 +103,7 @@ export default function BoardPage() {
                 <li
                   key={trader.handle ?? trader.rank}
                   style={revealStyle(Math.min(i, 8))}
-                  className={cn("reveal py-3 first:pt-0 last:pb-0", trader.isYou && "surface-you -mx-2 rounded-xl px-3")}
+                  className={cn("reveal py-3 first:pt-0 last:pb-0", trader.isYou ? "surface-you -mx-2 rounded-xl px-3" : "-mx-2 rounded-xl px-2 transition-colors duration-200 hover:bg-muted/50")}
                 >
                   <div className="flex items-center gap-3">
                     <span

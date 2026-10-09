@@ -57,7 +57,8 @@ export type PortfolioSource = (range: Range) => {
 }
 
 const RANGE_NAMES: Record<Range, string> = { "1W": "week", "1M": "month", "3M": "3 months", "6M": "6 months", "1Y": "year", ALL: "period" }
-const usd = (v: number) => `$${new Intl.NumberFormat("en-US").format(v)}`
+// Whole dollars, so a count-up never shows a stray fraction mid-way.
+const usd = (v: number) => `$${new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(v)}`
 /** Signed dollars: cents while the amount is small, whole dollars once it isn't. */
 const signedUsd = (v: number) => {
   const abs = Math.abs(v)
@@ -249,7 +250,7 @@ export function PortfolioScreen({
                 "••••••"
               ) : (
                 <>
-                  <AnimatedNumber className="numeric" value={netWorthWhole} format={usd} />
+                  <AnimatedNumber className="numeric" value={netWorthWhole} format={usd} countUp="net-worth" />
                   <span className="numeric text-[0.5em] text-muted-foreground" style={{ letterSpacing: "-0.02em" }}>
                     .{String(cents).padStart(2, "0")}
                   </span>

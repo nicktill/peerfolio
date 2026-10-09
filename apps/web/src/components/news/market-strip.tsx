@@ -32,7 +32,7 @@ function IndexCard({ quote, period, index }: { quote: IndexQuote; period: Period
   if (!move) {
     // The week can't be measured without enough daily bars; say so rather than show the day's move under a week label.
     return (
-      <Card className="stat-card reveal flex flex-col gap-1 p-3.5" style={revealStyle(index)}>
+      <Card className="stat-card reveal flex h-full flex-col gap-1 p-3.5" style={revealStyle(index)}>
         <Name quote={quote} />
         <AnimatedNumber value={quote.price} format={price} className="numeric text-[21px] font-semibold tracking-tight" />
         <span className="text-xs text-muted-foreground">This week’s move isn’t available yet.</span>
@@ -43,7 +43,7 @@ function IndexCard({ quote, period, index }: { quote: IndexQuote; period: Period
   const color = move.percent >= 0 ? "var(--gain)" : "var(--loss)"
 
   return (
-    <Card className={cn("stat-card reveal group flex flex-col gap-1 p-3.5 pb-2", move.percent >= 0 ? "stat-card-up" : "stat-card-down")} style={revealStyle(index)}>
+    <Card className={cn("stat-card reveal group flex h-full flex-col gap-1 p-3.5 pb-2", move.percent >= 0 ? "stat-card-up" : "stat-card-down")} style={revealStyle(index)}>
       <div className="flex items-center justify-between gap-2">
         <Name quote={quote} />
         <Delta value={move.percent} size="sm" />

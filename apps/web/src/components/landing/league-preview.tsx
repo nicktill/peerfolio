@@ -39,8 +39,8 @@ export function LeaguePreview() {
         </CardHeader>
         <CardContent>
           <ul className="divide-y">
-            {DEMO_STANDINGS.map((standing) => (
-              <StandingRow key={standing.userId} standing={standing} />
+            {DEMO_STANDINGS.map((standing, i) => (
+              <StandingRow key={standing.userId} standing={standing} index={i} />
             ))}
           </ul>
         </CardContent>

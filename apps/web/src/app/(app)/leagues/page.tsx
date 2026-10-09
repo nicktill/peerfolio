@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import { MagicCard } from "@web/components/magicui/magic-card"
 import { Plus, Users } from "lucide-react"
 import { Button } from "@web/components/ui/button"
 import { Card, CardContent } from "@web/components/ui/card"
@@ -75,16 +76,16 @@ export default function LeaguesPage() {
               key={league.id}
               href={`/leagues/${league.id}`}
               style={revealStyle(i + 1)}
-              className="reveal press group relative overflow-hidden rounded-xl border bg-card p-5 transition-[box-shadow,transform] hover:-translate-y-0.5 hover:shadow-md"
+              className="reveal press group relative overflow-hidden rounded-xl border bg-card transition-[box-shadow,transform] hover:-translate-y-0.5 hover:shadow-md"
             >
-              <div
-                className={cn(
-                  "pointer-events-none absolute inset-0 bg-gradient-to-br opacity-70",
-                  ACCENTS[league.accent] ?? ACCENTS.emerald,
-                )}
-                aria-hidden
-              />
-              <div className="relative">
+              <MagicCard className="h-full p-5" gradientSize={200} gradientFrom="hsl(var(--primary))" gradientTo="hsl(var(--primary) / 0.35)" gradientColor="hsl(var(--primary) / 0.1)" gradientOpacity={1}>
+                <div
+                  className={cn(
+                    "pointer-events-none absolute -inset-5 -z-10 bg-gradient-to-br opacity-70",
+                    ACCENTS[league.accent] ?? ACCENTS.emerald,
+                  )}
+                  aria-hidden
+                />
                 <div className="flex items-start gap-3">
                   <span className="text-2xl" aria-hidden>
                     {league.emoji}
@@ -101,7 +102,7 @@ export default function LeaguesPage() {
                   <span className="numeric">{league.memberCount}</span>
                   {league.role === "owner" ? <span className="ml-2">· You run this one</span> : null}
                 </div>
-              </div>
+              </MagicCard>
             </Link>
           ))}
         </div>

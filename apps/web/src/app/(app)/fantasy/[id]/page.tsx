@@ -190,8 +190,8 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
             </CardHeader>
             <CardContent>
               <ul className="divide-y">
-                {standingsView.rows.map((s) => (
-                  <StandingRow key={s.userId} standing={s} onReact={react} showSource={false} />
+                {standingsView.rows.map((s, i) => (
+                  <StandingRow key={s.userId} standing={s} onReact={react} showSource={false} index={i} />
                 ))}
               </ul>
               {standingsView.hidden > 0 || showAllStandings ? (

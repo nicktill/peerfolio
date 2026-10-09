@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { EyeOff } from "lucide-react"
+import { motion } from "motion/react"
 import { Avatar } from "@web/components/ui/avatar"
 import { Delta } from "@web/components/ui/delta"
 import { Sparkline } from "@web/components/ui/sparkline"
@@ -40,6 +41,7 @@ export function StandingRow({
   onReact,
   showSource = true,
   tone = "landing",
+  index = 0,
 }: {
   standing: Standing
   onReact?: (toUserId: string, emoji: string) => void
@@ -47,14 +49,26 @@ export function StandingRow({
   showSource?: boolean
   /** "app" marks you in ink, not green, so your row never looks like a win when you're last. */
   tone?: "landing" | "app"
+  /** Position in the list, so rows arrive one after another. */
+  index?: number
 }) {
   const [open, setOpen] = useState(false)
 
   return (
-    <li
+    // Rows glide to their new rank when the ranking changes (a new window, a reaction, a refresh).
+    <motion.li
+      layout="position"
+      initial={{ opacity: 0, y: 12 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "0px 0px -6% 0px" }}
+      transition={{ layout: { type: "spring", stiffness: 420, damping: 38 }, default: { type: "spring", stiffness: 380, damping: 34, delay: Math.min(index, 5) * 0.05 } }}
       className={cn(
         "py-3",
-        standing.isYou && (tone === "app" ? "surface-you -mx-2 rounded-xl px-3" : "-mx-2 rounded-lg bg-accent/40 px-2"),
+        standing.isYou
+          ? tone === "app"
+            ? "surface-you -mx-2 rounded-xl px-3"
+            : "-mx-2 rounded-lg bg-accent/40 px-2"
+          : "-mx-2 rounded-xl px-2 transition-colors duration-200 hover:bg-muted/50",
       )}
     >
       <div className="flex items-center gap-3">
@@ -152,7 +166,7 @@ export function StandingRow({
           ) : null}
         </div>
       </div>
-    </li>
+    </motion.li>
   )
 }
 

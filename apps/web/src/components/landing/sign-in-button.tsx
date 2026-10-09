@@ -3,9 +3,30 @@
 import { useState } from "react"
 import { signIn } from "next-auth/react"
 import { Button } from "@web/components/ui/button"
+import { ShimmerButton } from "@web/components/magicui/shimmer-button"
 
-export function SignInButton({ compact = false }: { compact?: boolean }) {
+export function SignInButton({ compact = false, shine = false }: { compact?: boolean; shine?: boolean }) {
   const [pending, setPending] = useState(false)
+
+  // The hero's call to action: Magic UI's shimmer button, in the brand green.
+  if (shine && !compact) {
+    return (
+      <ShimmerButton
+        background="hsl(var(--primary))"
+        shimmerColor="rgb(255 255 255 / 0.85)"
+        shimmerDuration="3.4s"
+        className="h-11 gap-2 text-sm font-medium disabled:opacity-70"
+        disabled={pending}
+        onClick={() => {
+          setPending(true)
+          void signIn("google", { callbackUrl: "/dashboard" })
+        }}
+      >
+        {!pending ? <span className="size-4 [&_svg]:size-4"><GoogleMark /></span> : null}
+        {pending ? "Redirecting…" : "Sign in with Google"}
+      </ShimmerButton>
+    )
+  }
 
   return (
     <Button

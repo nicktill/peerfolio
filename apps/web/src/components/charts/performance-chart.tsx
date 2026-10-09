@@ -1,6 +1,7 @@
 "use client"
 
 import { useId, useMemo, useState } from "react"
+import { motion, useReducedMotion } from "motion/react"
 import { cn } from "@web/lib/utils"
 import { useMeasure } from "@web/lib/use-measure"
 import { monotonePath, niceTicks, tickDigits } from "@web/lib/chart-math"
@@ -53,6 +54,9 @@ export function PerformanceChart({
   const { ref, width } = useMeasure<HTMLDivElement>()
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
   const fillId = useId()
+  const reduceMotion = useReducedMotion()
+  // The line draws itself when the series changes (a new range), not on every live refresh of the last point.
+  const drawKey = `${points.length}:${points[0]?.date ?? ""}`
   const pad = indexed ? INDEXED_PAD : PAD
 
   const geometry = useMemo(() => {
@@ -175,14 +179,27 @@ export function PerformanceChart({
               </>
             )}
 
-            <path d={geometry.area} fill={`url(#${fillId})`} />
-            <path
+            <motion.path
+              key={`area-${drawKey}`}
+              d={geometry.area}
+              fill={`url(#${fillId})`}
+              initial={reduceMotion ? false : { opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.9, delay: 0.3 }}
+            />
+            <motion.path
+              key={`line-${drawKey}`}
               d={geometry.line}
               fill="none"
               stroke={stroke}
               strokeWidth={indexed ? 2.5 : 2}
               strokeLinecap="round"
               strokeLinejoin="round"
+              // A soft glow under the line, in its own colour.
+              style={{ filter: `drop-shadow(0 5px 9px color-mix(in srgb, ${stroke} 38%, transparent))` }}
+              initial={reduceMotion ? false : { pathLength: 0 }}
+              animate={{ pathLength: 1 }}
+              transition={{ duration: 1.15, ease: [0.22, 1, 0.36, 1] }}
             />
 
             {indexed
@@ -191,7 +208,7 @@ export function PerformanceChart({
                   if (!last && geometry.coords.length >= MARK_EACH_UNDER) return null
                   return (
                     <g key={i}>
-                      {last ? <circle cx={cx} cy={cy} r={10} fill={stroke} opacity={0.16} /> : null}
+                      {last ? <PulseHalo cx={cx} cy={cy} color={stroke} still={Boolean(reduceMotion)} /> : null}
                       {/* The latest point is a ring, the earlier ones solid dots. */}
                       <circle
                         cx={cx}
@@ -206,20 +223,42 @@ export function PerformanceChart({
                 })
               : null}
 
+            {!indexed ? (
+              <motion.g
+                key={`end-${drawKey}`}
+                initial={reduceMotion ? false : { opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: reduceMotion ? 0 : 1, duration: 0.4 }}
+              >
+                <PulseHalo cx={geometry.coords[geometry.coords.length - 1]![0]} cy={geometry.coords[geometry.coords.length - 1]![1]} color={stroke} still={Boolean(reduceMotion)} />
+                <circle
+                  cx={geometry.coords[geometry.coords.length - 1]![0]}
+                  cy={geometry.coords[geometry.coords.length - 1]![1]}
+                  r={4}
+                  fill={stroke}
+                  stroke="hsl(var(--card))"
+                  strokeWidth={2}
+                />
+              </motion.g>
+            ) : null}
+
             {hoverIndex != null && geometry.coords[hoverIndex] ? (
               <g>
-                <line
-                  x1={geometry.coords[hoverIndex]![0]}
+                {/* The crosshair and marker glide between readings instead of snapping. */}
+                <motion.line
+                  initial={false}
+                  animate={{ x1: geometry.coords[hoverIndex]![0], x2: geometry.coords[hoverIndex]![0] }}
+                  transition={{ type: "spring", stiffness: 700, damping: 46 }}
                   y1={pad.top}
-                  x2={geometry.coords[hoverIndex]![0]}
                   y2={height - pad.bottom}
                   className="stroke-border"
                   strokeWidth={1}
                 />
                 {/* Surface ring keeps the marker legible over the filled area. */}
-                <circle
-                  cx={geometry.coords[hoverIndex]![0]}
-                  cy={geometry.coords[hoverIndex]![1]}
+                <motion.circle
+                  initial={false}
+                  animate={{ cx: geometry.coords[hoverIndex]![0], cy: geometry.coords[hoverIndex]![1] }}
+                  transition={{ type: "spring", stiffness: 700, damping: 46 }}
                   r={5}
                   fill={stroke}
                   stroke="hsl(var(--card))"
@@ -243,18 +282,35 @@ export function PerformanceChart({
       ) : null}
 
       {active && showTooltip && hoverIndex != null && geometry?.coords[hoverIndex] ? (
-        <div
-          className="pointer-events-none absolute z-10 w-[8.5rem] rounded-lg border bg-popover px-2.5 py-1.5 text-xs shadow-md"
-          style={{
+        <motion.div
+          className="pointer-events-none absolute left-0 top-0 z-10 w-[8.5rem] rounded-lg border bg-popover px-2.5 py-1.5 text-xs shadow-md"
+          initial={false}
+          animate={{
             // Above the hovered point, kept inside the chart's edges.
-            left: Math.min(Math.max(geometry.coords[hoverIndex]![0] - 68, 0), Math.max(width - 136, 0)),
-            top: Math.max(geometry.coords[hoverIndex]![1] - 58, 0),
+            x: Math.min(Math.max(geometry.coords[hoverIndex]![0] - 68, 0), Math.max(width - 136, 0)),
+            y: Math.max(geometry.coords[hoverIndex]![1] - 58, 0),
           }}
+          transition={{ type: "spring", stiffness: 600, damping: 44 }}
         >
           <div className="text-muted-foreground">{formatDate(active.date)}</div>
           <div className="numeric mt-0.5 font-semibold">{valueFormatter(active.value)}</div>
-        </div>
+        </motion.div>
       ) : null}
     </div>
+  )
+}
+
+/** A ring that breathes out from the latest reading, so the chart looks live. */
+function PulseHalo({ cx, cy, color, still }: { cx: number; cy: number; color: string; still: boolean }) {
+  if (still) return <circle cx={cx} cy={cy} r={10} fill={color} opacity={0.16} />
+  return (
+    <motion.circle
+      cx={cx}
+      cy={cy}
+      fill={color}
+      initial={{ r: 6, opacity: 0.3 }}
+      animate={{ r: [6, 15], opacity: [0.3, 0] }}
+      transition={{ duration: 2.2, repeat: Infinity, ease: "easeOut" }}
+    />
   )
 }

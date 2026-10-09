@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { ArrowDownRight, ArrowUpRight, Coins, Minus, Wallet, Briefcase } from "lucide-react"
 import { AnimatedNumber } from "@web/components/ui/animated-number"
 import { cn } from "@web/lib/utils"
+import { TiltCard } from "@web/components/ui/tilt-card"
 import { formatCurrency } from "@web/lib/format"
 import { cashSplit } from "@web/lib/fantasy-rules"
 
@@ -44,7 +45,7 @@ export function PortfolioStat({ value, cash, startingCash }: { value: number; ca
   }, [])
 
   return (
-    <div
+    <TiltCard
       className={cn(
         "stat-card relative overflow-hidden rounded-2xl border p-3 backdrop-blur",
         direction === "up" && "stat-card-up",
@@ -60,7 +61,7 @@ export function PortfolioStat({ value, cash, startingCash }: { value: number; ca
         Portfolio value
       </dt>
       <dd className="relative mt-1.5">
-        <AnimatedNumber className="numeric block text-xl font-semibold" value={value} format={formatCurrency} />
+        <AnimatedNumber className="numeric block text-xl font-semibold" value={value} format={formatCurrency} countUp="fantasy-value" />
         <span
           className={cn(
             "numeric mt-0.5 flex items-center gap-1 text-xs font-medium",
@@ -94,7 +95,7 @@ export function PortfolioStat({ value, cash, startingCash }: { value: number; ca
           </span>
         </span>
       </dd>
-    </div>
+    </TiltCard>
   )
 }
 
@@ -104,7 +105,7 @@ export function CashStat({ cash, value }: { cash: number; value: number }) {
   const hasCash = cash >= 0.01
 
   return (
-    <div className={cn("stat-card stat-card-cash relative overflow-hidden rounded-2xl border p-3 backdrop-blur", hasCash && "stat-card-cash-live")}>
+    <TiltCard className={cn("stat-card stat-card-cash relative overflow-hidden rounded-2xl border p-3 backdrop-blur", hasCash && "stat-card-cash-live")}>
       <Sheen watch={cash} />
       <Coins
         className="pointer-events-none absolute -bottom-3 -right-2 size-20 -rotate-12 text-[var(--series-4)] opacity-[0.13] transition-transform duration-500 [.stat-card:hover_&]:-rotate-6 [.stat-card:hover_&]:scale-105"
@@ -118,7 +119,7 @@ export function CashStat({ cash, value }: { cash: number; value: number }) {
         Cash to spend
       </dt>
       <dd className="relative mt-1.5">
-        <AnimatedNumber className="numeric block text-xl font-semibold" value={cash} format={formatCurrency} />
+        <AnimatedNumber className="numeric block text-xl font-semibold" value={cash} format={formatCurrency} countUp="fantasy-cash" />
         {hasCash ? (
           <span className="numeric mt-0.5 flex items-center gap-1.5 text-xs font-medium text-gold-ink">
             <span className="live-dot size-1.5 shrink-0 rounded-full bg-[var(--series-4)]" aria-hidden />
@@ -128,6 +129,6 @@ export function CashStat({ cash, value }: { cash: number; value: number }) {
           <span className="mt-0.5 block text-xs text-muted-foreground">All in. Nothing left on the bench.</span>
         )}
       </dd>
-    </div>
+    </TiltCard>
   )
 }
