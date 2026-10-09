@@ -531,7 +531,7 @@
     z-index: -2;
     pointer-events: none;
     background:
-      radial-gradient(52rem 30rem at 6% -8%, hsl(var(--primary) / var(--glow-a)), transparent 62%),
+      radial-gradient(52rem 30rem at 6% -8%, color-mix(in srgb, var(--mood) calc(var(--glow-a) * 100%), transparent), transparent 62%),
       radial-gradient(40rem 26rem at 104% 2%, color-mix(in srgb, var(--series-1) 12%, transparent), transparent 62%),
       radial-gradient(hsl(var(--foreground) / var(--dot-o)) 1px, transparent 1.3px) 0 0 / 22px 22px;
     -webkit-mask-image: linear-gradient(#000 0, #000 240px, transparent 640px);
