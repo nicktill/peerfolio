@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { externalFlow, flowChanges, investmentHistoryStart, investmentPages, retryPlaid, type InvestmentFlow } from "./plaid-sync-core.ts"
+import { externalFlow, flowChanges, investmentHistoryStart, investmentPages, mergeDuplicateHoldings, retryPlaid, splitUsableHoldings, type InvestmentFlow } from "./plaid-sync-core.ts"
 import { timeWeightedReturn } from "./ranges.ts"
 
 const tx = (id: string, subtype: string, amount: number, account = "a"): InvestmentFlow => ({ investment_transaction_id: id, account_id: account, type: "cash", subtype, amount })
@@ -94,9 +94,13 @@ describe("Plaid financial regression scenarios", () => {
     const waits: number[] = []
     const pending = { response: { data: { error_code: "PRODUCT_NOT_READY" } } }
     assert.equal(await retryPlaid(async () => { if (++attempts < 3) throw pending; return "ready" }, async (ms) => { waits.push(ms) }), "ready")
-    assert.deepEqual(waits, [1000, 2000])
+    assert.deepEqual(waits, [2000, 3000])
     attempts = 0
+    // A new Item's data can take a while to appear, so "not ready" is waited on for longer than other errors.
     await assert.rejects(retryPlaid(async () => { attempts++; throw pending }, async () => {}))
+    assert.equal(attempts, 6)
+    attempts = 0
+    await assert.rejects(retryPlaid(async () => { attempts++; throw { response: { status: 503 } } }, async () => {}))
     assert.equal(attempts, 3)
     attempts = 0
     await assert.rejects(retryPlaid(async () => { attempts++; throw { response: { data: { error_code: "ITEM_LOGIN_REQUIRED" } } } }, async () => {}))
@@ -113,5 +117,27 @@ describe("Plaid financial regression scenarios", () => {
     assert.equal(attempts, 0)
     await assert.rejects(retryPlaid(async () => { attempts++; throw { code: "ECONNRESET" } }, async () => {}, Date.now() + 500), /deadline/)
     assert.equal(attempts, 1)
+  })
+})
+
+describe("Holdings from real brokerages", () => {
+  const line = (over: Record<string, unknown> = {}) => ({ account_id: "a", security_id: "s", quantity: 2, institution_value: 100, cost_basis: 80, iso_currency_code: "USD", unofficial_currency_code: null, ...over })
+  it("keeps ordinary lines and leaves out ones we can't show, instead of failing", () => {
+    const crypto = line({ security_id: "btc", iso_currency_code: null, unofficial_currency_code: "BTC" })
+    const euro = line({ security_id: "eu", iso_currency_code: "EUR" })
+    const margin = line({ security_id: "cash", institution_value: -400 })
+    const short = line({ security_id: "short", quantity: -3 })
+    const unpriced = line({ security_id: "x", institution_value: null })
+    const { kept, skipped } = splitUsableHoldings([line(), crypto, euro, margin, short, unpriced])
+    assert.deepEqual(kept.map((k) => k.security_id), ["s"])
+    assert.equal(skipped.length, 5)
+  })
+  it("combines the same security in one account, and keeps different accounts apart", () => {
+    const merged = mergeDuplicateHoldings([line(), line({ quantity: 1, institution_value: 50, cost_basis: null }), line({ account_id: "b" })])
+    assert.equal(merged.length, 2)
+    const a = merged.find((m) => m.account_id === "a")!
+    assert.equal(a.quantity, 3)
+    assert.equal(a.institution_value, 150)
+    assert.equal(a.cost_basis, 80)
   })
 })

@@ -161,6 +161,20 @@ export function AccountsCard({
     }
   }
 
+  async function refreshItem(itemId: string) {
+    setBusyId(itemId)
+    try {
+      const { result } = await mutate<{ result: { status: string } }>(`/api/plaid/items/${itemId}`)
+      if (result.status === "active") toast("Updated.", "success")
+      else toast("Still getting your data. Give it a few more minutes.", "info")
+    } catch {
+      toast("Still getting your data. Give it a few more minutes.", "info")
+    } finally {
+      setBusyId(null)
+      onChange()
+    }
+  }
+
   async function removeManual(id: string, name: string) {
     const account = accounts.find((a) => a.id === id)
     const count = account?.positions.length ?? 0
@@ -207,6 +221,8 @@ export function AccountsCard({
               <span className="font-medium">{item.institutionName}</span>{" "}
               {connectionNotice(item).removeRequired
                 ? connectionNotice(item).message
+                : item.errorCode === "PRODUCT_NOT_READY"
+                  ? "is still pulling in your data. First syncs can take a few minutes, and this updates on its own."
                 : item.status === "needs_reauth"
                   ? "needs you to sign in again before it can update."
                   : "hit an error on its last sync."}
@@ -214,6 +230,10 @@ export function AccountsCard({
             {connectionNotice(item).removeRequired ? (
               <Button size="sm" variant="outline" disabled={busyId === item.id} onClick={() => void disconnect(item.id, item.institutionName)}>
                 Remove connection
+              </Button>
+            ) : item.errorCode === "PRODUCT_NOT_READY" ? (
+              <Button size="sm" variant="outline" disabled={busyId === item.id} onClick={() => void refreshItem(item.id)}>
+                Check now
               </Button>
             ) : (
               <ConnectButton itemId={item.id} onConnected={onChange} size="sm" variant="outline">
