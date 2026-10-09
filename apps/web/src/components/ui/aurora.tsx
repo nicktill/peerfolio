@@ -4,7 +4,9 @@ import { useEffect } from "react"
 import { motion, useMotionTemplate, useMotionValue, useReducedMotion, useSpring, useTransform } from "motion/react"
 
 /**
- * The living backdrop of the signed-in app, in three layers behind everything:
+ * The living backdrop of the signed-in app, in three layers behind everything. The cursor's light and the
+ * dots it lights take the market's `--mood` (green on an up day, red on a down day, the brand colour
+ * otherwise; see `AppShell`); the colour washes stay the brand colours:
  *  - two soft colour washes that drift on their own and lean toward the cursor,
  *  - a faint light that follows the cursor across the page,
  *  - the page's dot grid, which brightens in a circle around the cursor like a torch on a pegboard.
@@ -46,7 +48,7 @@ export function Aurora() {
   const washAY = useTransform(leanY, [0, 1], [-50, 50])
   const washBX = useTransform(leanX, [0, 1], [90, -90])
   const washBY = useTransform(leanY, [0, 1], [40, -40])
-  const light = useMotionTemplate`radial-gradient(460px circle at ${pointX}px ${pointY}px, hsl(var(--primary) / 0.1), transparent 72%)`
+  const light = useMotionTemplate`radial-gradient(460px circle at ${pointX}px ${pointY}px, color-mix(in srgb, var(--mood) 11%, transparent), transparent 72%)`
   const dotMask = useMotionTemplate`radial-gradient(230px circle at ${pointX}px ${pointY}px, #000, transparent 78%)`
 
   if (reduceMotion) return null
@@ -79,7 +81,7 @@ export function Aurora() {
         className="pointer-events-none fixed inset-0"
         style={{
           zIndex: -1,
-          background: "radial-gradient(hsl(var(--primary) / 0.55) 1.1px, transparent 1.6px) 0 0 / 22px 22px",
+          background: "radial-gradient(color-mix(in srgb, var(--mood) 60%, transparent) 1.1px, transparent 1.6px) 0 0 / 22px 22px",
           WebkitMaskImage: dotMask,
           maskImage: dotMask,
         }}

@@ -616,3 +616,24 @@
     animation-name: dialog-pop;
   }
 }
+
+/*
+ * The mood colour of the cursor light in the signed-in app: green when the market is up on the day, red
+ * when it is down, the brand colour otherwise. Registered as a <color> so a change eases over a second and a half
+ * instead of switching (AppShell sets data-mood).
+ */
+@property --mood {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #1baf7a;
+}
+.app-bg {
+  --mood: hsl(var(--primary));
+  transition: --mood 1.6s ease;
+}
+.app-bg[data-mood="up"] {
+  --mood: var(--gain);
+}
+.app-bg[data-mood="down"] {
+  --mood: var(--loss);
+}

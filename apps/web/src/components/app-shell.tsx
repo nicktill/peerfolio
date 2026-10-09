@@ -6,6 +6,8 @@ import { useSession } from "next-auth/react"
 import { AppNav } from "@web/components/app-nav"
 import { Aurora } from "@web/components/ui/aurora"
 import { RouteProgress } from "@web/components/ui/route-progress"
+import { moodFromPercent, useMoodOverride } from "@web/lib/mood"
+import { useApi } from "@web/lib/use-api"
 
 /**
  * The signed-in frame: nav and the page.
@@ -18,6 +20,16 @@ import { RouteProgress } from "@web/components/ui/route-progress"
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { status } = useSession()
   const router = useRouter()
+  // The market's day colours the cursor's light: green on an up day, red on a down day. It's the S&P 500's
+  // move, falling back to the portfolio's own when the market data isn't available. Both requests are
+  // the ones the News and Portfolio pages make, so they're usually already cached.
+  const signedIn = status === "authenticated"
+  const { data: market } = useApi<{ board: { indexes: { key: string; day: { percent: number } }[] } | null }>(signedIn ? "/api/news/market?part=board" : null, [], { refreshMs: 300_000 })
+  const { data: portfolio } = useApi<{ today: { percent: number } | null }>(signedIn ? "/api/portfolio?range=1W" : null, [], { refreshMs: 300_000 })
+  const override = useMoodOverride()
+  const indexes = market?.board?.indexes ?? []
+  const marketPercent = (indexes.find((i) => i.key === "spx") ?? indexes[0])?.day.percent
+  const mood = override ?? moodFromPercent(marketPercent ?? portfolio?.today?.percent)
 
   useEffect(() => {
     if (status === "unauthenticated") router.replace("/")
@@ -26,7 +38,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (status === "unauthenticated") return null
 
   return (
-    <div className="app-bg min-h-screen">
+    <div className="app-bg min-h-screen" data-mood={mood}>
       <Aurora />
       <RouteProgress />
       <AppNav />
