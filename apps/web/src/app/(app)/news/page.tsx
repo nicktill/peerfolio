@@ -6,14 +6,16 @@ import type { PortfolioResponse } from "@web/components/dashboard/portfolio-scre
 
 export default function NewsPage() {
   // Your biggest movers today, from the same data the Portfolio page uses.
-  const { data } = useApi<PortfolioResponse>("/api/portfolio?range=1W")
+  const { data, error } = useApi<PortfolioResponse>("/api/portfolio?range=1W")
   const moves: HoldingMoves = data
     ? data.holdings
         .filter((h) => h.ticker && h.todayPercent != null)
         .sort((a, b) => Math.abs(b.todayPercent!) - Math.abs(a.todayPercent!))
         .slice(0, 5)
         .map((h) => ({ symbol: h.ticker!, percent: h.todayPercent! }))
-    : null
+    : error
+      ? [] // a failed load shouldn't hold the page up
+      : null
   const held = data ? [...new Set(data.holdings.flatMap((h) => (h.ticker ? [h.ticker] : [])))] : []
   return <NewsBoard holdingMoves={moves} held={held} />
 }

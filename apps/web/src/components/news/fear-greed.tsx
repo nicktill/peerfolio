@@ -102,7 +102,8 @@ export function FearGreed({
           <circle cx={CX} cy={CY} r={7} fill="var(--fg)" />
           <circle cx={CX} cy={CY} r={3} fill="var(--panel)" />
         </svg>
-        <div className="nw-gauge-read">
+        {/* The score's width is reserved up front, so counting up from 0 never moves the label beside it. */}
+        <div className="nw-gauge-read" style={{ "--d": String(score).length } as React.CSSProperties}>
           <AnimatedNumber value={shown} format={(v) => Math.round(v).toString()} durationMs={1400} className="numeric" />
           <span className={cn(TONE_TEXT[band.tone])}>{band.label}</span>
         </div>

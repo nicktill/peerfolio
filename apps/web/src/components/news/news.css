@@ -15,10 +15,10 @@
 
 /* ---- markets at a glance ---- */
 .nw-markets { display: flex; flex-direction: column; gap: 10px; }
-.nw-markets-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 2px; }
+.nw-markets-head { display: flex; min-height: 24px; align-items: center; justify-content: space-between; gap: 10px; padding: 0 2px; }
 .nw-markets-head > span { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; color: var(--fg3); }
 .nw-tiles { display: grid; grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr)); gap: 12px; }
-.nw-tile { position: relative; display: flex; flex-direction: column; min-width: 0; overflow: hidden; background: var(--panel); border: 1px solid var(--hair); border-radius: var(--r); padding: 16px 20px 16px; transition: border-color 0.15s; }
+.nw-tile { position: relative; min-height: 172px; display: flex; flex-direction: column; min-width: 0; overflow: hidden; background: var(--panel); border: 1px solid var(--hair); border-radius: var(--r); padding: 16px 20px 16px; transition: border-color 0.15s; }
 .nw-tile:hover { border-color: var(--line); }
 .nw-tile-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; font-size: 13px; line-height: 16px; font-weight: 500; color: var(--fg2); }
 .nw-tile-title > span { display: flex; align-items: baseline; gap: 6px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -29,12 +29,11 @@
 /* Full inner width, fixed height anchored to the bottom, so the tile never changes size. */
 .nw-spark { position: relative; flex: none; height: 48px; margin-top: auto; }
 .nw-tile-sub { margin-bottom: 12px; }
-.nw-tile { min-height: 160px; }
 .nw-spark svg { position: absolute; left: 0; right: 0; bottom: 0; display: block; width: 100%; height: 48px; overflow: visible; animation: nw-draw 1s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)) both; }
 .nw-spark i { position: absolute; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 22%, transparent); animation: nw-dot 0.4s ease-out 0.85s both; }
 @keyframes nw-draw { from { clip-path: inset(-4px 100% -4px -4px); } to { clip-path: inset(-4px -8px -4px -4px); } }
 @keyframes nw-dot { from { opacity: 0; scale: 0.4; } to { opacity: 1; scale: 1; } }
-.nw-tile-sk { height: 160px; }
+.nw-tile-sk { height: 172px; }
 
 /* ---- grid: recap | sentiment, earnings | sectors, then the stories across ---- */
 .nw-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: stretch; }
@@ -44,6 +43,32 @@
   .nw-grid > .nw-wide { grid-column: span 2; }
 }
 .nw-skel { min-height: 420px; }
+
+/* ---- loading: the page's shape, at about the size it ends up, so the swap to real content moves nothing ---- */
+.nw-body { position: relative; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.nw-body > * { min-width: 0; }
+.nw-title[aria-busy] { width: min(560px, calc(100vw - 64px)); height: 88px; }
+.nw-sk-h1 { height: 30px; width: 80%; max-width: 560px; margin-top: 16px; }
+.nw-sk-lede { height: 14px; width: 60%; max-width: 440px; margin-top: 22px; }
+.nw-sk-lede-2 { width: 42%; margin-top: 8px; }
+.nw-sk-seg { width: 178px; height: 44px; border-radius: 9px; }
+.nw-status-sk { height: 16px; }
+.nw-status-sk > span { width: 180px; height: 12px; margin-top: 2px; }
+.nw-skel-tall { min-height: 440px; }
+.nw-skel-tall.nw-wide { min-height: 520px; }
+@media (min-width: 1024px) {
+  .nw-grid > .nw-skel-tall:nth-child(-n + 2) { min-height: 633px; }
+  .nw-grid > .nw-skel-tall:nth-child(3), .nw-grid > .nw-skel-tall:nth-child(4) { min-height: 648px; }
+  .nw-grid > .nw-skel-tall.nw-wide { min-height: 767px; }
+}
+/* The skeleton lies over the page as the real content arrives, then fades away. */
+.nw-veil { position: absolute; inset: 0; z-index: 3; overflow: hidden; pointer-events: none; animation: nw-veil-out 0.45s ease-out 0.1s forwards; }
+@keyframes nw-veil-out { to { opacity: 0; } }
+@media (max-width: 859px) {
+  .nw-title[aria-busy] { height: 114px; }
+  .nw-sk-h1 { height: 52px; width: 90%; margin-top: 14px; }
+  .nw-sk-lede { margin-top: 20px; }
+}
 .nw-skel .pf-pb { flex: 1; }
 
 /* ---- panels ---- */
@@ -93,7 +118,7 @@ a.nw-end:hover { color: var(--fg); text-decoration: underline; }
 .nw-gauge-wash { position: absolute; inset: 0; pointer-events: none; transition: background 0.7s; }
 .nw-gauge svg { position: relative; display: block; width: 100%; max-width: 280px; height: auto; }
 .nw-gauge-read { position: relative; display: flex; align-items: baseline; gap: 10px; margin-top: 6px; }
-.nw-gauge-read .numeric { font: 400 44px/44px var(--serif); letter-spacing: -0.03em; font-variant-numeric: lining-nums tabular-nums; }
+.nw-gauge-read .numeric { display: inline-block; min-width: calc(var(--d, 2) * 1ch); text-align: right; font: 400 44px/44px var(--serif); letter-spacing: -0.03em; font-variant-numeric: lining-nums tabular-nums; }
 .nw-gauge-read > span:last-child { font-size: 15px; line-height: 20px; font-weight: 500; }
 .nw-scale { position: relative; display: flex; justify-content: space-between; width: 100%; max-width: 280px; margin-top: 8px; font-size: 11px; line-height: 16px; color: var(--fg3); }
 .nw-hist { flex: 1; margin-top: 10px; }
@@ -198,7 +223,8 @@ a:hover > .nw-by .nw-by-go { opacity: 1; }
   .nw .pf-phead { flex-wrap: nowrap; gap: 14px; }
   .nw .pf-phead h1 { font-size: 28px; line-height: 33px; }
   .nw-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-  .nw-tile { padding: 14px 14px 14px; }
+  .nw-tile { padding: 14px 14px 14px; min-height: 164px; }
+  .nw-tile-sk { height: 164px; }
   .nw-tile-px { font-size: 22px; line-height: 28px; }
   .nw-recap { padding-top: 18px; }
   .nw-recap .nw-body { font-size: 14.5px; }
@@ -210,4 +236,5 @@ a:hover > .nw-by .nw-by-go { opacity: 1; }
 }
 @media (prefers-reduced-motion: reduce) {
   .nw-spark svg, .nw-spark i { animation: none; }
+  .nw-veil { display: none; }
 }
