@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
+import { useMotionValueEvent, useScroll } from "motion/react"
 import { ArrowDownUp, Check } from "lucide-react"
 import { PerformanceChart, type PerformancePoint } from "@web/components/charts/performance-chart"
 import { TiltCard } from "@web/components/ui/tilt-card"
@@ -10,6 +11,7 @@ import { CAST } from "@web/components/landing/demo"
 import { cn } from "@web/lib/utils"
 
 type TabId = "portfolio" | "leagues" | "fantasy"
+type Mode = "tabs" | "pinned" | "stacked"
 
 const TABS: { id: TabId; label: string; title: string; body: string; points: string[]; note?: string }[] = [
   {
@@ -36,63 +38,227 @@ const TABS: { id: TabId; label: string; title: string; body: string; points: str
   },
 ]
 
-/** Three product views behind one switch, each a static miniature of the real screen. */
-export function ProductTour() {
-  const [tab, setTab] = useState<TabId>("portfolio")
+/** Eases a number toward its target (a count-up on entry, a quick snap while scrubbing). */
+function useTween(target: number, ms: number) {
+  const [value, setValue] = useState(target * 0.86)
+  const from = useRef(target * 0.86)
+  const msRef = useRef(ms)
+  msRef.current = ms
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      from.current = target
+      setValue(target)
+      return
+    }
+    const start = performance.now()
+    const a = from.current
+    let raf = 0
+    const tick = (t: number) => {
+      const k = Math.min(1, (t - start) / msRef.current)
+      const cur = a + (target - a) * (1 - (1 - k) ** 3)
+      from.current = cur
+      setValue(cur)
+      if (k < 1) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [target])
+  return value
+}
 
+function useOnce<T extends HTMLElement>(threshold = 0.25) {
+  const ref = useRef<T>(null)
+  const [seen, setSeen] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (!el || seen) return
+    const io = new IntersectionObserver(([e]) => { if (e?.isIntersecting) { setSeen(true); io.disconnect() } }, { threshold })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [seen, threshold])
+  return [ref, seen] as const
+}
+
+function Heading() {
   return (
-    <div className="grid gap-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-14">
-      <div>
-        <div role="tablist" aria-label="Product tour" className="flex flex-col">
-          {TABS.map((t, i) => {
-            const active = t.id === tab
-            return (
+    <div>
+      <p className="pf-label-plain pf-tick">What you get</p>
+      <h2 className="pf-h2 mt-3 max-w-xl">One app for your money, your friends and the game.</h2>
+    </div>
+  )
+}
+
+function Copy({ t, on }: { t: (typeof TABS)[number]; on: boolean }) {
+  return (
+    <div className="pf-pane" data-on={on}>
+      <h3 className="pf-h3 pf-rise" style={{ "--d": 0 } as React.CSSProperties}>{t.title}</h3>
+      <p className="pf-sub pf-rise mt-2 text-[15px] leading-6" style={{ "--d": 1 } as React.CSSProperties}>{t.body}</p>
+      <ul className="mt-4 space-y-2">
+        {t.points.map((p, k) => (
+          <li key={p} className="pf-sub pf-rise flex items-start gap-2.5 text-sm leading-6" style={{ "--d": 2 + k } as React.CSSProperties}>
+            <Check className="mt-1 size-3.5 shrink-0 text-[var(--pf-accent)]" aria-hidden strokeWidth={2} />
+            {p}
+          </li>
+        ))}
+      </ul>
+      {t.note ? <p className="pf-soon pf-rise mt-5" style={{ "--d": 6 } as React.CSSProperties}>{t.note}</p> : null}
+    </div>
+  )
+}
+
+function View({ id }: { id: TabId }) {
+  return id === "portfolio" ? <PortfolioView /> : id === "leagues" ? <LeaguesView /> : <FantasyView />
+}
+
+/** Scroll position inside the pinned runway, as 0..1. Mounted only while pinned. */
+function PinnedDriver({ outer, onProgress }: { outer: React.RefObject<HTMLDivElement | null>; onProgress: (p: number) => void }) {
+  const { scrollYProgress } = useScroll({ target: outer as React.RefObject<HTMLElement>, offset: ["start start", "end end"] })
+  useMotionValueEvent(scrollYProgress, "change", onProgress)
+  useEffect(() => onProgress(scrollYProgress.get()), [onProgress, scrollYProgress])
+  return null
+}
+
+/**
+ * Portfolio, real leagues and fantasy, one after another. On a wide screen the stage pins and
+ * scrolling advances the steps; on a phone the steps stack and play as they arrive; with reduced
+ * motion (and before hydration) it is plain tabs.
+ */
+export function ProductTour() {
+  const [mode, setMode] = useState<Mode>("tabs")
+  const [tab, setTab] = useState<TabId>("portfolio")
+  const [prev, setPrev] = useState<TabId | null>(null)
+  const [progress, setProgress] = useState(0)
+  const outer = useRef<HTMLDivElement>(null)
+  const fill = useRef<HTMLSpanElement>(null)
+  const index = TABS.findIndex((t) => t.id === tab)
+
+  useEffect(() => {
+    const decide = () => {
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return setMode("tabs")
+      const wide = window.matchMedia("(min-width: 1024px) and (min-height: 760px)").matches
+      setMode(wide ? "pinned" : "stacked")
+    }
+    decide()
+    const queries = ["(prefers-reduced-motion: reduce)", "(min-width: 1024px) and (min-height: 760px)"].map((q) => window.matchMedia(q))
+    queries.forEach((q) => q.addEventListener("change", decide))
+    return () => queries.forEach((q) => q.removeEventListener("change", decide))
+  }, [])
+
+  const select = useCallback((next: TabId) => {
+    setTab((cur) => {
+      if (cur !== next) {
+        setPrev(cur)
+        window.setTimeout(() => setPrev((p) => (p === cur ? null : p)), 520)
+      }
+      return next
+    })
+  }, [])
+
+  const onProgress = useCallback((p: number) => {
+    if (fill.current) fill.current.style.transform = `scaleY(${Math.min(1, Math.max(0, p))})`
+    setProgress(p)
+    select(TABS[Math.min(TABS.length - 1, Math.max(0, Math.floor(p * TABS.length)))]!.id)
+  }, [select])
+
+  function jump(i: number) {
+    const target = TABS[i]!.id
+    if (mode !== "pinned" || !outer.current) return select(target)
+    const rect = outer.current.getBoundingClientRect()
+    const runway = outer.current.offsetHeight - (outer.current.firstElementChild as HTMLElement).offsetHeight
+    window.scrollTo({ top: rect.top + window.scrollY + ((i + 0.5) / TABS.length) * runway, behavior: "smooth" })
+  }
+
+  if (mode === "stacked") {
+    return (
+      <section id="how" className="pf-rule scroll-mt-14">
+        <div className="mx-auto max-w-6xl px-6 py-16 sm:px-5 sm:py-24">
+          <Heading />
+          <div className="mt-10 space-y-14">
+            {TABS.map((t, i) => (
+              <StackedStep key={t.id} t={t} i={i} />
+            ))}
+          </div>
+          <p className="pf-muted mt-12 text-sm">Also: a daily News tab with the market recap, movers and earnings week.</p>
+        </div>
+      </section>
+    )
+  }
+
+  const pinned = mode === "pinned"
+  const stage = (
+    <div className={cn("mx-auto max-w-6xl px-6 sm:px-5", pinned ? "flex h-full flex-col justify-center py-6" : "py-16 sm:py-24")}>
+      <Heading />
+      <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-14">
+        <div>
+          <div role="tablist" aria-label="Product tour" className="pf-rail relative flex flex-col">
+            <span aria-hidden className="pf-rail-line" />
+            <span aria-hidden ref={fill} className="pf-rail-fill" style={pinned ? undefined : { transform: `scaleY(${(index + 1) / TABS.length})` }} />
+            {TABS.map((t, i) => (
               <button
                 key={t.id}
                 role="tab"
                 id={`tour-tab-${t.id}`}
-                aria-selected={active}
+                aria-selected={t.id === tab}
                 aria-controls="tour-panel"
-                tabIndex={active ? 0 : -1}
-                onClick={() => setTab(t.id)}
+                tabIndex={t.id === tab ? 0 : -1}
+                onClick={() => jump(i)}
                 onKeyDown={(e) => {
                   const step = e.key === "ArrowDown" || e.key === "ArrowRight" ? 1 : e.key === "ArrowUp" || e.key === "ArrowLeft" ? -1 : 0
                   if (!step) return
                   e.preventDefault()
-                  const next = TABS[(i + step + TABS.length) % TABS.length]!
-                  setTab(next.id)
-                  document.getElementById(`tour-tab-${next.id}`)?.focus()
+                  const n = (i + step + TABS.length) % TABS.length
+                  jump(n)
+                  document.getElementById(`tour-tab-${TABS[n]!.id}`)?.focus()
                 }}
                 className="pf-tab min-h-[44px] text-left"
-                data-active={active || undefined}
+                data-active={t.id === tab || undefined}
               >
                 <span className="pf-step-num">0{i + 1}</span>
                 <span className="pf-tab-title">{t.label}</span>
               </button>
-            )
-          })}
-        </div>
-        {TABS.filter((t) => t.id === tab).map((t) => (
-          <div key={t.id} className="swap-in mt-7">
-            <h3 className="pf-h3">{t.title}</h3>
-            <p className="pf-sub mt-2 text-[15px] leading-6">{t.body}</p>
-            <ul className="mt-4 space-y-2">
-              {t.points.map((p) => (
-                <li key={p} className="pf-sub flex items-start gap-2.5 text-sm leading-6">
-                  <Check className="mt-1 size-3.5 shrink-0 text-[var(--pf-accent)]" aria-hidden strokeWidth={2} />
-                  {p}
-                </li>
-              ))}
-            </ul>
-            {t.note ? <p className="pf-soon mt-5">{t.note}</p> : null}
+            ))}
           </div>
-        ))}
-      </div>
-
-      <div id="tour-panel" role="tabpanel" aria-labelledby={`tour-tab-${tab}`} className="min-w-0">
-        <div key={tab} className="swap-in">
-          {tab === "portfolio" ? <PortfolioView /> : tab === "leagues" ? <LeaguesView /> : <FantasyView />}
+          <div className="pf-stack mt-7">
+            {TABS.map((t) => (
+              <Copy key={t.id} t={t} on={t.id === tab} />
+            ))}
+          </div>
         </div>
+
+        <div id="tour-panel" role="tabpanel" aria-labelledby={`tour-tab-${tab}`} className="pf-stack min-w-0 lg:min-h-[470px]">
+          {TABS.filter((t) => t.id === tab || t.id === prev).map((t) => (
+            <div key={t.id} className="pf-pane pf-card-in" data-on={t.id === tab}>
+              <View id={t.id} />
+            </div>
+          ))}
+        </div>
+      </div>
+      <p className="pf-muted mt-8 text-sm">Also: a daily News tab with the market recap, movers and earnings week.</p>
+    </div>
+  )
+
+  return (
+    <section id="how" className="pf-rule scroll-mt-14">
+      {pinned ? (
+        <div ref={outer} style={{ height: "300vh" }} data-progress={progress.toFixed(2)}>
+          <PinnedDriver outer={outer} onProgress={onProgress} />
+          <div className="sticky top-14 overflow-hidden" style={{ height: "calc(100vh - 56px)" }}>{stage}</div>
+        </div>
+      ) : (
+        stage
+      )}
+    </section>
+  )
+}
+
+function StackedStep({ t, i }: { t: (typeof TABS)[number]; i: number }) {
+  const [ref, seen] = useOnce<HTMLDivElement>(0.2)
+  return (
+    <div ref={ref} data-on={seen}>
+      <p className="pf-step-num pf-tick">0{i + 1} · {t.label}</p>
+      <div className="mt-4"><Copy t={t} on={seen} /></div>
+      <div className="pf-card-in mt-6" data-on={seen}>
+        <View id={t.id} />
       </div>
     </div>
   )
@@ -113,6 +279,9 @@ const NET_WORTH: PerformancePoint[] = walk(21, 90, 41800, 0.0016, 0.012).map((va
   value: Math.round(value),
 }))
 
+const dayLabel = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })
+const money = (v: number) => `$${Math.round(v).toLocaleString("en-US")}`
+
 const ACCOUNTS = [
   { name: "Brokerage", inst: "Fidelity", amount: "$31,420" },
   { name: "Taxable", inst: "Robinhood", amount: "$9,880" },
@@ -128,34 +297,38 @@ function Monogram({ name }: { name: string }) {
 }
 
 function PortfolioView() {
-  const last = NET_WORTH[NET_WORTH.length - 1]!.value
+  const [hover, setHover] = useState<number | null>(null)
+  const first = NET_WORTH[0]!
+  const at = NET_WORTH[hover ?? NET_WORTH.length - 1]!
+  const shown = useTween(at.value, hover === null ? 700 : 140)
+  const ret = (at.value / first.value - 1) * 100
   return (
-    <TiltCard max={4} className="pf-panel pf-lift" >
+    <TiltCard max={4} glow className="pf-panel pf-lift">
       <div className="pf-ph">
         <h3 className="pf-label">Net worth</h3>
         <span className="pf-ph-end text-xs text-[var(--fg3)]">Last 90 days</span>
       </div>
       <div className="pf-pb">
         <p className="numeric font-display text-[40px] leading-[46px] sm:text-[52px] sm:leading-[58px]" style={{ letterSpacing: "-0.035em" }}>
-          ${last.toLocaleString("en-US")}
+          {money(shown)}
         </p>
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-          <Delta value={12.4} variant="plain" />
-          <span className="text-xs text-[var(--fg3)]">return, leaves out money you add</span>
+        <div className="mt-2 flex h-6 items-center gap-3 overflow-hidden whitespace-nowrap">
+          <Delta value={ret} variant="plain" />
+          <span className="numeric truncate text-xs text-[var(--fg3)]">
+            {hover === null ? "return, leaves out money you add" : `${dayLabel(at.date)} · since ${dayLabel(first.date)}`}
+          </span>
         </div>
-        <div className="-mx-1 mt-3">
-          <PerformanceChart points={NET_WORTH} height={170} ariaLabel="Net worth over the last 90 days" showTooltip={false} />
+        <div className="-mx-1 mt-3" style={{ touchAction: "pan-y" }}>
+          <PerformanceChart points={NET_WORTH} height={170} ariaLabel="Net worth over the last 90 days" showTooltip={false} onHover={setHover} />
         </div>
       </div>
       <ul className="divide-y border-t px-4 sm:px-[18px]" style={{ borderColor: "var(--hair)" }}>
-        {ACCOUNTS.map((a) => (
-          <li key={a.name} className="flex items-center gap-3 py-3">
+        {ACCOUNTS.map((a, k) => (
+          <li key={a.name} className="pf-pop flex items-center gap-3 py-3" style={{ "--d": 3 + k } as React.CSSProperties}>
             <Monogram name={a.inst} />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{a.name}</p>
-              <p className="truncate text-xs text-[var(--fg3)]">
-                {a.inst} · added by hand
-              </p>
+              <p className="truncate text-xs text-[var(--fg3)]">{a.inst} · added by hand</p>
             </div>
             <span className="numeric text-sm font-medium">{a.amount}</span>
           </li>
@@ -169,7 +342,7 @@ function PortfolioView() {
 
 function LeaguesView() {
   return (
-    <TiltCard max={4} className="pf-panel pf-lift">
+    <TiltCard max={4} glow className="pf-panel pf-lift">
       <div className="pf-ph">
         <h3 className="pf-label">
           Standings<em>Ranked by return</em>
@@ -186,8 +359,8 @@ function LeaguesView() {
               <Delta value={m.percent} variant="plain" />
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-1.5 pl-[84px]">
-              {m.holdings.map((h) => (
-                <span key={h.ticker} className="numeric inline-flex items-center gap-1.5 rounded-full border py-0.5 pl-2.5 pr-2.5 text-[11px] font-medium" style={{ borderColor: "var(--hair)", backgroundImage: `linear-gradient(90deg, rgba(var(--accent-a), 0.16) ${h.weight}%, transparent ${h.weight}%)` }}>
+              {m.holdings.map((h, k) => (
+                <span key={h.ticker} className="pf-pop numeric inline-flex items-center gap-1.5 rounded-full border py-0.5 pl-2.5 pr-2.5 text-[11px] font-medium" style={{ "--d": 2 + i * 2 + k, borderColor: "var(--hair)", backgroundImage: `linear-gradient(90deg, rgba(var(--accent-a), 0.16) ${h.weight}%, transparent ${h.weight}%)` } as React.CSSProperties}>
                   <span className="font-mono font-semibold">{h.ticker}</span>
                   <span className="text-[var(--fg3)]">{h.weight}%</span>
                 </span>
@@ -219,7 +392,7 @@ const FEED = [
 function FantasyView() {
   return (
     <div className="grid gap-4 sm:grid-cols-2" aria-label="Fantasy league preview">
-      <TiltCard max={4.5} className="pf-panel pf-lift">
+      <TiltCard max={4.5} glow className="pf-panel pf-lift">
         <div className="pf-ph">
           <h3 className="pf-label">Make a move</h3>
           <span className="pf-ph-end pf-sample">Play money</span>
@@ -242,7 +415,7 @@ function FantasyView() {
         </div>
       </TiltCard>
 
-      <TiltCard max={4.5} className="pf-panel pf-lift">
+      <TiltCard max={4.5} glow className="pf-panel pf-lift">
         <div className="pf-ph">
           <h3 className="pf-label">Standings</h3>
         </div>

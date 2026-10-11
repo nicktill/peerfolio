@@ -14,10 +14,12 @@ const signed = (v: number) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(1)}%
 
 /** The hero: a sample league drawn the way the app draws one, tipping toward the cursor. */
 export function LeaguePreview() {
+  const [day, setDay] = useState<number | null>(null)
+  const idx = day ?? CAST[0]!.points.length - 1
   return (
     <ScrollTilt>
       <div className="grid gap-4 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
-        <TiltCard max={4.5} className="pf-panel pf-lift flex flex-col">
+        <TiltCard max={4.5} glow className="pf-panel pf-lift flex flex-col">
           <div className="pf-ph">
             <h3 className="pf-label">
               The Group Chat<em>Last 30 days</em>
@@ -25,18 +27,18 @@ export function LeaguePreview() {
             <span className="pf-ph-end pf-sample">Sample league</span>
           </div>
           <div className="pf-pb flex flex-1 flex-col !pb-3">
-            <RaceLines members={CAST} />
+            <RaceLines members={CAST} hover={day} setHover={setDay} />
           </div>
         </TiltCard>
 
-        <TiltCard max={4.5} className="pf-panel pf-lift">
+        <TiltCard max={4.5} glow className="pf-panel pf-lift">
           <div className="pf-ph">
             <h3 className="pf-label">Standings</h3>
             <span className="pf-ph-end pf-sample">Ranked by return</span>
           </div>
           <ul className="divide-y px-4 sm:px-[18px]">
             {CAST.map((m, i) => (
-              <Row key={m.id} member={m} rank={i + 1} />
+              <Row key={m.id} member={m} rank={i + 1} percent={m.points[idx]! - 100} />
             ))}
           </ul>
         </TiltCard>
@@ -45,7 +47,7 @@ export function LeaguePreview() {
   )
 }
 
-function Row({ member, rank }: { member: Member; rank: number }) {
+function Row({ member, rank, percent }: { member: Member; rank: number; percent: number }) {
   return (
     <li className="flex items-center gap-3 py-3">
       <span className="numeric w-5 shrink-0 text-center font-mono text-sm font-medium" style={{ color: rank <= 3 ? MEDALS[rank - 1] : "var(--fg3)" }}>
@@ -61,15 +63,14 @@ function Row({ member, rank }: { member: Member; rank: number }) {
         </p>
         <p className="truncate text-xs leading-4 text-[var(--fg3)]">{member.note}</p>
       </div>
-      <Delta value={member.percent} variant="plain" />
+      <Delta value={percent} variant="plain" />
     </li>
   )
 }
 
 /** Returns on one axis, everyone from 0% on day one. Hover or touch to scrub to a day. */
-function RaceLines({ members }: { members: Member[] }) {
+function RaceLines({ members, hover, setHover }: { members: Member[]; hover: number | null; setHover: (i: number | null) => void }) {
   const { ref, width, height } = useMeasure<HTMLDivElement>()
-  const [hover, setHover] = useState<number | null>(null)
   const gradientId = useId()
   const days = members[0]!.points.length
 

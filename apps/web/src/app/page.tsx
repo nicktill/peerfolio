@@ -70,18 +70,7 @@ export default async function HomePage() {
           </div>
         </section>
 
-        <section id="how" className="pf-rule scroll-mt-14">
-          <div className="mx-auto max-w-6xl px-6 py-16 sm:px-5 sm:py-24">
-            <InView>
-              <p className="pf-label-plain pf-tick">What you get</p>
-              <h2 className="pf-h2 mt-3 max-w-xl">One app for your money, your friends and the game.</h2>
-            </InView>
-            <InView index={1} className="mt-10">
-              <ProductTour />
-            </InView>
-            <p className="pf-muted mt-10 text-sm">Also: a daily News tab with the market recap, movers and earnings week.</p>
-          </div>
-        </section>
+        <ProductTour />
 
         <section className="pf-rule">
           <div className="mx-auto grid max-w-6xl gap-10 px-6 py-16 sm:px-5 sm:py-20 lg:grid-cols-[5fr_7fr] lg:gap-14">
