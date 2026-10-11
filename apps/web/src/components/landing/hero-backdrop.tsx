@@ -1,6 +1,6 @@
 /** Hairline grid paper and a couple of barely-lit cells behind the hero. Pure CSS. */
 const LIT = [
-  [4, 2], [14, 3], [2, 6],
+  [3, 1], [15, 2],
 ] as const
 const CELL = 56
 
