@@ -16,7 +16,7 @@ const counted = new Set<string>()
 export function AnimatedNumber({
   value,
   format,
-  durationMs = 700,
+  durationMs = 600,
   className,
   countUp,
 }: {
@@ -52,7 +52,7 @@ export function AnimatedNumber({
     }
     const controls = animate(from.current, value, {
       duration: durationMs / 1000,
-      ease: [0.22, 1, 0.36, 1],
+      ease: [0.16, 1, 0.3, 1],
       onUpdate: (latest) => {
         from.current = latest
         node.textContent = format(latest)

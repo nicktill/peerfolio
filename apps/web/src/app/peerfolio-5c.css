@@ -327,6 +327,9 @@ a.pf-row:active, .pf-row.hov:active { background: var(--hair2); }
 }
 .pf-panel:hover .pf-label::before, .surface:hover .app-section-label::before, .pf-panel:hover .pf-lbl::before, .pf-4a [class~="surface"]:hover [class*="font-mono"][class*="uppercase"]:not(button)::before { opacity: 1; }
 
+/* Category sub-headers (Investments / Cash / Credit) are plain subheading rows: no tick. */
+.pf-4a [class*="font-mono"][class*="uppercase"].pf-notick:not(button)::before { content: none; display: none; }
+
 /* Primary buttons: bg shift on hover, 98% press. */
 .peerfolio-app button:not(:disabled):active, .pf-portal button:not(:disabled):active { transition-duration: var(--d-1); }
 
@@ -397,35 +400,48 @@ a.pf-row:active, .pf-row.hov:active { background: var(--hair2); }
 .portfolio-screen .pf-lbl::before { margin-right: 1px; }
 .dialog-backdrop[data-closing] { pointer-events: none; }
 
-/* ---------- top-3 standings: a quiet medal tone, not a podium ---------- */
+/* ---------- top-3 standings: metal badge + rail + wash + one sheen, distinct per place ---------- */
 .peerfolio-app {
-  --medal-1: #8a6500; --medal-2: #5a6674; --medal-3: #8a5426;
-  --medal-1-a: 176, 132, 20; --medal-2-a: 120, 134, 150; --medal-3-a: 160, 100, 52;
+  --medal-1: #8a6500; --medal-2: #4f5d6d; --medal-3: #8a5426;
+  --medal-1-a: 176, 132, 20; --medal-2-a: 92, 110, 132; --medal-3-a: 168, 100, 48;
+  --mb-1: linear-gradient(145deg, #fbe39a, #d5a42a 55%, #b88618); --mi-1: #3a2900;
+  --mb-2: linear-gradient(145deg, #f7f9fc, #c3ccd7 55%, #9aa6b4); --mi-2: #1c2633;
+  --mb-3: linear-gradient(145deg, #f3c39b, #cf8a52 55%, #b06c36); --mi-3: #2e1604;
 }
-.dark .peerfolio-app { --medal-1: #e0b544; --medal-2: #b9c2cc; --medal-3: #d39b6c; --medal-1-a: 224, 181, 68; --medal-2-a: 185, 194, 204; --medal-3-a: 211, 155, 108; }
-.peerfolio-app :is(.fw-rank, .pf-rank)[data-rank="1"] { color: var(--medal-1); }
-.peerfolio-app :is(.fw-rank, .pf-rank)[data-rank="2"] { color: var(--medal-2); }
-.peerfolio-app :is(.fw-rank, .pf-rank)[data-rank="3"] { color: var(--medal-3); }
-.peerfolio-app :is(.fw-standing, .pf-standing)[data-medal] { position: relative; --m: var(--medal-1); --ma: var(--medal-1-a); }
-.peerfolio-app :is(.fw-standing, .pf-standing)[data-medal="2"] { --m: var(--medal-2); --ma: var(--medal-2-a); }
-.peerfolio-app :is(.fw-standing, .pf-standing)[data-medal="3"] { --m: var(--medal-3); --ma: var(--medal-3-a); }
-/* The wash and rail belong to rows that aren't yours: yours keeps its accent rail and only the numeral takes the tone. */
+.dark .peerfolio-app { --medal-1: #e0b544; --medal-2: #c3d0de; --medal-3: #d39b6c; --medal-1-a: 224, 181, 68; --medal-2-a: 190, 203, 220; --medal-3-a: 211, 155, 108; }
+/* Rank 1-3 numeral sits in a 20px metal badge (same size as the plain numeral's slot, so rows never shift). */
+.peerfolio-app :is(.fw-rank, .pf-rank)[data-rank="1"], .peerfolio-app :is(.fw-rank, .pf-rank)[data-rank="2"], .peerfolio-app :is(.fw-rank, .pf-rank)[data-rank="3"] {
+  display: grid; place-items: center; width: 20px; height: 20px; padding: 0; margin: 6px auto 0; justify-self: center; border-radius: 50%;
+  font: 700 11px/1 var(--mono, ui-monospace); font-variant-numeric: tabular-nums;
+  background: var(--mb, none); color: var(--mi);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), inset 0 -1px 0 rgba(0, 0, 0, 0.14), 0 0 0 1px rgba(var(--ma), 0.75);
+}
+.peerfolio-app .pf-rank[data-rank] { margin-top: 0; }
+.peerfolio-app :is(.fw-rank, .pf-rank)[data-rank="1"] { --mb: var(--mb-1); --mi: var(--mi-1); --ma: var(--medal-1-a); }
+.peerfolio-app :is(.fw-rank, .pf-rank)[data-rank="2"] { --mb: var(--mb-2); --mi: var(--mi-2); --ma: var(--medal-2-a); }
+.peerfolio-app :is(.fw-rank, .pf-rank)[data-rank="3"] { --mb: var(--mb-3); --mi: var(--mi-3); --ma: var(--medal-3-a); }
+.peerfolio-app :is(.fw-standing, .pf-standing)[data-medal] { position: relative; --m: var(--medal-1); --ma: var(--medal-1-a); --md: 0ms; }
+.peerfolio-app :is(.fw-standing, .pf-standing)[data-medal="2"] { --m: var(--medal-2); --ma: var(--medal-2-a); --md: 160ms; }
+.peerfolio-app :is(.fw-standing, .pf-standing)[data-medal="3"] { --m: var(--medal-3); --ma: var(--medal-3-a); --md: 320ms; }
+/* The wash belongs to rows that aren't yours; yours keeps its accent rail and takes the tone in badge, ring and sheen. */
 .peerfolio-app :is(.fw-standing, .pf-standing)[data-medal]:not(.fw-you):not(.surface-you) {
-  background-image: linear-gradient(90deg, rgba(var(--ma), 0.055), transparent 55%);
+  background-image: linear-gradient(90deg, rgba(var(--ma), 0.1), rgba(var(--ma), 0.03) 45%, transparent 70%);
 }
 .peerfolio-app :is(.fw-standing, .pf-standing)[data-medal]:not(.fw-you):not(.surface-you)::before {
-  content: ""; position: absolute; left: 0; top: 12px; bottom: 12px; width: 2px; border-radius: 2px; background: var(--m); opacity: 0.8; pointer-events: none;
+  content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 2px; background: var(--m); pointer-events: none;
   animation: pf-fade var(--d-4) var(--ease-out) 250ms backwards;
 }
-.peerfolio-app :is(.fw-standing, .pf-standing)[data-medal] :is(.fw-avatar-slot > *, .pf-medal-av) { box-shadow: 0 0 0 1.5px var(--panel), 0 0 0 2.5px rgba(var(--ma), 0.6); }
-/* Rank 1 only: one soft breath of light on arrival. */
-@keyframes pf-breath { 0%, 100% { opacity: 0; } 40% { opacity: 1; } }
-.peerfolio-app :is(.fw-standing, .pf-standing)[data-medal="1"]:not(.fw-you):not(.surface-you)::after {
-  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
-  background: radial-gradient(18rem 6rem at 0% 50%, rgba(var(--ma), 0.14), transparent 70%); opacity: 0; animation: pf-breath 1600ms var(--ease-out) 450ms 1;
+.peerfolio-app :is(.fw-standing, .pf-standing)[data-medal] :is(.fw-avatar-slot > *, .pf-medal-av) { box-shadow: 0 0 0 1.5px var(--panel), 0 0 0 3px rgba(var(--ma), 0.85); }
+/* One sheen sweep on arrival, staggered 1-2-3. Transform and opacity only. */
+@keyframes pf-sheen { 0% { transform: translateX(-100%); opacity: 0; } 15% { opacity: 1; } 85% { opacity: 1; } 100% { transform: translateX(160%); opacity: 0; } }
+.peerfolio-app :is(.fw-standing, .pf-standing)[data-medal]::after {
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 38%; border-radius: inherit; pointer-events: none; opacity: 0;
+  background: linear-gradient(105deg, transparent 0%, rgba(var(--ma), 0.2) 50%, transparent 100%);
+  animation: pf-sheen 1100ms var(--ease-out) calc(500ms + var(--md)) 1 both;
 }
 @media (prefers-reduced-motion: reduce) {
   .peerfolio-app :is(.fw-standing, .pf-standing)[data-medal]::before, .peerfolio-app :is(.fw-standing, .pf-standing)[data-medal]::after { animation: none !important; }
+  .peerfolio-app :is(.fw-standing, .pf-standing)[data-medal]::after { display: none; }
 }
 .pf-mark-badge { position: absolute; right: -6px; bottom: -6px; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--panel); border: 1px solid var(--hair); color: var(--fg2); }
 
