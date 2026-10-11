@@ -1,8 +1,9 @@
 "use client"
 
+import "@web/components/news/news.css"
 import { useState } from "react"
+import { SectionCard } from "@web/components/ui/section-card"
 import { Segmented } from "@web/components/ui/segmented"
-import { Badge } from "@web/components/ui/badge"
 import { Reveal } from "@web/components/motion/reveal"
 import { MarketStrip } from "@web/components/news/market-strip"
 import { MarketRecap, type RecapView } from "@web/components/news/market-recap"
@@ -10,9 +11,6 @@ import { TopStories } from "@web/components/news/top-stories"
 import { FearGreed } from "@web/components/news/fear-greed"
 import { EarningsWeek } from "@web/components/news/earnings-week"
 import { SectorBars } from "@web/components/news/sector-bars"
-import { IconChip, SectionCard, SectionLabel } from "@web/components/ui/section-card"
-import { Activity, Sparkles } from "lucide-react"
-import { Skeleton } from "@web/components/ui/skeleton"
 import { cn } from "@web/lib/utils"
 import { EARNINGS_WEEK, FEAR_GREED, HOLDING_MOVES, INDEXES, RECAPS, SECTORS, type EarningsDay, type Period } from "@web/lib/news-sample"
 import type { EarningsWeekData, FearGreedReading, MarketBoard } from "@web/lib/news-market"
@@ -98,125 +96,102 @@ export function NewsBoard({ holdingMoves, held = [] }: { holdingMoves: HoldingMo
   const now = new Date()
   const today = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "long", month: "long", day: "numeric" }).format(now).replace(", ", " · ")
   const open = isUsMarketOpen(now)
-  // The hero takes the colour of the broad market's move. Until the markets have answered it stays neutral,
-  // so it doesn't flash green and then turn red.
   const hasSectors = Boolean(board && board.sectors.length > 0)
-  const lead = board?.indexes[0]
-  const direction: "up" | "down" | null = lead ? ((lead[period]?.percent ?? lead.day.percent) >= 0 ? "up" : "down") : null
 
   return (
-    <div className="flex flex-col gap-5 pb-16 pt-2">
-      <Reveal index={0}>
-        <header className="relative overflow-hidden rounded-3xl border bg-card p-6 sm:p-8">
-          <div className="hero-grid absolute inset-0 opacity-70" aria-hidden />
-          <div
-            aria-hidden
-            className="absolute -right-20 -top-24 size-80 rounded-full blur-3xl transition-colors duration-700"
-            style={{ backgroundColor: direction ? `color-mix(in srgb, var(${direction === "up" ? "--gain" : "--loss"}) 22%, transparent)` : "transparent" }}
-          />
-          <span aria-hidden className={cn("absolute -bottom-8 right-4 select-none text-[7rem] leading-none transition-opacity duration-700 sm:text-[9rem]", direction ? "opacity-20" : "opacity-0")}>
-            {direction === "down" ? "📉" : "📈"}
-          </span>
-          <div className="relative flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-            <div className="max-w-3xl">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-primary px-2.5 py-0.5 text-xs font-semibold text-primary-foreground">
-                  <span className={cn("size-1.5 rounded-full bg-primary-foreground", open && "live-dot")} aria-hidden />
-                  {/* Rendered on the server and again in the browser; a minute apart, these can differ. */}
-                  <span suppressHydrationWarning>{open ? "Markets open" : "Markets closed"}</span>
-                </span>
-                <span className="text-xs text-muted-foreground" suppressHydrationWarning>
-                  {today}
-                </span>
-              </div>
-              <SectionLabel as="span" className="mt-4 block">
-                {period === "day" ? "The daily brief" : "The weekly brief"}
-              </SectionLabel>
-              {/* The day's story is the page's headline. */}
-              {newsPending ? (
-                // Same height as the headline and its line below, so nothing moves when they arrive.
-                <div aria-busy="true" aria-label="Loading the brief">
-                  <Skeleton className="mt-3 h-[34px] w-4/5 max-w-xl sm:h-[44px]" />
-                  <Skeleton className="mt-3 h-4 w-3/5 max-w-md" />
-                </div>
-              ) : (
-                <>
-                  <h1 key={`${period}-${recap?.headline}`} className="swap-in mt-2 text-balance font-display text-3xl font-semibold leading-[1.1] tracking-tight sm:text-[40px]">
-                    {recap?.headline ?? (period === "day" ? "Today in the markets" : "This week in the markets")}
-                  </h1>
-                  <p className="mt-3 max-w-xl text-sm text-muted-foreground">
-                    {!recap
-                      ? `The ${period === "day" ? "daily" : "weekly"} recap is written after ${period === "day" ? "each close" : "the week’s last close"}. Here’s the market as it stands.`
-                  : recap.kind === "ai"
-                  ? `What moved, why it mattered, and what’s next, written from ${recap.sources?.length ?? 0} stories and checked against them.`
-                  : recap.kind === "fallback"
-                    ? "Today’s biggest stories, straight from the publishers."
-                    : "Your two-minute read on the markets. The live brief lands after each close."}
-                  </p>
-                </>
-              )}
+    <div className="nw">
+      <Reveal index={0} className="pf-phead">
+        <div className="nw-head">
+          <span className="pf-label">{period === "day" ? "The daily brief" : "The weekly brief"}</span>
+          {/* The day's story is the page's headline. */}
+          {newsPending ? (
+            // Same height as the headline and its line below, so nothing moves when they arrive.
+            <div aria-busy="true" aria-label="Loading the brief">
+              <span className="pf-sk" style={{ display: "block", height: 38, width: "80%", maxWidth: 560, marginTop: 10 }} />
+              <span className="pf-sk" style={{ display: "block", height: 16, width: "60%", maxWidth: 440, marginTop: 14 }} />
             </div>
-            <Segmented<Period>
-              label="Time period"
-              options={[
-                { value: "day", label: "Today" },
-                { value: "week", label: "This week" },
-              ]}
-              value={period}
-              onChange={setPeriod}
-              className="shrink-0 self-start"
-            />
-          </div>
-        </header>
+          ) : (
+            <>
+              <h1 key={`${period}-${recap?.headline}`} className="swap-in">
+                {recap?.headline ?? (period === "day" ? "Today in the markets" : "This week in the markets")}
+              </h1>
+              <p className="pf-lede">
+                {!recap
+                  ? `The ${period === "day" ? "daily" : "weekly"} recap is written after ${period === "day" ? "each close" : "the week’s last close"}. Here’s the market as it stands.`
+                  : recap.kind === "ai"
+                    ? `What moved, why it mattered, and what’s next, written from ${recap.sources?.length ?? 0} stories and checked against them.`
+                    : recap.kind === "fallback"
+                      ? "Today’s biggest stories, straight from the publishers."
+                      : "Your two-minute read on the markets. The live brief lands after each close."}
+              </p>
+            </>
+          )}
+        </div>
+        <Segmented<Period>
+          label="Time period"
+          options={[
+            { value: "day", label: "Today" },
+            { value: "week", label: "This week" },
+          ]}
+          value={period}
+          onChange={setPeriod}
+          className="shrink-0 self-start"
+        />
+      </Reveal>
+
+      <Reveal index={1} className="nw-status">
+        <span>
+          <i className={cn("pf-dot", open ? "g live-dot" : "r")} aria-hidden />
+          {/* Rendered on the server and again in the browser; a minute apart, these can differ. */}
+          <span suppressHydrationWarning>{open ? "Markets open" : "Markets closed"}</span>
+        </span>
+        <span suppressHydrationWarning>{today}</span>
       </Reveal>
 
       {/* The section and its header are there from the first paint; only the cards inside arrive, so nothing is pushed down. */}
       {boardPending || (board && board.indexes.length > 0) ? (
-        <section className="flex flex-col gap-2.5" aria-labelledby="news-markets">
-          <Reveal index={1} className="flex items-center justify-between gap-2 px-0.5">
-            <span className="flex items-center gap-2.5">
-              <IconChip tone="primary">
-                <Activity />
-              </IconChip>
-              <SectionLabel id="news-markets">Markets at a glance</SectionLabel>
-            </span>
-            <span className="flex items-center gap-2 text-xs text-muted-foreground">
+        <section className="nw-markets" aria-labelledby="news-markets">
+          <Reveal index={2} className="nw-markets-head">
+            <h2 id="news-markets" className="pf-label">
+              Markets at a glance
+            </h2>
+            <span>
               {sample ? (
-                <Badge variant="outline" className="whitespace-nowrap border-dashed">
-                  Sample figures
-                </Badge>
+                <span className="pf-chip nw-sample">Sample figures</span>
               ) : (
-                <span className="hidden md:inline" title="Index levels are licensed data; these are the funds that track each index, whose moves match to within a few hundredths of a percent.">
+                <span className="nw-hide-sm" title="Index levels are licensed data; these are the funds that track each index, whose moves match to within a few hundredths of a percent.">
                   Tracked by index funds ·
                 </span>
               )}
-              <span className="hidden sm:inline">{period === "day" ? "Today’s session" : "Last 5 sessions"}</span>
+              <span className="nw-hide-xs">{period === "day" ? "Today’s session" : "Last 5 sessions"}</span>
             </span>
           </Reveal>
           {board && board.indexes.length > 0 ? (
-            <MarketStrip quotes={board.indexes} period={period} startIndex={1} />
+            <MarketStrip quotes={board.indexes} period={period} startIndex={3} />
           ) : (
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-busy="true" aria-label="Loading markets">
+            <div className="nw-tiles" aria-busy="true" aria-label="Loading markets">
               {[0, 1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-[148px] rounded-2xl" />
+                <div key={i} className="nw-tile nw-tile-sk">
+                  <span className="pf-sk" style={{ width: "55%", height: 14 }} />
+                  <span className="pf-sk" style={{ width: "70%", height: 26, marginTop: 14 }} />
+                  <span className="pf-sk" style={{ width: "100%", height: 44, marginTop: 22 }} />
+                </div>
               ))}
             </div>
           )}
         </section>
       ) : null}
 
-      <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,1.85fr)_minmax(0,1fr)]">
+      <div className="nw-grid">
         {recap ? (
-          <MarketRecap recap={recap} moves={moves} swapKey={`${period}-${recap.kind}`} index={5} showHeadline={false} />
+          <MarketRecap recap={recap} moves={moves} swapKey={`${period}-${recap.kind}`} index={5} />
         ) : newsPending ? (
-          <Skeleton className="min-h-[420px] rounded-2xl" aria-busy="true" aria-label="Loading the recap" />
+          <PanelSkeleton label={period === "day" ? "Daily recap" : "Weekly recap"} rows={9} />
         ) : (
-          <SectionCard label={period === "day" ? "Daily recap" : "Weekly recap"} icon={<Sparkles />} tone="primary" index={5}>
-            <div className="flex flex-1 flex-col items-center justify-center gap-1.5 px-6 py-12 text-center">
-              <span className="text-sm font-semibold">{period === "day" ? "Today’s recap lands after the close" : "The weekly recap lands after the week’s last close"}</span>
-              <span className="max-w-sm text-[13px] text-muted-foreground">
-                Written from the day’s stories and checked against them. Until then, the numbers above are live.
-              </span>
+          <SectionCard label={period === "day" ? "Daily recap" : "Weekly recap"} index={5}>
+            <div className="nw-empty">
+              <b>{period === "day" ? "Today’s recap lands after the close" : "The weekly recap lands after the week’s last close"}</b>
+              <p>Written from the day’s stories and checked against them. Until then, the numbers above are live.</p>
             </div>
           </SectionCard>
         )}
@@ -229,7 +204,7 @@ export function NewsBoard({ holdingMoves, held = [] }: { holdingMoves: HoldingMo
             source={sample ? null : { label: "CNN", href: CNN_FEAR_GREED_PAGE, asOf: fearGreed.asOf }}
           />
         ) : pending(fearGreedApi) ? (
-          <Skeleton className="min-h-[420px] rounded-2xl" />
+          <PanelSkeleton label="Fear & Greed" rows={6} />
         ) : null}
         {earnings ? (
           <EarningsWeek
@@ -238,15 +213,31 @@ export function NewsBoard({ holdingMoves, held = [] }: { holdingMoves: HoldingMo
             initialDay={Math.max(0, earnings.days.findIndex((d) => d.today))}
             index={7}
             // Full width only once the sectors are known to be missing.
-            className={hasSectors || boardPending ? undefined : "lg:col-span-2"}
+            className={hasSectors || boardPending ? undefined : "nw-wide"}
           />
         ) : pending(earningsApi) ? (
-          <Skeleton className="min-h-[420px] rounded-2xl" />
+          <PanelSkeleton label="Upcoming earnings" rows={6} />
         ) : null}
-        {hasSectors ? <SectorBars sectors={board!.sectors} period={period} index={8} /> : boardPending ? <Skeleton className="min-h-[420px] rounded-2xl" /> : null}
-        {newsPending ? <Skeleton className="min-h-[320px] rounded-2xl lg:col-span-2" /> : null}
+        {hasSectors ? <SectorBars sectors={board!.sectors} period={period} index={8} /> : boardPending ? <PanelSkeleton label="Sectors at a glance" rows={6} /> : null}
+        {newsPending ? <PanelSkeleton label="Top stories" rows={6} wide /> : null}
         {news?.headlines.length ? <TopStories headlines={news.headlines.slice(0, 10)} index={9} /> : null}
       </div>
     </div>
+  )
+}
+
+/** A panel-shaped placeholder while one source loads, so the rest of the page doesn't wait on it. */
+function PanelSkeleton({ label, rows, wide = false }: { label: string; rows: number; wide?: boolean }) {
+  return (
+    <section className={cn("pf-panel nw-skel", wide && "nw-wide")} aria-busy="true" aria-label={`Loading ${label.toLowerCase()}`}>
+      <div className="pf-ph">
+        <span className="pf-label">{label}</span>
+      </div>
+      <div className="pf-pb" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {Array.from({ length: rows }, (_, i) => (
+          <span key={i} className="pf-sk" style={{ height: 14, width: `${96 - (i % 3) * 14}%` }} />
+        ))}
+      </div>
+    </section>
   )
 }

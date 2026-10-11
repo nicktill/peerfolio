@@ -2,15 +2,14 @@
 
 import { useEffect, useState } from "react"
 import { AnimatedNumber } from "@web/components/ui/animated-number"
-import { Gauge } from "lucide-react"
 import { SectionCard } from "@web/components/ui/section-card"
 import { cn } from "@web/lib/utils"
 
 const BANDS = [
   { from: 0, to: 25, label: "Extreme fear", stroke: "var(--loss)", tone: "loss" },
-  { from: 25, to: 45, label: "Fear", stroke: "color-mix(in srgb, var(--loss) 50%, hsl(var(--border)))", tone: "loss" },
-  { from: 45, to: 55, label: "Neutral", stroke: "hsl(var(--muted-foreground))", tone: "flat" },
-  { from: 55, to: 75, label: "Greed", stroke: "color-mix(in srgb, var(--gain) 55%, hsl(var(--border)))", tone: "gain" },
+  { from: 25, to: 45, label: "Fear", stroke: "color-mix(in srgb, var(--loss) 50%, var(--hair))", tone: "loss" },
+  { from: 45, to: 55, label: "Neutral", stroke: "var(--fg3)", tone: "flat" },
+  { from: 55, to: 75, label: "Greed", stroke: "color-mix(in srgb, var(--gain) 55%, var(--hair))", tone: "gain" },
   { from: 75, to: 100, label: "Extreme greed", stroke: "var(--gain)", tone: "gain" },
 ] as const
 
@@ -32,7 +31,7 @@ function arc(from: number, to: number) {
 }
 
 const TONE_TEXT = { loss: "text-loss-ink", gain: "text-gain-ink", flat: "text-muted-foreground" }
-const TONE_BOX = { loss: "tint-loss text-loss-ink", gain: "tint-gain text-gain-ink", flat: "bg-muted text-foreground" }
+const TONE_BOX = { loss: "nw-chip-loss", gain: "nw-chip-gain", flat: "" }
 
 /**
  * A half-dial gauge. On arrival the needle swings up from zero with a little
@@ -61,24 +60,24 @@ export function FearGreed({
   const band = BANDS[active]!
 
   return (
-    <SectionCard label="Fear & Greed" icon={<Gauge />} tone="amber" index={index} action={
+    <SectionCard
+      label="Fear & Greed"
+      index={index}
+      action={
         source ? (
-          <a href={source.href} target="_blank" rel="noopener noreferrer" className="pr-2 text-xs text-muted-foreground hover:text-foreground hover:underline">
+          <a href={source.href} target="_blank" rel="noopener noreferrer" className="nw-end">
             {source.label}
             {source.asOf ? ` · as of ${new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "short", day: "numeric" }).format(new Date(source.asOf))}` : ""}
           </a>
         ) : (
-          <span className="pr-2 text-xs text-muted-foreground">Updated daily</span>
+          <span className="nw-end">Updated daily</span>
         )
-      }>
-      <div className="relative flex flex-col items-center px-5 pb-1.5 pt-5">
+      }
+    >
+      <div className="nw-gauge">
         {/* A soft wash in the reading's colour behind the dial. */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 transition-[background] duration-700"
-          style={{ background: `radial-gradient(16rem 9rem at 50% 75%, color-mix(in srgb, ${band.stroke} 22%, transparent), transparent 70%)` }}
-        />
-        <svg viewBox="0 0 240 132" className="relative block h-auto w-full max-w-[280px]" role="img" aria-label={`Fear and Greed index ${score} out of 100, ${band.label}`}>
+        <div aria-hidden className="nw-gauge-wash" style={{ background: `radial-gradient(16rem 9rem at 50% 75%, color-mix(in srgb, ${band.stroke} 18%, transparent), transparent 70%)` }} />
+        <svg viewBox="0 0 240 132" role="img" aria-label={`Fear and Greed index ${score} out of 100, ${band.label}`}>
           {BANDS.map((b, i) => (
             <path
               key={b.label}
@@ -86,8 +85,8 @@ export function FearGreed({
               fill="none"
               strokeWidth={14}
               stroke={b.stroke}
-              className="reveal transition-opacity duration-500"
-              style={{ "--i": i, opacity: i === active ? 1 : 0.32 } as React.CSSProperties}
+              className="reveal"
+              style={{ "--i": i, opacity: i === active ? 1 : 0.32, transition: "opacity 0.5s" } as React.CSSProperties}
             />
           ))}
           {/* Drawn pointing at 50, then rotated to the score around the dial's centre. */}
@@ -98,38 +97,36 @@ export function FearGreed({
               transition: "transform 1.4s cubic-bezier(0.34, 1.36, 0.64, 1) 0.15s",
             }}
           >
-            <line x1={CX} y1={CY} x2={CX} y2={CY - 74} stroke="hsl(var(--foreground))" strokeWidth={3} strokeLinecap="round" />
+            <line x1={CX} y1={CY} x2={CX} y2={CY - 74} stroke="var(--fg)" strokeWidth={3} strokeLinecap="round" />
           </g>
-          <circle cx={CX} cy={CY} r={7} fill="hsl(var(--foreground))" />
-          <circle cx={CX} cy={CY} r={3} fill="hsl(var(--card))" />
+          <circle cx={CX} cy={CY} r={7} fill="var(--fg)" />
+          <circle cx={CX} cy={CY} r={3} fill="var(--panel)" />
         </svg>
-        <div className="relative mt-1.5 flex items-baseline gap-2.5">
-          <AnimatedNumber value={shown} format={(v) => Math.round(v).toString()} durationMs={1400} className="numeric font-display text-[44px] font-semibold leading-none tracking-tighter" />
-          <span className={cn("text-[15px] font-semibold", TONE_TEXT[band.tone])}>{band.label}</span>
+        <div className="nw-gauge-read">
+          <AnimatedNumber value={shown} format={(v) => Math.round(v).toString()} durationMs={1400} className="numeric" />
+          <span className={cn(TONE_TEXT[band.tone])}>{band.label}</span>
         </div>
-        <div className="relative mt-2 flex w-full max-w-[280px] justify-between text-[11px] text-muted-foreground">
+        <div className="nw-scale" aria-hidden>
           <span>Extreme fear</span>
           <span>Neutral</span>
           <span>Extreme greed</span>
         </div>
       </div>
-      <dl className="flex-1 pt-2.5">
+      <dl className="nw-hist">
         {history.map((h) => {
           const b = BANDS[bandOf(h.score)]!
           return (
-            <div key={h.label} className="flex items-center justify-between gap-3 border-t px-5 py-2.5 text-[13px]">
-              <dt className="text-muted-foreground">{h.label}</dt>
-              <dd className="inline-flex items-center gap-2">
-                <span className="font-medium">{b.label}</span>
-                <span className={cn("numeric inline-grid h-6 min-w-[30px] place-items-center rounded-lg text-xs font-semibold", TONE_BOX[b.tone])}>{h.score}</span>
+            <div key={h.label}>
+              <dt>{h.label}</dt>
+              <dd>
+                <span>{b.label}</span>
+                <span className={cn("pf-chip numeric", TONE_BOX[b.tone])}>{h.score}</span>
               </dd>
             </div>
           )
         })}
       </dl>
-      <p className="border-t px-5 pb-4 pt-2.5 text-xs text-muted-foreground">
-        {source ? `${source.label}’s Fear & Greed Index: stock-market sentiment, scored 0–100 from seven signals.` : "Stock-market sentiment, scored 0–100 from seven signals."}
-      </p>
+      <p className="pf-foot">{source ? `${source.label}’s Fear & Greed Index: stock-market sentiment, scored 0–100 from seven signals.` : "Stock-market sentiment, scored 0–100 from seven signals."}</p>
     </SectionCard>
   )
 }

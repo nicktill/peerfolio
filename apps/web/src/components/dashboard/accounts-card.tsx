@@ -103,7 +103,7 @@ export function AccountsCard({
     if (!highlightId) return
     const row = document.getElementById(`account-${highlightId}`)
     if (!row) return // the refreshed list hasn't arrived yet; this runs again when it does
-    row.scrollIntoView({ behavior: "smooth", block: "center" })
+    row.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" })
     const timer = setTimeout(() => setHighlightId(null), 2600)
     return () => clearTimeout(timer)
   }, [highlightId, accounts])
@@ -272,7 +272,7 @@ export function AccountsCard({
 
         {grouped.map((group) => (
           <div key={group.key}>
-            <h3 className={cn("mb-1.5 flex items-baseline justify-between text-[12.5px] font-medium tracking-[-0.005em] text-muted-foreground", variant === "card" ? "px-2" : "px-0")}>
+            <h3 className={cn("mb-1.5 flex items-baseline justify-between font-mono text-[11px] font-medium uppercase tracking-[0.045em] text-muted-foreground", variant === "card" ? "px-2" : "px-0")}>
               <span>{group.label}</span>
               <span className={cn("numeric normal-case tracking-normal", group.key === "credit" || group.key === "loan" ? "text-loss-ink" : "")}>
                 {group.key === "credit" || group.key === "loan" ? "−" : ""}
@@ -331,7 +331,7 @@ export function AccountsCard({
 
                           <span className="shrink-0 text-right">
                             <span
-                              className={cn("numeric block text-sm font-semibold", account.isLiability && "text-loss-ink")}
+                              className={cn("numeric block text-sm font-medium", account.isLiability && "text-loss-ink")}
                             >
                               {account.isLiability ? "−" : ""}
                               {formatCurrency(account.balance, { hidden, compact: true })}
@@ -377,7 +377,7 @@ export function AccountsCard({
                     <div
                       id={`account-body-${account.id}`}
                       inert={!isOpen(account)}
-                      className="grid transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
+                      className="grid transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
                       style={{ gridTemplateRows: isOpen(account) ? "1fr" : "0fr", opacity: isOpen(account) ? 1 : 0 }}
                     >
                       <div className="min-h-0 overflow-hidden">
@@ -400,7 +400,7 @@ export function AccountsCard({
 
         {items.length > 0 ? (
           <div className="space-y-2 border-t pt-4">
-            <h3 className="px-2 text-[12.5px] font-medium tracking-[-0.005em] text-muted-foreground">Connections</h3>
+            <h3 className="px-2 font-mono text-[11px] font-medium uppercase tracking-[0.045em] text-muted-foreground">Connections</h3>
             {items.map((item) => (
               <div key={item.id} className="flex items-center gap-3 text-sm">
                 <InstitutionMark logo={item.institutionLogo} name={item.institutionName} size="sm" />
@@ -442,9 +442,9 @@ export function AccountsCard({
 
   if (variant === "rail") {
     return (
-      <section aria-labelledby="rail-accounts">
-        <div className="flex items-center justify-between gap-2">
-          <h2 id="rail-accounts" className="text-sm font-semibold">
+      <section aria-labelledby="rail-accounts" className="portfolio-accounts pf-panel min-w-0 p-4 sm:p-5">
+        <div className="pf-ph">
+          <h2 id="rail-accounts" className="pf-lbl">
             Your accounts <span className="numeric font-normal text-muted-foreground">{accounts.length}</span>
           </h2>
           {importButton}

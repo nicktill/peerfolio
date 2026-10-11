@@ -2,13 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import confetti from "canvas-confetti"
-import { motion } from "motion/react"
 import { Confetti, type ConfettiRef } from "@web/components/magicui/confetti"
 import { Button } from "@web/components/ui/button"
 import { Slider } from "@web/components/ui/slider"
-import { ShimmerButton } from "@web/components/magicui/shimmer-button"
-import { InteractiveHoverButton } from "@web/components/magicui/interactive-hover-button"
-import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card"
 import { useConfirm } from "@web/components/ui/confirm"
 import { useToast } from "@web/components/ui/toast"
 import { TickerCombobox } from "@web/components/fantasy/ticker-combobox"
@@ -37,7 +33,7 @@ const asOfLabel = (asOf: string) => new Date(`${asOf.slice(0, 10)}T12:00:00Z`).t
  * price the form shows; while it's closed the order queues and fills at the
  * first live price after the open.
  */
-export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: string; cash: number; positions: Held[]; onTraded: () => void }) {
+export function TradePanel({ leagueId, cash, positions, onTraded, closed = false }: { leagueId: string; cash: number; positions: Held[]; onTraded: () => void; closed?: boolean }) {
   const { toast } = useToast()
   const confirm = useConfirm()
   const [side, setSide] = useState<"buy" | "sell">("buy")
@@ -95,6 +91,7 @@ export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: 
 
   async function submit(event: React.FormEvent) {
     event.preventDefault()
+    if (closed) return
     setTouched(true)
     if (!check.ok) return
     if (lookup.state === "missing") return
@@ -190,13 +187,17 @@ export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: 
   }
 
   return (
-    <Card className="relative overflow-visible">
+    <section className="fw-panel fw-trade" data-closed={closed || undefined} aria-labelledby="fw-trade-title">
       {burst > 0 ? <Burst key={burst} /> : null}
       <Confetti ref={confettiRef} manualstart className="pointer-events-none fixed inset-0 z-[70] size-full" />
       {receipt ? <TradeReceipt receipt={receipt} onDone={closeReceipt} /> : null}
-      <CardHeader className="flex-row items-center justify-between">
-        <CardTitle>Make a move</CardTitle>
-        <div className="relative flex rounded-full bg-secondary p-1 text-xs font-semibold shadow-[inset_0_1px_2px_hsl(var(--foreground)/0.1)]" role="tablist" aria-label="Order side">
+      <div className="fw-section-head">
+        <h2 id="fw-trade-title">Make a move</h2>
+        <span className="fw-tag">{closed ? "Closed" : "Play money"}</span>
+      </div>
+      {closed ? <p className="fw-closed-note">League closed. Final standings are locked, so trading is off.</p> : null}
+      <form onSubmit={submit} noValidate inert={closed || undefined}>
+        <div className="fw-seg" role="tablist" aria-label="Buy or sell" data-side={side}>
           {(["buy", "sell"] as const).map((s) => (
             <button
               key={s}
@@ -204,132 +205,102 @@ export function TradePanel({ leagueId, cash, positions, onTraded }: { leagueId: 
               role="tab"
               aria-selected={side === s}
               onClick={() => { setSide(s); setAmount(""); setTouched(false) }}
-              className={cn("press relative rounded-full px-4 py-1 capitalize transition-colors duration-200", side === s ? "text-background" : "text-muted-foreground hover:text-foreground")}
             >
-              {side === s ? (
-                <motion.span
-                  layoutId="trade-side"
-                  aria-hidden
-                  className={cn("absolute inset-0 rounded-full shadow-md", s === "buy" ? "bg-primary" : "bg-foreground")}
-                  transition={{ type: "spring", stiffness: 520, damping: 38 }}
-                />
-              ) : null}
-              <span className={cn("relative", side === s && s === "buy" && "text-primary-foreground")}>{s}</span>
+              {s}
             </button>
           ))}
         </div>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={submit} className="space-y-3" noValidate>
-          <div>
-            <TickerCombobox
-              value={symbol}
-              onChange={setSymbol}
-              local={side === "sell" ? positions.map((p) => ({ symbol: p.ticker, name: null, detail: `You hold ${fmtShares(p.shares)} sh` })) : undefined}
-              className="h-11 w-full rounded-xl border bg-background px-3 font-mono text-sm uppercase tracking-wide placeholder:font-sans placeholder:normal-case placeholder:tracking-normal"
-            />
-            <p className="numeric mt-1.5 min-h-4 text-xs text-muted-foreground" aria-live="polite">
-              {lookup.state === "loading"
-                ? "Looking up…"
-                : quote
-                  ? `${quote.name ?? quote.symbol} · ${formatCurrency(quote.price)} ${quote.live ? "live price" : `at the ${asOfLabel(quote.asOf)} close`}`
-                  : lookup.state === "missing"
-                    ? <span className="text-loss-ink">{lookup.message}</span>
-                    : null}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {(side === "buy" ? HYPE : positions.map((p) => p.ticker)).slice(0, 6).map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setSymbol(t)}
-                className={cn("rounded-full border px-2.5 py-1 font-mono text-[11px] font-semibold transition-colors hover:bg-secondary", ticker === t && "border-primary text-primary")}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
-
-          <div>
-            <div className="relative">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                {side === "buy" ? "$" : "sh"}
-              </span>
-              <input
-                aria-label={side === "buy" ? "Amount in dollars" : "Shares to sell"}
-                aria-invalid={problem ? true : undefined}
-                inputMode="decimal"
-                autoComplete="off"
-                value={amount === "all" ? "All" : amount}
-                onChange={(e) => setAmount(sanitizeAmount(e.target.value, side === "buy" ? 2 : 4))}
-                placeholder="0"
-                className="numeric h-11 w-full rounded-xl border bg-background pl-9 pr-3 text-sm aria-[invalid=true]:border-[--loss]"
-              />
-            </div>
-            <p className="numeric mt-1.5 min-h-4 text-xs text-muted-foreground" aria-live="polite">
-              {problem ? (
-                <span className="text-loss-ink">{problem}</span>
-              ) : estimated !== null ? (
-                `≈ ${fmtShares(estimated)} shares of ${ticker}${queues ? " at the last close; the open sets the count" : ""}`
-              ) : side === "buy" ? (
-                `${formatCurrency(cash)} available`
-              ) : held ? (
-                `You hold ${fmtShares(held.shares)} sh (${formatCurrency(held.value)})`
-              ) : (
-                "Pick something you own"
-              )}
-            </p>
-          </div>
-          <AmountSlider
-            side={side}
-            max={side === "buy" ? cash : held?.shares ?? 0}
-            amount={amount}
-            onChange={setAmount}
+        <div>
+          <span className="fw-label" aria-hidden>{side === "buy" ? "Stock or fund" : "Position to sell"}</span>
+          <TickerCombobox
+            value={symbol}
+            onChange={setSymbol}
+            local={side === "sell" ? positions.map((p) => ({ symbol: p.ticker, name: null, detail: `You hold ${fmtShares(p.shares)} sh` })) : undefined}
+            className="fw-input fw-ticker"
           />
-          {side === "buy" ? (
-            <ShimmerButton
-              type="submit"
-              disabled={pending || cashingOut}
-              borderRadius="14px"
-              shimmerColor="#d9fff0"
-              background="linear-gradient(180deg, hsl(var(--primary)), hsl(var(--primary) / 0.82))"
-              className="h-12 w-full text-sm font-semibold text-primary-foreground shadow-[0_10px_24px_-10px_hsl(var(--primary)/0.8)] disabled:pointer-events-none disabled:opacity-60"
-            >
-              {pending ? "Placing order…" : queues ? "Queue buy 🕘" : "Buy 🚀"}
-            </ShimmerButton>
-          ) : (
-            <InteractiveHoverButton type="submit" disabled={pending || cashingOut} className="h-12 w-full rounded-[14px] text-sm disabled:pointer-events-none disabled:opacity-60">
-              {pending ? "Placing order…" : queues ? "Queue sell 🕘" : "Sell 💸"}
-            </InteractiveHoverButton>
-          )}
-          {side === "sell" ? (
-            <Button
-              type="button"
-              ref={cashButtonRef}
-              variant="secondary"
-              className="group w-full"
-              loading={cashingOut}
-              disabled={positions.length === 0 || pending}
-              onClick={sellAll}
-            >
-              {cashingOut ? "Cashing out…" : positions.length === 0 ? "Nothing to cash out yet" : (
-                <>
-                  <span aria-hidden className="inline-block transition-transform duration-200 group-hover:-rotate-12 group-hover:scale-125 motion-reduce:transition-none">🤑</span>
-                  Cash out everything
-                </>
-              )}
-            </Button>
-          ) : null}
-          <p className="text-[11px] leading-4 text-muted-foreground">
-            {queues
-              ? "The market's closed, so this waits and fills at the live price after the 9:30am ET open. You can cancel it until then."
-              : "Fills at the live price shown."}{" "}
-            Play money only.
+          <p className="fw-hint numeric" aria-live="polite">
+            {lookup.state === "loading"
+              ? "Looking up…"
+              : quote
+                ? `${quote.name ?? quote.symbol} · ${formatCurrency(quote.price)} ${quote.live ? "live price" : `at the ${asOfLabel(quote.asOf)} close`}`
+                : lookup.state === "missing"
+                  ? <span className="fw-bad">{lookup.message}</span>
+                  : null}
           </p>
-        </form>
-      </CardContent>
-    </Card>
+        </div>
+        <div className="fw-tickers">
+          {(side === "buy" ? HYPE : positions.map((p) => p.ticker)).slice(0, 6).map((t) => (
+            <button key={t} type="button" className="fw-tick" aria-pressed={ticker === t} onClick={() => setSymbol(t)}>
+              {t}
+            </button>
+          ))}
+        </div>
+
+        <div>
+          <span className="fw-label" aria-hidden>{side === "buy" ? "Amount to invest" : "Shares to sell"}</span>
+          <div className="fw-money">
+            <span>{side === "buy" ? "$" : "sh"}</span>
+            <input
+              className="fw-input"
+              aria-label={side === "buy" ? "Amount in dollars" : "Shares to sell"}
+              aria-invalid={problem ? true : undefined}
+              inputMode="decimal"
+              autoComplete="off"
+              value={amount === "all" ? "All" : amount}
+              onChange={(e) => setAmount(sanitizeAmount(e.target.value, side === "buy" ? 2 : 4))}
+              placeholder="0"
+            />
+          </div>
+          <p className="fw-hint numeric" aria-live="polite">
+            {problem ? (
+              <span className="fw-bad">{problem}</span>
+            ) : estimated !== null ? (
+              `≈ ${fmtShares(estimated)} shares of ${ticker}${queues ? " at the last close; the open sets the count" : ""}`
+            ) : side === "buy" ? (
+              `${formatCurrency(cash)} available`
+            ) : held ? (
+              `You hold ${fmtShares(held.shares)} sh (${formatCurrency(held.value)})`
+            ) : (
+              "Pick something you own"
+            )}
+          </p>
+        </div>
+        <AmountSlider
+          side={side}
+          max={side === "buy" ? cash : held?.shares ?? 0}
+          amount={amount}
+          onChange={setAmount}
+        />
+        <button type="submit" className="fw-submit" data-side={side} disabled={pending || cashingOut} aria-busy={pending || undefined}>
+          {pending ? <span className="spin" aria-hidden /> : null}
+          {pending ? "Placing order…" : side === "buy" ? (queues ? "Queue buy 🕘" : "Buy 🚀") : queues ? "Queue sell 🕘" : "Sell 💸"}
+        </button>
+        {side === "sell" ? (
+          <Button
+            type="button"
+            ref={cashButtonRef}
+            variant="outline"
+            className="group w-full"
+            loading={cashingOut}
+            disabled={positions.length === 0 || pending}
+            onClick={sellAll}
+          >
+            {cashingOut ? "Cashing out…" : positions.length === 0 ? "Nothing to cash out yet" : (
+              <>
+                <span aria-hidden className="inline-block transition-transform duration-200 group-hover:-rotate-12 group-hover:scale-125 motion-reduce:transition-none">🤑</span>
+                Cash out everything
+              </>
+            )}
+          </Button>
+        ) : null}
+        <p className="fw-note">
+          {queues
+            ? "The market's closed, so this waits and fills at the live price after the 9:30am ET open. You can cancel it until then."
+            : "Fills at the live price shown."}{" "}
+          Play money only.
+        </p>
+      </form>
+    </section>
   )
 }
 
@@ -432,7 +403,7 @@ function AmountSlider({ side, max, amount, onChange }: { side: "buy" | "sell"; m
 /** A little celebration on every buy and cash-out. Hidden when motion is reduced. */
 function Burst({ pieces = ["🚀", "💎", "📈", "🔥", "💰", "🚀", "📈", "💎"] }: { pieces?: string[] }) {
   return (
-    <div aria-hidden className="pointer-events-none absolute inset-x-0 top-1/2 z-20 flex justify-center motion-reduce:hidden">
+    <div aria-hidden className="fw-burst-host motion-reduce:hidden">
       {pieces.map((p, i) => (
         <span
           key={i}

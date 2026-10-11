@@ -62,26 +62,22 @@ export function StandingRow({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "0px 0px -6% 0px" }}
       transition={{ layout: { type: "spring", stiffness: 420, damping: 38 }, default: { type: "spring", stiffness: 380, damping: 34, delay: Math.min(index, 5) * 0.05 } }}
+      data-medal={standing.rank <= 3 ? standing.rank : undefined}
       className={cn(
-        "py-3",
-        standing.isYou
-          ? tone === "app"
-            ? "surface-you -mx-2 rounded-xl px-3"
-            : "-mx-2 rounded-lg bg-accent/40 px-2"
-          : "-mx-2 rounded-xl px-2 transition-colors duration-200 hover:bg-muted/50",
+        "pf-standing py-4",
+        standing.isYou && (tone === "app" ? "surface-you -mx-2 rounded-xl px-3" : "-mx-2 rounded-lg bg-accent/40 px-2"),
       )}
     >
       <div className="flex items-center gap-3">
         <span
-          className="numeric w-6 shrink-0 text-center text-sm font-bold"
-          style={
-            standing.rank <= 3 ? { color: tone === "app" && standing.rank === 1 ? "var(--gold-ink)" : MEDALS[standing.rank - 1] } : undefined
-          }
+          className="numeric pf-rank w-6 shrink-0 text-center text-sm font-bold"
+          data-rank={standing.rank}
+          style={standing.rank <= 3 && tone !== "app" ? { color: MEDALS[standing.rank - 1] } : undefined}
         >
           {standing.rank}
         </span>
 
-        <Avatar src={standing.image} name={standing.name} handle={standing.handle} />
+        <Avatar src={standing.image} name={standing.name} handle={standing.handle} className="pf-medal-av" />
 
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">
@@ -107,7 +103,7 @@ export function StandingRow({
         </div>
       </div>
 
-      <div className="mt-2 flex flex-wrap items-center gap-1.5 pl-[84px]">
+      <div className="pf-standing-holdings mt-2 flex flex-wrap items-center gap-1.5 pl-[84px]">
         {standing.shareHoldings && standing.holdings.length > 0 ? (
           withShownWeights(standing.holdings.slice(0, 4)).map((h) => <HoldingChip key={h.ticker} holding={h} />)
         ) : standing.shareHoldings ? (
@@ -178,7 +174,7 @@ function HoldingChip({ holding }: { holding: { ticker: string; name: string | nu
   const fill = Math.min(100, Math.max(0, holding.weight))
   return (
     <span
-      className="numeric press inline-flex items-center gap-1.5 rounded-full border bg-secondary/60 py-0.5 pl-0.5 pr-2.5 text-[11px] font-medium transition-[transform,box-shadow] hover:-translate-y-px hover:shadow-sm"
+      className="pf-holding-chip numeric press inline-flex items-center gap-1.5 rounded-full border bg-secondary/60 py-0.5 pl-0.5 pr-2.5 text-[11px] font-medium transition-[transform,box-shadow] hover:-translate-y-px hover:shadow-sm"
       style={{ backgroundImage: `linear-gradient(90deg, hsl(var(--primary) / 0.16) ${fill}%, transparent ${fill}%)` }}
       title={`${holding.name ?? holding.ticker}: ${holding.weight.toFixed(1)}% of their portfolio`}
     >

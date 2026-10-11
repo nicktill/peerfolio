@@ -1,5 +1,8 @@
 "use client"
 
+import "@web/components/leagues/league-workspace.css"
+import "@web/components/app-4a.css"
+
 import { use, useState } from "react"
 import Link from "next/link"
 import { ArrowLeft, Check, LogOut, Share2, Trophy } from "lucide-react"
@@ -116,7 +119,7 @@ export default function LeaguePage({ params }: { params: Promise<{ id: string }>
   const waiting = data.standings.filter((s) => !s.hasHistory)
 
   return (
-    <div className="space-y-6">
+    <div className="pf-social pf-4a space-y-7">
       <div>
         <Link
           href="/leagues"
@@ -126,13 +129,13 @@ export default function LeaguePage({ params }: { params: Promise<{ id: string }>
           Leagues
         </Link>
 
-        <header className="mt-3 flex flex-wrap items-start justify-between gap-3">
+        <header className="pf-social-heading mt-4 flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-start gap-3">
-            <span className="text-3xl" aria-hidden>
+            <span className="grid size-12 shrink-0 place-items-center rounded-xl border bg-card text-2xl" aria-hidden>
               {data.league.emoji}
             </span>
             <div>
-              <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">{data.league.name}</h1>
+              <h1 className="font-display text-3xl font-normal tracking-tight sm:text-4xl">{data.league.name}</h1>
               <p className="mt-0.5 text-sm text-muted-foreground">
                 {data.league.description || (data.standings.length === 1 ? "Just you so far" : plural(data.standings.length, "member"))}
               </p>
@@ -168,7 +171,7 @@ export default function LeaguePage({ params }: { params: Promise<{ id: string }>
       {ranked.length >= 2 ? (
         <Card>
           <CardHeader>
-            <CardTitle>The race</CardTitle>
+            <CardTitle className="font-sans text-sm font-semibold tracking-normal">The race</CardTitle>
             <p className="text-xs text-muted-foreground">
               Everyone indexed to 100 at the start of the window, so this compares rates of return — not who has more
               money.
@@ -191,7 +194,7 @@ export default function LeaguePage({ params }: { params: Promise<{ id: string }>
 
       <Card>
         <CardHeader>
-          <CardTitle>Standings</CardTitle>
+          <CardTitle className="font-sans text-sm font-semibold tracking-normal">Standings</CardTitle>
           {ranked.some((s) => !s.isVerified) ? (
             <p className="text-xs text-muted-foreground">Returns are self-reported unless a member is verified.</p>
           ) : null}

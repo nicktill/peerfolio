@@ -1,8 +1,10 @@
 "use client"
 
+import "@web/components/leagues/league-workspace.css"
+import "@web/components/app-4a.css"
+
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { MagicCard } from "@web/components/magicui/magic-card"
 import { Plus, Users } from "lucide-react"
 import { Button } from "@web/components/ui/button"
 import { Card, CardContent } from "@web/components/ui/card"
@@ -42,10 +44,10 @@ export default function LeaguesPage() {
   }, [])
 
   return (
-    <div className="space-y-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
+    <div className="pf-social pf-4a space-y-7">
+      <header className="pf-social-heading flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">Leagues</h1>
+          <h1 className="font-display text-3xl font-normal tracking-tight sm:text-4xl">Leagues</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Private groups ranked on percentage return. Nobody sees anyone&apos;s balances.
           </p>
@@ -76,18 +78,18 @@ export default function LeaguesPage() {
               key={league.id}
               href={`/leagues/${league.id}`}
               style={revealStyle(i + 1)}
-              className="reveal press group relative overflow-hidden rounded-xl border bg-card transition-[box-shadow,transform] hover:-translate-y-0.5 hover:shadow-md"
+              className="pf-social-league reveal group relative overflow-hidden rounded-xl border bg-card p-6 transition-colors hover:border-primary/40"
             >
-              <MagicCard className="h-full p-5" gradientSize={200} gradientFrom="hsl(var(--primary))" gradientTo="hsl(var(--primary) / 0.35)" gradientColor="hsl(var(--primary) / 0.1)" gradientOpacity={1}>
-                <div
-                  className={cn(
-                    "pointer-events-none absolute -inset-5 -z-10 bg-gradient-to-br opacity-70",
-                    ACCENTS[league.accent] ?? ACCENTS.emerald,
-                  )}
-                  aria-hidden
-                />
+              <div
+                className={cn(
+                  "pf-social-league-tint pointer-events-none absolute inset-0 bg-gradient-to-br opacity-70",
+                  ACCENTS[league.accent] ?? ACCENTS.emerald,
+                )}
+                aria-hidden
+              />
+              <div className="relative">
                 <div className="flex items-start gap-3">
-                  <span className="text-2xl" aria-hidden>
+                  <span className="pf-social-league-icon grid size-11 shrink-0 place-items-center rounded-xl border bg-background text-2xl" aria-hidden>
                     {league.emoji}
                   </span>
                   <div className="min-w-0 flex-1">
@@ -102,7 +104,7 @@ export default function LeaguesPage() {
                   <span className="numeric">{league.memberCount}</span>
                   {league.role === "owner" ? <span className="ml-2">· You run this one</span> : null}
                 </div>
-              </MagicCard>
+              </div>
             </Link>
           ))}
         </div>

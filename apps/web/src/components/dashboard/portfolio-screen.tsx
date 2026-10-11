@@ -25,6 +25,7 @@ import { AddAccountButton } from "@web/components/dashboard/add-account-dialog"
 import { formatCurrency, formatDate, formatPercent } from "@web/lib/format"
 import { isUsMarketOpen } from "@web/lib/market-hours"
 import { cn } from "@web/lib/utils"
+import "./portfolio-4a.css"
 import { mutate, useApi } from "@web/lib/use-api"
 import type { NewsResponse } from "@web/lib/news"
 import { defaultRange, rangeAvailability, rangeUnlockDays, RANGES, type Range } from "@web/lib/ranges"
@@ -190,7 +191,7 @@ export function PortfolioScreen({
   const openFantasy = (fantasy ?? []).filter((f) => !f.isClosed)
 
   return (
-    <div className="space-y-8">
+    <div className="portfolio-screen pf-4a flex flex-col gap-4">
       {error ? (
         <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3 text-sm text-muted-foreground">
           <p>Couldn’t refresh your portfolio. Showing the last loaded balances.</p>
@@ -198,10 +199,10 @@ export function PortfolioScreen({
         </div>
       ) : null}
 
-      <Reveal index={0} className="flex flex-wrap items-end justify-between gap-4">
+      <Reveal index={0} className="pf-head flex flex-wrap items-end justify-between gap-4">
         <div>
-          <SectionLabel as="span" className="mb-2 block">Your financial picture</SectionLabel>
-          <h1 className="font-display text-3xl font-semibold tracking-tight">Portfolio</h1>
+          <h1 className="pf-h1">Portfolio</h1>
+          <p className="mt-2 text-sm leading-[22px] text-muted-foreground">Your accounts and investments, in one place.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {data.isVerified ? (
@@ -230,76 +231,19 @@ export function PortfolioScreen({
 
       {/* Three items, not two columns: phones stack overview, accounts, holdings; on
           desktop the rail runs beside both, so an opened account never leaves a hole. */}
-      <div className="grid items-start gap-8 [&>*]:min-w-0 lg:grid-cols-[minmax(0,1fr)_320px] lg:grid-rows-[auto_1fr] xl:grid-cols-[minmax(0,1fr)_360px]">
-        <Card className="reveal overflow-hidden lg:col-start-1 lg:row-start-1" style={revealStyle(1)}>
-          <div className="p-5 sm:p-6">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-xs text-muted-foreground">Net worth</span>
+      <div className="portfolio-layout app-page-grid pf-grid [&>*]:min-w-0 xl:grid-rows-[auto_1fr]">
+        <Card className="portfolio-overview pf-panel reveal overflow-hidden shadow-none xl:col-start-1 xl:row-start-1" style={revealStyle(1)}>
+          <div className="pf-body">
+            <div className="pf-ph">
+              <span className="pf-lbl">Net worth</span>
               {data.today && isToday && marketOpen ? (
                 <span className="inline-flex items-center gap-2 text-xs text-muted-foreground">
                   <span className="live-dot size-2 rounded-full bg-[--gain]" aria-hidden />
                   Live · market open
                 </span>
               ) : null}
-            </div>
-
-            <p className="mt-2 font-display text-5xl font-semibold leading-none sm:text-[56px]" style={{ letterSpacing: "-0.035em" }}>
-              {hidden ? (
-                "••••••"
-              ) : (
-                <>
-                  <HeadlineNumber className="numeric" id="net-worth" value={netWorthWhole} currency />
-                  <span className="numeric text-[0.5em] text-muted-foreground" style={{ letterSpacing: "-0.02em" }}>
-                    .{String(cents).padStart(2, "0")}
-                  </span>
-                </>
-              )}
-            </p>
-
-            {/* Today, how the investments did, and since purchase: side by side, not behind a toggle. */}
-            <dl className="mt-5 grid grid-cols-1 overflow-hidden rounded-xl border sm:grid-cols-3">
-              <Stat label={todayLabel === "today" ? "Today" : `Last session (${todayLabel.replace(/^on /, "")})`}>
-                {data.today ? (
-                  <>
-                    <span className={cn("numeric text-lg font-semibold", data.today.amount >= 0 ? "text-gain-ink" : "text-loss-ink")}>
-                      {hidden ? formatPercent(data.today.percent) : signedUsd(data.today.amount)}
-                    </span>
-                    {hidden ? null : <span className={cn("numeric text-xs", data.today.amount >= 0 ? "text-gain-ink" : "text-loss-ink")}>{formatPercent(data.today.percent)}</span>}
-                  </>
-                ) : (
-                  <span className="text-sm text-muted-foreground">No change yet</span>
-                )}
-              </Stat>
-              <Stat label={`Investment return · ${windowLabel}`}>
-                {data.hasHistory ? (
-                  <>
-                    <span className={cn("numeric text-lg font-semibold", data.performance.percent >= 0 ? "text-gain-ink" : "text-loss-ink")}>
-                      {formatPercent(data.performance.percent)}
-                    </span>
-                    <span className="text-xs text-muted-foreground">Leaves out money you add or withdraw</span>
-                  </>
-                ) : (
-                  <span className="text-sm text-muted-foreground">Starts after your first day</span>
-                )}
-              </Stat>
-              <Stat label="Since purchase" title={data.allTime ? `Across the ${Math.round(data.allTime.coverage * 100)}% of your holdings that have an average cost` : undefined}>
-                {data.allTime ? (
-                  <>
-                    <span className={cn("numeric text-lg font-semibold", data.allTime.amount >= 0 ? "text-gain-ink" : "text-loss-ink")}>
-                      {hidden ? formatPercent(data.allTime.percent, 0) : signedUsd(data.allTime.amount)}
-                    </span>
-                    {hidden ? null : (
-                      <span className={cn("numeric text-xs", data.allTime.amount >= 0 ? "text-gain-ink" : "text-loss-ink")}>{formatPercent(data.allTime.percent, 0)}</span>
-                    )}
-                  </>
-                ) : (
-                  <span className="text-sm text-muted-foreground">Add average costs to see this</span>
-                )}
-              </Stat>
-            </dl>
-
             {rangeOptions.length > 1 ? (
-              <div className="mt-6 flex justify-end">
+              <div className="ml-auto flex justify-end">
                 <Segmented<Range>
                   options={rangeOptions}
                   value={range}
@@ -314,16 +258,32 @@ export function PortfolioScreen({
               </div>
             ) : null}
 
+            </div>
+
+            <p className="portfolio-balance font-display text-[49px] font-normal leading-[56px] sm:text-[68px] sm:leading-[74px] 2xl:text-[74px] 2xl:leading-[80px]" style={{ letterSpacing: "-0.035em" }}>
+              {hidden ? (
+                "••••••"
+              ) : (
+                <>
+                  <HeadlineNumber className="numeric" id="net-worth" value={netWorthWhole} currency />
+                  <span className="numeric text-[0.5em] text-muted-foreground" style={{ letterSpacing: "-0.02em" }}>
+                    .{String(cents).padStart(2, "0")}
+                  </span>
+                </>
+              )}
+            </p>
+
             {canChart && shown ? (
               <>
-                <div className={cn("flex flex-wrap items-baseline gap-x-3 gap-y-1", rangeOptions.length > 1 ? "mt-2" : "mt-6")}>
-                  <span className="numeric text-2xl font-semibold tracking-tight">{hidden ? "••••••" : formatCurrency(shown.value)}</span>
+                {/* One fixed-height, non-wrapping line so the hover readout can never change the panel's height. */}
+                <div className="mt-3 flex h-7 flex-nowrap items-baseline gap-x-3 overflow-hidden whitespace-nowrap tabular-nums">
+                  {hoverIndex != null ? <span className="numeric shrink-0 text-lg font-medium leading-7 tracking-tight">{hidden ? "••••••" : formatCurrency(shown.value)}</span> : null}
                   {shownReturn != null ? (
-                    <span className={cn("numeric text-sm font-semibold", shownReturn >= 0 ? "text-gain-ink" : "text-loss-ink")}>
+                    <span className={cn("numeric shrink-0 text-sm font-semibold", shownReturn >= 0 ? "text-gain-ink" : "text-loss-ink")}>
                       {formatPercent(shownReturn)} return
                     </span>
                   ) : null}
-                  <span className="text-xs text-muted-foreground">
+                  <span className="min-w-0 truncate text-xs text-muted-foreground">
                     {hoverIndex != null
                       ? formatDate(shown.date)
                       : `${windowLabel}${windowCoversAll ? ` · ${plural(data.performance.days, "day")} tracked` : ""}`}
@@ -333,14 +293,14 @@ export function PortfolioScreen({
                 <div key={range} className="swap-in -mx-1 mt-3">
                   <PerformanceChart
                     points={series}
-                    height={300}
+                    height={250}
                     showTooltip={false}
                     onHover={setHoverIndex}
                     ariaLabel={`Portfolio value in dollars over the last ${range}`}
                     valueFormatter={(v) => (hidden ? "Hidden" : formatCurrency(v))}
                   />
                 </div>
-                <p className="mt-4 text-xs leading-5 text-muted-foreground">
+                <p className="pf-foot">
                   The line is your portfolio’s value, which moves when you add or withdraw money. The return leaves those out, so it shows only how
                   your investments did.
                   {nextRange ? ` The ${nextRange} view unlocks in ${plural(unlockIn[nextRange], "day")}.` : ""}
@@ -348,19 +308,61 @@ export function PortfolioScreen({
               </>
             ) : (
               /* Being honest beats drawing a line through invented data. */
-              <div className="grid min-h-[300px] place-items-center">
+              <div className="grid min-h-[250px] place-items-center">
                 <EmptyState icon={Sparkles} title="Your history starts now" description="We snapshot your portfolio once a day. Check back tomorrow for your first data point." />
               </div>
             )}
+            {/* Today, how the investments did, and since purchase: side by side, not behind a toggle. */}
+            <dl className="pf-stats">
+              <Stat label={todayLabel === "today" ? "Today" : `Last session (${todayLabel.replace(/^on /, "")})`}>
+                {data.today ? (
+                  <>
+                    <span className={cn("numeric pf-stat-v", data.today.amount >= 0 ? "text-gain-ink" : "text-loss-ink")}>
+                      {hidden ? formatPercent(data.today.percent) : signedUsd(data.today.amount)}
+                    </span>
+                    {hidden ? null : <span className={cn("numeric text-xs", data.today.amount >= 0 ? "text-gain-ink" : "text-loss-ink")}>{formatPercent(data.today.percent)}</span>}
+                  </>
+                ) : (
+                  <span className="text-sm text-muted-foreground">No change yet</span>
+                )}
+              </Stat>
+              <Stat label="Investment return">
+                {data.hasHistory ? (
+                  <>
+                    <span className={cn("numeric pf-stat-v", data.performance.percent >= 0 ? "text-gain-ink" : "text-loss-ink")}>
+                      {formatPercent(data.performance.percent)}
+                    </span>
+                    <span className="text-xs text-muted-foreground">{windowLabel} · leaves out money you add or withdraw</span>
+                  </>
+                ) : (
+                  <span className="text-sm text-muted-foreground">Starts after your first day</span>
+                )}
+              </Stat>
+              <Stat label="Since purchase" title={data.allTime ? `Across the ${Math.round(data.allTime.coverage * 100)}% of your holdings that have an average cost` : undefined}>
+                {data.allTime ? (
+                  <>
+                    <span className={cn("numeric pf-stat-v", data.allTime.amount >= 0 ? "text-gain-ink" : "text-loss-ink")}>
+                      {hidden ? formatPercent(data.allTime.percent, 0) : signedUsd(data.allTime.amount)}
+                    </span>
+                    {hidden ? null : (
+                      <span className={cn("numeric text-xs", data.allTime.amount >= 0 ? "text-gain-ink" : "text-loss-ink")}>{formatPercent(data.allTime.percent, 0)}</span>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-sm text-muted-foreground">Add average costs to see this</span>
+                )}
+              </Stat>
+            </dl>
+
           </div>
         </Card>
 
-        <aside className="reveal space-y-8 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:pt-1" style={revealStyle(2)}>
+        <aside className="portfolio-rail reveal min-w-0 xl:col-start-2 xl:row-span-2 xl:row-start-1" style={revealStyle(2)}>
           <AccountsCard variant="rail" accounts={data.accounts} items={data.items} hidden={hidden} onChange={refetch} />
 
-          <section aria-labelledby="rail-glance" className="border-t pt-5">
-            <SectionLabel as="h2" id="rail-glance">At a glance</SectionLabel>
-            <dl className="mt-3 space-y-2 text-sm">
+          <section aria-labelledby="rail-glance" className="pf-panel p-4 sm:p-5">
+            <div className="pf-ph"><SectionLabel as="h2" id="rail-glance" className="pf-lbl">At a glance</SectionLabel></div>
+            <dl className="space-y-2 text-sm">
               <div className="flex justify-between gap-3">
                 <dt className="text-muted-foreground">Invested</dt>
                 <dd className="numeric font-medium">{formatCurrency(invested, { hidden })}</dd>
@@ -388,12 +390,12 @@ export function PortfolioScreen({
           </section>
 
           {gainers.length + losers.length > 0 ? (
-            <section aria-labelledby="rail-movers" className="border-t pt-5">
-              <div className="flex items-center justify-between">
-                <SectionLabel as="h2" id="rail-movers">Today’s movers</SectionLabel>
+            <section aria-labelledby="rail-movers" className="pf-panel p-4 sm:p-5">
+              <div className="pf-ph">
+                <SectionLabel as="h2" id="rail-movers" className="pf-lbl">Today’s movers</SectionLabel>
                 <span className="text-xs text-muted-foreground">{todayLabel === "today" ? "Your holdings" : `Your holdings ${todayLabel}`}</span>
               </div>
-              <ul className="mt-2 space-y-0.5">
+              <ul className="space-y-0.5">
                 {[...gainers, ...losers].map((h) => (
                   <li key={h.securityId} className="flex items-center gap-3 py-1.5">
                     <TickerLogo symbol={h.ticker ?? "?"} kind={h.type === "cryptocurrency" ? "crypto" : "stock"} size="xs" className="size-6" />
@@ -406,8 +408,8 @@ export function PortfolioScreen({
           ) : null}
 
           {data.leagues.length > 0 || openFantasy.length > 0 ? (
-            <section aria-labelledby="rail-leagues" className="border-t pt-5">
-              <SectionLabel as="h2" id="rail-leagues">Your leagues</SectionLabel>
+            <section aria-labelledby="rail-leagues" className="pf-panel p-4 sm:p-5">
+              <div className="pf-ph"><SectionLabel as="h2" id="rail-leagues" className="pf-lbl">Your leagues</SectionLabel></div>
               {data.leagues.length > 0 ? (
                 <LeagueGroup title="Leagues" note="Real portfolios" href="/leagues">
                   {data.leagues.slice(0, 4).map((league) => (
@@ -447,7 +449,7 @@ export function PortfolioScreen({
           <MarketsToday />
         </aside>
 
-        <Reveal index={3} className="lg:col-start-1 lg:row-start-2">
+        <Reveal index={3} className="xl:col-start-1 xl:row-start-2">
           <HoldingsTable
             variant="section"
             holdings={data.holdings}
@@ -486,14 +488,14 @@ function MarketsToday() {
     ? new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "long" }).format(new Date(`${brief.periodEnd}T16:00:00Z`))
     : null
   return (
-    <Link href="/news" className="group block border-t pt-5">
-      <span className="flex items-center justify-between gap-3">
-        <SectionLabel as="span" className="block transition-colors group-hover:text-foreground">Markets today</SectionLabel>
+    <Link href="/news" className="group pf-panel block p-4 sm:p-5">
+      <span className="pf-ph">
+        <SectionLabel as="span" className="pf-lbl block transition-colors group-hover:text-foreground">Markets today</SectionLabel>
         {when ? <span className="text-xs text-muted-foreground">{brief?.period === "midday" ? `${when} midday update` : `After ${when}’s close`}</span> : null}
       </span>
       {brief ? (
         <>
-          <span className="mt-2 block text-pretty font-display text-[17px] font-semibold leading-snug tracking-tight">{brief.headline}</span>
+          <span className="mt-2 block text-pretty font-display text-[19px] font-normal leading-snug tracking-tight">{brief.headline}</span>
           <span className="mt-1 line-clamp-3 text-sm leading-relaxed text-muted-foreground">{brief.body.split(/\n\s*\n/)[0]}</span>
         </>
       ) : (
@@ -510,8 +512,8 @@ function MarketsToday() {
 /** One of the overview's three numbers. */
 function Stat({ label, title, children }: { label: string; title?: string; children: React.ReactNode }) {
   return (
-    <div title={title} className="flex flex-col gap-0.5 border-b px-4 py-3 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
+    <div title={title} className="pf-stat">
+      <dt className="pf-eyebrow">{label}</dt>
       <dd className="flex flex-col gap-0.5">{children}</dd>
     </div>
   )

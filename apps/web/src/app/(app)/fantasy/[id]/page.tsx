@@ -1,30 +1,29 @@
 "use client"
 
+import "@web/components/fantasy/fantasy-workspace.css"
+
 import { use, useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, Check, ChevronDown, Clock, Infinity as Forever, Link2, Pencil } from "lucide-react"
+import { ArrowLeft, Check, Clock, Flag, Infinity as Forever, Link2, Pencil } from "lucide-react"
 import { initialsFor } from "@web/components/ui/avatar"
 import { RaceChart } from "@web/components/charts/race-chart"
-import { StandingRow } from "@web/components/leagues/standing-row"
+import { StandingsTable } from "@web/components/fantasy/standings-table"
 import { EditLeagueDialog } from "@web/components/fantasy/edit-league-dialog"
-import { CashStat, PortfolioStat } from "@web/components/fantasy/balance-cards"
+import { CashStat, PortfolioStat, RankStat, ReturnStat } from "@web/components/fantasy/balance-cards"
 import { TradePanel } from "@web/components/fantasy/trade-panel"
 import { TradeFeed, type FeedItem } from "@web/components/fantasy/trade-feed"
 import { timeLeft } from "@web/components/fantasy/time-left"
-import { Badge } from "@web/components/ui/badge"
-import { Button } from "@web/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card"
 import { useRankBaseline } from "@web/components/fantasy/use-rank-baseline"
 import { AnimatedNumber } from "@web/components/ui/animated-number"
 import { Delta } from "@web/components/ui/delta"
 import { LeaguePageSkeleton } from "@web/components/skeletons"
 import { revealStyle } from "@web/components/motion/reveal"
+import { TickerLogo } from "@web/components/ui/ticker-logo"
 import type { Standing } from "@web/components/leagues/standing-row"
 import { formatCurrency } from "@web/lib/format"
-import { describeMovement, rankMovement } from "@web/lib/rank-change"
+import { plural } from "@web/lib/plural"
+import { rankMovement } from "@web/lib/rank-change"
 import { liveRefreshMs } from "@web/lib/live-refresh"
-import { accentFor } from "@web/lib/league-look"
-import { visibleStandings } from "@web/lib/standings-window"
 import { mutate, useApi } from "@web/lib/use-api"
 import { useToast } from "@web/components/ui/toast"
 
@@ -63,8 +62,6 @@ type LeagueData = {
   feed: FeedItem[]
 }
 
-const MEDALS = ["🥇", "🥈", "🥉"]
-
 /** Off-hours pace: standings only move when someone trades. While the market is open it's every minute, see liveRefreshMs. */
 const CLOSED_REFRESH_MS = 60_000
 
@@ -72,7 +69,6 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
   const { id } = use(params)
   const { toast } = useToast()
   const [editing, setEditing] = useState(false)
-  const [showAllStandings, setShowAllStandings] = useState(false)
   const { data, error, loading, refetch } = useApi<LeagueData>(`/api/fantasy/${id}`, [], { refreshMs: liveRefreshMs(CLOSED_REFRESH_MS) })
   const rankBefore = useRankBaseline(id, data?.you.rank ?? null)
 
@@ -102,115 +98,82 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
 
   const { league, standings, you, feed } = data
   const moved = rankMovement(rankBefore, you.rank)
-  const standingsView = visibleStandings(standings, { expanded: showAllStandings })
+  const status = league.isClosed ? "Final standings" : league.endsAt ? timeLeft(league.endsAt) : "All-time"
 
   return (
-    <div className="space-y-6">
-      <Link href="/fantasy" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="size-4" aria-hidden /> Fantasy
+    <div className="fw">
+      <Link href="/fantasy" className="fw-back">
+        <ArrowLeft className="size-3.5" aria-hidden /> Fantasy leagues
       </Link>
 
-      <header className="reveal relative overflow-hidden rounded-3xl border bg-card p-5 sm:p-7" style={revealStyle(0)}>
-        <div className="hero-grid absolute inset-0 opacity-60" aria-hidden />
-        <div className={`absolute -left-10 -top-20 size-56 rounded-full blur-3xl ${accentFor(league.accent).glow}`} aria-hidden />
-        <div className="relative flex flex-wrap items-start justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <span className="text-4xl" aria-hidden>{league.emoji}</span>
-            <div>
-              <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">{league.name}</h1>
-              <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                <span className="inline-flex items-center gap-1">
-                  {league.endsAt ? <Clock className="size-3.5" aria-hidden /> : <Forever className="size-3.5" aria-hidden />}
-                  {league.isClosed ? "Final standings" : league.endsAt ? timeLeft(league.endsAt) : "All-time league"}
-                </span>
-                <span>{formatCurrency(league.startingCash)} each</span>
-                {league.maxPositionPct ? <span>Max {league.maxPositionPct}% per pick</span> : null}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {league.isOwner && !league.isClosed ? (
-              <Button variant="outline" size="sm" className="rounded-full" onClick={() => setEditing(true)}>
-                <Pencil aria-hidden />
-                Edit league
-              </Button>
-            ) : null}
-            <InviteButton code={league.inviteCode} />
+      <header className="fw-head reveal" style={revealStyle(0)}>
+        <div className="fw-identity">
+          <span className="fw-art" data-accent={league.accent} aria-hidden>
+            <span>{league.emoji}</span>
+          </span>
+          <div>
+            <span className="fw-eyebrow">Fantasy / Play money</span>
+            <h1>{league.name}</h1>
+            <p className="fw-meta">
+              {standings.length} {standings.length === 1 ? "player" : "players"} · {formatCurrency(league.startingCash)} each ·{" "}
+              {league.maxPositionPct ? `max ${league.maxPositionPct}% per pick` : "no position cap"}
+            </p>
           </div>
         </div>
-
-        <dl className="relative mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Stat label="Your rank">
-            <span className="numeric">
-              {MEDALS[you.rank - 1] ?? ""}#{you.rank}
-              <span className="text-sm font-normal text-muted-foreground"> of {standings.length}</span>
-            </span>
-            {moved !== null ? (
-              <span
-                className={`animate-rise-in mt-1 block text-xs font-medium ${moved > 0 ? "text-gain-ink" : "text-loss-ink"}`}
-              >
-                {moved > 0 ? "▲" : "▼"} {describeMovement(moved)} since your last visit
-              </span>
-            ) : null}
-          </Stat>
-          <Stat label="Return">
-            <Delta value={you.percent} size="lg" variant="plain" />
-          </Stat>
-          <PortfolioStat value={you.value} cash={you.cash} startingCash={league.startingCash} />
-          <CashStat cash={you.cash} value={you.value} />
-        </dl>
+        <div className="fw-actions">
+          <span className="fw-pill">
+            {league.isClosed ? <Flag aria-hidden /> : league.endsAt ? <Clock aria-hidden /> : <Forever aria-hidden />}
+            {status}
+          </span>
+          {league.isOwner && !league.isClosed ? (
+            <button type="button" className="fw-btn" onClick={() => setEditing(true)}>
+              <Pencil aria-hidden />
+              Edit league
+            </button>
+          ) : null}
+          <InviteButton code={league.inviteCode} />
+        </div>
       </header>
+
+      <dl className="fw-panel fw-scoreboard reveal" style={revealStyle(1)}>
+        <RankStat rank={you.rank} total={standings.length} moved={moved} />
+        <ReturnStat percent={you.percent} value={you.value} startingCash={league.startingCash} />
+        <PortfolioStat value={you.value} cash={you.cash} startingCash={league.startingCash} />
+        <CashStat cash={you.cash} value={you.value} />
+      </dl>
 
       {league.isOwner && !league.isClosed ? (
         <EditLeagueDialog league={league} open={editing} onClose={() => setEditing(false)} onSaved={refetch} />
       ) : null}
 
-      {league.isClosed ? <Podium standings={standings} /> : null}
-
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="min-w-0 space-y-6">
-          <Card className="reveal" style={revealStyle(1)}>
-            <CardHeader>
-              <CardTitle>The race</CardTitle>
-              <p className="text-xs text-muted-foreground">Everyone starts at 100. Updated nightly, plus live values today.</p>
-            </CardHeader>
-            <CardContent>
+      <div className="fw-grid">
+        <div className="fw-main">
+          <section className="fw-panel reveal" style={revealStyle(2)} aria-labelledby="fw-race-title">
+            <div className="fw-section-head">
+              <h2 id="fw-race-title">The race</h2>
+              <p>Everyone starts at 100. Updated nightly, plus live values today.</p>
+            </div>
+            <div className="fw-race">
               <RaceChart
-              rich
+                rich
+                explore
                 height={260}
                 series={standings.map((s) => ({ id: s.userId, label: s.name?.split(" ")[0] ?? s.handle ?? "", initials: initialsFor(s.name, s.handle), points: s.spark, isYou: s.isYou }))}
               />
-            </CardContent>
-          </Card>
+            </div>
+          </section>
 
-          <Card className="reveal" style={revealStyle(2)}>
-            <CardHeader>
-              <CardTitle>Standings</CardTitle>
-              <p className="text-xs text-muted-foreground">Matching returns to 0.01% share a rank.</p>
-            </CardHeader>
-            <CardContent>
-              <ul className="divide-y">
-                {standingsView.rows.map((s, i) => (
-                  <StandingRow key={s.userId} standing={s} onReact={react} showSource={false} index={i} />
-                ))}
-              </ul>
-              {standingsView.hidden > 0 || showAllStandings ? (
-                <button
-                  type="button"
-                  onClick={() => setShowAllStandings((v) => !v)}
-                  aria-expanded={showAllStandings}
-                  className="press mt-2 inline-flex w-full items-center justify-center gap-1 rounded-lg py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-                >
-                  {showAllStandings ? "Show fewer" : `Show all ${standings.length}`}
-                  <ChevronDown className={`size-3.5 transition-transform ${showAllStandings ? "rotate-180" : ""}`} aria-hidden />
-                </button>
-              ) : null}
-            </CardContent>
-          </Card>
+          <section className="fw-panel reveal" style={revealStyle(3)} aria-labelledby="fw-standings-title">
+            <div className="fw-section-head">
+              <h2 id="fw-standings-title">Standings</h2>
+              <p>Matching returns to 0.01% share a rank.</p>
+            </div>
+            <StandingsTable standings={standings} onReact={react} />
+          </section>
         </div>
 
-        <aside className="reveal min-w-0 space-y-6" style={revealStyle(2)}>
-          {!league.isClosed ? <TradePanel leagueId={league.id} cash={you.cash} positions={you.positions} onTraded={refetch} /> : null}
+        <aside className="fw-rail reveal" style={revealStyle(3)}>
+          <TradePanel leagueId={league.id} cash={you.cash} positions={you.positions} onTraded={refetch} closed={league.isClosed} />
           <Holdings positions={you.positions} orders={you.orders} onCancel={league.isClosed ? undefined : cancelOrder} />
           <TradeFeed items={feed} />
         </aside>
@@ -219,22 +182,13 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
   )
 }
 
-function Stat({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-2xl border bg-background/70 p-3 backdrop-blur">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="mt-1 text-xl font-semibold">{children}</dd>
-    </div>
-  )
-}
-
 function InviteButton({ code }: { code: string }) {
   const [copied, setCopied] = useState(false)
   return (
-    <Button
-      variant="outline"
-      size="sm"
-      className="rounded-full"
+    <button
+      type="button"
+      className="fw-btn"
+      data-solid
       onClick={() => {
         void navigator.clipboard.writeText(`${window.location.origin}/fantasy/join/${code}`)
         setCopied(true)
@@ -243,7 +197,7 @@ function InviteButton({ code }: { code: string }) {
     >
       {copied ? <Check aria-hidden /> : <Link2 aria-hidden />}
       {copied ? "Link copied" : "Invite friends"}
-    </Button>
+    </button>
   )
 }
 
@@ -273,97 +227,69 @@ function Holdings({ positions, orders, onCancel }: { positions: Position[]; orde
   const unfilled = orders.filter((o) => o.status !== "pending")
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Your picks</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {positions.length === 0 && pendingBuys.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nothing yet. Cash doesn&apos;t win leagues.</p>
-        ) : (
-          <ul className="divide-y">
-            {pendingBuys.map((o) => (
-              <li key={o.id} className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-2.5 first:pt-2.5 last:pb-2.5">
-                <span className="grid size-9 shrink-0 place-items-center rounded-lg border border-dashed bg-secondary/50 font-mono text-[11px] font-bold">
-                  {o.ticker.slice(0, 4)}
+    <section className="fw-panel reveal" style={revealStyle(4)} aria-labelledby="fw-picks-title">
+      <div className="fw-section-head">
+        <h2 id="fw-picks-title">Your picks</h2>
+        <p>{positions.length + pendingBuys.length === 0 ? "No positions" : plural(positions.length + pendingBuys.length, "position")}</p>
+      </div>
+      {positions.length === 0 && pendingBuys.length === 0 ? (
+        <p className="fw-empty">Nothing yet. Cash doesn&apos;t win leagues.</p>
+      ) : (
+        <ul className="fw-picks">
+          {pendingBuys.map((o) => (
+            <li key={o.id} className="fw-pick">
+              <TickerLogo symbol={o.ticker} size="sm" className="shrink-0 rounded-lg border-dashed" />
+              <div className="fw-pick-body">
+                <strong className="numeric">{formatCurrency(o.amount ?? 0)}</strong>
+                <span>Buys at the next live price · no average cost yet</span>
+                {o.price > 0 ? <span className="numeric">Last {formatCurrency(o.price)}</span> : null}
+              </div>
+              <div className="fw-pick-side">
+                <span className="fw-pending-tag">Pending</span>
+                {onCancel ? <CancelOrder onClick={() => onCancel(o.id)} /> : null}
+              </div>
+            </li>
+          ))}
+          {positions.map((p) => (
+            <li key={p.ticker} className={`fw-pick ${flash.has(p.ticker) ? "pick-flash" : ""}`}>
+              <TickerLogo symbol={p.ticker} size="sm" className="shrink-0 rounded-lg" />
+              <div className="fw-pick-body">
+                <strong className="numeric">
+                  <AnimatedNumber value={p.value} format={formatCurrency} />
+                </strong>
+                <span className="numeric">
+                  {fmtShares(p.shares)} sh @ {formatCurrency(p.averageCost)} avg
                 </span>
-                <div className="min-w-0 flex-1">
-                  <p className="numeric text-sm font-medium">{formatCurrency(o.amount ?? 0)}</p>
-                  <p className="truncate text-xs text-muted-foreground">Buys at the next live price · no average cost yet</p>
-                  {o.price > 0 ? <p className="numeric truncate text-xs text-muted-foreground">Last {formatCurrency(o.price)}</p> : null}
-                </div>
-                <div className="flex shrink-0 flex-col items-end gap-1">
-                  <Badge variant="warning">Pending</Badge>
-                  {onCancel ? <CancelOrder onClick={() => onCancel(o.id)} /> : null}
-                </div>
-              </li>
-            ))}
-            {positions.map((p) => (
-              <li key={p.ticker} className={`-mx-2 flex items-center gap-3 rounded-lg px-2 py-2.5 first:pt-2.5 last:pb-2.5 ${flash.has(p.ticker) ? "pick-flash" : ""}`}>
-                <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-secondary font-mono text-[11px] font-bold">
-                  {p.ticker.slice(0, 4)}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="numeric text-sm font-medium">
-                    <AnimatedNumber value={p.value} format={formatCurrency} />
-                  </p>
-                  <p className="numeric truncate text-xs text-muted-foreground">
-                    {fmtShares(p.shares)} sh @ {formatCurrency(p.averageCost)} avg
-                  </p>
-                  <p className="numeric truncate text-xs text-muted-foreground">Now {formatCurrency(p.price)}</p>
-                  {(sellsBy.get(p.ticker) ?? []).map((o) => (
-                    <p key={o.id} className="numeric flex items-center gap-2 truncate text-xs text-[--series-4]">
-                      Selling {o.shares === null ? "all" : `${fmtShares(o.shares)} sh`} at the next live price
-                      {onCancel ? <CancelOrder onClick={() => onCancel(o.id)} /> : null}
-                    </p>
-                  ))}
-                </div>
-                <Delta value={p.gainPct} size="sm" />
-              </li>
-            ))}
-          </ul>
-        )}
-        {unfilled.length > 0 ? (
-          <ul className="mt-3 space-y-1 border-t pt-3">
-            {unfilled.map((o) => (
-              <li key={o.id} className="text-xs text-muted-foreground">
-                Your queued {o.side} of {o.ticker} didn&apos;t go through: {o.reason}
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </CardContent>
-    </Card>
+                <span className="numeric">Now {formatCurrency(p.price)}</span>
+                {(sellsBy.get(p.ticker) ?? []).map((o) => (
+                  <span key={o.id} className="numeric fw-selling">
+                    Selling {o.shares === null ? "all" : `${fmtShares(o.shares)} sh`} at the next live price
+                    {onCancel ? <CancelOrder onClick={() => onCancel(o.id)} /> : null}
+                  </span>
+                ))}
+              </div>
+              <Delta value={p.gainPct} size="sm" />
+            </li>
+          ))}
+        </ul>
+      )}
+      {unfilled.length > 0 ? (
+        <ul className="fw-rejected">
+          {unfilled.map((o) => (
+            <li key={o.id}>
+              Your queued {o.side} of {o.ticker} didn&apos;t go through: {o.reason}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </section>
   )
 }
 
 function CancelOrder({ onClick }: { onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">
+    <button type="button" onClick={onClick} className="fw-link">
       Cancel
     </button>
-  )
-}
-
-function Podium({ standings }: { standings: Standing[] }) {
-  const top = standings.filter((s) => s.rank <= 3)
-  const order = top.length === 3 && top.every((s, i) => s.rank === i + 1)
-    ? [top[1]!, top[0]!, top[2]!]
-    : top
-  const heights: Record<number, string> = { 1: "h-28", 2: "h-20", 3: "h-14" }
-  return (
-    <section className="rounded-3xl border bg-card p-6 text-center" aria-label="Final podium">
-      <p className="text-sm font-semibold text-primary">Season over</p>
-      <div className="mt-6 flex flex-wrap items-end justify-center gap-3">
-        {order.map((s) => (
-          <div key={s.userId} className="flex w-24 flex-col items-center gap-2">
-            <span className="text-2xl" aria-hidden>{MEDALS[s.rank - 1]}</span>
-            <span className="truncate text-sm font-medium">{s.name?.split(" ")[0] ?? s.handle}</span>
-            <Delta value={s.percent} size="sm" />
-            <div className={`w-full rounded-t-xl bg-primary/15 ${heights[s.rank]}`} />
-          </div>
-        ))}
-      </div>
-    </section>
   )
 }

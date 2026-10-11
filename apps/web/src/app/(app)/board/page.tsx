@@ -1,5 +1,6 @@
 "use client"
 
+import "@web/components/app-4a.css"
 import { useState } from "react"
 import Link from "next/link"
 import { Check, ShieldCheck, Trophy, UserPlus, Users } from "lucide-react"
@@ -9,6 +10,7 @@ import { Button } from "@web/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card"
 import { Delta } from "@web/components/ui/delta"
 import { EmptyState } from "@web/components/ui/empty-state"
+import "@web/components/app-4a.css"
 import { Segmented } from "@web/components/ui/segmented"
 import { SkeletonRow } from "@web/components/ui/skeleton"
 import { Sparkline } from "@web/components/ui/sparkline"
@@ -59,9 +61,9 @@ export default function BoardPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <header>
-        <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">The Board</h1>
+    <div className="pf-4a min-w-0 space-y-6">
+      <header className="pf-4a-heading">
+        <h1 className="font-display text-3xl font-normal tracking-tight sm:text-4xl">The Board</h1>
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
           Every return here is pulled straight from a connected brokerage and time-weighted, so deposits don&apos;t
           inflate anyone&apos;s number. Percentages only — no balances, ever.
@@ -82,7 +84,7 @@ export default function BoardPage() {
         <Segmented options={RANGES} value={range} onChange={setRange} size="sm" label="Time range" />
       </div>
 
-      <Card>
+      <Card className="rounded-xl">
         <CardHeader className="flex-row items-center justify-between">
           <CardTitle>{scope === "following" ? "Traders you follow" : "Top traders"}</CardTitle>
           <Badge variant="verified">
