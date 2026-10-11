@@ -60,10 +60,10 @@ export default async function HomePage() {
           </div>
 
           <div className="relative mx-auto max-w-6xl px-6 pb-16 sm:px-5 sm:pb-24 xl:pt-10">
-            <ChatBubble from="Theo" className="-top-[62px] left-[5%] -rotate-1" delay={0}>
+            <ChatBubble from="Theo" className="-top-[74px] left-[5%] -rotate-1" delay={0}>
               NVDA is a personality at this point.
             </ChatBubble>
-            <ChatBubble from="Dev" className="-top-[58px] right-[5%] rotate-1" delay={1.5}>
+            <ChatBubble from="Dev" className="-top-[72px] right-[5%] rotate-1" delay={1.5}>
               Down 4.6% and feeling great.
             </ChatBubble>
             <LeaguePreview />
