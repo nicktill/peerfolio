@@ -1,7 +1,6 @@
 import { ShieldCheck } from "lucide-react"
 import { Avatar } from "@web/components/ui/avatar"
 import { Badge } from "@web/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card"
 import { Delta } from "@web/components/ui/delta"
 import { Sparkline } from "@web/components/ui/sparkline"
 import { DEMO_STANDINGS } from "@web/components/landing/demo"
@@ -13,19 +12,19 @@ export function BoardPreview() {
   const traders = DEMO_STANDINGS.filter((s) => !s.isYou).slice(0, 3)
 
   return (
-    <Card>
-      <CardHeader className="flex-row items-center justify-between">
-        <CardTitle>Top traders</CardTitle>
-        <Badge variant="verified">
+    <div className="pf-panel">
+      <div className="pf-ph">
+        <h3 className="pf-label">Top traders</h3>
+        <Badge variant="verified" className="pf-ph-end">
           <ShieldCheck aria-hidden />
           Verified only
         </Badge>
-      </CardHeader>
-      <CardContent>
+      </div>
+      <div className="px-4 pb-4 pt-3">
         <ul className="divide-y">
           {traders.map((trader, i) => (
             <li key={trader.userId} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
-              <span className="numeric w-6 shrink-0 text-center text-sm font-bold" style={{ color: MEDALS[i] }}>
+              <span className="numeric w-6 shrink-0 text-center font-mono text-sm font-medium" style={{ color: MEDALS[i] }}>
                 {i + 1}
               </span>
               <Avatar name={trader.name} handle={trader.handle} />
@@ -40,7 +39,7 @@ export function BoardPreview() {
             </li>
           ))}
         </ul>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }

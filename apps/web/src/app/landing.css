@@ -1,0 +1,63 @@
+/* Public landing page, in the 5C system.
+   The root carries BOTH `.peerfolio-app` and `.pf-landing`: `.peerfolio-app` (peerfolio-5c.css) is the single
+   source of the 5C tokens (--bg --panel --raise --hair --fg* --pf-accent --r ... light + dark) and the shadcn
+   channels the shared preview components read, so nothing is copied here. This file only adds landing layout
+   and undoes the app-shell bits (the sidebar grid, 14px base type) that don't apply to a marketing page. */
+.pf-landing.peerfolio-app { display: flex; flex-direction: column; font-size: 16px; line-height: 1.5; }
+.pf-landing ::selection { background: rgba(var(--accent-a), 0.28); }
+
+.pf-label-plain { font: 500 10.5px/16px var(--mono); letter-spacing: 0.09em; text-transform: uppercase; color: var(--fg2); }
+/* Mono eyebrow with the accent tick, used above section headlines. */
+.pf-landing .pf-tick::before {
+  content: ""; display: inline-block; width: 2px; height: 9px; margin-right: 9px; background: var(--pf-accent); opacity: 0.9; vertical-align: -1px;
+}
+
+/* Buttons: landing CTAs are larger than the app's 32px default. */
+.pf-btn { display: inline-flex; height: 44px; align-items: center; justify-content: center; gap: 8px; padding: 0 20px; border-radius: var(--r-s); border: 1px solid var(--line); background: transparent; color: var(--fg); font-size: 14px; line-height: 20px; font-weight: 500; transition: background-color 160ms ease, border-color 160ms ease; }
+.pf-btn:hover { background: var(--raise); }
+.pf-cta { height: 44px; padding-inline: 20px; font-size: 14px; min-height: 44px !important; }
+.pf-hbtn { height: 36px; min-height: 36px !important; }
+
+/* Header: flat, hairline, always the page colour. */
+.pf-header { position: sticky; top: 0; z-index: 40; background: var(--bg); border-bottom: 1px solid var(--hair); }
+.pf-logo { width: 26px; height: 26px; object-fit: contain; filter: brightness(0); }
+.dark .pf-logo { filter: brightness(0) invert(1); }
+.pf-wordmark { font: 500 21px/1 var(--serif); letter-spacing: -0.01em; color: var(--fg); }
+
+/* Hero backdrop: quiet hairline grid and a couple of faint cells. No glow, no green. */
+.pf-grid {
+  background-image:
+    linear-gradient(to right, var(--hair2) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--hair2) 1px, transparent 1px);
+  background-size: 56px 56px;
+  background-position: center top;
+  opacity: 0.7;
+  mask-image: radial-gradient(ellipse 70% 70% at 50% 0%, #000 20%, transparent 100%);
+}
+.pf-cell { background: var(--pf-accent); opacity: 0; animation: pf-cell 9s ease-in-out infinite; }
+@keyframes pf-cell { 0%, 100% { opacity: 0.01; } 50% { opacity: 0.06; } }
+
+/* Hero */
+.pf-pill { display: inline-flex; align-items: center; gap: 9px; padding: 5px 12px; min-height: 28px; text-align: left; border: 1px solid var(--hair); border-radius: 999px; background: var(--panel); font: 500 10.5px/16px var(--mono); letter-spacing: 0.09em; text-transform: uppercase; color: var(--fg2); max-width: 100%; }
+.pf-pill i { width: 6px; height: 6px; border-radius: 50%; background: var(--pf-accent); flex: none; }
+.pf-h1 { font-family: var(--serif); font-weight: 400; letter-spacing: -0.03em; line-height: 1.06; font-size: clamp(2.4rem, 7vw, 5rem); text-wrap: balance; color: var(--fg); }
+.pf-h1 em, .pf-h1 .pf-accent { font-style: italic; color: var(--pf-accent); }
+.pf-h2 { font-family: var(--serif); font-weight: 400; letter-spacing: -0.022em; line-height: 1.12; font-size: clamp(1.75rem, 3.4vw, 2.5rem); text-wrap: balance; color: var(--fg); }
+.pf-sub { color: var(--fg2); text-wrap: pretty; }
+.pf-muted { color: var(--fg3); }
+
+.pf-frame { position: relative; }
+.pf-bubble { max-width: 15rem; padding: 9px 13px; border: 1px solid var(--hair); border-radius: var(--r); background: var(--panel); font-size: 13px; line-height: 18px; color: var(--fg); }
+.pf-bubble p:first-child { font: 500 10px/14px var(--mono); letter-spacing: 0.09em; text-transform: uppercase; color: var(--fg3); }
+
+/* Sections */
+.pf-rule { border-top: 1px solid var(--hair); }
+.pf-step-num { font: 500 10.5px/16px var(--mono); letter-spacing: 0.09em; text-transform: uppercase; color: var(--fg2); }
+.pf-icon { display: grid; width: 32px; height: 32px; place-items: center; border: 1px solid var(--hair); border-radius: var(--r-s); background: var(--raise); color: var(--pf-accent); }
+.pf-ticker { border-block: 1px solid var(--hair); }
+.pf-landing .pf-steps > li + li { border-left: 1px solid var(--hair); }
+@media (max-width: 639px) { .pf-landing .pf-steps > li + li { border-left: 0; border-top: 1px solid var(--hair); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .pf-cell { animation: none; opacity: 0.04; }
+}

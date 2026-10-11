@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 
 /**
  * Types out each word in turn, after a fixed `prefix` that stays put ("with "),
- * so the whole line reads as one green unit. The first word is in the server
+ * so the whole line reads as one accent unit. The first word is in the server
  * markup, so the headline is complete on first paint and never flashes empty.
  */
 export function RotatingWord({ words, prefix = "" }: { words: readonly string[]; prefix?: string }) {
@@ -28,11 +28,11 @@ export function RotatingWord({ words, prefix = "" }: { words: readonly string[];
   }, [text, deleting, index, words])
 
   return (
-    <span className="whitespace-nowrap text-primary">
+    <span className="italic text-[var(--pf-accent)]">
       <span className="sr-only">{prefix}{words[0]}</span>
       <span aria-hidden>
-        {prefix}{text}
-        <span className="caret ml-0.5 inline-block w-[3px] translate-y-[0.08em] self-stretch bg-primary/70" style={{ height: "0.9em" }} />
+        {prefix}<span className="whitespace-nowrap">{text}
+        <span className="caret ml-0.5 inline-block w-[3px] translate-y-[0.08em] self-stretch bg-primary/60" style={{ height: "0.9em" }} /></span>
       </span>
     </span>
   )
