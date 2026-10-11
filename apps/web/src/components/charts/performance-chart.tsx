@@ -190,6 +190,8 @@ export function PerformanceChart({
             <motion.path
               key={`line-${drawKey}`}
               d={geometry.line}
+              pathLength={1}
+              className="pf-draw"
               fill="none"
               stroke={stroke}
               strokeWidth={indexed ? 2.5 : 2}

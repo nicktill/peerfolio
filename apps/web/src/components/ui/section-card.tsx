@@ -1,34 +1,25 @@
 import Link from "next/link"
 import { ChevronRight } from "lucide-react"
-import { MagicCard } from "@web/components/magicui/magic-card"
+import { Card } from "@web/components/ui/card"
 import { revealStyle } from "@web/components/motion/reveal"
 import { cn } from "@web/lib/utils"
 
 /** The small uppercase label every card (and section) opens with. */
 export function SectionLabel({ children, className, id, as: Tag = "h2" }: { children: React.ReactNode; className?: string; id?: string; as?: "h1" | "h2" | "span" }) {
   return (
-    <Tag id={id} className={cn("font-display text-[14px] font-semibold tracking-[-0.01em] text-foreground/80", className)}>
+    <Tag id={id} className={cn("pf-label", className)}>
       {children}
     </Tag>
   )
 }
 
-/** Tinted backgrounds for the icon chip, from the categorical palette so cards are told apart at a glance. */
-const TONES = {
-  primary: "bg-primary/15 text-primary",
-  blue: "bg-[color-mix(in_srgb,var(--series-1)_16%,transparent)] text-[--series-1]",
-  orange: "bg-[color-mix(in_srgb,var(--series-2)_16%,transparent)] text-[--series-2]",
-  amber: "bg-[color-mix(in_srgb,var(--series-4)_18%,transparent)] text-gold-ink",
-  pink: "bg-[color-mix(in_srgb,var(--series-5)_16%,transparent)] text-[--series-5]",
-  violet: "bg-[color-mix(in_srgb,var(--series-7)_16%,transparent)] text-[--series-7]",
-} as const
-
-export type ChipTone = keyof typeof TONES
+/** Kept for call-site compatibility; 5C chips are neutral hairline squares whatever the tone. */
+export type ChipTone = "primary" | "blue" | "orange" | "amber" | "pink" | "violet"
 
 /** A small rounded square holding an icon, tinted to tell sections apart (the Fantasy page's vocabulary). */
-export function IconChip({ tone = "primary", children, className }: { tone?: ChipTone; children: React.ReactNode; className?: string }) {
+export function IconChip({ children, className }: { tone?: ChipTone; children: React.ReactNode; className?: string }) {
   return (
-    <span className={cn("grid size-6 shrink-0 place-items-center rounded-lg [&>svg]:size-3.5", TONES[tone], className)} aria-hidden>
+    <span className={cn("grid size-6 shrink-0 place-items-center rounded-md border border-border text-muted-foreground [&>svg]:size-3.5", className)} aria-hidden>
       {children}
     </span>
   )
@@ -64,15 +55,8 @@ export function SectionCard({
 }) {
   const id = labelId ?? (typeof label === "string" ? `card-${label.toLowerCase().replace(/[^a-z]+/g, "-")}` : undefined)
   return (
-    // Magic UI's Magic Card: a light follows the cursor across the card's border and surface.
-    <MagicCard
-      className={cn("reveal rounded-2xl bg-card text-card-foreground shadow-card", className)}
-      contentClassName="flex flex-col"
-      style={revealStyle(index)}
-      aria-labelledby={id}
-      {...CARD_GLOW}
-    >
-      <div className="flex min-h-[52px] flex-wrap items-center justify-between gap-3 border-b py-2.5 pl-5 pr-3">
+    <Card className={cn("reveal flex flex-col overflow-hidden", className)} style={revealStyle(index)} aria-labelledby={id}>
+      <div className="pf-ph justify-between">
         <span className="flex items-center gap-2.5">
           {icon ? <IconChip tone={tone}>{icon}</IconChip> : null}
           {href ? (
@@ -89,7 +73,7 @@ export function SectionCard({
         {action}
       </div>
       {children}
-    </MagicCard>
+    </Card>
   )
 }
 

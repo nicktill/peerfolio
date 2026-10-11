@@ -48,15 +48,22 @@ export function RaceChart({
   height: minHeight = 240,
   className,
   rich = false,
+  explore = false,
 }: {
   series: RaceSeries[]
   height?: number
   className?: string
   /** In-app look: glowing lines, avatar discs at the line ends and a replay button. */
   rich?: boolean
+  /** Adds a day slider and highlight chips under the chart. Styled by fantasy-workspace.css. */
+  explore?: boolean
 }) {
   const { ref, width } = useMeasure<HTMLDivElement>()
   const [hoverX, setHoverX] = useState<number | null>(null)
+  // The day scrubber (in the app): a chosen day, or null for "now". Pointer hover wins while it's over the chart.
+  const [scrub, setScrub] = useState<number | null>(null)
+  const [focusId, setFocusId] = useState<string | null>(null)
+  const sliderId = useId()
   // The lines draw in when the chart scrolls into view, not on page load: on the
   // landing page it sits far below the fold and would finish before anyone saw it.
   const [seen, setSeen] = useState(false)
@@ -140,11 +147,14 @@ export function RaceChart({
     ? `Race chart of returns since the start. ${[...geometry.lines].sort((a, b) => b.last - a.last).map((l) => `${l.isYou ? "You" : l.label} ${formatPercent(l.last - 100)}`).join(", ")}.`
     : "Race chart of returns"
 
-  // What the pointer is over: one value per line, best first.
+  const scrubIdx = geometry && scrub !== null ? Math.min(scrub, geometry.length - 1) : null
+  const activeX = hoverX ?? (geometry && scrubIdx !== null ? xAt(scrubIdx, geometry.length, pad.left, geometry.plotW) : null)
+
+  // What the pointer (or the day slider) is on: one value per line, best first.
   const hover =
-    geometry && hoverX !== null
+    geometry && activeX !== null
       ? (() => {
-          const idx = pointIndexAt(hoverX, pad.left, geometry.plotW, geometry.length)
+          const idx = pointIndexAt(activeX, pad.left, geometry.plotW, geometry.length)
           const atFraction = geometry.length <= 1 ? 1 : idx / (geometry.length - 1)
           const rows = geometry.lines
             .map((l) => {
@@ -233,7 +243,7 @@ export function RaceChart({
             {/* Context lines first so highlighted ones sit on top. */}
             {geometry.lines.map((l) =>
               !l.highlighted ? (
-                <path key={`${l.id}-${replayKey}`} d={l.d} pathLength={1} className={seen ? "race-line" : "race-line-wait"} fill="none" stroke={MUTED} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                <path key={`${l.id}-${replayKey}`} d={l.d} pathLength={1} className={seen ? "race-line" : "race-line-wait"} opacity={focusId && focusId !== l.id ? 0.4 : 1} fill="none" stroke={MUTED} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
               ) : null,
             )}
             {geometry.lines.map((l, i) =>
@@ -243,6 +253,7 @@ export function RaceChart({
                   d={l.d}
                   pathLength={1}
                   className={seen ? "race-line" : "race-line-wait"}
+                  opacity={focusId && focusId !== l.id ? 0.22 : 1}
                   style={{ animationDelay: `${i * 90}ms`, ...(rich ? { filter: `drop-shadow(0 0 6px color-mix(in srgb, ${l.color} 55%, transparent))` } : null) }}
                   fill="none"
                   stroke={l.color}
@@ -351,7 +362,7 @@ export function RaceChart({
         ) : null}
       </svg>
 
-      {hover ? (
+      {hover && hoverX !== null ? (
         <div
           aria-hidden
           className="pointer-events-none absolute z-10 min-w-36 rounded-xl border bg-popover px-3 py-2 text-xs shadow-lg"
@@ -374,8 +385,52 @@ export function RaceChart({
         </div>
       ) : null}
 
+      {/* Day scrubber: drag to read everyone's return on any day. */}
+      {explore && geometry && geometry.length > 2 ? (
+        <div className="race-scrub">
+          <label htmlFor={sliderId}>
+            Explore day <output htmlFor={sliderId}>{scrubIdx ?? geometry.length - 1}</output>
+          </label>
+          <input
+            id={sliderId}
+            type="range"
+            min={0}
+            max={geometry.length - 1}
+            step={1}
+            value={scrubIdx ?? geometry.length - 1}
+            onChange={(e) => setScrub(Number(e.target.value))}
+            aria-valuetext={`Day ${scrubIdx ?? geometry.length - 1}`}
+          />
+          {scrubIdx !== null && scrubIdx < geometry.length - 1 ? (
+            <button type="button" onClick={() => setScrub(null)}>
+              Now
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
       {/* Standings in text form, best first: the same numbers, readable without the chart. */}
-      {geometry ? (
+      {geometry && explore ? (
+        <ul className="race-chips">
+          {(hover ? hover.rows : [...geometry.lines].sort((a, b) => b.last - a.last).map((l) => ({ id: l.id, label: l.isYou ? "You" : l.label, value: l.last - 100, color: l.color, isYou: l.isYou }))).map((r) => (
+            <li key={r.id}>
+              <button
+                type="button"
+                aria-pressed={focusId === r.id}
+                onClick={() => setFocusId((c) => (c === r.id ? null : r.id))}
+                title={focusId === r.id ? "Show every line" : `Highlight ${r.label}`}
+              >
+                <i style={{ backgroundColor: r.color }} aria-hidden />
+                <span className={r.isYou ? "race-you" : undefined}>{shortName(r.label, 12)}</span>
+                <b className="numeric" style={{ color: toneOf(r.value) }}>
+                  {formatPercent(r.value)}
+                </b>
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {geometry && !explore ? (
         <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
           {[...geometry.lines]
             .sort((a, b) => b.last - a.last)

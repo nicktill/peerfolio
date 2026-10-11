@@ -1,0 +1,430 @@
+/* ==========================================================================
+   Peerfolio 5C Hybrid: the signed-in app's design system.
+   Source of truth: design/round-2a/live/5C.html (+ shared-v5c/*).
+   Flat hairline sidebar like 3A, 14px "bubble" data panels like 4A,
+   tight density (16px gaps, 18px insets, 56-58px rows).
+
+   EVERYTHING here is scoped to `.peerfolio-app` (the AppShell root). Public
+   pages (landing, /u, /join) keep their own scoped tokens.
+
+   --- TOKENS (CSS variables, light + dark resolved by `.dark` on <html>) -----
+   Surfaces   --bg  --panel  --raise  --hair  --hair2  --line
+   Ink        --fg  --fg2    --fg3                (primary / secondary / muted)
+   Accent     --pf-accent  --accent-a (r,g,b for rgba(var(--accent-a),.2))
+   Direction  --gain  --loss   (always pair with a sign/arrow)
+   Primary    --ink  --ink-fg  (inverted-ink primary button)
+   Shape      --r 14px (panels)  --r-s 9px (controls)  --ins 18px (panel inset)
+   Focus      --pf-ring  (box-shadow: 2px bg gap + 2px accent)
+   Fonts      --sans Hanken Grotesk  --serif Newsreader  --mono IBM Plex Mono
+   NOTE: `--accent` is NOT the 5C accent here: it is the shadcn HSL channel
+   triplet used by Tailwind's `bg-accent`. Use `var(--pf-accent)` (hex) for the
+   5C accent colour. Tailwind: bg-background / bg-card / bg-secondary(raise) /
+   border-border(hair) / border-input(line) / text-muted-foreground(fg3) all
+   resolve to the exact 5C hexes. text-primary is the accent colour.
+
+   --- TYPE ROLES (5C + more serif, as 5D) ---------------------------------
+   Display  Newsreader  --font-display / .pf-display / .pf-serif
+            page titles (h1 is already serif), league names, hero figures
+            (net worth, rank, return, scoreboard, recap headline), wordmark.
+            Tailwind `font-display` is serif inside the app.
+   UI/data  Hanken Grotesk (default body, tables, buttons, stats)
+   Mono     IBM Plex Mono  --font-mono / .pf-mono / Tailwind `font-mono`
+            labels, row subtitles, tickers, captions, return periods.
+
+   --- MOTION --------------------------------------------------------------
+   --ease-out + --d-1..4 (120/200/320/500ms). Primitives: .pf-entering (page
+   enter stagger), .pf-draw (chart line), .pf-collapse (grid-rows expand),
+   .pf-sk shimmer, .pf-mark (empty-state logo). All off under reduced motion.
+
+   --- CLASSES (reuse these in pages/components) -----------------------------
+   .pf-panel       bordered 14px panel (overflow hidden). Also: every <Card>/.surface
+   .pf-ph          panel head: 46px, hairline under, flex. Children: .pf-label,
+                   .pf-ph-end (right cluster), .pf-link
+   .pf-label       mono 10.5px uppercase eyebrow; gets the 2px accent tick
+                   when inside .pf-ph.  <em> inside = muted suffix.
+   .pf-pb          panel body, 18px inset.   .pf-foot  hairline footer note
+   .pf-row         grid row, columns via style="--cols:..." (and --colsm on
+                   mobile), 56px, hairline between rows. .pf-row-head = column
+                   header (mono). .pf-row.hov / a.pf-row hover = raise. .pf-you
+                   = your row (raise + 2px accent rail).
+   .pf-t1 / .pf-t2 primary / secondary line inside a row cell
+   .pf-stats       grid of .pf-stat (set --n columns). .pf-stat > .k .v .s
+   .pf-phead       page head: flex, hairline under; h1 is 30px Hanken 500.
+                   .pf-lede = subtitle under h1.
+   .pf-serif       Newsreader (ONLY wordmark + hero figures)
+   .pf-hero-fig    hero number: serif 400, clamp(46px,4vw,58px), tabular
+   .pf-mono        mono utility.   .pf-eyebrow  = label without tick
+   .pf-tag         pill-ish mono tag.  .pf-chip  4px mono chip
+   .pf-dot(.g/.r)  6px status dot.     .pf-kv   label/value row
+   .pf-input       5C text input (also styles bare inputs in the app)
+   .pf-avatar / .pf-league  image avatars (circle / 12px square) w/ hairline
+   .pf-sk          skeleton block
+   Buttons / Segmented / Avatar / Card / SectionCard / ThemeToggle in
+   components/ui already render in the 5C look.
+   ========================================================================== */
+
+.peerfolio-app, .pf-portal {
+  /* 5C tokens: light */
+  --bg: #eceff2; --panel: #f9fafb; --raise: #edf0f4; --hair: #d6dce3; --hair2: #e5e9ee; --line: #b4bfcb;
+  --fg: #202a34; --fg2: #4a5967; --fg3: #5b6b7c;
+  --pf-accent: #3867a1; --accent-a: 56, 103, 161;
+  --gain: #286549; --loss: #a65048; --gain-ink: #286549; --loss-ink: #a65048;
+  --ink: #25364b; --ink-fg: #f9fafb;
+  --r: 14px; --r-s: 9px; --ins: 18px;
+  --pf-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--pf-accent);
+  --serif: var(--font-newsreader), ui-serif, Georgia, "Times New Roman", serif;
+  --sans: var(--font-hanken), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: var(--font-plex-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* motion system: transform/opacity only (plus grid-rows); see the MOTION section at the bottom */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --d-1: 120ms; --d-2: 200ms; --d-3: 320ms; --d-4: 500ms;
+
+  /* shadcn/Tailwind channels, derived from the hexes above */
+  --background: 210 18.7% 93.7%; --foreground: 210 23.8% 16.5%;
+  --card: 210 20% 98%; --card-foreground: 210 23.8% 16.5%;
+  --popover: 210 20% 98%; --popover-foreground: 210 23.8% 16.5%;
+  --primary: 213.2 33.9% 22%; --primary-foreground: 210 20% 98%;
+  --secondary: 214.3 24.1% 94.3%; --secondary-foreground: 210 23.8% 16.5%;
+  --muted: 214.3 24.1% 94.3%; --muted-foreground: 210.9 15.3% 42.2%;
+  --accent: 214.3 24.1% 94.3%; --accent-foreground: 213.1 48.4% 42.5%;
+  --destructive: 5.1 39.5% 46.7%; --destructive-foreground: 210 20% 98%;
+  --border: 212.3 18.8% 86.5%; --input: 211.3 18.1% 75.1%; --ring: 213.1 48.4% 42.5%;
+  --radius: 14px;
+  --viz-surface: #f9fafb;
+  /* legacy aliases (older app CSS) */
+  --app-accent: var(--pf-accent); --app-secondary-ink: var(--fg2); --app-hairline: var(--hair2);
+  --font-geist-sans: var(--font-hanken); --font-geist-mono: var(--font-plex-mono);
+  --font-display: var(--serif);
+  --font-mono: var(--mono);
+  color-scheme: light;
+}
+.pf-portal { color: var(--fg); font-family: var(--sans); font-size: 14px; line-height: 20px; -webkit-font-smoothing: antialiased; }
+.peerfolio-app {
+  display: grid;
+  grid-template-columns: 216px minmax(0, 1fr);
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 20px;
+  font-variant-numeric: tabular-nums lining-nums;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+.dark .peerfolio-app, .dark .pf-portal {
+  --bg: #0d0f11; --panel: #14171a; --raise: #1e2226; --hair: #2a3036; --hair2: #22272b; --line: #3b434b;
+  --fg: #f0f2f4; --fg2: #b4bcc5; --fg3: #939ca7;
+  --pf-accent: #98b8e7; --accent-a: 152, 184, 231;
+  --gain: #94c8af; --loss: #e6a39d; --gain-ink: #94c8af; --loss-ink: #e6a39d;
+  --ink: #edf2f8; --ink-fg: #14181d;
+
+  --background: 210 13.3% 5.9%; --foreground: 210 15.4% 94.9%;
+  --card: 210 13% 9%; --card-foreground: 210 15.4% 94.9%;
+  --popover: 210 13% 9%; --popover-foreground: 210 15.4% 94.9%;
+  --primary: 212.7 44% 95.1%; --primary-foreground: 213.3 18.4% 9.6%;
+  --secondary: 210 11.8% 13.3%; --secondary-foreground: 210 15.4% 94.9%;
+  --muted: 210 11.8% 13.3%; --muted-foreground: 213 10.2% 61.6%;
+  --accent: 210 11.8% 13.3%; --accent-foreground: 215.7 62.2% 75.1%;
+  --destructive: 4.9 59.3% 75.9%; --destructive-foreground: 213.3 18.4% 9.6%;
+  --border: 210 12.5% 18.8%; --input: 210 11.9% 26.3%; --ring: 215.7 62.2% 75.1%;
+  --viz-surface: #14171a;
+  color-scheme: dark;
+}
+
+/* Portalled UI (dialogs, toasts) lives under <body>, outside the shell: it wraps itself in .pf-portal to inherit the tokens. */
+.peerfolio-app ::selection, .pf-portal ::selection { background: rgba(var(--accent-a), 0.28); }
+.peerfolio-app input, .pf-portal input, .peerfolio-app textarea, .pf-portal textarea { caret-color: var(--pf-accent); }
+.peerfolio-app input::placeholder, .pf-portal input::placeholder, .peerfolio-app textarea::placeholder, .pf-portal textarea::placeholder { color: var(--fg3); opacity: 1; }
+.peerfolio-app a, .pf-portal a { text-underline-offset: 0.18em; }
+.peerfolio-app :focus, .pf-portal :focus { outline: none; }
+.peerfolio-app :focus-visible, .pf-portal :focus-visible { outline: none; box-shadow: var(--pf-ring); }
+.peerfolio-app .text-primary, .pf-portal .text-primary { color: var(--pf-accent); }
+.peerfolio-app .numeric, .pf-portal .numeric { font-variant-numeric: tabular-nums lining-nums; }
+.peerfolio-app .font-display, .pf-portal .font-display, .pf-display { font-family: var(--serif); font-weight: 400; letter-spacing: -0.02em; }
+@media (hover: hover) { .peerfolio-app * { scrollbar-width: thin; scrollbar-color: var(--line) transparent; } }
+
+/* ---------- shell: flat sidebar ---------- */
+.peerfolio-sidebar {
+  grid-column: 1; grid-row: 1; position: sticky; top: 0; height: 100dvh; min-height: 0;
+  overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column;
+  padding: 0 12px 14px; background: transparent; border-right: 1px solid var(--hair);
+}
+.peerfolio-brand { display: flex; align-items: center; gap: 12px; padding: 0 10px; height: 72px; flex-shrink: 0; color: var(--fg); }
+.peerfolio-brand > span { font: 500 21px/24px var(--serif); letter-spacing: -0.01em; }
+.peerfolio-logo { width: 30px; height: 30px; object-fit: contain; filter: brightness(0); }
+.dark .peerfolio-logo { filter: brightness(0) invert(1); }
+.peerfolio-sidebar-links { flex-shrink: 0; display: flex; flex-direction: column; gap: 2px; padding: 10px 0 14px; }
+.peerfolio-nav-link {
+  position: relative; display: flex; align-items: center; gap: 12px; height: 38px; padding: 0 8px;
+  border: 0; border-radius: var(--r-s); color: var(--fg2); font-size: 14px; line-height: 20px; font-weight: 500;
+  transition: background-color 0.15s, color 0.15s;
+}
+.peerfolio-nav-link > svg { flex-shrink: 0; color: var(--fg3); transition: color 0.15s; }
+.peerfolio-nav-link:hover { color: var(--fg); background: var(--raise); }
+.peerfolio-nav-link:hover > svg { color: var(--fg2); }
+.peerfolio-nav-link[aria-current="page"] { background: var(--raise); color: var(--fg); }
+.peerfolio-nav-link[aria-current="page"] > svg { color: var(--fg); }
+.peerfolio-nav-link[aria-current="page"]::after {
+  content: ""; position: absolute; left: -12px; top: 10px; bottom: 10px; width: 2px;
+  border-radius: 0 2px 2px 0; background: var(--pf-accent);
+}
+.peerfolio-sidebar-footer { flex-shrink: 0; margin-top: auto; display: flex; flex-direction: column; gap: 2px; }
+.peerfolio-sidebar-footer .peerfolio-theme { margin: 8px 0 12px; }
+.peerfolio-account { display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: var(--r); transition: background 0.15s; }
+.peerfolio-account:hover { background: var(--raise); }
+.peerfolio-account b { display: block; font-weight: 500; font-size: 14px; line-height: 16px; color: var(--fg); }
+.peerfolio-account small { display: block; font-size: 12px; line-height: 16px; color: var(--fg3); }
+.peerfolio-account > button { width: 28px; height: 28px; flex-shrink: 0; color: var(--fg3); }
+.peerfolio-mobile-header, .peerfolio-tabbar { display: none; }
+
+/* theme toggle: segmented Light / Dark with a sliding thumb (state from `.dark`, so no flash) */
+.peerfolio-theme { position: relative; display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--hair); border-radius: var(--r); padding: 2px; }
+.peerfolio-theme button {
+  position: relative; z-index: 1; height: 28px; display: flex; align-items: center; justify-content: center; gap: 8px;
+  border-radius: 6px; color: var(--fg3); font: 500 10.5px/16px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; transition: color 0.2s;
+}
+.peerfolio-theme button svg { width: 14px; height: 14px; }
+.peerfolio-theme .th { position: absolute; z-index: 0; top: 2px; bottom: 2px; left: 2px; width: calc(50% - 2px); background: var(--raise); border-radius: 6px; transition: transform 0.25s var(--ease); }
+.dark .peerfolio-theme .th { transform: translateX(100%); }
+:root:not(.dark) .peerfolio-theme button[data-t="light"], .dark .peerfolio-theme button[data-t="dark"] { color: var(--fg); }
+
+/* ---------- shell: main ---------- */
+.peerfolio-main { grid-column: 2; grid-row: 1; width: 100%; min-width: 0; max-width: none; padding: 28px clamp(24px, 2.1vw, 40px) 64px; }
+.peerfolio-main h1 { font: 400 36px/42px var(--serif); letter-spacing: -0.025em; color: var(--fg); text-wrap: balance; }
+.app-page-grid { display: grid; grid-template-columns: minmax(0, 1fr) clamp(320px, 27vw, 380px); gap: 16px; align-items: start; }
+.app-page-grid > * { min-width: 0; }
+
+/* ---------- primitives: panel ---------- */
+.pf-panel, .peerfolio-app .surface, .pf-portal .surface {
+  background-color: var(--panel); background-image: none; border: 1px solid var(--hair);
+  border-radius: var(--r); box-shadow: none; min-width: 0;
+}
+.pf-panel { overflow: hidden; }
+.peerfolio-app .surface .surface, .pf-portal .surface .surface { box-shadow: none; }
+.peerfolio-app .surface-hero, .pf-portal .surface-hero { background-image: none; }
+.pf-ph, .app-section-header {
+  min-height: 46px; display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 10px var(--ins); border-bottom: 1px solid var(--hair);
+}
+.pf-label, .app-section-label, .pf-eyebrow {
+  font: 500 10.5px/16px var(--mono); letter-spacing: 0.09em; text-transform: uppercase; color: var(--fg2); white-space: nowrap;
+}
+.pf-label em, .pf-eyebrow em { font-style: normal; color: var(--fg3); margin-left: 8px; letter-spacing: 0.02em; }
+.pf-ph .pf-label::before, .app-section-header .app-section-label::before {
+  content: ""; display: inline-block; width: 2px; height: 9px; margin-right: 9px; background: var(--pf-accent); opacity: 0.9; vertical-align: -1px;
+}
+.pf-ph-end { margin-left: auto; display: flex; align-items: center; gap: 12px; min-width: 0; }
+.pf-link { display: inline-flex; align-items: center; gap: 4px; font: 500 11px/16px var(--mono); letter-spacing: 0.06em; color: var(--fg2); border-radius: 4px; transition: color 0.15s; }
+.pf-link:hover { color: var(--fg); }
+.pf-pb { padding: var(--ins); }
+.pf-foot { border-top: 1px solid var(--hair); padding: 12px var(--ins); font-size: 12px; line-height: 16px; color: var(--fg3); text-wrap: pretty; }
+
+/* ---------- primitives: rows ---------- */
+.pf-row { display: grid; grid-template-columns: var(--cols); align-items: center; column-gap: 16px; min-height: 56px; padding: 0 var(--ins); border-top: 1px solid var(--hair2); position: relative; transition: background 0.15s; }
+.pf-row-head { min-height: 38px; border-top: 0; border-bottom: 1px solid var(--hair); font: 500 10.5px/16px var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--fg3); }
+.pf-row-head + .pf-row, .pf-ph + .pf-row { border-top: 0; }
+a.pf-row:hover, .pf-row.hov:hover { background: var(--raise); }
+.pf-you { background: var(--raise); box-shadow: inset 2px 0 var(--pf-accent); }
+.pf-t1 { display: block; font-weight: 500; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pf-t2 { display: block; font-family: var(--mono); font-size: 11px; line-height: 16px; color: var(--fg3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- primitives: stat ---------- */
+.pf-stats { display: grid; grid-template-columns: repeat(var(--n, 3), minmax(0, 1fr)); border-top: 1px solid var(--hair); }
+.pf-stat { padding: 16px var(--ins) 18px; border-left: 1px solid var(--hair); min-width: 0; }
+.pf-stat:first-child { border-left: 0; }
+.pf-stat .k { font: 500 10.5px/16px var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--fg3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pf-stat .v { margin-top: 8px; font: 500 20px/28px var(--sans); letter-spacing: -0.01em; white-space: nowrap; }
+.pf-stat .s { margin-top: 4px; font-size: 12px; line-height: 16px; color: var(--fg3); }
+
+/* ---------- primitives: page head, type ---------- */
+.pf-phead { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 20px; padding-bottom: 18px; border-bottom: 1px solid var(--hair); }
+.pf-phead h1 { margin: 0; }
+.pf-lede { margin-top: 8px; color: var(--fg2); max-width: 60ch; text-wrap: pretty; }
+.pf-serif { font-family: var(--serif); }
+.pf-mono, .font-mono { font-family: var(--mono); }
+.pf-hero-fig { font: 400 clamp(46px, 4vw, 60px) / 1.1 var(--serif); letter-spacing: -0.035em; color: var(--fg); font-variant-numeric: lining-nums tabular-nums; white-space: nowrap; }
+.pf-tag { height: 24px; padding: 0 8px; display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: var(--r-s); font: 500 10.5px/16px var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg2); white-space: nowrap; }
+.pf-chip { height: 24px; padding: 0 8px; border: 1px solid var(--hair); border-radius: 4px; display: inline-flex; align-items: center; font: 400 11px/16px var(--mono); color: var(--fg2); }
+.pf-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--fg3); flex: none; display: inline-block; }
+.pf-dot.g { background: var(--gain); } .pf-dot.r { background: var(--loss); }
+.pf-kv { display: flex; justify-content: space-between; align-items: baseline; height: 32px; }
+.pf-kv > :first-child { color: var(--fg2); }
+.pf-sk { display: block; background: var(--hair); border-radius: 4px; animation: pf-pulse 1.4s ease-in-out infinite; }
+@keyframes pf-pulse { 50% { opacity: 0.5; } }
+.pf-avatar, .pf-league { display: inline-block; object-fit: cover; flex-shrink: 0; vertical-align: middle; background: var(--raise); border: 1px solid var(--hair); }
+.pf-avatar { border-radius: 50%; } .pf-league { border-radius: 12px; }
+
+/* ---------- primitives: inputs ---------- */
+.pf-input, .peerfolio-app input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), .pf-portal input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), .peerfolio-app textarea, .pf-portal textarea, .peerfolio-app select, .pf-portal select {
+  border-radius: var(--r-s);
+}
+.pf-input { width: 100%; height: 36px; padding: 0 12px; background: transparent; border: 1px solid var(--line); color: var(--fg); transition: border-color 0.15s; }
+.pf-input:hover { border-color: var(--fg3); }
+.peerfolio-app input:focus-visible, .pf-portal input:focus-visible, .peerfolio-app textarea:focus-visible, .pf-portal textarea:focus-visible, .peerfolio-app select:focus-visible, .pf-portal select:focus-visible, .pf-input:focus-visible {
+  box-shadow: none; border-color: var(--pf-accent); outline: 1px solid var(--pf-accent); outline-offset: 0;
+}
+
+/* ---------- mobile chrome ---------- */
+@media (max-width: 1279px) { .app-page-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 860px) {
+  .peerfolio-app { display: block; }
+  .peerfolio-sidebar { display: none; }
+  .peerfolio-main { padding: 24px 18px calc(88px + env(safe-area-inset-bottom)); }
+  .peerfolio-main h1 { font-size: 32px; line-height: 36px; }
+  .pf-phead { flex-wrap: wrap; gap: 16px; margin-bottom: 20px; }
+  .app-page-grid { gap: 12px; }
+  .peerfolio-app { --ins: 16px; }
+  .pf-row { grid-template-columns: var(--colsm, var(--cols)); column-gap: 12px; }
+  .peerfolio-mobile-header {
+    display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 40; height: 52px; padding: 0 16px;
+    background: var(--bg); border-bottom: 1px solid var(--hair);
+  }
+  .peerfolio-mobile-header .peerfolio-brand { height: auto; padding: 0; gap: 10px; }
+  .peerfolio-mobile-header .peerfolio-brand > span { font-size: 19px; }
+  .peerfolio-mobile-header .peerfolio-logo { width: 25px; height: 25px; }
+  .peerfolio-mobile-control { display: grid; place-items: center; width: 32px; height: 32px; border-radius: var(--r-s); color: var(--fg2); }
+  .peerfolio-mobile-header button { border: 1px solid var(--line); border-radius: var(--r-s); width: 32px; height: 32px; color: var(--fg2); }
+  .peerfolio-mobile-control:hover { background: var(--raise); color: var(--fg); }
+  .peerfolio-tabbar {
+    display: grid; grid-template-columns: repeat(5, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    height: calc(56px + env(safe-area-inset-bottom)); padding: 0 8px env(safe-area-inset-bottom); background: var(--bg); border-top: 1px solid var(--hair);
+  }
+  .peerfolio-tab { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--fg3); font-size: 11px; line-height: 12px; font-weight: 500; transition: color 0.15s; }
+  .peerfolio-tab-active { color: var(--fg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .peerfolio-nav-link, .peerfolio-tab, .peerfolio-theme .th, .peerfolio-theme button { transition: none; }
+}
+
+/* ==========================================================================
+   MOTION. Only transform/opacity (+ grid-template-rows for expanders). Nothing
+   here changes layout on hover, and every rule is neutralised for reduced motion.
+   ========================================================================== */
+
+/* Page enter: template.tsx adds .pf-entering for the first ~0.9s of a navigation,
+   so panels that mount later (data arriving) don't replay it. */
+@keyframes pf-enter { from { opacity: 0; translate: 0 4px; } to { opacity: 1; translate: 0 0; } }
+.pf-entering :is(.pf-panel, .surface):not(.reveal *):not(.reveal) {
+  animation: pf-enter var(--d-3) var(--ease-out) backwards;
+  animation-delay: 40ms;
+}
+.pf-entering :is(.pf-panel, .surface):not(.reveal *):not(.reveal):nth-child(2) { animation-delay: 85ms; }
+.pf-entering :is(.pf-panel, .surface):not(.reveal *):not(.reveal):nth-child(3) { animation-delay: 130ms; }
+.pf-entering :is(.pf-panel, .surface):not(.reveal *):not(.reveal):nth-child(4) { animation-delay: 175ms; }
+.pf-entering :is(.pf-panel, .surface):not(.reveal *):not(.reveal):nth-child(n+5) { animation-delay: 220ms; }
+.page-in { animation: pf-enter var(--d-3) var(--ease-out) backwards; }
+
+/* Interactive surfaces: one easing, one speed. */
+.peerfolio-nav-link, .peerfolio-tab, .peerfolio-account, .pf-row, .pf-link, .pf-input { transition-duration: var(--d-2); transition-timing-function: var(--ease-out); }
+.pf-row { transition-property: background-color; }
+.pf-row.hov, a.pf-row, .pf-row:is(button) { cursor: pointer; }
+a.pf-row:active, .pf-row.hov:active { background: var(--hair2); }
+
+/* Accent tick: always carries a soft glow, shown by opacity so hovering a panel lights it up. */
+.pf-ph .pf-label::before, .app-section-header .app-section-label::before, .pf-4a [class*="font-mono"][class*="uppercase"]:not(button)::before, .pf-4a .pf-4a-eyebrow::before, .portfolio-screen .pf-lbl::before {
+  opacity: 0.55; box-shadow: 0 0 7px 0 rgba(var(--accent-a), 0.7); transition: opacity var(--d-3) var(--ease-out);
+}
+.pf-panel:hover .pf-label::before, .surface:hover .app-section-label::before, .pf-panel:hover .pf-lbl::before, .pf-4a [class~="surface"]:hover [class*="font-mono"][class*="uppercase"]:not(button)::before { opacity: 1; }
+
+/* Primary buttons: bg shift on hover, 98% press. */
+.peerfolio-app button:not(:disabled):active, .pf-portal button:not(:disabled):active { transition-duration: var(--d-1); }
+
+/* Focus ring eases in instead of snapping on. */
+@keyframes pf-ring { from { box-shadow: 0 0 0 2px var(--bg), 0 0 0 2px rgba(var(--accent-a), 0); } }
+.peerfolio-app :is(a, button, [role="radio"], summary, [tabindex]):focus-visible, .pf-portal :is(a, button, [role="radio"]):focus-visible {
+  animation: pf-ring var(--d-2) var(--ease-out);
+}
+
+/* Nav indicator: one rail that slides between links (app-nav.tsx sets --i). */
+.peerfolio-sidebar-links { position: relative; }
+.peerfolio-nav-ind {
+  position: absolute; left: -12px; top: 20px; width: 2px; height: 18px; border-radius: 0 2px 2px 0; background: var(--pf-accent);
+  transform: translateY(calc(var(--i, 0) * 40px)); transition: transform var(--d-3) var(--ease-out), opacity var(--d-2); pointer-events: none;
+}
+.peerfolio-nav-ind[data-off] { opacity: 0; }
+.peerfolio-sidebar-links .peerfolio-nav-link[aria-current="page"]::after { content: none; }
+.peerfolio-nav-link[aria-current="page"] { transition: background-color var(--d-2) var(--ease-out), color var(--d-2) var(--ease-out); }
+.peerfolio-tab > svg { transition: transform var(--d-3) var(--ease-out); }
+.peerfolio-tab-active > svg { transform: translateY(-1px) scale(1.06); }
+.peerfolio-tab:active > svg { transform: scale(0.92); }
+
+/* Hero figures: serif numerals tween (AnimatedNumber countUp); the cents settle in after. */
+.pf-hero-fig, .portfolio-balance { font-variant-numeric: lining-nums tabular-nums; }
+
+/* Chart: the line draws once on first render; the area and endpoint follow. */
+@keyframes pf-draw { from { stroke-dasharray: 1; stroke-dashoffset: 1; } to { stroke-dasharray: 1; stroke-dashoffset: 0; } }
+@keyframes pf-fade { from { opacity: 0; } }
+.pf-draw { animation: pf-draw 900ms var(--ease-out) backwards; }
+.pf-area-in { animation: pf-fade 700ms var(--ease-out) 350ms backwards; }
+
+/* Expanders: height animates through grid rows, content is inert while shut. */
+.pf-collapse { display: grid; grid-template-rows: 1fr; transition: grid-template-rows var(--d-3) var(--ease-out), opacity var(--d-2) var(--ease-out); }
+.pf-collapse > .pf-collapse-in { min-height: 0; overflow: hidden; }
+.pf-collapse[data-open="false"] { grid-template-rows: 0fr; opacity: 0; visibility: hidden; transition: grid-template-rows var(--d-3) var(--ease-out), opacity var(--d-2) var(--ease-out), visibility 0s linear var(--d-3); }
+
+/* Skeletons: the same soft sweep as .skeleton, matched to the final blocks. */
+.pf-sk { position: relative; overflow: hidden; animation: none; }
+.pf-sk::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, rgba(var(--accent-a), 0.10), transparent); animation: pf-sweep 1.5s var(--ease-out) infinite; }
+@keyframes pf-sweep { to { transform: translateX(100%); } }
+
+/* Toasts & dialogs leave as gracefully as they arrive. */
+@keyframes pf-out { to { opacity: 0; translate: 0 6px; } }
+.pf-leaving { animation: pf-out var(--d-2) var(--ease-out) forwards; pointer-events: none; }
+.dialog-backdrop[data-closing] { animation: dialog-fade-out var(--d-2) var(--ease-out) forwards; }
+.dialog-backdrop[data-closing] .dialog-panel { animation: dialog-leave var(--d-2) var(--ease-out) forwards; }
+@keyframes dialog-fade-out { to { opacity: 0; } }
+@keyframes dialog-leave { to { transform: translateY(8px) scale(0.98); opacity: 0; } }
+
+/* Smooth theme switch: html gets .pf-theme-fade for ~250ms (theme-toggle.tsx). */
+.pf-theme-fade, .pf-theme-fade *:not(.th):not(svg *) { transition: background-color var(--d-2) ease, color var(--d-2) ease, border-color var(--d-2) ease, fill var(--d-2) ease, stroke var(--d-2) ease !important; }
+
+/* Character: your row in 5C ink (raise + accent rail), empty-state mark, refined controls. */
+.peerfolio-app .surface-you { background-color: var(--raise); box-shadow: inset 2px 0 var(--pf-accent); }
+.pf-mark { display: grid; place-items: center; width: 52px; height: 52px; margin: 0 auto 16px; border: 1px solid var(--hair); border-radius: var(--r); background: var(--raise); position: relative; }
+.pf-mark::after { content: ""; position: absolute; left: -1px; top: 14px; bottom: 14px; width: 2px; background: var(--pf-accent); border-radius: 0 2px 2px 0; opacity: 0.8; }
+.pf-mark img { width: 26px; height: 26px; object-fit: contain; filter: brightness(0); opacity: 0.55; }
+.dark .pf-mark img { filter: brightness(0) invert(1); }
+@keyframes pf-spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .pf-entering :is(.pf-panel, .surface), .page-in, .pf-draw, .pf-area-in, .pf-leaving, .pf-sk::after,
+  .peerfolio-app :focus-visible, .pf-portal :focus-visible { animation: none !important; }
+  .pf-collapse, .peerfolio-nav-ind, .peerfolio-tab > svg, .pf-ph .pf-label::before, .app-section-header .app-section-label::before { transition: none !important; }
+  .pf-theme-fade, .pf-theme-fade * { transition: none !important; }
+  .dialog-backdrop[data-closing], .dialog-backdrop[data-closing] .dialog-panel { animation-duration: 0.01ms !important; }
+}
+.portfolio-screen .pf-lbl::before { margin-right: 1px; }
+.dialog-backdrop[data-closing] { pointer-events: none; }
+
+/* ---------- top-3 standings: a quiet medal tone, not a podium ---------- */
+.peerfolio-app {
+  --medal-1: #8a6500; --medal-2: #5a6674; --medal-3: #8a5426;
+  --medal-1-a: 176, 132, 20; --medal-2-a: 120, 134, 150; --medal-3-a: 160, 100, 52;
+}
+.dark .peerfolio-app { --medal-1: #e0b544; --medal-2: #b9c2cc; --medal-3: #d39b6c; --medal-1-a: 224, 181, 68; --medal-2-a: 185, 194, 204; --medal-3-a: 211, 155, 108; }
+.peerfolio-app :is(.fw-rank, .pf-rank)[data-rank="1"] { color: var(--medal-1); }
+.peerfolio-app :is(.fw-rank, .pf-rank)[data-rank="2"] { color: var(--medal-2); }
+.peerfolio-app :is(.fw-rank, .pf-rank)[data-rank="3"] { color: var(--medal-3); }
+.peerfolio-app :is(.fw-standing, .pf-standing)[data-medal] { position: relative; --m: var(--medal-1); --ma: var(--medal-1-a); }
+.peerfolio-app :is(.fw-standing, .pf-standing)[data-medal="2"] { --m: var(--medal-2); --ma: var(--medal-2-a); }
+.peerfolio-app :is(.fw-standing, .pf-standing)[data-medal="3"] { --m: var(--medal-3); --ma: var(--medal-3-a); }
+/* The wash and rail belong to rows that aren't yours: yours keeps its accent rail and only the numeral takes the tone. */
+.peerfolio-app :is(.fw-standing, .pf-standing)[data-medal]:not(.fw-you):not(.surface-you) {
+  background-image: linear-gradient(90deg, rgba(var(--ma), 0.055), transparent 55%);
+}
+.peerfolio-app :is(.fw-standing, .pf-standing)[data-medal]:not(.fw-you):not(.surface-you)::before {
+  content: ""; position: absolute; left: 0; top: 12px; bottom: 12px; width: 2px; border-radius: 2px; background: var(--m); opacity: 0.8; pointer-events: none;
+  animation: pf-fade var(--d-4) var(--ease-out) 250ms backwards;
+}
+.peerfolio-app :is(.fw-standing, .pf-standing)[data-medal] :is(.fw-avatar-slot > *, .pf-medal-av) { box-shadow: 0 0 0 1.5px var(--panel), 0 0 0 2.5px rgba(var(--ma), 0.6); }
+/* Rank 1 only: one soft breath of light on arrival. */
+@keyframes pf-breath { 0%, 100% { opacity: 0; } 40% { opacity: 1; } }
+.peerfolio-app :is(.fw-standing, .pf-standing)[data-medal="1"]:not(.fw-you):not(.surface-you)::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: radial-gradient(18rem 6rem at 0% 50%, rgba(var(--ma), 0.14), transparent 70%); opacity: 0; animation: pf-breath 1600ms var(--ease-out) 450ms 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .peerfolio-app :is(.fw-standing, .pf-standing)[data-medal]::before, .peerfolio-app :is(.fw-standing, .pf-standing)[data-medal]::after { animation: none !important; }
+}
+.pf-mark-badge { position: absolute; right: -6px; bottom: -6px; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--panel); border: 1px solid var(--hair); color: var(--fg2); }

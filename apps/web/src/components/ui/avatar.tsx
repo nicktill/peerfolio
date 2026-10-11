@@ -1,6 +1,6 @@
 import { cn } from "@web/lib/utils"
 
-const SIZES = { sm: "h-7 w-7 text-[10px]", md: "h-9 w-9 text-xs", lg: "h-12 w-12 text-sm", xl: "h-20 w-20 text-xl" }
+const SIZES = { sm: "h-7 w-7 text-[10px]", md: "h-8 w-8 text-[11px]", lg: "h-12 w-12 text-sm", xl: "h-20 w-20 text-xl" }
 
 export function initialsFor(name: string | null | undefined, handle: string | null | undefined): string {
   const source = name?.trim() || handle?.trim() || "?"
@@ -27,7 +27,7 @@ export function Avatar({
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-secondary font-semibold text-secondary-foreground",
+        "inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-input bg-secondary font-sans font-medium tracking-[0.02em] text-muted-foreground",
         SIZES[size],
         className,
       )}

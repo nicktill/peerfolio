@@ -16,14 +16,20 @@ function hue(symbol: string) {
  * Company icon from the logo proxy, falling back to a coloured monogram when
  * there's no logo (crypto, funds, tiny caps) or it fails to load.
  */
+/** Symbols whose logo already failed this session, so later mounts skip the request. */
+const missing = new Set<string>()
+
 export function TickerLogo({ symbol, kind = "stock", size = "md", className }: { symbol: string; kind?: "stock" | "crypto"; size?: keyof typeof SIZES; className?: string }) {
-  const [failed, setFailed] = useState(false)
+  const [failed, setFailed] = useState(() => missing.has(symbol.toUpperCase()))
   const image = useRef<HTMLImageElement>(null)
   // An image that failed before this component hydrated never fires onError here, so look once it has mounted.
   useEffect(() => {
     const el = image.current
-    if (el?.complete && el.naturalWidth === 0) setFailed(true)
-  }, [])
+    if (el?.complete && el.naturalWidth === 0) {
+      missing.add(symbol.toUpperCase())
+      setFailed(true)
+    }
+  }, [symbol])
   const s = symbol.toUpperCase()
   const showImage = kind === "stock" && !failed
 
@@ -31,16 +37,19 @@ export function TickerLogo({ symbol, kind = "stock", size = "md", className }: {
     <span
       className={cn(
         "relative grid shrink-0 place-items-center overflow-hidden rounded-xl font-mono font-bold",
-        showImage ? "border-0 shadow-none" : "border border-border/70 shadow-[0_1px_2px_hsl(0_0%_0%/0.18),inset_0_1px_0_hsl(0_0%_100%/0.55)]",
+        showImage ? "border-0 shadow-none" : "border border-[hsl(var(--tl-h)_40%_50%/0.3)] bg-[hsl(var(--tl-h)_60%_93%)] dark:bg-[hsl(var(--tl-h)_30%_22%)] text-[hsl(var(--tl-h)_60%_30%)] shadow-none dark:text-[hsl(var(--tl-h)_70%_78%)]",
         SIZES[size],
         className,
       )}
-      style={showImage ? undefined : { background: `linear-gradient(145deg, hsl(${hue(s)} 65% 96%), hsl(${hue(s)} 55% 89%))`, color: `hsl(${hue(s)} 55% 28%)` }}
+      style={showImage ? undefined : ({ "--tl-h": hue(s) } as React.CSSProperties)}
       aria-hidden
     >
       {showImage ? (
         // eslint-disable-next-line @next/next/no-img-element -- proxied, already cached at the edge
-        <img ref={image} src={`/api/market/logo/${encodeURIComponent(s)}`} alt="" className="absolute inset-0 size-full object-cover" loading="lazy" onError={() => setFailed(true)} />
+        <img ref={image} src={`/api/market/logo/${encodeURIComponent(s)}`} alt="" className="absolute inset-0 size-full object-cover" loading="lazy" onError={() => {
+          missing.add(s)
+          setFailed(true)
+        }} />
       ) : (
         s.slice(0, size === "xs" ? 2 : 4)
       )}

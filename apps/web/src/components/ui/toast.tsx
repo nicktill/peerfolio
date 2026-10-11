@@ -30,7 +30,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       <div
         role="status"
         aria-live="polite"
-        className="pointer-events-none fixed inset-x-0 bottom-0 z-[100] flex flex-col items-center gap-2 p-4 safe-bottom sm:inset-x-auto sm:right-4 sm:items-end"
+        className="pf-portal pointer-events-none fixed inset-x-0 bottom-0 z-[100] flex flex-col items-center gap-2 p-4 safe-bottom sm:inset-x-auto sm:right-4 sm:items-end"
       >
         <AnimatePresence initial={false} mode="popLayout">
           {toasts.map((t) => (
@@ -49,10 +49,13 @@ const TONES: Record<ToastTone, { icon: typeof Info; className: string }> = {
 }
 
 function ToastCard({ toast, onDismiss }: { toast: Toast; onDismiss: (id: number) => void }) {
+  // AnimatePresence plays the exit animation once the toast is removed.
+  const leave = useCallback(() => onDismiss(toast.id), [onDismiss, toast.id])
+
   useEffect(() => {
-    const timer = setTimeout(() => onDismiss(toast.id), 5000)
+    const timer = setTimeout(leave, 5000)
     return () => clearTimeout(timer)
-  }, [toast.id, onDismiss])
+  }, [leave])
 
   const { icon: Icon, className } = TONES[toast.tone]
 
@@ -63,13 +66,13 @@ function ToastCard({ toast, onDismiss }: { toast: Toast; onDismiss: (id: number)
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, scale: 0.94, transition: { duration: 0.16 } }}
       transition={{ type: "spring", stiffness: 520, damping: 34 }}
-      className="pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-xl border bg-card p-3.5 shadow-lg"
+      className="pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-[14px] border bg-card p-3.5 shadow-[0_12px_32px_-8px_rgba(0,0,0,0.3)]"
     >
       <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", className)} aria-hidden />
       <p className="flex-1 text-sm leading-snug">{toast.message}</p>
       <button
         type="button"
-        onClick={() => onDismiss(toast.id)}
+        onClick={leave}
         className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground"
       >
         <X className="h-4 w-4" aria-hidden />

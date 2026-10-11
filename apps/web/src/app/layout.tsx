@@ -1,19 +1,10 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { Bricolage_Grotesque, Geist, Geist_Mono } from "next/font/google"
+import { Bricolage_Grotesque, Hanken_Grotesk, IBM_Plex_Mono, Newsreader } from "next/font/google"
 import "./globals.css"
+import "./peerfolio-5c.css"
 import { Providers } from "@web/components/providers"
 import { SITE } from "@web/lib/site"
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-})
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-})
 
 // Words with character (titles, league names, ranks). Swap the family here and
 // every `font-display` in the app follows; the variable name never changes.
@@ -22,6 +13,10 @@ const display = Bricolage_Grotesque({
   subsets: ["latin"],
   display: "swap",
 })
+
+const appSans = Hanken_Grotesk({ variable: "--font-hanken", subsets: ["latin"], weight: ["400", "500", "600"], display: "swap" })
+const appDisplay = Newsreader({ variable: "--font-newsreader", subsets: ["latin"], style: ["normal", "italic"], display: "swap" })
+const appMono = IBM_Plex_Mono({ variable: "--font-plex-mono", subsets: ["latin"], weight: ["400", "500"], display: "swap" })
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE.baseUrl),
@@ -74,7 +69,7 @@ export default function RootLayout({
       <head>
         <link rel="icon" href="/favicon.png" />
       </head>
-      <body className={`${geistSans.variable} ${geistMono.variable} ${display.variable}`}>
+      <body className={`${display.variable} ${appSans.variable} ${appDisplay.variable} ${appMono.variable}`}>
         <Providers>{children}</Providers>
       </body>
     </html>
