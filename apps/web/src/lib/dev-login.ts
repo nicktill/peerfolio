@@ -17,7 +17,11 @@ export type DevLoginMode = "off" | "local" | "preview"
 export function devLoginMode(env: NodeJS.ProcessEnv = process.env): DevLoginMode {
   if (env.ENABLE_DEV_LOGIN !== "true") return "off"
   if (env.VERCEL_ENV === "production") return "off"
-  if (env.VERCEL_ENV === "preview") return env.DEV_LOGIN_DEMO_DATABASE === "true" ? "preview" : "off"
+  if (env.VERCEL_ENV === "preview") {
+    // Belt and braces: if the owner records the production URL, a preview pointed at it stays off.
+    if (env.PRODUCTION_DATABASE_URL && env.DATABASE_URL === env.PRODUCTION_DATABASE_URL) return "off"
+    return env.DEV_LOGIN_DEMO_DATABASE === "true" ? "preview" : "off"
+  }
   return env.NODE_ENV !== "production" ? "local" : "off"
 }
 

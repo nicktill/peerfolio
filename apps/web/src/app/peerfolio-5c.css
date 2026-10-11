@@ -428,3 +428,20 @@ a.pf-row:active, .pf-row.hov:active { background: var(--hair2); }
   .peerfolio-app :is(.fw-standing, .pf-standing)[data-medal]::before, .peerfolio-app :is(.fw-standing, .pf-standing)[data-medal]::after { animation: none !important; }
 }
 .pf-mark-badge { position: absolute; right: -6px; bottom: -6px; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--panel); border: 1px solid var(--hair); color: var(--fg2); }
+
+/* "Demo data" marker shown to preview demo sessions only. */
+.pf-demo-pill {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 40;
+  padding: 2px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: hsl(var(--muted-foreground));
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  opacity: 0.85;
+  pointer-events: none;
+}

@@ -14,8 +14,8 @@ import { RouteProgress } from "@web/components/ui/route-progress"
  * session themselves, so nothing private is exposed in the moment before a
  * signed-out visitor is redirected.
  */
-export function AppShell({ children }: { children: React.ReactNode }) {
-  const { status } = useSession()
+export function AppShell({ children, previewDemo = false }: { children: React.ReactNode; previewDemo?: boolean }) {
+  const { data: session, status } = useSession()
   const router = useRouter()
 
   useEffect(() => {
@@ -29,6 +29,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <RouteProgress />
       <AppNav />
       {/* Wide enough for a dashboard on a laptop; text-heavy pages set their own reading width. Bottom padding clears the mobile tab bar. */}
+      {previewDemo && session?.user?.email?.endsWith("@example.com") ? <div className="pf-demo-pill" role="status">Demo data</div> : null}
       <main className="peerfolio-main">{children}</main>
     </div>
   )

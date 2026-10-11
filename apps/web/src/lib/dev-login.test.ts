@@ -52,3 +52,9 @@ test("passcode comparison", () => {
   assert.equal(passcodeMatches(undefined, env({ DEV_LOGIN_SECRET: SECRET })), false)
   assert.equal(passcodeMatches("", env({ DEV_LOGIN_SECRET: "" })), false)
 })
+
+test("a preview pointed at the recorded production database stays off", () => {
+  const base = { ENABLE_DEV_LOGIN: "true", VERCEL_ENV: "preview", NODE_ENV: "production", DEV_LOGIN_DEMO_DATABASE: "true", DATABASE_URL: "postgres://prod/db" }
+  assert.equal(devLoginMode(env({ ...base, PRODUCTION_DATABASE_URL: "postgres://prod/db" })), "off")
+  assert.equal(devLoginMode(env({ ...base, PRODUCTION_DATABASE_URL: "postgres://other/db" })), "preview")
+})
