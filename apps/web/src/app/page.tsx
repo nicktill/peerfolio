@@ -8,6 +8,7 @@ import { HeroBackdrop } from "@web/components/landing/hero-backdrop"
 import { LeaguePreview } from "@web/components/landing/league-preview"
 import { ProductTour } from "@web/components/landing/product-tour"
 import { RotatingWord } from "@web/components/landing/rotating-word"
+import { SmoothScroll } from "@web/components/landing/smooth-scroll"
 import { SignInButton } from "@web/components/landing/sign-in-button"
 import { InView } from "@web/components/motion/in-view"
 import { revealStyle } from "@web/components/motion/reveal"
@@ -35,6 +36,7 @@ export default async function HomePage() {
   return (
     <div className="peerfolio-app pf-landing min-h-screen overflow-x-clip">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }} />
+      <SmoothScroll />
       <LandingHeader />
 
       <main className="flex-1">

@@ -69,7 +69,7 @@ function Row({ member, rank, percent }: { member: Member; rank: number; percent:
 }
 
 /** Returns on one axis, everyone from 0% on day one. Hover or touch to scrub to a day. */
-function RaceLines({ members, hover, setHover }: { members: Member[]; hover: number | null; setHover: (i: number | null) => void }) {
+export function RaceLines({ members, hover, setHover, upto, minHeight = 250 }: { members: Member[]; hover: number | null; setHover: (i: number | null) => void; /** Index the lines have reached (the tour grows them); defaults to the last day. */ upto?: number; minHeight?: number }) {
   const { ref, width, height } = useMeasure<HTMLDivElement>()
   const gradientId = useId()
   const days = members[0]!.points.length
@@ -77,6 +77,7 @@ function RaceLines({ members, hover, setHover }: { members: Member[]; hover: num
   const compact = width > 0 && width < 520
   const pad = { top: 16, right: compact ? 76 : 104, bottom: 24, left: 38 }
 
+  const reach = Math.min(days - 1, Math.max(1, upto ?? days - 1))
   const g = useMemo(() => {
     if (width <= 0 || height <= 0) return null
     const plotW = Math.max(0, width - pad.left - pad.right)
@@ -88,14 +89,14 @@ function RaceLines({ members, hover, setHover }: { members: Member[]; hover: num
     const ticks = niceTicks(lo, hi, 4)
     const lines = members.map((m) => {
       const pts = m.points.map((p, i) => [xAt(i, days, pad.left, plotW), y(p - 100)] as const)
-      return { m, d: monotonePath(pts), pts }
+      return { m, d: monotonePath(pts.slice(0, reach + 1)), pts }
     })
     return { plotW, innerH, y, ticks, lines, lo, hi }
     // pad is derived from width alone
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [members, width, height, days])
+  }, [members, width, height, days, reach])
 
-  const idx = hover ?? days - 1
+  const idx = Math.min(hover ?? reach, reach)
   const labels = useMemo(() => {
     if (!g) return []
     const desired = g.lines.map((l) => l.pts[idx]![1])
@@ -107,7 +108,7 @@ function RaceLines({ members, hover, setHover }: { members: Member[]; hover: num
   const leader = g?.lines[0]
 
   return (
-    <div ref={ref} className="relative min-h-[250px] flex-1" style={{ touchAction: "pan-y" }}>
+    <div ref={ref} className="relative flex-1" style={{ touchAction: "pan-y", minHeight }}>
       {g ? (
         <svg
           width={width}
@@ -122,8 +123,9 @@ function RaceLines({ members, hover, setHover }: { members: Member[]; hover: num
           onPointerLeave={() => setHover(null)}
         >
           <defs>
-            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor={leader!.m.color} stopOpacity="0.2" />
+            {/* Fixed in chart space (not the path's bounding box), so it never re-rasterises as the card moves. */}
+            <linearGradient id={gradientId} gradientUnits="userSpaceOnUse" x1="0" x2="0" y1={Math.min(...leader!.pts.slice(0, reach + 1).map((p) => p[1]))} y2={g.y(0)}>
+              <stop offset="0" stopColor={leader!.m.color} stopOpacity="0.16" />
               <stop offset="1" stopColor={leader!.m.color} stopOpacity="0" />
             </linearGradient>
           </defs>
@@ -138,7 +140,7 @@ function RaceLines({ members, hover, setHover }: { members: Member[]; hover: num
             </g>
           ))}
 
-          <path d={`${leader!.d} L${leader!.pts[days - 1]![0]},${g.y(g.lo)} L${leader!.pts[0]![0]},${g.y(g.lo)} Z`} fill={`url(#${gradientId})`} className="pf-area" />
+          <path d={`${leader!.d} L${leader!.pts[reach]![0].toFixed(2)},${g.y(0).toFixed(2)} L${leader!.pts[0]![0].toFixed(2)},${g.y(0).toFixed(2)} Z`} fill={`url(#${gradientId})`} />
 
           {[...g.lines].reverse().map(({ m, d }) => (
             <path key={m.id} d={d} pathLength={1} fill="none" stroke={m.color} strokeWidth={m.isYou ? 2.6 : 1.9} strokeLinecap="round" strokeLinejoin="round" opacity={m.id === "theo" || m.isYou ? 1 : 0.85} className="pf-draw" />

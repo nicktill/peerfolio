@@ -124,3 +124,11 @@
   [data-on="true"] .pf-rise, [data-on="true"] .pf-pop, .pf-card-in[data-on="true"] { animation: none; }
   .pf-rail-fill { transition: none; }
 }
+
+/* Lenis adds these classes to <html> only while it runs on the landing page. */
+html.lenis, html.lenis body { height: auto; }
+.lenis.lenis-smooth { scroll-behavior: auto !important; }
+.lenis.lenis-stopped { overflow: clip; }
+
+/* Pinned tour panes are positioned by scroll (opacity and transform set from script). */
+.pf-live { grid-area: 1 / 1; min-width: 0; will-change: opacity, transform; }
