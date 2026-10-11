@@ -401,11 +401,9 @@ export function RaceChart({
             onChange={(e) => setScrub(Number(e.target.value))}
             aria-valuetext={`Day ${scrubIdx ?? geometry.length - 1}`}
           />
-          {scrubIdx !== null && scrubIdx < geometry.length - 1 ? (
-            <button type="button" onClick={() => setScrub(null)}>
-              Now
-            </button>
-          ) : null}
+          <button type="button" onClick={() => setScrub(null)} disabled={!(scrubIdx !== null && scrubIdx < geometry.length - 1)} style={scrubIdx !== null && scrubIdx < geometry.length - 1 ? undefined : { visibility: "hidden" }}>
+            Now
+          </button>
         </div>
       ) : null}
 

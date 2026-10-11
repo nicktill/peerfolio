@@ -118,13 +118,15 @@
 .race-scrub label { white-space: nowrap; }
 .race-scrub output { display: inline-block; min-width: 18px; margin-left: 2px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--fw-fg); }
 .race-scrub input { flex: 1; min-width: 0; height: 18px; cursor: pointer; accent-color: var(--fw-accent); }
-.race-scrub button { height: 24px; padding: 0 10px; border: 1px solid var(--fw-hair); border-radius: var(--fw-rs); font: 500 10px var(--fw-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--fw-fg2); }
+.race-scrub button { flex: none; height: 24px; padding: 0 10px; border: 1px solid var(--fw-hair); border-radius: var(--fw-rs); font: 500 10px var(--fw-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--fw-fg2); }
 .race-scrub button:hover { background: var(--fw-raise); color: var(--fw-fg); }
-.race-chips { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 0 0 12px; padding: 0; }
-.race-chips button { display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 10px; border: 1px solid var(--fw-hair); border-radius: var(--fw-rs); background: var(--fw-bg); font-size: 11px; color: var(--fw-fg2); transition: background .15s, border-color .15s, color .15s; }
+.race-chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(136px, 1fr)); gap: 6px; list-style: none; margin: 0 0 12px; padding: 0; }
+.race-chips li { min-width: 0; }
+.race-chips button { display: flex; width: 100%; min-width: 0; align-items: center; gap: 7px; height: 28px; padding: 0 10px; border: 1px solid var(--fw-hair); border-radius: var(--fw-rs); background: var(--fw-bg); font-size: 11px; color: var(--fw-fg2); transition: background .15s, border-color .15s, color .15s; }
 .race-chips button:hover, .race-chips button[aria-pressed="true"] { background: var(--fw-raise); border-color: var(--fw-line); color: var(--fw-fg); }
 .race-chips i { width: 6px; height: 6px; border-radius: 50%; flex: none; }
-.race-chips b { font-weight: 500; font-variant-numeric: tabular-nums; }
+.race-chips span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+.race-chips b { flex: none; min-width: 5.2ch; text-align: right; white-space: nowrap; font-weight: 500; font-variant-numeric: tabular-nums; }
 .race-chips .race-you { font-weight: 600; color: var(--fw-fg); }
 
 /* Standings */
