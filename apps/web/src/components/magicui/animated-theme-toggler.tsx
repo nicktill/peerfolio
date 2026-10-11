@@ -245,7 +245,17 @@ export const AnimatedThemeToggler = ({
       }
     }
 
+    // Peerfolio: reduced motion switches instantly; browsers without View Transitions get a short cross-fade
+    // (the .pf-theme-fade class is picked up by anything that wants to animate the change).
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    if (reduceMotion) {
+      applyTheme()
+      return
+    }
     if (typeof document.startViewTransition !== "function") {
+      const html = document.documentElement
+      html.classList.add("pf-theme-fade")
+      window.setTimeout(() => html.classList.remove("pf-theme-fade"), 450)
       applyTheme()
       return
     }
@@ -265,6 +275,8 @@ export const AnimatedThemeToggler = ({
       "--magicui-theme-toggle-vt-duration",
       `${duration}ms`
     )
+    // Peerfolio: where the reveal starts, for scenes that tint around it (landing hero dusk glow).
+    root.style.setProperty("--magicui-theme-vt-x", `${(x / viewportWidth) * 100}%`)
     // Pin the collapsed clip-path via CSS so Firefox does not paint the new
     // theme unclipped between snapshot and the ready.then() JS animation.
     root.style.setProperty("--magicui-theme-vt-clip-from", clipPath[0])

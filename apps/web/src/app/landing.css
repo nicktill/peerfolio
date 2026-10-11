@@ -132,3 +132,141 @@ html.lenis, html.lenis body { height: auto; }
 
 /* Pinned tour panes are positioned by scroll (opacity and transform set from script). */
 .pf-live { grid-area: 1 / 1; min-width: 0; will-change: opacity, transform; }
+
+/* ───────── Hero variant "sky-orbit": a day/night scene behind the hero ─────────
+   Only the active theme's stack is displayed (display:none images are never requested). The theme class comes from
+   next-themes on <html> and is set before first paint, so there is no flash. Everything here is scoped to
+   [data-hero="sky-orbit"]; ?hero=flat leaves the original hero untouched. */
+.pf-landing[data-hero]:not([data-hero="flat"]) .pf-hero[data-layout="full-bleed"] { margin-top: -57px; padding-top: 57px; }
+.pf-landing[data-hero]:not([data-hero="flat"]) .pf-header { background: transparent; border-bottom-color: transparent; transition: background-color 0.2s ease, border-color 0.2s ease; }
+html[data-hero-scrolled] .pf-landing[data-hero]:not([data-hero="flat"]) .pf-header { background: var(--bg); border-bottom-color: var(--hair); }
+.pf-landing[data-hero]:not([data-hero="flat"]) .pf-hero::before { display: none; }
+
+.so-root { height: max(720px, 112svh); -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 52%, rgba(0,0,0,0.55) 74%, transparent 100%); mask-image: linear-gradient(to bottom, #000 0%, #000 52%, rgba(0,0,0,0.55) 74%, transparent 100%); }
+.so-stack { position: absolute; inset: 0; display: none; }
+html.dark .so-night, html:not(.dark) .so-day { display: block; }
+/* Without View Transitions the toggler adds .pf-theme-fade for a moment: the two stacks cross-fade instead of snapping. */
+.pf-theme-fade .so-stack { transition: opacity 0.4s ease, display 0.4s allow-discrete; }
+@starting-style { .pf-theme-fade :is(html.dark .so-night, html:not(.dark) .so-day) { opacity: 0; } }
+
+/* .so-par takes the JS parallax transform, .so-rise the theme-change animation, so the two never fight. The extra
+   bleed above the box is what the plate slides into as it trails the page. */
+.so-par { position: absolute; inset: -190px 0 0 0; will-change: transform; }
+.so-rise, .so-img { position: absolute; inset: 0; }
+.so-img { background-repeat: no-repeat; background-size: cover; background-position: center top; }
+
+.so-night .so-plate { background-color: #00050c; background-image: url("/hero/sky-orbit/night-mobile.webp"); background-image: image-set(url("/hero/sky-orbit/night-mobile.avif") type("image/avif"), url("/hero/sky-orbit/night-mobile.webp") type("image/webp")); background-position: center bottom; }
+.so-day .so-plate { background-color: #e9f2fb; background-image: url("/hero/sky-orbit/day-mobile.webp"); background-image: image-set(url("/hero/sky-orbit/day-mobile.avif") type("image/avif"), url("/hero/sky-orbit/day-mobile.webp") type("image/webp")); }
+.so-day .so-layer { background-image: url("/hero/sky-orbit/day-mobile-shards.webp"); background-image: image-set(url("/hero/sky-orbit/day-mobile-shards.avif") type("image/avif"), url("/hero/sky-orbit/day-mobile-shards.webp") type("image/webp")); }
+.so-night .so-layer { display: none; }
+@media (min-aspect-ratio: 5/4) {
+  .so-night .so-layer { display: block; background-image: url("/hero/sky-orbit/night-desktop-earth.webp"); background-image: image-set(url("/hero/sky-orbit/night-desktop-earth.avif") type("image/avif"), url("/hero/sky-orbit/night-desktop-earth.webp") type("image/webp")); }
+  .so-night .so-plate { background-image: url("/hero/sky-orbit/night-desktop-sky.webp"); background-image: image-set(url("/hero/sky-orbit/night-desktop-sky.avif") type("image/avif"), url("/hero/sky-orbit/night-desktop-sky.webp") type("image/webp")); background-position: center top; }
+  .so-day .so-plate { background-image: url("/hero/sky-orbit/day-desktop.webp"); background-image: image-set(url("/hero/sky-orbit/day-desktop.avif") type("image/avif"), url("/hero/sky-orbit/day-desktop.webp") type("image/webp")); }
+  .so-day .so-layer { background-image: url("/hero/sky-orbit/day-desktop-shards.webp"); background-image: image-set(url("/hero/sky-orbit/day-desktop-shards.avif") type("image/avif"), url("/hero/sky-orbit/day-desktop-shards.webp") type("image/webp")); }
+}
+
+/* Night: a handful of stars that breathe (opacity only). */
+.so-stars { position: absolute; inset: 0; }
+.so-stars i { position: absolute; width: 2px; height: 2px; border-radius: 50%; background: #cfe0ff; opacity: 0.18; animation: so-twinkle 6s ease-in-out infinite; }
+@keyframes so-twinkle { 0%, 100% { opacity: 0.12; } 50% { opacity: 0.8; } }
+@media (max-width: 767px) { .so-stars i:nth-child(n + 8) { display: none; } }
+
+/* Day: a soft highlight drifting slowly across the cloud bank. */
+.so-glint { position: absolute; left: -20%; right: -20%; top: 38%; height: 46%; pointer-events: none; opacity: 0.55; will-change: transform;
+  background: radial-gradient(38% 50% at 30% 55%, rgba(255,255,255,0.75), transparent 70%), radial-gradient(30% 45% at 72% 45%, rgba(255,255,255,0.55), transparent 70%);
+  animation: so-drift 48s ease-in-out infinite alternate; }
+@keyframes so-drift { from { transform: translate3d(-5%, 0, 0); } to { transform: translate3d(5%, 0, 0); } }
+
+/* Theme change: the new scene rises into place inside the circular reveal, with a warm band at the horizon that peaks mid-way. */
+.so-dusk { position: absolute; inset: 0; opacity: 0; background: radial-gradient(150% 85% at 50% 100%, rgba(255, 150, 92, 0.78), rgba(236, 104, 140, 0.42) 45%, transparent 78%); }
+html[data-magicui-theme-vt="active"] .so-dusk { animation: so-dusk var(--magicui-theme-toggle-vt-duration, 550ms) ease-in-out both; }
+html[data-magicui-theme-vt="active"] .so-rise-plate { animation: so-rise-plate var(--magicui-theme-toggle-vt-duration, 550ms) cubic-bezier(0.22, 0.7, 0.2, 1) 80ms; }
+html[data-magicui-theme-vt="active"] .so-rise-layer { animation: so-rise-layer var(--magicui-theme-toggle-vt-duration, 550ms) cubic-bezier(0.22, 0.7, 0.2, 1) 80ms; }
+@keyframes so-rise-plate { from { transform: translate3d(0, 28px, 0); } to { transform: none; } }
+@keyframes so-rise-layer { from { transform: translate3d(0, 64px, 0); } to { transform: none; } }
+@keyframes so-dusk { 0% { opacity: 0; } 62% { opacity: 1; } 100% { opacity: 0; } }
+
+.so-root[data-paused] :is(.so-stars i, .so-glint) { animation-play-state: paused; }
+@media (hover: none), (max-width: 767px) { .so-glint { animation: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .so-stars i, .so-glint { animation: none; }
+  .so-stars i { opacity: 0.4; }
+  .so-dusk, .so-rise-plate, .so-rise-layer { animation: none !important; }
+}
+
+/* Readability: a soft, colour-matched pool behind the copy. Flat panels over the art get a touch more body. */
+.pf-landing[data-hero]:not([data-hero="flat"]) .pf-copy { position: relative; isolation: isolate; }
+.pf-landing[data-hero]:not([data-hero="flat"]) .pf-copy::before { content: ""; position: absolute; z-index: -1; inset: -2% -6% 0; pointer-events: none;
+  background: radial-gradient(closest-side at 50% 46%, rgba(243, 247, 252, 0.78), rgba(243, 247, 252, 0.42) 62%, transparent 100%); }
+.dark .pf-landing[data-hero]:not([data-hero="flat"]) .pf-copy::before { background: radial-gradient(closest-side at 50% 46%, rgba(2, 6, 14, 0.62), rgba(2, 6, 14, 0.32) 62%, transparent 100%); }
+.pf-landing[data-hero]:not([data-hero="flat"]) .pf-hero .pf-lift { background: var(--panel); }
+html:not(.dark) .so-root { -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 60%, rgba(0,0,0,0.6) 80%, transparent 100%); mask-image: linear-gradient(to bottom, #000 0%, #000 60%, rgba(0,0,0,0.6) 80%, transparent 100%); }
+/* The fine dither fades out toward the fold, so the hero's lower edge is exactly the page colour. */
+.pf-landing[data-hero]:not([data-hero="flat"]) .pf-hero::after { -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 55%, transparent 88%); mask-image: linear-gradient(to bottom, #000 0%, #000 55%, transparent 88%); }
+.dark .pf-landing[data-hero]:not([data-hero="flat"]) .pf-copy .pf-muted { color: var(--fg2); }
+
+/* ───────── Single-plate hero variants (?hero=waves | earth-night | green-hall | green-hall-bars | glass-sky | blue-haze | bubbles) ─────────
+   One painted image per scene, shown only in its own theme (display:none images are never requested); in the other
+   theme the flat hero's backdrop is shown instead. Per-scene tuning: --pl-x (phone focal point), --pl-scrim (headline pool). */
+.pl-root { height: max(720px, 112svh); display: none;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 50%, rgba(0,0,0,0.5) 76%, transparent 100%); mask-image: linear-gradient(to bottom, #000 0%, #000 50%, rgba(0,0,0,0.5) 76%, transparent 100%); }
+html.dark .pl-root[data-theme-only="dark"], html:not(.dark) .pl-root[data-theme-only="light"] { display: block; }
+.pl-fallback { display: contents; }
+html.dark .pl-fallback[data-fallback-for="dark"], html:not(.dark) .pl-fallback[data-fallback-for="light"] { display: none; }
+.pl-par { position: absolute; inset: 0; scale: 1.07; transform-origin: 50% 0; will-change: transform; }
+.pl-img { position: absolute; inset: 0; background-repeat: no-repeat; background-size: cover; background-position: var(--pl-x, 50%) 100%; }
+/* Art: one class per delivered image. */
+.pl-art-waves { background-image: url("/hero/waves/plate.webp"); background-image: image-set(url("/hero/waves/plate.avif") type("image/avif"), url("/hero/waves/plate.webp") type("image/webp")); }
+.pl-art-waves-2 { background-image: url("/hero/waves-2/plate.webp"); background-image: image-set(url("/hero/waves-2/plate.avif") type("image/avif"), url("/hero/waves-2/plate.webp") type("image/webp")); }
+.pl-art-earth-night { background-image: url("/hero/earth-night/plate.webp"); background-image: image-set(url("/hero/earth-night/plate.avif") type("image/avif"), url("/hero/earth-night/plate.webp") type("image/webp")); }
+.pl-art-earth-night-europe { background-image: url("/hero/earth-night-europe/plate.webp"); background-image: image-set(url("/hero/earth-night-europe/plate.avif") type("image/avif"), url("/hero/earth-night-europe/plate.webp") type("image/webp")); --pl-x: 40%; }
+.pl-art-night-plain { background-image: url("/hero/night-plain/plate.webp"); background-image: image-set(url("/hero/night-plain/plate.avif") type("image/avif"), url("/hero/night-plain/plate.webp") type("image/webp")); }
+.pl-art-green-hall { background-image: url("/hero/green-hall/plate.webp"); background-image: image-set(url("/hero/green-hall/plate.avif") type("image/avif"), url("/hero/green-hall/plate.webp") type("image/webp")); }
+.pl-art-green-hall-bars { background-image: url("/hero/green-hall-bars/plate.webp"); background-image: image-set(url("/hero/green-hall-bars/plate.avif") type("image/avif"), url("/hero/green-hall-bars/plate.webp") type("image/webp")); --pl-x: 62%; }
+.pl-art-green-hall-bars-2 { background-image: url("/hero/green-hall-bars-2/plate.webp"); background-image: image-set(url("/hero/green-hall-bars-2/plate.avif") type("image/avif"), url("/hero/green-hall-bars-2/plate.webp") type("image/webp")); --pl-x: 62%; }
+.pl-art-glass-sky { background-image: url("/hero/glass-sky/plate.webp"); background-image: image-set(url("/hero/glass-sky/plate.avif") type("image/avif"), url("/hero/glass-sky/plate.webp") type("image/webp")); }
+.pl-art-ice-peaks { background-image: url("/hero/ice-peaks/plate.webp"); background-image: image-set(url("/hero/ice-peaks/plate.avif") type("image/avif"), url("/hero/ice-peaks/plate.webp") type("image/webp")); }
+.pl-art-blue-haze { background-image: url("/hero/blue-haze/plate.webp"); background-image: image-set(url("/hero/blue-haze/plate.avif") type("image/avif"), url("/hero/blue-haze/plate.webp") type("image/webp")); --pl-x: 62%; }
+.pl-art-blue-mountains-haze { background-image: url("/hero/blue-mountains-haze/plate.webp"); background-image: image-set(url("/hero/blue-mountains-haze/plate.avif") type("image/avif"), url("/hero/blue-mountains-haze/plate.webp") type("image/webp")); --pl-x: 55%; }
+.pl-art-bubbles { background-image: url("/hero/bubbles/plate.webp"); background-image: image-set(url("/hero/bubbles/plate.avif") type("image/avif"), url("/hero/bubbles/plate.webp") type("image/webp")); }
+.pl-art-lavender-bubbles { background-image: url("/hero/lavender-bubbles/plate.webp"); background-image: image-set(url("/hero/lavender-bubbles/plate.avif") type("image/avif"), url("/hero/lavender-bubbles/plate.webp") type("image/webp")); }
+.pl-art-aura-light { background-image: url("/hero/aura-light/plate.webp"); background-image: image-set(url("/hero/aura-light/plate.avif") type("image/avif"), url("/hero/aura-light/plate.webp") type("image/webp")); }
+.pl-art-silk-light { background-image: url("/hero/silk-light/plate.webp"); background-image: image-set(url("/hero/silk-light/plate.avif") type("image/avif"), url("/hero/silk-light/plate.webp") type("image/webp")); }
+.pl-lay-green-crystals { background-image: url("/hero/layers/green-crystals.webp"); background-image: image-set(url("/hero/layers/green-crystals.avif") type("image/avif"), url("/hero/layers/green-crystals.webp") type("image/webp")); }
+.pl-lay-green-bars { background-image: url("/hero/layers/green-bars.webp"); background-image: image-set(url("/hero/layers/green-bars.avif") type("image/avif"), url("/hero/layers/green-bars.webp") type("image/webp")); }
+.pl-lay-ice-shards { background-image: url("/hero/layers/ice-shards.webp"); background-image: image-set(url("/hero/layers/ice-shards.avif") type("image/avif"), url("/hero/layers/ice-shards.webp") type("image/webp")); }
+.pl-lay-ice-crystals { background-image: url("/hero/layers/ice-crystals.webp"); background-image: image-set(url("/hero/layers/ice-crystals.avif") type("image/avif"), url("/hero/layers/ice-crystals.webp") type("image/webp")); }
+.pl-lay-bubbles { background-image: url("/hero/layers/bubbles.webp"); background-image: image-set(url("/hero/layers/bubbles.avif") type("image/avif"), url("/hero/layers/bubbles.webp") type("image/webp")); }
+.pl-lay-bubbles-2 { background-image: url("/hero/layers/bubbles-2.webp"); background-image: image-set(url("/hero/layers/bubbles-2.avif") type("image/avif"), url("/hero/layers/bubbles-2.webp") type("image/webp")); }
+.pl-lay-earth-limb { background-image: url("/hero/layers/earth-limb.webp"); background-image: image-set(url("/hero/layers/earth-limb.avif") type("image/avif"), url("/hero/layers/earth-limb.webp") type("image/webp")); }
+.pl-lay-blue-skyline { background-image: url("/hero/layers/blue-skyline.webp"); background-image: image-set(url("/hero/layers/blue-skyline.avif") type("image/avif"), url("/hero/layers/blue-skyline.webp") type("image/webp")); }
+.pl-img[data-blend="screen"] { mix-blend-mode: screen; }
+@media (max-aspect-ratio: 5/4) { .pl-img[class*="pl-lay-"] { display: none; } }
+html:not(.dark) .pl-root { -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 58%, rgba(0,0,0,0.6) 80%, transparent 100%); mask-image: linear-gradient(to bottom, #000 0%, #000 58%, rgba(0,0,0,0.6) 80%, transparent 100%); }
+
+/* Scrim strength per scene (the pool behind headline, subline and CTAs). Busy plates get a heavier one. */
+.pf-landing[data-hero="waves"] { --pl-scrim: 0.74; }
+.pf-landing[data-hero="earth-night"] { --pl-scrim: 0.66; }
+.pf-landing[data-hero="grid-tech"] { --pl-scrim: 0.6; }
+.pf-landing[data-hero="night-plain"] { --pl-scrim: 0.5; }
+.pf-landing[data-hero="green-hall-bars-2"] { --pl-scrim: 0.82; }
+.pf-landing[data-hero="earth-night-europe"] { --pl-scrim: 0.68; }
+.pf-landing[data-hero="waves-2"] { --pl-scrim: 0.74; }
+.pf-landing[data-hero="green-hall"] { --pl-scrim: 0.78; }
+.pf-landing[data-hero="green-hall-bars"] { --pl-scrim: 0.82; }
+.pf-landing[data-hero="glass-sky"] { --pl-scrim-l: 0.9; }
+.pf-landing[data-hero="blue-haze"] { --pl-scrim-l: 0.8; }
+.pf-landing[data-hero="bubbles"] { --pl-scrim-l: 0.8; }
+.pf-landing[data-hero="silk-light"] { --pl-scrim-l: 0.6; }
+.pf-landing[data-hero="aura-light"] { --pl-scrim-l: 0.6; }
+.pf-landing[data-hero="lavender-bubbles"] { --pl-scrim-l: 0.8; }
+.pf-landing[data-hero="blue-mountains-haze"] { --pl-scrim-l: 0.8; }
+.pf-landing[data-hero="ice-peaks"] { --pl-scrim-l: 0.9; }
+.pf-landing[data-hero]:not([data-hero="flat"]) .pf-copy::before { background: radial-gradient(closest-side at 50% 46%, rgba(243, 247, 252, var(--pl-scrim-l, 0.78)), rgba(243, 247, 252, calc(var(--pl-scrim-l, 0.78) * 0.55)) 62%, transparent 100%); }
+.dark .pf-landing[data-hero]:not([data-hero="flat"]) .pf-copy::before { background: radial-gradient(closest-side at 50% 46%, rgba(2, 6, 14, var(--pl-scrim, 0.62)), rgba(2, 6, 14, calc(var(--pl-scrim, 0.62) * 0.52)) 62%, transparent 100%); }
+
+/* Emerald accent for the green scenes (dark only): the headline's italic line and the primary call to action. */
+.dark .pf-landing[data-hero^="green-hall"] .pf-copy { --pf-accent: #6fd3a4; --accent-a: 111, 211, 164; --pf-ring: 0 0 0 2px var(--bg), 0 0 0 4px #6fd3a4; }
+.dark .pf-landing[data-hero^="green-hall"] .pf-copy .pf-cta:hover { background: #6fd3a4; color: #04140d; }
+.dark .pf-landing[data-hero^="green-hall"] .pf-copy .pf-cta:focus-visible { box-shadow: var(--pf-ring); outline: none; }

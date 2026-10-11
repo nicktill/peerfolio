@@ -5,6 +5,7 @@ import { ArrowDown, EyeOff } from "lucide-react"
 import { SiteFooter } from "@web/components/site-footer"
 import { ChatBubble } from "@web/components/landing/chat-bubble"
 import { HeroBackdrop } from "@web/components/landing/hero-backdrop"
+import { resolveHero } from "@web/components/landing/hero-variants"
 import { LeaguePreview } from "@web/components/landing/league-preview"
 import { ProductTour } from "@web/components/landing/product-tour"
 import { RotatingWord } from "@web/components/landing/rotating-word"
@@ -30,19 +31,21 @@ const STEPS = [
   { title: "See who's ahead", body: "Everyone is ranked on time-weighted return, updated daily." },
 ]
 
-export default async function HomePage() {
+export default async function HomePage({ searchParams }: { searchParams: Promise<{ hero?: string | string[] }> }) {
   if (await getCurrentUserId()) redirect("/dashboard")
+  const hero = resolveHero((await searchParams).hero)
+  const Backdrop = hero.Backdrop
 
   return (
-    <div className="peerfolio-app pf-landing min-h-screen overflow-x-clip">
+    <div className="peerfolio-app pf-landing min-h-screen overflow-x-clip" data-hero={hero.id}>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }} />
       <SmoothScroll />
       <LandingHeader />
 
       <main className="flex-1">
-        <section className="pf-hero relative isolate">
-          <HeroBackdrop />
-          <div className="mx-auto max-w-5xl px-6 pb-14 pt-16 text-center sm:px-5 sm:pb-16 sm:pt-24">
+        <section className="pf-hero relative isolate" data-layout={hero.layout}>
+          <Backdrop />
+          <div className="pf-copy mx-auto max-w-5xl px-6 pb-14 pt-16 text-center sm:px-5 sm:pb-16 sm:pt-24">
             <h1 style={revealStyle(0)} className="reveal pf-h1">
               {/* Top line is fixed; the line below is the accent and keeps changing. */}
               Track your investments
