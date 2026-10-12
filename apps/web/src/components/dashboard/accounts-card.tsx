@@ -378,12 +378,12 @@ export function AccountsCard({
                   })()}
 
                   {account.source === "manual" && account.category === "investment" ? (
-                    // Opens by animating the row track from 0fr to 1fr, so the drawer grows to its real height.
+                    // Closed drawers leave layout entirely: hidden holdings must not extend document scroll height.
                     <div
                       id={`account-body-${account.id}`}
                       inert={!isOpen(account)}
                       className="grid transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
-                      style={{ gridTemplateRows: isOpen(account) ? "1fr" : "0fr", opacity: isOpen(account) ? 1 : 0 }}
+                      style={{ display: isOpen(account) ? "grid" : "none", gridTemplateRows: "1fr", opacity: 1 }}
                     >
                       <div className="min-h-0 overflow-hidden">
                         <div className="pt-3">
