@@ -21,46 +21,52 @@ adds the most cash doesn't win; that's what makes a ranking worth reading.
 
 ## Screenshots
 
-All screenshots use invented demo data, not real accounts.
+Captured from the current UI using an isolated local demo database. Names, accounts, balances, positions and news figures are invented; no personal portfolio data is shown. Brokerage and ticker marks use the app’s real logo assets.
+
+### Landing page
+
+Animated headline and interactive previews of Portfolio, Leagues, Fantasy, the Board and News.
+
+![Landing page with an interactive sample league preview](docs/screenshots/landing.jpg)
 
 ### Portfolio
 
 Net worth, accounts and positions in one view. The return leaves deposits out.
 
-![Portfolio page showing net worth, a one-month chart and linked accounts](docs/screenshots/portfolio.png)
+![Portfolio page showing net worth, a one-month chart and sample accounts](docs/screenshots/portfolio.jpg)
 
 Below it, every holding across every account rolled up into one list, with
 allocation, today's movers and the leagues you're in.
 
-![Aggregated holdings table with weights, daily change and total return](docs/screenshots/portfolio-holdings.png)
+![Aggregated holdings table with weights, daily change and total return](docs/screenshots/portfolio-holdings.jpg)
 
 ### News
 
-![The daily brief with live-style market cards](docs/screenshots/news.png)
+![The daily brief with illustrative market cards](docs/screenshots/news.jpg)
 
 The recap, Fear & Greed, the week's earnings and sector moves.
 
-![Daily recap, Fear & Greed gauge, upcoming earnings and sectors at a glance](docs/screenshots/news-details.png)
+![Daily recap, Fear & Greed gauge, upcoming earnings and sectors at a glance](docs/screenshots/news-details.jpg)
 
 ### The Board
 
 Public, verified-only, percentages only.
 
-![The Board ranking top traders by return](docs/screenshots/board.png)
+![The Board ranking top traders by return](docs/screenshots/board.jpg)
 
 ### Fantasy
 
 Play-money leagues with a shared starting balance, an optional cap per pick and
 an end date. Orders placed while the market is closed wait for the open.
 
-![A fantasy league with the race chart and the trade panel](docs/screenshots/fantasy.png)
+![A fantasy league with the race chart and the trade panel](docs/screenshots/fantasy.jpg)
 
 ### Leagues
 
 A private group ranked on percentage return. Everyone is indexed to 100, so the
 chart compares rates of return, not who has more money.
 
-![A league's race chart and standings](docs/screenshots/leagues.png)
+![A league's race chart and standings](docs/screenshots/leagues.jpg)
 
 ## What's shared, and what isn't
 
