@@ -37,3 +37,8 @@
 .pf-social-league:hover .pf-league-card-open svg { transform: translate(2px,-2px); }
 .pf-social-league:focus-visible { outline: 2px solid var(--pf-accent); outline-offset: 4px; }
 @media (prefers-reduced-motion: reduce) { .pf-league-card-open svg { transition: none; } }
+
+@media(max-width:639px) {
+ .peerfolio-app .pf-standing .pf-standing-name { white-space:normal; overflow:visible; text-overflow:clip; overflow-wrap:anywhere; }
+ .peerfolio-app .pf-standing .pf-standing-holdings > div:last-child { flex:1 0 100%; justify-content:flex-end; margin-left:auto; }
+}

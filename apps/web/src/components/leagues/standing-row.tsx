@@ -72,7 +72,7 @@ export function StandingRow({
       </span>
       <div className="pf-standing-identity flex items-center gap-3">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">
+          <p className="pf-standing-name truncate text-sm font-medium">
             {standing.isYou ? "You" : (standing.name ?? standing.handle ?? "Member")}
             {standing.isYou && tone === "app" ? (
               <span className="ml-1.5 rounded bg-foreground px-1 py-px align-middle text-[10px] font-semibold uppercase tracking-wide text-background">

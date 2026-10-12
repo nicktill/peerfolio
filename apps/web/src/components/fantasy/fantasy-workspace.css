@@ -522,3 +522,30 @@ button.fw-feed-row:hover p { color: var(--fw-fg); }
 .fw-trade-confirmed { color:var(--trade-accent); animation:fw-trade-settle 400ms 550ms both; }
 @keyframes fw-trade-ring { from { stroke-dashoffset:1; } to { stroke-dashoffset:0; } }
 @media(prefers-reduced-motion:reduce) { .fw-trade-ring circle,.fw-trade-confirmed { animation:none; } }
+
+/* Explicit columns keep hidden sparklines from squeezing player names. */
+.peerfolio-app .fw-standing > .fw-standing-who { grid-column:2; grid-row:1; min-width:0; }
+.peerfolio-app .fw-standing > .fw-spark { grid-column:3; grid-row:1; }
+.peerfolio-app .fw-standing > .fw-return { grid-column:4; grid-row:1; }
+@media(max-width:860px) {
+ .peerfolio-app .fw-standing > .fw-return { grid-column:3; }
+}
+@media(max-width:639px) {
+ .peerfolio-app .fw-standing { grid-template-columns:40px minmax(0,1fr) auto; }
+ .peerfolio-app .fw-standing-who strong > span:first-child { white-space:normal; overflow:visible; text-overflow:clip; overflow-wrap:anywhere; }
+ .peerfolio-app .fw-standing-who strong { flex-wrap:wrap; gap:4px; }
+ .peerfolio-app .fw-standing-extras { grid-column:2 / -1; }
+ .peerfolio-app .fw-standing .fw-react-bar { flex:1 0 100%; margin-left:auto; justify-content:flex-end; }
+ .peerfolio-app .fw-standing .fw-react { min-width:30px; height:30px; }
+}
+
+/* One quiet entrance, with no animation on data refresh or tab switches. */
+.fw .reveal { animation-duration:550ms; }
+.fw .fw-trade { animation:fw-panel-arrive 550ms 120ms both; }
+@keyframes fw-panel-arrive { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+@media(max-width:639px) {
+ .fw .fw-section-head { align-items:flex-start; gap:6px; }
+ .fw .fw-section-head > p { max-width:24ch; line-height:1.5; }
+ .fw .fw-trade { scroll-margin-top:72px; }
+}
+@media(prefers-reduced-motion:reduce) { .fw .fw-trade { animation:none; } }

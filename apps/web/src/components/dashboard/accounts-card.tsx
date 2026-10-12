@@ -432,7 +432,7 @@ export function AccountsCard({
           </div>
         ) : null}
 
-        <div className={cn("flex flex-wrap gap-2 border-t pt-4", variant === "card" && "-mx-4 px-4")}>
+        <div className={cn("pf-account-actions flex flex-wrap gap-2 border-t pt-4", variant === "card" && "-mx-4 px-4")}>
           <AddAccountButton
             onCreated={(id) => {
               setHighlightId(id)

@@ -93,3 +93,10 @@
  .portfolio-screen .pf-holdings-controls [role="radiogroup"] { display:flex; width:100%; }
  .portfolio-screen .pf-holdings-controls [role="radio"] { flex:1; height:36px; padding-inline:8px; }
 }
+
+@media(max-width:639px) {
+ .portfolio-screen .pf-account-actions { flex-wrap:nowrap; align-items:center; gap:12px; }
+ .portfolio-screen .pf-account-actions > button { min-width:0; height:40px; padding-inline:12px; font-size:12px; white-space:nowrap; }
+ .portfolio-screen .pf-account-actions > button:disabled { border-color:transparent; background:transparent; padding-inline:0; font-size:11px; }
+ .portfolio-screen .pf-account-actions > button svg { width:15px; height:15px; }
+}
