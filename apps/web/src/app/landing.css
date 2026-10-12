@@ -18,8 +18,11 @@
 .pf-cta { height: 44px; padding-inline: 20px; font-size: 14px; min-height: 44px !important; }
 .pf-hbtn { height: 40px; min-height: 40px !important; }
 
-/* Header: flat, hairline, always the page colour. */
-.pf-header { position: sticky; top: 0; z-index: 40; background: var(--bg); border-bottom: 1px solid var(--hair); }
+/* Header: sits on the page like glass, with only a faint hairline, so it reads as part of the hero rather than a bar. */
+.pf-header { position: sticky; top: 0; z-index: 40; background: var(--bg); border-bottom: 1px solid color-mix(in srgb, var(--hair) 55%, transparent); }
+@supports (backdrop-filter: blur(1px)) {
+  .pf-header { background: color-mix(in srgb, var(--bg) 62%, transparent); backdrop-filter: blur(14px) saturate(1.25); -webkit-backdrop-filter: blur(14px) saturate(1.25); }
+}
 .pf-logo { width: 26px; height: 26px; object-fit: contain; filter: brightness(0); }
 .dark .pf-logo { filter: brightness(0) invert(1); }
 .pf-wordmark { font: 500 21px/1 var(--serif); letter-spacing: -0.01em; color: var(--fg); }
@@ -35,12 +38,12 @@
   mask-image: radial-gradient(ellipse 70% 70% at 50% 0%, #000 20%, transparent 100%);
 }
 .pf-cell { background: var(--pf-accent); opacity: 0; animation: pf-cell 9s ease-in-out infinite; }
-@keyframes pf-cell { 0%, 100% { opacity: 0.005; } 50% { opacity: 0.03; } }
+@keyframes pf-cell { 0%, 100% { opacity: 0; } 50% { opacity: var(--peak, 0.1); } }
 
 /* Hero */
 .pf-pill { display: inline-flex; align-items: center; gap: 9px; padding: 5px 12px; min-height: 28px; text-align: left; border: 1px solid var(--hair); border-radius: 999px; background: var(--panel); font: 500 10.5px/16px var(--mono); letter-spacing: 0.09em; text-transform: uppercase; color: var(--fg2); max-width: 100%; }
 .pf-pill i { width: 6px; height: 6px; border-radius: 50%; background: var(--pf-accent); flex: none; }
-.pf-h1 { font-family: var(--serif); font-weight: 400; letter-spacing: -0.03em; line-height: 1.06; font-size: clamp(2.4rem, 7vw, 5rem); text-wrap: balance; color: var(--fg); }
+.pf-h1 { font-family: var(--serif); font-weight: 400; letter-spacing: -0.03em; line-height: 1.06; font-size: clamp(2.4rem, 6vw, 4.25rem); text-wrap: balance; color: var(--fg); }
 .pf-h1 em, .pf-h1 .pf-accent { font-style: italic; color: var(--pf-accent); }
 .pf-h2 { font-family: var(--serif); font-weight: 400; letter-spacing: -0.022em; line-height: 1.12; font-size: clamp(1.75rem, 3.4vw, 2.5rem); text-wrap: balance; color: var(--fg); }
 .pf-sub { color: var(--fg2); text-wrap: pretty; }
@@ -146,3 +149,20 @@ html.lenis, html.lenis body { height: auto; }
 /* Quiet texture below the hero: a faint dot grid with a fine grain, so large black areas don't read as flat. */
 .pf-landing main > :not(.pf-hero) { background-image: radial-gradient(rgba(24, 36, 56, 0.07) 1px, transparent 1.2px); background-size: 24px 24px; }
 .dark .pf-landing main > :not(.pf-hero) { background-image: radial-gradient(rgba(255, 255, 255, 0.055) 1px, transparent 1.2px); }
+
+/* Chat bubbles keep talking: a new line rises in, with three dots first. */
+.pf-msg { animation: pf-msg-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+@keyframes pf-msg-in { from { opacity: 0; transform: translateY(6px); } }
+.pf-typing { display: flex; gap: 4px; height: 20px; align-items: center; }
+.pf-typing i { width: 5px; height: 5px; border-radius: 50%; background: var(--fg3); animation: pf-dot 1s ease-in-out infinite; }
+.pf-typing i:nth-child(2) { animation-delay: 0.15s; }
+.pf-typing i:nth-child(3) { animation-delay: 0.3s; }
+@keyframes pf-dot { 0%, 100% { opacity: 0.3; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
+@media (prefers-reduced-motion: reduce) { .pf-msg, .pf-typing i { animation: none; } }
+
+/* A very faint accent hue that drifts slowly (transform only), so the backdrop is alive without competing with the content. */
+.pf-hue { background: radial-gradient(closest-side, rgba(var(--accent-a), 0.11), transparent); animation: pf-hue 34s ease-in-out infinite alternate; will-change: transform; }
+.pf-hue-b { background: radial-gradient(closest-side, rgba(var(--accent-a), 0.07), transparent); animation-duration: 46s; animation-delay: -12s; }
+.pf-landing:not(.dark) .pf-hue, :root:not(.dark) .pf-hue { opacity: 0.8; }
+@keyframes pf-hue { from { transform: translate3d(-6%, -3%, 0) scale(1); } to { transform: translate3d(9%, 6%, 0) scale(1.08); } }
+@media (prefers-reduced-motion: reduce) { .pf-hue { animation: none; } }

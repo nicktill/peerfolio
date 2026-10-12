@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
+import { useSession } from "next-auth/react"
 import { ChevronRight, Eye, EyeOff, RefreshCw, ShieldCheck, Sparkles, Wallet } from "lucide-react"
 import { Badge } from "@web/components/ui/badge"
 import { Delta } from "@web/components/ui/delta"
@@ -260,6 +261,7 @@ export function PortfolioScreen({
 
             </div>
 
+            <Greeting />
             <p className="portfolio-balance font-display text-[49px] font-normal leading-[56px] sm:text-[68px] sm:leading-[74px] 2xl:text-[74px] 2xl:leading-[80px]" style={{ letterSpacing: "-0.035em" }}>
               {hidden ? (
                 "••••••"
@@ -540,5 +542,22 @@ function RailLink({ href, emoji, name, detail, end }: { href: string; emoji: str
         <ChevronRight className="size-3.5 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden />
       </Link>
     </li>
+  )
+}
+
+/** "Good evening, Theo": filled in after mount so the server and browser never disagree, in a line that is already reserved so nothing shifts. */
+function Greeting() {
+  const { data: session } = useSession()
+  const [text, setText] = useState("")
+  const first = session?.user?.name?.split(" ")[0]
+  useEffect(() => {
+    const h = new Date().getHours()
+    const part = h < 5 ? "Still up" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"
+    setText(first ? `${part}, ${first}` : part)
+  }, [first])
+  return (
+    <p className="pf-greet" aria-hidden={text ? undefined : true}>
+      {text || "\u00a0"}
+    </p>
   )
 }

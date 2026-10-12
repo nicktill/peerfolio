@@ -11,9 +11,9 @@ export function ScrollTilt({ children, className }: { children: React.ReactNode;
   const ref = useRef<HTMLDivElement>(null)
   const reduceMotion = useReducedMotion()
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "start 0.35"] })
-  const progress = useSpring(scrollYProgress, { stiffness: 140, damping: 26, mass: 0.4 })
-  const rotateX = useTransform(progress, [0, 1], [10, 0])
-  const y = useTransform(progress, [0, 1], [24, 0])
+  const progress = useSpring(scrollYProgress, { stiffness: 110, damping: 28, mass: 0.5 })
+  const rotateX = useTransform(progress, [0, 1], [11, 0])
+  const y = useTransform(progress, [0, 1], [16, 0])
 
   if (reduceMotion) return <div className={className}>{children}</div>
 

@@ -42,8 +42,8 @@ export default async function HomePage() {
       <main className="flex-1">
         <section className="pf-hero relative isolate">
           <HeroBackdrop />
-          <div className="mx-auto max-w-5xl px-6 pb-14 pt-16 text-center sm:px-5 sm:pb-16 sm:pt-24">
-            <p style={revealStyle(0)} className="reveal pf-pill mb-6">
+          <div className="mx-auto max-w-5xl px-6 pb-8 pt-12 text-center sm:px-5 sm:pb-8 sm:pt-14">
+            <p style={revealStyle(0)} className="reveal pf-pill mb-5">
               <i aria-hidden />
               Season&apos;s live. Bragging rights on the line.
             </p>
@@ -53,25 +53,39 @@ export default async function HomePage() {
               <br />
               <RotatingWord prefix="with " words={RIVALS} />
             </h1>
-            <p style={revealStyle(1)} className="reveal pf-sub mx-auto mt-6 max-w-xl text-balance text-base leading-7 sm:text-lg">
+            <p style={revealStyle(1)} className="reveal pf-sub mx-auto mt-4 max-w-2xl text-balance text-base leading-7 sm:text-[17px]">
               Follow your portfolio, race friends on real returns, or play a fantasy league with play money. Friends see how well you invest, never how much.
             </p>
-            <div style={revealStyle(2)} className="reveal mt-9 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
+            <div style={revealStyle(2)} className="reveal mt-6 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
               <SignInButton />
               <a href="#how" className="pf-btn">
                 See how it works <ArrowDown className="size-4" aria-hidden />
               </a>
             </div>
-            <p style={revealStyle(3)} className="reveal pf-muted mt-4 text-xs">Free. Add your positions by hand, or play with fantasy money.</p>
+            <p style={revealStyle(3)} className="reveal pf-muted mt-3 text-xs">Free. Add your positions by hand, or play with fantasy money.</p>
           </div>
 
-          <div className="relative mx-auto max-w-[1280px] px-6 pb-16 sm:px-5 sm:pb-24 xl:pt-10">
-            <ChatBubble memberId="theo" side="left" className="-top-[4px] left-[2%] -rotate-3" delay={0}>
-              NVDA carrying me rn 🚀
-            </ChatBubble>
-            <ChatBubble memberId="dev" side="right" className="-top-[4px] right-[2%] rotate-2" delay={1.5}>
-              Down 4.6% and feeling great 🧊
-            </ChatBubble>
+          <div className="relative mx-auto max-w-[1280px] px-6 pb-16 sm:px-5 sm:pb-24 xl:pt-9">
+            <ChatBubble
+              side="left"
+              className="-top-[4px] left-[2%] -rotate-3"
+              delay={0}
+              lines={[
+                { memberId: "theo", text: "NVDA carrying me rn 🚀" },
+                { memberId: "maya", text: "Dividends hit today. Quietly winning." },
+                { memberId: "theo", text: "Who wants to talk about my Friday?" },
+              ]}
+            />
+            <ChatBubble
+              side="right"
+              className="-top-[4px] right-[2%] rotate-2"
+              delay={2.4}
+              lines={[
+                { memberId: "dev", text: "Down 4.6% and feeling great 🧊" },
+                { memberId: "priya", text: "Index funds. See you in 2050." },
+                { memberId: "sam", text: "Rebalanced. Again. On a Sunday." },
+              ]}
+            />
             <LeaguePreview />
           </div>
         </section>

@@ -2,14 +2,14 @@
 import { useTheme } from "next-themes"
 import { useEffect, useState } from "react"
 import { Moon, Sun } from "lucide-react"
-import { AnimatedThemeToggler } from "@web/components/magicui/animated-theme-toggler"
+import { flushSync } from "react-dom"
 import { buttonVariants } from "@web/components/ui/button"
 import { cn } from "@web/lib/utils"
 
 /**
- * Light/dark switch. The icon form wipes the new theme across the page from the button (Magic UI's Animated
- * Theme Toggler, using the View Transitions API where the browser has it); the segmented form cross-fades
- * colours. next-themes still owns the saved choice.
+ * Light/dark switch. The icon form cross-fades the whole page through a brief blur (View Transitions API where
+ * the browser has it, a plain colour fade elsewhere); the segmented form cross-fades colours. next-themes still
+ * owns the saved choice.
  */
 export function ThemeToggle({ variant = "icon" }: { variant?: "icon" | "segmented" }) {
   const { resolvedTheme, setTheme } = useTheme()
@@ -45,13 +45,24 @@ export function ThemeToggle({ variant = "icon" }: { variant?: "icon" | "segmente
     )
   }
 
+  function blurSwap() {
+    const next = dark ? "light" : "dark"
+    const root = document.documentElement
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    if (reduce || typeof document.startViewTransition !== "function") return change(next)
+    root.dataset.pfVt = ""
+    const transition = document.startViewTransition(() => flushSync(() => setTheme(next)))
+    transition.finished.finally(() => delete root.dataset.pfVt).catch(() => {})
+  }
+
   return (
-    <AnimatedThemeToggler
-      theme={dark ? "dark" : "light"}
-      onThemeChange={setTheme}
-      duration={550}
+    <button
+      type="button"
+      onClick={blurSwap}
       className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "[&_svg]:size-4")}
       aria-label={mounted ? `Switch to ${dark ? "light" : "dark"} mode` : "Toggle theme"}
-    />
+    >
+      {dark ? <Sun aria-hidden /> : <Moon aria-hidden />}
+    </button>
   )
 }

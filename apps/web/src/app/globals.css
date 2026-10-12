@@ -647,3 +647,13 @@
 [data-magicui-theme-vt="active"]::view-transition-new(root) {
   clip-path: var(--magicui-theme-vt-clip-from);
 }
+
+/* Theme switch: the old page softens and fades out while the new one resolves from a slight blur. Brief, and only
+   on the toggle (the attribute is set for the duration of the transition). */
+[data-pf-vt]::view-transition-old(root) { animation: pf-vt-out 380ms cubic-bezier(0.4, 0, 0.2, 1) both; }
+[data-pf-vt]::view-transition-new(root) { animation: pf-vt-in 380ms cubic-bezier(0.4, 0, 0.2, 1) both; }
+@keyframes pf-vt-out { to { opacity: 0; filter: blur(6px); transform: scale(1.008); } }
+@keyframes pf-vt-in { from { opacity: 0; filter: blur(6px); transform: scale(0.992); } }
+@media (prefers-reduced-motion: reduce) {
+  [data-pf-vt]::view-transition-old(root), [data-pf-vt]::view-transition-new(root) { animation: none; }
+}

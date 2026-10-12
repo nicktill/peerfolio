@@ -90,7 +90,14 @@ export default function FantasyPage() {
           })}
         </ul>
       ) : (
-        <p className="fw-empty-state">No fantasy leagues yet. Start one and drop the link in the group chat.</p>
+        <div className="fw-empty-state">
+          <svg className="fw-empty-art" viewBox="0 0 120 64" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M8 56h104" opacity=".4" />
+            <path d="M14 48l22-14 18 8 24-22 20 10 10-12" />
+            <circle cx="108" cy="18" r="3.5" />
+          </svg>
+          <p>No fantasy leagues yet. Start one and drop the link in the group chat.</p>
+        </div>
       )}
     </div>
   )

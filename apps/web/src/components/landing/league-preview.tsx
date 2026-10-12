@@ -48,7 +48,7 @@ export function LeaguePreview() {
             ))}
           </nav>
       <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
-        <TiltCard max={7} glow className="pf-panel pf-lift flex flex-col">
+        <TiltCard max={7} glare={false} className="pf-panel pf-lift flex flex-col">
           <div className="pf-ph">
             <h3 className="pf-label">
               The Group Chat<em>Last 30 days</em>
@@ -60,7 +60,7 @@ export function LeaguePreview() {
           </div>
         </TiltCard>
 
-        <TiltCard max={7} glow className="pf-panel pf-lift">
+        <TiltCard max={7} glare={false} className="pf-panel pf-lift">
           <div className="pf-ph">
             <h3 className="pf-label">Standings</h3>
             <span className="pf-ph-end pf-sample">Ranked by return</span>

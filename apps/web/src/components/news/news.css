@@ -238,3 +238,13 @@ a:hover > .nw-by .nw-by-go { opacity: 1; }
   .nw-spark svg, .nw-spark i { animation: none; }
   .nw-veil { display: none; }
 }
+
+/* Uneven column heights: the footnote stays at the foot of its card, so the spare room reads as whitespace above it, not an empty panel. */
+.nw-grid > .flex-col > .pf-foot { margin-top: auto; }
+
+/* Touch: small citation and footer links keep their look but get a 40px hit area. */
+@media (max-width: 860px) {
+  .nw-read ul a { min-height: 40px; align-items: center; }
+  .nw-take-src a, .nw-group a, a.nw-end { position: relative; }
+  .nw-take-src a::after, .nw-group a::after, a.nw-end::after { content: ""; position: absolute; inset: -12px -6px; }
+}

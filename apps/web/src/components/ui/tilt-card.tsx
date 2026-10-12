@@ -27,8 +27,8 @@ export function TiltCard({
   children: React.ReactNode
 }) {
   const reduceMotion = useReducedMotion()
-  const rotateX = useSpring(0, { stiffness: 260, damping: 24, mass: 0.6 })
-  const rotateY = useSpring(0, { stiffness: 260, damping: 24, mass: 0.6 })
+  const rotateX = useSpring(0, { stiffness: 140, damping: 22, mass: 0.7 })
+  const rotateY = useSpring(0, { stiffness: 140, damping: 22, mass: 0.7 })
   const x = useMotionValue(-300)
   const y = useMotionValue(-300)
   const glow = useMotionTemplate`radial-gradient(320px circle at ${x}px ${y}px, ${tinted ? "rgba(var(--accent-a), 0.14)" : "hsl(var(--primary) / 0.13)"}, rgba(var(--accent-a), 0) 72%)`
@@ -44,14 +44,14 @@ export function TiltCard({
   return (
     <motion.div
       className={cn("group/tilt relative", className)}
-      style={{ ...style, rotateX, rotateY, transformPerspective: 900, willChange: "transform" }}
+      style={{ ...style, rotateX, rotateY, transformPerspective: 1200, willChange: "transform" }}
       onPointerMove={(event) => {
         if (event.pointerType !== "mouse") return
         const rect = event.currentTarget.getBoundingClientRect()
         const px = (event.clientX - rect.left) / rect.width - 0.5
         const py = (event.clientY - rect.top) / rect.height - 0.5
-        rotateY.set(px * max * 2)
-        rotateX.set(-py * max * 2)
+        rotateY.set(px * max * 1.1)
+        rotateX.set(-py * max * 1.6)
         x.set(event.clientX - rect.left)
         y.set(event.clientY - rect.top)
       }}

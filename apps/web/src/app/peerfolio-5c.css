@@ -474,7 +474,15 @@ a.pf-row:active, .pf-row.hov:active { background: var(--hair2); }
   .peerfolio-app :is(.fw-rank, .pf-rank)[data-rank="1"] { --ma: var(--medal-1-a); } .peerfolio-app :is(.fw-rank, .pf-rank)[data-rank="2"] { --ma: var(--medal-2-a); } .peerfolio-app :is(.fw-rank, .pf-rank)[data-rank="3"] { --ma: var(--medal-3-a); }
   .peerfolio-app .pf-rank[data-rank] { margin-top: 0; }
   .peerfolio-app :is(.fw-standing, .pf-standing)[data-medal]:not(.fw-you):not(.surface-you) { background-image: linear-gradient(90deg, rgba(var(--ma), 0.1), rgba(var(--ma), 0.03) 45%, transparent 70%); }
-  .peerfolio-app :is(.fw-standing, .pf-standing)[data-medal]::before { top: 10px; bottom: 10px; width: 3px; background: var(--m); }
+  /* Rows reach 10px past the content grid into the panel's padding, so the rail is flush with the row's own left edge and sits inside the wash. Content stays on the header's grid. */
+  .peerfolio-app :is(.fw-standing, .pf-standing) { margin-inline: -10px; padding-inline: 10px; }
+  .peerfolio-app .fw-table-head { margin-inline: -10px; padding-inline: 10px; }
+  .peerfolio-app :is(.fw-standing, .pf-standing)[data-medal], .peerfolio-app :is(.fw-standing, .pf-standing).fw-you, .peerfolio-app .pf-standing.surface-you { border-radius: 10px; border-top-color: transparent; }
+  .peerfolio-app :is(.fw-standing, .pf-standing):has(+ [data-medal]), .peerfolio-app :is(.fw-standing, .pf-standing):has(+ .fw-you) { border-bottom-color: transparent; }
+  .peerfolio-app :is(.fw-standing, .pf-standing)[data-medal]::before { top: 0; bottom: 0; width: 3px; border-radius: 10px 0 0 10px; background: var(--m); }
+  .peerfolio-app :is(.fw-standing, .pf-standing)[data-medal]:not(.fw-you):not(.surface-you) { background-image: linear-gradient(90deg, rgba(var(--ma), 0.12), rgba(var(--ma), 0.03) 50%, transparent 75%); }
+  .peerfolio-app .fw-rank[data-rank] { margin: 6px auto 0; align-self: start; }
+  .peerfolio-app .pf-rank[data-rank] { margin: 0 auto; }
   .fw-avatar-slot[data-rank]::after, .pf-av-wrap[data-rank]::after { display: none; }
 }
 
@@ -484,3 +492,21 @@ a.pf-row:active, .pf-row.hov:active { background: var(--hair2); }
   a.pf-panel:hover, a.pf-social-league:hover { transform: translateY(-1px); }
   a.pf-panel:active, a.pf-social-league:active { transform: translateY(0) scale(0.995); }
 }
+
+/* ---- Small touches ---- */
+.peerfolio-app ::selection, .pf-portal ::selection { background: color-mix(in srgb, var(--pf-accent) 30%, transparent); }
+.pf-greet { margin: 14px 0 0; font: 400 17px/24px var(--serif); letter-spacing: -0.01em; color: var(--fg2); animation: pf-fade var(--d-4, 0.4s) var(--ease-out, ease-out) 120ms backwards; }
+.pf-greet + .portfolio-balance { margin-top: 2px !important; }
+.fw-empty-state { display: grid; justify-items: center; gap: 14px; }
+.fw-empty-state p { margin: 0; max-width: 34ch; text-wrap: balance; }
+.fw-empty-art { width: 120px; height: 64px; color: var(--fg3); }
+.dark .peerfolio-app :is(.pf-panel, .fw-panel, .surface) { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045); }
+.pf-sk { position: relative; overflow: hidden; animation: none; }
+.pf-sk::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--fg) 7%, transparent), transparent); animation: pf-shimmer 1.5s ease-in-out infinite; }
+@keyframes pf-shimmer { to { transform: translateX(100%); } }
+.fw-league > svg:last-child { transition: transform var(--d-2, 0.18s) var(--ease-out, ease-out); }
+@media (hover: hover) { .fw-league:hover > svg:last-child { transform: translateX(3px); } .fw-league:hover .fw-art { transform: translateY(-1px); } }
+.fw-league .fw-art { transition: transform var(--d-2, 0.18s) var(--ease-out, ease-out); }
+.fw-btn, .fw-react, .fw-tick, .fw-submit, .fw-more { transition-property: background-color, color, border-color, transform; transition-duration: .12s; }
+.fw-btn:not(:disabled):active, .fw-react:not(:disabled):active, .fw-tick:active, .fw-submit:not(:disabled):active { transform: scale(0.98); }
+@media (prefers-reduced-motion: reduce) { .pf-sk::after, .pf-greet { animation: none; } .fw-league > svg:last-child, .fw-league .fw-art { transition: none; } .fw-league:hover > svg:last-child, .fw-league:hover .fw-art, .fw-btn:active, .fw-react:active, .fw-tick:active, .fw-submit:active { transform: none; } }
