@@ -45,7 +45,7 @@ export function ChatBubble({ lines, side, className, delay = 0, every = 6200 }: 
   return (
     <div aria-hidden className={cn("reveal absolute z-10 hidden xl:block", className)} style={revealStyle(6 + Math.round(delay / 1.5))}>
       <div className="float-y relative" style={{ animationDelay: `${delay}s` }}>
-        <div className="pf-bubble min-h-[62px]" style={{ minWidth: "15rem" }}>
+        <div className="pf-bubble min-h-[62px]" data-side={side} style={{ minWidth: "15rem" }}>
           <p>{member.name}</p>
           {typing ? (
             <p className="pf-typing mt-1.5" aria-hidden>

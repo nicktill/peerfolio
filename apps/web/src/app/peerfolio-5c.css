@@ -424,7 +424,7 @@ a.pf-row:active, .pf-row.hov:active { background: var(--hair2); }
 .peerfolio-app :is(.fw-standing, .pf-standing)[data-medal]::before { content: ""; position: absolute; left: 0; top: 12px; bottom: 12px; width: 2px; border-radius: 2px; background: var(--m); pointer-events: none; animation: pf-fade var(--d-4) var(--ease-out) 250ms backwards; }
 .peerfolio-app :is(.fw-standing, .pf-standing)[data-medal] :is(.fw-avatar-slot > *, .pf-medal-av) { box-shadow: 0 0 0 1.5px var(--panel), 0 0 0 3px rgba(var(--ma), 0.9); }
 /* Medal badge on the avatar corner, carrying the place. */
-.fw-avatar-slot[data-rank], .pf-av-wrap[data-rank] { position: relative; display: inline-flex; }
+.fw-avatar-slot[data-rank], .pf-av-wrap { position: relative; display: inline-flex; flex: none; }
 .fw-avatar-slot[data-rank]::after, .pf-av-wrap[data-rank]::after {
   content: attr(data-rank); position: absolute; right: -5px; bottom: -4px; z-index: 1; display: grid; place-items: center; width: 15px; height: 15px; border-radius: 50%;
   font: 700 9px/1 var(--mono, ui-monospace); background: var(--mb); color: var(--mi); box-shadow: 0 0 0 1.5px var(--panel), inset 0 1px 0 rgba(255,255,255,.5);
@@ -481,8 +481,9 @@ a.pf-row:active, .pf-row.hov:active { background: var(--hair2); }
   .peerfolio-app :is(.fw-standing, .pf-standing):has(+ [data-medal]), .peerfolio-app :is(.fw-standing, .pf-standing):has(+ .fw-you) { border-bottom-color: transparent; }
   .peerfolio-app :is(.fw-standing, .pf-standing)[data-medal]::before { top: 0; bottom: 0; width: 3px; border-radius: 10px 0 0 10px; background: var(--m); }
   .peerfolio-app :is(.fw-standing, .pf-standing)[data-medal]:not(.fw-you):not(.surface-you) { background-image: linear-gradient(90deg, rgba(var(--ma), 0.12), rgba(var(--ma), 0.03) 50%, transparent 75%); }
-  .peerfolio-app .fw-rank[data-rank] { margin: 6px auto 0; align-self: start; }
-  .peerfolio-app .pf-rank[data-rank] { margin: 0 auto; }
+  .peerfolio-app .fw-rank[data-rank] { margin: 10px auto 0; align-self: start; }
+  .peerfolio-app .pf-rank[data-rank] { margin: 0; }
+  .peerfolio-app .pf-rank:is([data-rank="1"], [data-rank="2"], [data-rank="3"]) { margin: 0 2px; }
   .fw-avatar-slot[data-rank]::after, .pf-av-wrap[data-rank]::after { display: none; }
 }
 

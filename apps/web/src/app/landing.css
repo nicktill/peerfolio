@@ -19,9 +19,9 @@
 .pf-hbtn { height: 40px; min-height: 40px !important; }
 
 /* Header: sits on the page like glass, with only a faint hairline, so it reads as part of the hero rather than a bar. */
-.pf-header { position: sticky; top: 0; z-index: 40; background: var(--bg); border-bottom: 1px solid color-mix(in srgb, var(--hair) 55%, transparent); }
+.pf-header { position: sticky; top: 0; z-index: 40; background: var(--bg); border-bottom: 1px solid color-mix(in srgb, var(--hair) 40%, transparent); }
 @supports (backdrop-filter: blur(1px)) {
-  .pf-header { background: color-mix(in srgb, var(--bg) 62%, transparent); backdrop-filter: blur(14px) saturate(1.25); -webkit-backdrop-filter: blur(14px) saturate(1.25); }
+  .pf-header { background: color-mix(in srgb, var(--bg) 78%, transparent); backdrop-filter: blur(14px) saturate(1.25); -webkit-backdrop-filter: blur(14px) saturate(1.25); }
 }
 .pf-logo { width: 26px; height: 26px; object-fit: contain; filter: brightness(0); }
 .dark .pf-logo { filter: brightness(0) invert(1); }
@@ -35,7 +35,7 @@
   background-size: 56px 56px;
   background-position: center top;
   opacity: 0.55;
-  mask-image: radial-gradient(ellipse 70% 70% at 50% 0%, #000 20%, transparent 100%);
+  mask-image: radial-gradient(ellipse 80% 62% at 50% 40%, #000 15%, transparent 100%);
 }
 .pf-cell { background: var(--pf-accent); opacity: 0; animation: pf-cell 9s ease-in-out infinite; }
 @keyframes pf-cell { 0%, 100% { opacity: 0; } 50% { opacity: var(--peak, 0.1); } }
@@ -100,7 +100,7 @@
   content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: 0.05; mix-blend-mode: multiply;
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
 }
-.dark .pf-hero::after { opacity: 0.05; mix-blend-mode: screen; filter: invert(1); }
+.dark .pf-hero::after { opacity: 0.03; mix-blend-mode: screen; filter: invert(1); }
 
 /* Card hierarchy: surface contrast, fine border, controlled shadow. Weighted differently per mode. */
 .pf-lift { border-color: var(--hair); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset, 0 1px 2px rgba(24, 36, 56, 0.05), 0 18px 36px -22px rgba(24, 36, 56, 0.22); }
@@ -164,5 +164,13 @@ html.lenis, html.lenis body { height: auto; }
 .pf-hue { background: radial-gradient(closest-side, rgba(var(--accent-a), 0.11), transparent); animation: pf-hue 34s ease-in-out infinite alternate; will-change: transform; }
 .pf-hue-b { background: radial-gradient(closest-side, rgba(var(--accent-a), 0.07), transparent); animation-duration: 46s; animation-delay: -12s; }
 .pf-landing:not(.dark) .pf-hue, :root:not(.dark) .pf-hue { opacity: 0.8; }
+/* In dark mode the hue stays almost invisible so the page keeps its depth. */
+.dark .pf-hue { opacity: 0.25; }
 @keyframes pf-hue { from { transform: translate3d(-6%, -3%, 0) scale(1); } to { transform: translate3d(9%, 6%, 0) scale(1.08); } }
 @media (prefers-reduced-motion: reduce) { .pf-hue { animation: none; } }
+
+/* The little tail that says "this is a message", pointing down toward the sender's avatar. */
+.pf-bubble { position: relative; }
+.pf-bubble::after { content: ""; position: absolute; bottom: -6px; width: 11px; height: 11px; background: var(--panel); border-right: 1px solid var(--hair); border-bottom: 1px solid var(--hair); border-bottom-right-radius: 3px; transform: rotate(45deg) skew(8deg, 8deg); }
+.pf-bubble[data-side="left"]::after { left: 20px; }
+.pf-bubble[data-side="right"]::after { right: 20px; transform: rotate(45deg) skew(-8deg, -8deg); }

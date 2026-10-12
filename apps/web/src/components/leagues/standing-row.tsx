@@ -105,7 +105,7 @@ export function StandingRow({
         </div>
       </div>
 
-      <div className="pf-standing-holdings mt-2 flex flex-wrap items-center gap-1.5 pl-[84px]">
+      <div className="pf-standing-holdings mt-2 flex flex-wrap items-center gap-1.5 pl-20">
         {standing.shareHoldings && standing.holdings.length > 0 ? (
           withShownWeights(standing.holdings.slice(0, 4)).map((h) => <HoldingChip key={h.ticker} holding={h} />)
         ) : standing.shareHoldings ? (
