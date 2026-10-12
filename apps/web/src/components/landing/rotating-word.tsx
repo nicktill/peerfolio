@@ -30,9 +30,9 @@ export function RotatingWord({ words, prefix = "" }: { words: readonly string[];
   return (
     <span className="italic text-[var(--pf-accent)]">
       <span className="sr-only">{prefix}{words[0]}</span>
-      <span aria-hidden className="inline-grid whitespace-nowrap text-left [&>*]:[grid-area:1/1]">
-        {/* Reserves the full width of prefix + current word, so typing never moves the line. */}
-        <span className="invisible">{prefix}{words[index]}</span>
+      <span aria-hidden className="inline-grid whitespace-nowrap text-center [&>*]:[grid-area:1/1]">
+        {/* Reserve every phrase so switching words cannot shift the typing origin. */}
+        {words.map((word) => <span key={word} className="invisible">{prefix}{word}</span>)}
         <span className="relative">
           {prefix}{text}
           <span className="caret absolute ml-0.5 inline-block w-[3px] translate-y-[0.08em] bg-primary/60" style={{ height: "0.9em" }} />

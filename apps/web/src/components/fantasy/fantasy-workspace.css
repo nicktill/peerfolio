@@ -445,3 +445,80 @@ button.fw-feed-row:hover p { color: var(--fw-fg); }
   .race-chips li { flex: none; width: 148px; scroll-snap-align: start; }
   .race-chips button { height: 40px; }
 }
+
+/* Trade ticket: clear amount hierarchy and generous touch targets. */
+.fw-trade form { gap: 18px; }
+.fw-seg button { height: 40px; font-size: 14px; }
+.fw-seg::before { background: color-mix(in srgb, var(--fw-accent) 12%, var(--fw-raise)); transition: transform .28s cubic-bezier(.22,1,.36,1); }
+.fw-tick { height: 36px; padding-inline: 12px; font-size: 11px; }
+.fw-money input.fw-input { height: 62px; padding-left: 36px; font-size: 28px; font-weight: 500; font-variant-numeric: tabular-nums; letter-spacing: -.025em; }
+.fw-money > span { font-size: 18px; }
+.fw-allocation { padding: 14px; border: 1px solid var(--fw-hair); border-radius: var(--fw-rs); background: var(--fw-bg); }
+.fw-allocation-head { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 12px; font-size: 12px; color: var(--fw-fg2); }
+.fw-allocation-head .numeric { color: var(--fw-accent); }
+.fw-amount-picks { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 6px; margin-top: 12px; }
+.fw-amount-pick { min-height: 40px; border: 1px solid var(--fw-hair); border-radius: 6px; color: var(--fw-fg2); font: 500 12px var(--fw-mono); }
+.fw-amount-pick:hover { background: var(--fw-raise); color: var(--fw-fg); }
+.fw-amount-pick[aria-pressed="true"] { background: color-mix(in srgb, var(--fw-accent) 12%, var(--fw-bg)); border-color: var(--fw-accent); color: var(--fw-accent); }
+.fw-amount-pick:focus-visible { outline: 2px solid var(--fw-accent); outline-offset: 2px; }
+.fw-amount-pick:disabled { opacity: .4; }
+.fw-submit { height: 48px; font-size: 14px; }
+@media (prefers-reduced-motion: reduce) { .fw-seg::before { transition: none; } }
+
+/* A common baseline for identity, rank and return; extras have their own row. */
+.peerfolio-app .fw-standing { align-items: center; grid-template-rows: minmax(40px,auto) auto; row-gap: 10px; }
+.peerfolio-app .fw-standing > .fw-rank[data-rank] { margin: 0 auto; align-self: center; }
+.peerfolio-app .fw-standing > .fw-avatar-slot { align-self: center; justify-self: center; }
+.peerfolio-app .fw-standing-who { padding-top: 0; }
+.peerfolio-app .fw-standing > .fw-return, .peerfolio-app .fw-standing > .fw-spark { padding-top: 0; align-self: center; }
+.peerfolio-app .fw-standing-extras { margin-top: 0; }
+.peerfolio-app .fw-standing .fw-react-bar { flex-wrap: wrap; }
+@media (max-width: 639px) {
+  .fw-trade .fw-tickers { display: none; }
+  .peerfolio-app .fw-standing { grid-template-columns: 18px 32px minmax(0,1fr) auto; column-gap: 10px; padding-block: 16px; }
+  .peerfolio-app .fw-standing-extras { grid-column: 3 / -1; }
+  .peerfolio-app .fw-standing .fw-react-bar { flex-basis: 100%; }
+  .peerfolio-app .fw-standing .fw-react { min-width: 40px; height: 40px; }
+}
+
+.peerfolio-app .fw-trade .fw-cash-out { height: 48px; min-height: 48px; font-size: 14px; border-radius: var(--fw-rs); border-color: color-mix(in srgb, var(--loss) 45%, var(--fw-hair)); background: color-mix(in srgb, var(--loss) 8%, var(--fw-panel)); color: var(--loss); }
+.peerfolio-app .fw-trade .fw-cash-out:hover { background: color-mix(in srgb, var(--loss) 14%, var(--fw-panel)); }
+.peerfolio-app .fw-trade .fw-cash-out svg { width: 16px; height: 16px; }
+
+/* Let the plotted data lead; the legend controls visibility. */
+.race-chart .race-scrub { padding: 12px 0; border-top: 1px solid var(--fw-hair2); gap: 12px; }
+.race-chart .race-scrub input { height: 32px; }
+.race-chart .race-scrub button { height: 40px; }
+.race-chart .race-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.race-chart .race-chips li { width: auto; }
+.race-chart .race-chips button { width: auto; min-height: 40px; padding-inline: 12px; }
+.race-chart .race-chips .race-rank { display: none; }
+@media (min-width: 640px) { .race-chart .race-chips b { display: none; } }
+@media (max-width: 639px) {
+  .race-chart .race-chips { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); overflow: visible; margin-inline: 0; padding-inline: 0; }
+  .race-chart .race-chips li, .race-chart .race-chips button { width: 100%; }
+  .race-chart > button { min-height: 32px; }
+}
+
+/* Fixed tinted segments crossfade without a moving colour layer. */
+.fw-seg::before { display: none; }
+.fw-seg button { isolation: isolate; }
+.fw-seg button::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; opacity: 0; background: color-mix(in srgb,var(--gain) 16%,var(--fw-raise)); box-shadow: inset 0 0 0 1px var(--fw-line); transition: opacity 160ms ease-out; }
+.fw-seg button:nth-child(2)::before { background: color-mix(in srgb,var(--loss) 16%,var(--fw-raise)); }
+.fw-seg button[aria-selected="true"]::before { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .fw-seg button::before { transition: none; } }
+
+.fw-trade-confirmation { --trade-accent: var(--gain-ink); }
+.fw-trade-confirmation[data-side="sell"] { --trade-accent:var(--loss-ink); }
+.fw-trade-logo { display:grid; place-items:center; width:80px; height:80px; border-radius:24px; background:color-mix(in srgb,var(--trade-accent) 9%,transparent); border:1px solid color-mix(in srgb,var(--trade-accent) 28%,transparent); animation:fw-trade-settle 650ms cubic-bezier(.22,1,.36,1) both; }
+.fw-trade-logo img { animation:fw-trade-mark 750ms cubic-bezier(.22,1,.36,1) both; }
+@keyframes fw-trade-settle { from { opacity:0; transform:translateY(10px) scale(.9); } to { opacity:1; transform:translateY(0) scale(1); } }
+@keyframes fw-trade-mark { from { opacity:0; transform:rotate(-12deg) scale(.8); } to { opacity:1; transform:rotate(0) scale(1); } }
+@media(prefers-reduced-motion:reduce) { .fw-trade-logo,.fw-trade-logo img { animation:none; } }
+
+.fw-trade-logo { position:relative; width:88px; height:88px; border-radius:50%; border:none; }
+.fw-trade-ring { position:absolute; inset:0; width:100%; height:100%; transform:rotate(-90deg); fill:none; stroke:var(--trade-accent); stroke-width:1.7; stroke-linecap:round; }
+.fw-trade-ring circle { stroke-dasharray:1; stroke-dashoffset:0; animation:fw-trade-ring 850ms cubic-bezier(.22,1,.36,1) both; }
+.fw-trade-confirmed { color:var(--trade-accent); animation:fw-trade-settle 400ms 550ms both; }
+@keyframes fw-trade-ring { from { stroke-dashoffset:1; } to { stroke-dashoffset:0; } }
+@media(prefers-reduced-motion:reduce) { .fw-trade-ring circle,.fw-trade-confirmed { animation:none; } }

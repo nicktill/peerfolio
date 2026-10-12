@@ -1,12 +1,13 @@
 "use client"
 
+import Image from "next/image"
 import { useEffect, useState } from "react"
 import { AnimatedNumber } from "@web/components/ui/animated-number"
 import { formatCurrency, formatPercent } from "@web/lib/format"
 import { tradeReceipt } from "@web/lib/trade-receipt"
 import { cn } from "@web/lib/utils"
 
-export type Receipt = { id: number; side: "buy" | "sell"; ticker: string; shares: number; price: number; averageCost: number | null; isNew: boolean }
+export type Receipt = { id: number; side: "buy" | "sell"; ticker: string; shares: number; price: number; averageCost: number | null; isNew: boolean; queued?: boolean }
 
 /** How long a receipt stays up on its own. The timer bar under it runs for exactly this long. */
 const SHOW_MS = 3600
@@ -26,8 +27,7 @@ function CountUp({ value }: { value: number }) {
 
 /**
  * The moment a trade goes through: a receipt that pops over the panel with its
- * own little scene. A buy lifts off, a winning sale rains money, a losing one
- * just says so and lets you move on. Tap it to dismiss, or it leaves by itself.
+ * restrained logo motion and order status. Tap it to dismiss, or it leaves by itself.
  */
 export function TradeReceipt({ receipt, onDone }: { receipt: Receipt; onDone: () => void }) {
   useEffect(() => {
@@ -37,24 +37,24 @@ export function TradeReceipt({ receipt, onDone }: { receipt: Receipt; onDone: ()
 
   const { value, realized, realizedPct, outcome } = tradeReceipt(receipt)
   const buy = receipt.side === "buy"
-  const emoji = buy ? "🚀" : outcome === "loss" ? "🩹" : "💸"
-  const headline = buy ? (receipt.isNew ? "You're in." : "Added to your stack.") : outcome === "win" ? "Banked. 🔒" : outcome === "loss" ? "Cut it. Live to trade again." : "Clean exit."
+  const headline = receipt.queued ? "Your order is queued. It fills when a live price is available." : buy ? "Position updated." : "Sale complete."
 
   return (
     <div
       role="status"
       onClick={onDone}
-      className="receipt-pop absolute inset-0 z-30 flex cursor-pointer flex-col items-center justify-center overflow-hidden rounded-[inherit] bg-card/95 p-5 text-center backdrop-blur-sm"
+      data-side={receipt.side}
+      className="fw-trade-confirmation receipt-pop absolute inset-0 z-30 flex cursor-pointer flex-col items-center justify-center overflow-hidden rounded-[inherit] bg-card/95 p-5 text-center backdrop-blur-sm"
     >
-      {outcome === "win" ? <Rain /> : null}
-      <span className="float-y relative z-10 text-5xl" aria-hidden>
-        <span key={receipt.id} className="emoji-pop inline-block">
-          {emoji}
-        </span>
+      <span className="fw-trade-logo" aria-hidden>
+        <svg className="fw-trade-ring" viewBox="0 0 88 88"><circle cx="44" cy="44" r="41" pathLength="1" /></svg>
+        <Image src="/logo.png" alt="" width={48} height={48} className="peerfolio-logo" />
       </span>
+      <p className="fw-trade-confirmed relative z-10 mt-4 text-sm font-medium">{receipt.queued ? "Order queued" : "Confirmed"}</p>
       <p className="relative z-10 mt-3 font-display text-xl font-semibold tracking-tight">
-        {buy ? "Bought" : "Sold"} <span className="font-mono">{receipt.ticker}</span>
+        {receipt.queued ? (buy ? "Buy queued" : "Sell queued") : (buy ? "Bought" : "Sold")} <span className="font-mono">{receipt.ticker}</span>
       </p>
+      {!receipt.queued ? <>
       <p className="numeric relative z-10 mt-1 text-3xl font-semibold">
         <CountUp value={value} />
       </p>
@@ -67,27 +67,10 @@ export function TradeReceipt({ receipt, onDone }: { receipt: Receipt; onDone: ()
           {outcome === "flat" ? "Broke even" : `${signed(realized)} (${formatPercent(realizedPct)}) locked in`}
         </p>
       ) : null}
+      </> : null}
       <p className="relative z-10 mt-2 text-sm text-muted-foreground">{headline}</p>
 
       <span className="receipt-timer absolute inset-x-0 bottom-0 h-1 bg-primary/40" style={{ animationDuration: `${SHOW_MS}ms` }} aria-hidden />
-    </div>
-  )
-}
-
-/** Money falling down the card, for a sale that made money. Still when motion is reduced. */
-function Rain() {
-  const pieces = ["💸", "🪙", "💰", "💸", "🪙", "💵", "💰", "🪙", "💸", "💵"]
-  return (
-    <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 z-0 motion-reduce:hidden">
-      {pieces.map((p, i) => (
-        <span
-          key={i}
-          className="rain absolute text-lg"
-          style={{ left: `${6 + i * 9.5}%`, animationDelay: `${(i % 5) * 110}ms`, animationDuration: `${1300 + (i % 4) * 220}ms` }}
-        >
-          {p}
-        </span>
-      ))}
     </div>
   )
 }

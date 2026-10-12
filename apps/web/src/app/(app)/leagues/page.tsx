@@ -5,7 +5,7 @@ import "@web/components/app-4a.css"
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Plus, Users } from "lucide-react"
+import { ArrowUpRight, Plus, Users } from "lucide-react"
 import { Button } from "@web/components/ui/button"
 import { Card, CardContent } from "@web/components/ui/card"
 import { EmptyState } from "@web/components/ui/empty-state"
@@ -88,6 +88,7 @@ export default function LeaguesPage() {
                 aria-hidden
               />
               <div className="relative">
+                <div className="pf-league-card-top"><span>Private league</span><span>{league.role === "owner" ? "You run this one" : "Member"}</span></div>
                 <div className="flex items-start gap-3">
                   <span className="pf-social-league-icon grid size-11 shrink-0 place-items-center rounded-xl border bg-background text-2xl" aria-hidden>
                     {league.emoji}
@@ -101,8 +102,8 @@ export default function LeaguesPage() {
                 </div>
                 <div className="mt-4 flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Users className="h-3.5 w-3.5" aria-hidden />
-                  <span className="numeric">{league.memberCount}</span>
-                  {league.role === "owner" ? <span className="ml-2">· You run this one</span> : null}
+                  <span className="numeric">{league.memberCount} members</span>
+                  <span className="pf-league-card-open">View standings <ArrowUpRight className="size-4" aria-hidden /></span>
                 </div>
               </div>
             </Link>

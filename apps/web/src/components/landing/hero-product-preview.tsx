@@ -1,0 +1,131 @@
+"use client"
+
+import { useState } from "react"
+import { CalendarDays, LayoutDashboard, Medal, Newspaper, Sparkles, Trophy } from "lucide-react"
+import { LeaguePreview } from "@web/components/landing/league-preview"
+import { PortfolioView, FantasyView } from "@web/components/landing/product-tour"
+import { CastAvatar } from "@web/components/landing/cast-avatar"
+import { CAST } from "@web/components/landing/demo"
+import { ScrollTilt } from "@web/components/landing/scroll-tilt"
+import { TiltCard } from "@web/components/ui/tilt-card"
+import { Sparkline } from "@web/components/ui/sparkline"
+import { TickerLogo } from "@web/components/ui/ticker-logo"
+import { MarketStrip } from "@web/components/news/market-strip"
+import { EARNINGS_WEEK, INDEXES, RECAPS } from "@web/lib/news-sample"
+import "@web/components/news/news.css"
+
+const PAGES = [
+  { label: "Portfolio", Icon: LayoutDashboard },
+  { label: "Leagues", Icon: Trophy },
+  { label: "Fantasy", Icon: Sparkles },
+  { label: "Board", Icon: Medal },
+  { label: "News", Icon: Newspaper },
+] as const
+
+type Page = (typeof PAGES)[number]["label"]
+
+export function HeroProductPreview() {
+  const [page, setPage] = useState<Page>("Leagues")
+  return (
+    <ScrollTilt>
+      <TiltCard max={0.6} glare={false} className="pf-window">
+        <div className="pf-window-bar" aria-hidden>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="" className="pf-logo !size-5" />
+          <span className="pf-wordmark !text-[17px]">Peerfolio</span>
+          <span className="pf-sample ml-auto">Interactive preview · sample data</span>
+        </div>
+        <div className="pf-demo-layout">
+          <div className="pf-preview-nav" role="tablist" aria-label="Explore Peerfolio pages">
+            {PAGES.map(({ label, Icon }, i) => (
+              <button key={label} id={`preview-tab-${label}`} type="button" role="tab"
+                aria-selected={page === label} aria-controls="hero-preview-page"
+                tabIndex={page === label ? 0 : -1}
+                onClick={() => setPage(label)}
+                onKeyDown={(event) => {
+                  const step = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0
+                  const next = event.key === "Home" ? 0 : event.key === "End" ? PAGES.length - 1 : step ? (i + step + PAGES.length) % PAGES.length : null
+                  if (next === null) return
+                  event.preventDefault()
+                  setPage(PAGES[next]!.label)
+                  document.getElementById(`preview-tab-${PAGES[next]!.label}`)?.focus()
+                }}>
+                <Icon className="size-4" strokeWidth={1.7} aria-hidden />{label}
+              </button>
+            ))}
+          </div>
+          <div id="hero-preview-page" role="tabpanel" aria-labelledby={`preview-tab-${page}`} tabIndex={0} className="pf-demo-page">
+            {page === "Leagues" ? <LeaguePreview tilt={0} /> : page === "Portfolio" ? <PortfolioView e={1} scrub={false} compact tilt={0} /> : page === "Fantasy" ? <FantasyView e={1} compact tilt={0} /> : page === "Board" ? <BoardPreview /> : <NewsPreview />}
+          </div>
+        </div>
+      </TiltCard>
+    </ScrollTilt>
+  )
+}
+
+function BoardPreview() {
+  const members = [...CAST].sort((a,b) => b.points[b.points.length-1]! - a.points[a.points.length-1]!)
+  return (
+    <section className="pf-panel pf-lift">
+      <div className="pf-ph"><h3 className="pf-label">The board</h3><span className="pf-sample">Sample · 30-day return</span></div>
+      <ol className="divide-y px-4 sm:px-5">
+        {members.map((member,i) => (
+          <li key={member.id} className="flex items-center gap-3 py-3.5">
+            <span className="numeric w-5 text-center text-[var(--fg3)]">{i+1}</span>
+            <CastAvatar member={member} size={36} />
+            <div className="min-w-0 flex-1"><p className="text-sm font-medium">{member.name}</p><p className="truncate text-xs text-[var(--fg3)]">{member.note}</p></div>
+            <span className="hidden shrink-0 sm:block"><Sparkline points={member.points} width={96} height={28} /></span>
+            <span className="shrink-0 sm:hidden"><Sparkline points={member.points} width={44} height={24} /></span>
+            <span className="numeric shrink-0 text-sm" style={{color:member.points[member.points.length-1]! >= 100 ? "var(--gain)" : "var(--loss)"}}>{member.points[member.points.length-1]! >= 100 ? "+" : ""}{(member.points[member.points.length-1]!-100).toFixed(2)}%</span>
+          </li>
+        ))}
+      </ol>
+    </section>
+  )
+}
+
+function NewsPreview() {
+  return (
+    <div className="nw space-y-4">
+      <div className="px-2 py-3"><h3 className="pf-h3">Markets at a glance</h3><p className="pf-sample mt-2">Illustrative sample figures</p></div>
+      <MarketStrip quotes={INDEXES} period="day" startIndex={0} />
+      <div className="pf-preview-news-bottom">
+      <section className="pf-panel pf-lift">
+        <div className="pf-ph"><h3 className="pf-label">Daily recap</h3><span className="pf-sample">Sample briefing</span></div>
+        <div className="pf-pb"><h4 className="pf-h3">{RECAPS.day.headline}</h4><p className="pf-sub mt-4 max-w-[70ch] text-sm leading-6">{RECAPS.day.body}</p></div>
+      </section>
+      <EarningsPreview />
+      </div>
+    </div>
+  )
+}
+
+function EarningsPreview() {
+  const [selected, setSelected] = useState(3)
+  const day = EARNINGS_WEEK.days[selected]!
+  return (
+    <section className="pf-panel pf-lift" aria-labelledby="preview-earnings-title">
+      <div className="pf-ph"><h3 id="preview-earnings-title" className="pf-label">Earnings calendar</h3><CalendarDays className="size-4 text-[var(--fg3)]" aria-hidden /></div>
+      <div className="pf-pb !pb-3">
+        <p className="pf-sample mb-3">{EARNINGS_WEEK.label} · sample</p>
+        <div className="grid grid-cols-5 gap-1" role="group" aria-label="Sample earnings days">
+          {EARNINGS_WEEK.days.map((d,i) => (
+            <button key={d.date} type="button" aria-pressed={i === selected} aria-label={d.label} onClick={() => setSelected(i)} className="pf-preview-earnings-day">
+              <span>{d.dow === "Today" ? "Tue" : d.dow}</span><b className="numeric">{d.date}</b>
+            </button>
+          ))}
+        </div>
+      </div>
+      <ul className="divide-y px-4 sm:px-[18px]" aria-label={day.label}>
+        {day.reports.map((report) => (
+          <li key={report.symbol} className="flex items-center gap-2 py-3">
+            <TickerLogo symbol={report.symbol} size="xs" />
+            <div className="min-w-0 flex-1"><p className="text-xs font-medium">{report.symbol}</p><p className="truncate text-[11px] text-[var(--fg3)]">{report.name}</p></div>
+            <span className="text-[11px] text-[var(--fg2)]">{report.when === "before-open" ? "Before open" : report.when === "after-close" ? "After close" : "During trading"}</span>
+          </li>
+        ))}
+        {day.reports.length === 0 ? <li className="py-5 text-xs text-[var(--fg3)]">No major reports in this sample.</li> : null}
+      </ul>
+    </section>
+  )
+}

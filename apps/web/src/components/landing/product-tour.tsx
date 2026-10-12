@@ -297,13 +297,14 @@ export function ProductTour() {
 }
 
 function StackedStep({ t, i }: { t: (typeof TABS)[number]; i: number }) {
-  const [ref, seen] = useOnce<HTMLDivElement>(0.2)
-  const e = useAutoProgress(seen)
+  const [ref, seen] = useOnce<HTMLParagraphElement>(0.2)
+  const [cardRef, cardSeen] = useOnce<HTMLDivElement>(0.15)
+  const e = useAutoProgress(cardSeen, 2200)
   return (
-    <div ref={ref} data-on={seen}>
-      <p className="pf-step-num pf-tick">0{i + 1} · {t.label}</p>
+    <div className="pf-tour-step" data-on={seen}>
+      <p ref={ref} className="pf-step-num pf-tick">0{i + 1} · {t.label}</p>
       <div className="mt-4"><Copy t={t} on={seen} /></div>
-      <div className="pf-card-in mt-6" data-on={seen}>
+      <div ref={cardRef} className="pf-card-in mt-6" data-on={cardSeen}>
         <View id={t.id} e={e} scrub={false} />
       </div>
     </div>
@@ -334,17 +335,18 @@ const ACCOUNTS = [
   { name: "Roth IRA", inst: "Vanguard", amount: "$6,960" },
 ]
 
-function Monogram({ name }: { name: string }) {
+function BrokerageLogo({ name }: { name: string }) {
   return (
-    <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-lg border bg-[var(--raise)] font-mono text-[11px] font-medium text-[var(--fg2)]" style={{ borderColor: "var(--hair)" }}>
-      {name.slice(0, 1)}
+    <span className="grid size-8 shrink-0 place-items-center overflow-hidden rounded-lg bg-white p-0.5" aria-hidden>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={`/landing/brokerages/${name.toLowerCase()}.png`} alt="" width={32} height={32} className="size-full object-contain" />
     </span>
   )
 }
 
 const Chart = memo(PerformanceChart)
 
-function PortfolioView({ e }: { e: number; scrub: boolean }) {
+export function PortfolioView({ e, compact = false, tilt = 1.5 }: { e: number; scrub: boolean; compact?: boolean; tilt?: number }) {
   const [hover, setHover] = useState<number | null>(null)
   const first = NET_WORTH[0]!
   const reached = Math.round(e * (NET_WORTH.length - 1))
@@ -355,11 +357,12 @@ function PortfolioView({ e }: { e: number; scrub: boolean }) {
   const moving = hoverIndex !== null || e < 0.999
   const onHover = useCallback((i: number | null) => setHover(i), [])
   return (
-    <TiltCard max={4} glare={false} className="pf-panel pf-lift">
+    <TiltCard max={tilt} glare={false} className={cn("pf-panel pf-lift", compact && "pf-preview-portfolio")}>
       <div className="pf-ph">
         <h3 className="pf-label">Net worth</h3>
         <span className="pf-ph-end text-xs text-[var(--fg3)]">Last 90 days</span>
       </div>
+      <div className={compact ? "pf-preview-portfolio-body" : undefined}>
       <div className="pf-pb">
         <p className="numeric font-display text-[40px] leading-[46px] sm:text-[52px] sm:leading-[58px]" style={{ letterSpacing: "-0.035em" }}>
           {money(at.value)}
@@ -379,16 +382,17 @@ function PortfolioView({ e }: { e: number; scrub: boolean }) {
           const f = clamp((e - 0.5 - 0.12 * k) / 0.2)
           return (
             <li key={a.name} className="flex items-center gap-3 py-3" style={{ opacity: f, transform: `translate3d(0, ${((1 - f) * 8).toFixed(1)}px, 0)` }}>
-              <Monogram name={a.inst} />
+              <BrokerageLogo name={a.inst} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{a.name}</p>
-                <p className="truncate text-xs text-[var(--fg3)]">{a.inst} · added by hand</p>
+                <p className="truncate text-xs text-[var(--fg3)]">{a.inst} · {compact ? "manual" : "added by hand"}</p>
               </div>
               <span className="numeric text-sm font-medium">{a.amount}</span>
             </li>
           )
         })}
       </ul>
+      </div>
     </TiltCard>
   )
 }
@@ -404,7 +408,7 @@ function LeaguesView({ e }: { e: number }) {
     .sort((a, b) => b.pct - a.pct)
     .slice(0, 4)
   return (
-    <TiltCard max={4} glare={false} className="pf-panel pf-lift">
+    <TiltCard max={1.5} glare={false} className="pf-panel pf-lift">
       <div className="pf-ph">
         <h3 className="pf-label">
           The Group Chat<em>Ranked by return</em>
@@ -455,7 +459,7 @@ const FEED_OLD = [
   { who: "Dev", what: "sold 40 SOFI", when: "5h" },
 ]
 
-function FantasyView({ e }: { e: number }) {
+export function FantasyView({ e, compact = false, tilt = 1.5 }: { e: number; compact?: boolean; tilt?: number }) {
   const t = e * TRADES.length
   const k = Math.min(TRADES.length - 1, Math.floor(t))
   const lp = e >= 1 ? 1 : t - k
@@ -469,8 +473,8 @@ function FantasyView({ e }: { e: number }) {
   const feed = settled.slice().reverse()
   const tick = (final: number) => final * smooth(clamp(e / 0.9))
   return (
-    <div className="grid gap-4 sm:grid-cols-2" aria-label="Fantasy league preview">
-      <TiltCard max={4.5} glare={false} className="pf-panel pf-lift">
+    <div className={cn("grid gap-4 sm:grid-cols-2", compact && "pf-preview-fantasy")} aria-label="Fantasy league preview">
+      <TiltCard max={tilt} glare={false} className="pf-panel pf-lift">
         <div className="pf-ph">
           <h3 className="pf-label">Make a move</h3>
           <span className="pf-ph-end pf-sample">Play money</span>
@@ -493,7 +497,7 @@ function FantasyView({ e }: { e: number }) {
         </div>
       </TiltCard>
 
-      <TiltCard max={4.5} glare={false} className="pf-panel pf-lift">
+      <TiltCard max={tilt} glare={false} className="pf-panel pf-lift">
         <div className="pf-ph">
           <h3 className="pf-label">Standings</h3>
         </div>

@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useId, useMemo, useState } from "react"
-import { groupEndLabels, groupName, niceTicks, pointIndexAt, spreadLabels, tickDigits, xAt } from "@web/lib/chart-math"
+import { useEffect, useId, useMemo, useRef, useState } from "react"
+import { groupEndLabels, groupName, monotonePath, niceTicks, pointIndexAt, spreadLabels, tickDigits, xAt } from "@web/lib/chart-math"
 import { formatPercent } from "@web/lib/format"
 import { indexedDomain, visibleReturn } from "@web/lib/return-display"
 import { cn } from "@web/lib/utils"
@@ -53,16 +53,39 @@ export function RaceChart({
   series: RaceSeries[]
   height?: number
   className?: string
-  /** In-app look: glowing lines, avatar discs at the line ends and a replay button. */
+  /** In-app look: avatar labels at the line ends and a replay button. */
   rich?: boolean
-  /** Adds a day slider and highlight chips under the chart. Styled by fantasy-workspace.css. */
+  /** Adds a day slider under the chart. Styled by fantasy-workspace.css. */
   explore?: boolean
 }) {
   const { ref, width } = useMeasure<HTMLDivElement>()
   const [hoverX, setHoverX] = useState<number | null>(null)
   // The day scrubber (in the app): a chosen day, or null for "now". Pointer hover wins while it's over the chart.
   const [scrub, setScrub] = useState<number | null>(null)
-  const [focusId, setFocusId] = useState<string | null>(null)
+  const [scrubActive, setScrubActive] = useState(false)
+  const [detailsFading, setDetailsFading] = useState(false)
+  const detailsTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const clearDetailsTimer = () => {
+    if (detailsTimer.current !== null) clearTimeout(detailsTimer.current)
+  }
+  const showDetails = () => {
+    clearDetailsTimer()
+    setDetailsFading(false)
+  }
+  const releaseDetails = (delay = 1400) => {
+    clearDetailsTimer()
+    detailsTimer.current = setTimeout(() => {
+      setDetailsFading(true)
+      detailsTimer.current = setTimeout(() => {
+        setHoverX(null)
+        setScrubActive(false)
+        setDetailsFading(false)
+      }, 180)
+    }, delay)
+  }
+  useEffect(() => () => {
+    if (detailsTimer.current !== null) clearTimeout(detailsTimer.current)
+  }, [])
   const sliderId = useId()
   // The lines draw in when the chart scrolls into view, not on page load: on the
   // landing page it sits far below the fold and would finish before anyone saw it.
@@ -116,9 +139,7 @@ export function RaceChart({
 
     const seenKeys = new Set<string>()
     const lines = usable.map((s, i) => {
-      const d = s.points
-        .map((v, k) => `${k === 0 ? "M" : "L"}${xAt(k, s.points.length, pad.left, plotW).toFixed(2)},${y(v).toFixed(2)}`)
-        .join(" ")
+      const d = monotonePath(s.points.map((v, k) => [xAt(k, s.points.length, pad.left, plotW), y(v)] as const))
       const last = s.points[s.points.length - 1]!
       // A line that retraces an earlier one exactly (players still level) would be hidden
       // underneath it; it's drawn on top as a dashed stroke so both colours show.
@@ -148,7 +169,7 @@ export function RaceChart({
     : "Race chart of returns"
 
   const scrubIdx = geometry && scrub !== null ? Math.min(scrub, geometry.length - 1) : null
-  const activeX = hoverX ?? (geometry && scrubIdx !== null ? xAt(scrubIdx, geometry.length, pad.left, geometry.plotW) : null)
+  const activeX = hoverX ?? (geometry && scrubActive && scrubIdx !== null ? xAt(scrubIdx, geometry.length, pad.left, geometry.plotW) : null)
 
   // What the pointer (or the day slider) is on: one value per line, best first.
   const hover =
@@ -169,7 +190,7 @@ export function RaceChart({
       : null
 
   return (
-    <div ref={ref} className={cn("relative w-full", className)}>
+    <div ref={ref} className={cn("race-chart relative w-full", className)}>
       {rich && seen ? (
         <button
           type="button"
@@ -188,9 +209,11 @@ export function RaceChart({
         aria-label={summary}
         className="block select-none"
         style={{ touchAction: "pan-y" }}
-        onPointerMove={(e) => setHoverX(e.clientX - e.currentTarget.getBoundingClientRect().left)}
-        onPointerLeave={() => setHoverX(null)}
-        onPointerCancel={() => setHoverX(null)}
+        onPointerDown={(e) => { showDetails(); setHoverX(e.clientX - e.currentTarget.getBoundingClientRect().left) }}
+        onPointerMove={(e) => { showDetails(); setHoverX(e.clientX - e.currentTarget.getBoundingClientRect().left) }}
+        onPointerUp={() => releaseDetails()}
+        onPointerLeave={(e) => releaseDetails(e.pointerType === "mouse" ? 180 : 1400)}
+        onPointerCancel={() => releaseDetails(180)}
       >
         {geometry ? (
           <>
@@ -213,7 +236,7 @@ export function RaceChart({
                     y1={ty}
                     y2={ty}
                     className="stroke-border"
-                    strokeOpacity={zero ? 1 : 0.55}
+                    strokeOpacity={zero ? 0.8 : 0.35}
                     strokeWidth={1}
                     strokeDasharray={zero ? "4 4" : undefined}
                   />
@@ -243,7 +266,7 @@ export function RaceChart({
             {/* Context lines first so highlighted ones sit on top. */}
             {geometry.lines.map((l) =>
               !l.highlighted ? (
-                <path key={`${l.id}-${replayKey}`} d={l.d} pathLength={1} className={seen ? "race-line" : "race-line-wait"} opacity={focusId && focusId !== l.id ? 0.4 : 1} fill="none" stroke={MUTED} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                <path key={`${l.id}-${replayKey}`} d={l.d} pathLength={1} className={seen ? "race-line" : "race-line-wait"}  fill="none" stroke={MUTED} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
               ) : null,
             )}
             {geometry.lines.map((l, i) =>
@@ -253,8 +276,8 @@ export function RaceChart({
                   d={l.d}
                   pathLength={1}
                   className={seen ? "race-line" : "race-line-wait"}
-                  opacity={focusId && focusId !== l.id ? 0.22 : 1}
-                  style={{ animationDelay: `${i * 90}ms`, ...(rich ? { filter: `drop-shadow(0 0 6px color-mix(in srgb, ${l.color} 55%, transparent))` } : null) }}
+
+                  style={{ animationDelay: `${i * 90}ms` }}
                   fill="none"
                   stroke={l.color}
                   strokeWidth={l.isYou ? 3 : 2.25}
@@ -365,8 +388,8 @@ export function RaceChart({
       {hover ? (
         <div
           aria-hidden
-          className="pointer-events-none absolute z-10 min-w-36 rounded-xl border bg-popover px-3 py-2 text-xs shadow-lg"
-          style={{ top: pad.top, left: hover.x > width / 2 ? undefined : hover.x + 12, right: hover.x > width / 2 ? width - hover.x + 12 : undefined }}
+          className="race-details motion-reduce:transition-none transition-[opacity,filter] duration-[180ms] pointer-events-none absolute z-10 min-w-36 rounded-xl border bg-popover px-3 py-2 text-xs shadow-lg"
+          style={{ opacity: detailsFading ? 0 : 1, filter: detailsFading ? "blur(4px)" : "blur(0)", top: pad.top, left: hover.x > width / 2 ? undefined : hover.x + 12, right: hover.x > width / 2 ? width - hover.x + 12 : undefined }}
         >
           <p className="mb-1 font-medium text-muted-foreground">{hover.title}</p>
           <ul className="space-y-0.5">
@@ -390,11 +413,17 @@ export function RaceChart({
       {explore && geometry && geometry.length > 2 ? (
         <div className="race-scrub">
           <label htmlFor={sliderId}>
-            Explore day <output htmlFor={sliderId}>{scrubIdx ?? geometry.length - 1}</output>
+            Day <output htmlFor={sliderId}>{scrubIdx ?? geometry.length - 1}</output>
           </label>
           <input
             id={sliderId}
             type="range"
+            onPointerDown={() => { showDetails(); setHoverX(null); setScrubActive(true) }}
+            onPointerUp={() => releaseDetails()}
+            onPointerLeave={() => releaseDetails()}
+            onPointerCancel={() => releaseDetails(180)}
+            onKeyDown={() => { showDetails(); setHoverX(null); setScrubActive(true) }}
+            onBlur={() => releaseDetails()}
             min={0}
             max={geometry.length - 1}
             step={1}
@@ -408,43 +437,6 @@ export function RaceChart({
         </div>
       ) : null}
 
-      {/* Standings in text form, best first: the same numbers, readable without the chart. */}
-      {geometry && explore ? (
-        <ul className="race-chips">
-          {(hover ? hover.rows : [...geometry.lines].sort((a, b) => b.last - a.last).map((l) => ({ id: l.id, label: l.isYou ? "You" : l.label, value: l.last - 100, color: l.color, isYou: l.isYou }))).map((r, rank) => (
-            <li key={r.id}>
-              <button
-                type="button"
-                aria-pressed={focusId === r.id}
-                onClick={() => setFocusId((c) => (c === r.id ? null : r.id))}
-                title={focusId === r.id ? "Show every line" : `Highlight ${r.label}`}
-              >
-                <em className="race-rank numeric" aria-hidden>{rank + 1}</em>
-                <i style={{ backgroundColor: r.color }} aria-hidden />
-                <span className={r.isYou ? "race-you" : undefined}>{shortName(r.label, 12)}</span>
-                <b className="numeric" style={{ color: toneOf(r.value) }}>
-                  {formatPercent(r.value)}
-                </b>
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      {geometry && !explore ? (
-        <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
-          {[...geometry.lines]
-            .sort((a, b) => b.last - a.last)
-            .map((l) => (
-              <li key={l.id} className="flex items-center gap-1.5 text-xs">
-                <span className="h-0.5 w-3 shrink-0 rounded-full" style={{ backgroundColor: l.color }} aria-hidden />
-                <span className={cn("truncate", l.isYou ? "font-semibold" : "text-muted-foreground")}>{l.isYou ? "You" : l.label}</span>
-                <span className="numeric font-medium" style={{ color: toneOf(l.last - 100) }}>
-                  {formatPercent(l.last - 100)}
-                </span>
-              </li>
-            ))}
-        </ul>
-      ) : null}
     </div>
   )
 }

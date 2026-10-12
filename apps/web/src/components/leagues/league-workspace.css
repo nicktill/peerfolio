@@ -25,3 +25,15 @@
 @media(min-width:1280px){.pf-social-detail-grid{column-gap:24px}.pf-social-rail{align-self:start}}
 @media(max-width:639px){.pf-social-heading{padding-bottom:20px}.pf-social-summary{gap:10px}.pf-social-summary .stat-card,.pf-social-summary>div{padding:12px}.pf-social-summary dt{font-size:10px}.pf-social-summary dd{font-size:21px}.pf-social-summary .numeric.block{font-size:21px}.pf-social-summary .stat-card [class~="text-xs"]{font-size:10px}.pf-social .pf-standing-holdings{padding-left:0;margin-left:36px;gap:6px}.pf-social .pf-holding-chip{font-size:10px;max-width:100%}.pf-social .pf-standing [class~="w-24"]{width:78px}.pf-social .pf-social-league{padding:20px}.pf-social-detail-header h1{font-size:29px}.pf-social-detail-header .numeric{white-space:normal}}
 @media(prefers-reduced-motion:reduce){.pf-social *, .pf-social *::before,.pf-social *::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+
+.pf-social .pf-social-league { padding: 22px; }
+.pf-social .pf-social-league-tint { opacity: .5; }
+.pf-league-card-top { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 24px; font-size: 11px; color: var(--fg2); }
+.pf-social .pf-social-league-icon { width: 52px; height: 52px; background: color-mix(in srgb, var(--panel) 65%, transparent); }
+.pf-social .pf-social-league h2 { font-family: var(--serif); font-size: 24px; line-height: 1.2; white-space: normal; }
+.pf-social .pf-social-league .mt-4 { border-top: 1px solid var(--hair); padding-top: 16px; margin-top: 24px; }
+.pf-league-card-open { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; color: var(--pf-accent); }
+.pf-league-card-open svg { transition: transform 180ms ease-out; }
+.pf-social-league:hover .pf-league-card-open svg { transform: translate(2px,-2px); }
+.pf-social-league:focus-visible { outline: 2px solid var(--pf-accent); outline-offset: 4px; }
+@media (prefers-reduced-motion: reduce) { .pf-league-card-open svg { transition: none; } }

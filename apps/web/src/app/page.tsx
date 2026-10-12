@@ -5,7 +5,7 @@ import { ArrowDown, EyeOff } from "lucide-react"
 import { SiteFooter } from "@web/components/site-footer"
 import { ChatBubble } from "@web/components/landing/chat-bubble"
 import { HeroBackdrop } from "@web/components/landing/hero-backdrop"
-import { LeaguePreview } from "@web/components/landing/league-preview"
+import { HeroProductPreview } from "@web/components/landing/hero-product-preview"
 import { ProductTour } from "@web/components/landing/product-tour"
 import { RotatingWord } from "@web/components/landing/rotating-word"
 import { SmoothScroll } from "@web/components/landing/smooth-scroll"
@@ -25,7 +25,7 @@ const structuredData = { "@context": "https://schema.org", "@type": "WebSite", n
 const RIVALS = ["friends", "the group chat", "your roommates", "your coworkers", "your dad"] as const
 
 const STEPS = [
-  { title: "Sign in", body: "Link a brokerage or add what you hold. Or skip it and play fantasy." },
+  { title: "Sign in", body: "Add what you hold, or start with a fantasy league." },
   { title: "Invite your friends", body: "Start a league and share the link. It takes about ten seconds." },
   { title: "See who's ahead", body: "Everyone is ranked on time-weighted return, updated daily." },
 ]
@@ -42,7 +42,7 @@ export default async function HomePage() {
       <main className="flex-1">
         <section className="pf-hero relative isolate">
           <HeroBackdrop />
-          <div className="mx-auto max-w-5xl px-6 pb-8 pt-12 text-center sm:px-5 sm:pb-8 sm:pt-14">
+          <div className="pf-hero-copy mx-auto max-w-5xl px-6 pb-8 pt-12 text-center sm:px-5 sm:pb-8 sm:pt-14">
             <p style={revealStyle(0)} className="reveal pf-pill mb-5">
               <i aria-hidden />
               Season&apos;s live. Bragging rights on the line.
@@ -54,21 +54,22 @@ export default async function HomePage() {
               <RotatingWord prefix="with " words={RIVALS} />
             </h1>
             <p style={revealStyle(1)} className="reveal pf-sub mx-auto mt-4 max-w-2xl text-balance text-base leading-7 sm:text-[17px]">
-              Follow your portfolio, race friends on real returns, or play a fantasy league with play money. Friends see how well you invest, never how much.
+              <span className="hidden sm:inline">Follow your portfolio, race friends on real returns, or play a fantasy league with play money. Friends see how well you invest, never how much.</span>
+              <span className="sm:hidden">Private leagues ranked on returns. Friends see how well you invest, never how much.</span>
             </p>
             <div style={revealStyle(2)} className="reveal mt-6 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
               <SignInButton />
-              <a href="#how" className="pf-btn">
+              <a href="#how" className="pf-btn hidden sm:inline-flex">
                 See how it works <ArrowDown className="size-4" aria-hidden />
               </a>
             </div>
             <p style={revealStyle(3)} className="reveal pf-muted mt-3 text-xs">Free. Add your positions by hand, or play with fantasy money.</p>
           </div>
 
-          <div className="relative mx-auto max-w-[1280px] px-6 pb-16 sm:px-5 sm:pb-24 xl:pt-9">
+          <div className="pf-hero-preview relative mx-auto max-w-[1280px] px-6 pb-16 sm:px-5 sm:pb-24 xl:pt-9">
             <ChatBubble
               side="left"
-              className="-top-[4px] left-[2%] -rotate-3"
+              className="pf-mobile-bubble -top-[4px] left-[2%] -rotate-3"
               delay={0}
               lines={[
                 { memberId: "theo", text: "NVDA carrying me rn 🚀" },
@@ -86,7 +87,7 @@ export default async function HomePage() {
                 { memberId: "sam", text: "Rebalanced. Again. On a Sunday." },
               ]}
             />
-            <LeaguePreview />
+            <HeroProductPreview />
           </div>
         </section>
 

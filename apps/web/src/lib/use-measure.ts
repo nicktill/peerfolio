@@ -12,18 +12,22 @@ export function useMeasure<T extends HTMLElement>() {
     const element = ref.current
     if (!element) return
 
+    // Keep the last useful size while a preview is switching or hidden. A
+    // transient zero measurement must not delete the SVG and its geometry.
+    const measure = (w = element.clientWidth, h = element.clientHeight) => {
+      if (w > 0) setWidth(w)
+      if (h > 0) setHeight(h)
+    }
+    measure()
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", measureFromWindow)
+      function measureFromWindow() { measure() }
+      return () => window.removeEventListener("resize", measureFromWindow)
+    }
     const observer = new ResizeObserver(([entry]) => {
-      if (entry) {
-        setWidth(entry.contentRect.width)
-        setHeight(entry.contentRect.height)
-      }
+      if (entry) measure(entry.contentRect.width, entry.contentRect.height)
     })
-
     observer.observe(element)
-    const box = element.getBoundingClientRect()
-    setWidth(box.width)
-    setHeight(box.height)
-
     return () => observer.disconnect()
   }, [])
 

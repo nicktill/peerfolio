@@ -202,6 +202,7 @@ export function PortfolioScreen({
 
       <Reveal index={0} className="pf-head flex flex-wrap items-end justify-between gap-4">
         <div>
+          <Greeting />
           <h1 className="pf-h1">Portfolio</h1>
           <p className="mt-2 text-sm leading-[22px] text-muted-foreground">Your accounts and investments, in one place.</p>
         </div>
@@ -261,7 +262,6 @@ export function PortfolioScreen({
 
             </div>
 
-            <Greeting />
             <p className="portfolio-balance font-display text-[49px] font-normal leading-[56px] sm:text-[68px] sm:leading-[74px] 2xl:text-[74px] 2xl:leading-[80px]" style={{ letterSpacing: "-0.035em" }}>
               {hidden ? (
                 "••••••"
@@ -295,7 +295,7 @@ export function PortfolioScreen({
                     <span className={cn("numeric pf-stat-v", data.performance.percent >= 0 ? "text-gain-ink" : "text-loss-ink")}>
                       {formatPercent(data.performance.percent)}
                     </span>
-                    <span className="text-xs text-muted-foreground">{windowLabel} · leaves out money you add or withdraw</span>
+                    <span className="text-xs text-muted-foreground">{windowLabel}{windowCoversAll ? ` · ${plural(data.performance.days, "day")} tracked` : ""}</span>
                   </>
                 ) : (
                   <span className="text-sm text-muted-foreground">Starts after your first day</span>
@@ -320,7 +320,7 @@ export function PortfolioScreen({
             {canChart && shown ? (
               <>
                 {/* One fixed-height, non-wrapping line so the hover readout can never change the panel's height. */}
-                <div className={cn("mt-3 flex h-7 flex-nowrap items-baseline gap-x-3 overflow-hidden whitespace-nowrap tabular-nums", hoverIndex == null && "max-[860px]:hidden")}>
+                <div className={cn("mt-3 flex h-7 flex-nowrap items-baseline gap-x-3 overflow-hidden whitespace-nowrap tabular-nums", hoverIndex == null && "invisible")}>
                   {hoverIndex != null ? <span className="numeric shrink-0 text-lg font-medium leading-7 tracking-tight">{hidden ? "••••••" : formatCurrency(shown.value)}</span> : null}
                   {shownReturn != null ? (
                     <span className={cn("numeric shrink-0 text-sm font-semibold", shownReturn >= 0 ? "text-gain-ink" : "text-loss-ink")}>
@@ -344,11 +344,12 @@ export function PortfolioScreen({
                     valueFormatter={(v) => (hidden ? "Hidden" : formatCurrency(v))}
                   />
                 </div>
-                <p className="pf-foot">
-                  The line is your portfolio’s value, which moves when you add or withdraw money. The return leaves those out, so it shows only how
-                  your investments did.
-                  {nextRange ? ` The ${nextRange} view unlocks in ${plural(unlockIn[nextRange], "day")}.` : ""}
-                </p>
+                <details className="pf-foot pf-chart-about">
+                  <summary>About this chart</summary>
+                  <p>Portfolio value includes deposits and withdrawals. Return measures investment performance without them.
+                    {nextRange ? ` ${nextRange} becomes available in ${plural(unlockIn[nextRange], "day")}.` : ""}
+                  </p>
+                </details>
               </>
             ) : (
               /* Being honest beats drawing a line through invented data. */
@@ -361,7 +362,7 @@ export function PortfolioScreen({
         </Card>
 
         <aside className="portfolio-rail reveal min-w-0 xl:col-start-2 xl:row-span-2 xl:row-start-1" style={revealStyle(2)}>
-          <AccountsCard variant="rail" accounts={data.accounts} items={data.items} hidden={hidden} onChange={refetch} />
+          <AccountsCard demo={demo} variant="rail" accounts={data.accounts} items={data.items} hidden={hidden} onChange={refetch} />
 
           <section aria-labelledby="rail-glance" className="pf-panel p-4 sm:p-5">
             <div className="pf-ph"><SectionLabel as="h2" id="rail-glance" className="pf-lbl">At a glance</SectionLabel></div>
@@ -556,7 +557,7 @@ function Greeting() {
     setText(first ? `${part}, ${first}` : part)
   }, [first])
   return (
-    <p className="pf-greet" aria-hidden={text ? undefined : true}>
+    <p className="pf-greet pf-greet-page" aria-hidden={text ? undefined : true}>
       {text || "\u00a0"}
     </p>
   )

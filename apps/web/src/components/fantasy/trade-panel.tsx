@@ -1,8 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import confetti from "canvas-confetti"
-import { Confetti, type ConfettiRef } from "@web/components/magicui/confetti"
+import { Wallet } from "lucide-react"
 import { Button } from "@web/components/ui/button"
 import { Slider } from "@web/components/ui/slider"
 import { useConfirm } from "@web/components/ui/confirm"
@@ -13,7 +12,6 @@ import { fillsAtOpen } from "@web/lib/fantasy-rules"
 import { formatCurrency } from "@web/lib/format"
 import { amountFromFraction, BUY_SPOTS, checkTradeInput, estimateShares, sanitizeAmount, SELL_SPOTS, snapFraction, snapThreshold } from "@web/lib/trade-input"
 import { mutate } from "@web/lib/use-api"
-import { cn } from "@web/lib/utils"
 
 type Held = { ticker: string; shares: number; value: number; averageCost: number }
 type Quote = { symbol: string; name: string | null; price: number; asOf: string; live?: boolean }
@@ -40,9 +38,6 @@ export function TradePanel({ leagueId, cash, positions, onTraded, closed = false
   const [symbol, setSymbol] = useState("")
   const [amount, setAmount] = useState("")
   const [pending, setPending] = useState(false)
-  const [burst, setBurst] = useState(0)
-  const confettiRef = useRef<ConfettiRef>(null)
-  const cashButtonRef = useRef<HTMLButtonElement>(null)
   const [cashingOut, setCashingOut] = useState(false)
   const [receipt, setReceipt] = useState<Receipt | null>(null)
   const closeReceipt = useCallback(() => setReceipt(null), [])
@@ -101,6 +96,7 @@ export function TradePanel({ leagueId, cash, positions, onTraded, closed = false
       const body = side === "buy" ? { side, symbol: ticker, amount: check.value } : { side, symbol: ticker, shares: check.value }
       const result = await mutate<{ queued: true; why: "closed" | "no-live-price"; ticker: string } | { queued?: undefined; ticker: string; shares: number; price: number }>(`/api/fantasy/${leagueId}/trade`, { body })
       if (result.queued) {
+        setReceipt({ id: Date.now(), side, ticker: result.ticker, shares: 0, price: 0, averageCost: null, isNew: false, queued: true })
         toast(
           result.why === "closed"
             ? `${side === "buy" ? "Buy" : "Sell"} of ${result.ticker} queued. It fills at the live price after the market opens.`
@@ -114,7 +110,6 @@ export function TradePanel({ leagueId, cash, positions, onTraded, closed = false
       }
       // The receipt is the confirmation (it speaks to screen readers too), so success needs no toast.
       setReceipt({ id: Date.now(), side, ticker: result.ticker, shares: result.shares, price: result.price, averageCost: held?.averageCost ?? null, isNew: !held })
-      if (side === "buy") setBurst((b) => b + 1)
       try {
         navigator.vibrate?.(side === "buy" ? 18 : [12, 40, 12])
       } catch {
@@ -132,15 +127,6 @@ export function TradePanel({ leagueId, cash, positions, onTraded, closed = false
 
   // Sells every holding through the same endpoint a single sell uses, one after
   // another, so one bad ticker can't sink the rest. The list refreshes once at the end.
-  // Money emoji and brand-coloured confetti burst from the Sell All button (Magic UI's Confetti on canvas-confetti).
-  function celebrateCashOut() {
-    const rect = cashButtonRef.current?.getBoundingClientRect()
-    const origin = rect ? { x: (rect.left + rect.width / 2) / window.innerWidth, y: (rect.top + rect.height / 2) / window.innerHeight } : { x: 0.5, y: 0.7 }
-    const money = ["💸", "💰", "🤑"].map((text) => confetti.shapeFromText({ text, scalar: 2 }))
-    void confettiRef.current?.fire({ origin, shapes: money, scalar: 2, particleCount: 26, spread: 80, startVelocity: 42, gravity: 0.9, ticks: 240, disableForReducedMotion: true })
-    void confettiRef.current?.fire({ origin, particleCount: 100, spread: 110, startVelocity: 48, colors: ["#1baf7a", "#0a7152", "#f5b942", "#ffffff"], disableForReducedMotion: true })
-  }
-
   async function sellAll() {
     if (cashingOut || positions.length === 0) return
     const total = positions.reduce((sum, p) => sum + p.value, 0)
@@ -169,7 +155,6 @@ export function TradePanel({ leagueId, cash, positions, onTraded, closed = false
     }
     setCashingOut(false)
     if (sold + queuedCount > 0) {
-      celebrateCashOut()
       setAmount("")
       setTouched(false)
       onTraded()
@@ -180,7 +165,7 @@ export function TradePanel({ leagueId, cash, positions, onTraded, closed = false
       }
     }
     if (failed.length === 0) {
-      toast(queuedCount > 0 ? `Cash-out queued for ${queuedCount} ${queuedCount === 1 ? "holding" : "holdings"}. Fills after the open. 🎉` : "Cashed out! Every position is sold and you're ready for the next big thing. 🎉", "success")
+      toast(queuedCount > 0 ? `Cash-out queued for ${queuedCount} ${queuedCount === 1 ? "holding" : "holdings"}. Fills after the open.` : "Cashed out! Every position is sold and you're ready for the next big thing.", "success")
     } else {
       toast(`${failed.join(", ")} didn't sell: ${firstError} The rest went through, so try those again.`, "error")
     }
@@ -188,8 +173,6 @@ export function TradePanel({ leagueId, cash, positions, onTraded, closed = false
 
   return (
     <section className="fw-panel fw-trade" data-closed={closed || undefined} aria-labelledby="fw-trade-title">
-      {burst > 0 ? <Burst key={burst} /> : null}
-      <Confetti ref={confettiRef} manualstart className="pointer-events-none fixed inset-0 z-[70] size-full" />
       {receipt ? <TradeReceipt receipt={receipt} onDone={closeReceipt} /> : null}
       <div className="fw-section-head">
         <h2 id="fw-trade-title">Make a move</h2>
@@ -278,15 +261,15 @@ export function TradePanel({ leagueId, cash, positions, onTraded, closed = false
         {side === "sell" ? (
           <Button
             type="button"
-            ref={cashButtonRef}
             variant="outline"
-            className="group w-full"
+            className="fw-cash-out group w-full"
             loading={cashingOut}
             disabled={positions.length === 0 || pending}
             onClick={sellAll}
           >
             {cashingOut ? "Cashing out…" : positions.length === 0 ? "Nothing to cash out yet" : (
               <>
+                <Wallet aria-hidden />
                 Cash out everything
               </>
             )}
@@ -350,7 +333,8 @@ function AmountSlider({ side, max, amount, onChange }: { side: "buy" | "sell"; m
   }
 
   return (
-    <div className="pt-8">
+    <div className="fw-allocation">
+      <div className="fw-allocation-head"><span>{side === "buy" ? "Buying power" : "Position size"}</span><span className="numeric">{Math.round(fraction * 100)}%</span></div>
       <Slider
         ref={rootRef}
         aria-label={side === "buy" ? "Buying power" : "Shares to sell"}
@@ -377,41 +361,16 @@ function AmountSlider({ side, max, amount, onChange }: { side: "buy" | "sell"; m
         activeTick={active}
         className="px-1"
       />
-      <div className="relative mx-1 mt-1 h-5">
+      <div className="fw-amount-picks">
         {spots.map((spot) => (
-          <button
-            key={spot}
-            type="button"
-            disabled={!usable}
+          <button key={spot} type="button" disabled={!usable}
+            aria-pressed={active === spot}
             onClick={() => onChange(amountFromFraction(side, spot, max, true))}
-            className={cn(
-              "absolute top-0 rounded-md px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground outline-none transition-colors hover:bg-secondary hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary disabled:pointer-events-none",
-              spot === 1 ? "right-0 translate-x-1" : "-translate-x-1/2",
-              active === spot && "bg-primary/10 font-semibold text-primary hover:bg-primary/15 hover:text-primary",
-            )}
-            style={spot === 1 ? undefined : { left: `${spot * 100}%` }}
-          >
+            className="fw-amount-pick">
             {SPOT_LABEL[side][spot]}
           </button>
         ))}
       </div>
-    </div>
-  )
-}
-
-/** A little celebration on every buy and cash-out. Hidden when motion is reduced. */
-function Burst({ pieces = ["🚀", "💎", "📈", "🔥", "💰", "🚀", "📈", "💎"] }: { pieces?: string[] }) {
-  return (
-    <div aria-hidden className="fw-burst-host motion-reduce:hidden">
-      {pieces.map((p, i) => (
-        <span
-          key={i}
-          className="burst absolute text-xl"
-          style={{ "--dx": `${(i - pieces.length / 2) * 28}px`, "--dy": `${-90 - (i % 3) * 30}px`, animationDelay: `${i * 25}ms` } as React.CSSProperties}
-        >
-          {p}
-        </span>
-      ))}
     </div>
   )
 }

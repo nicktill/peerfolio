@@ -74,3 +74,22 @@
 }
 .portfolio-screen .portfolio-holdings .md\:grid { font-family: var(--font-mono, var(--font-plex-mono)), ui-monospace, monospace; letter-spacing: 0.05em; }
 .portfolio-screen .portfolio-balance .numeric { font-family: var(--font-display, var(--font-newsreader)), Georgia, serif; }
+
+.portfolio-screen .pf-greet-page { min-height: 20px; margin: 0 0 8px; font: 400 14px/20px var(--sans); color: var(--fg2); }
+.pf-greet-page { animation: pf-greeting-in 650ms ease-out both; }
+@keyframes pf-greeting-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .pf-greet-page { animation: none; } }
+
+.pf-chart-about summary { cursor: pointer; width: fit-content; min-height: 40px; display: list-item; align-content: center; font-size: 12px; color: var(--fg2); }
+.pf-chart-about summary:focus-visible { outline: 2px solid var(--pf-accent); outline-offset: 3px; }
+.pf-chart-about p { max-width: 70ch; margin: 8px 0 0; }
+
+@media(max-width:639px) {
+ .portfolio-screen .portfolio-holdings .pf-ph { flex-direction:column; align-items:stretch; gap:10px; }
+ .portfolio-screen .pf-holdings-controls { display:grid; grid-template-columns:1fr; gap:8px; width:100%; }
+ .portfolio-screen .pf-holdings-controls.hidden { display:none; }
+ .portfolio-screen .pf-holdings-controls label { width:100%; height:40px; }
+ .portfolio-screen .pf-holdings-controls input { min-width:0; width:100%; flex:1; }
+ .portfolio-screen .pf-holdings-controls [role="radiogroup"] { display:flex; width:100%; }
+ .portfolio-screen .pf-holdings-controls [role="radio"] { flex:1; height:36px; padding-inline:8px; }
+}

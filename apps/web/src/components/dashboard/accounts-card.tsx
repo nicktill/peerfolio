@@ -20,6 +20,7 @@ import { Button } from "@web/components/ui/button"
 import { Delta } from "@web/components/ui/delta"
 import { useConfirm } from "@web/components/ui/confirm"
 import { useToast } from "@web/components/ui/toast"
+import { usePreviewDemo } from "@web/components/app-shell"
 import { connectionNotice } from "@web/lib/plaid-status"
 import { ConnectButton } from "@web/components/dashboard/connect-button"
 import { AddAccountButton, EditAccountButton } from "@web/components/dashboard/add-account-dialog"
@@ -70,17 +71,21 @@ const OVERLAP_DISMISSED_KEY = "peerfolio:manual-overlap-dismissed"
 export function AccountsCard({
   accounts,
   items,
+  demo = false,
   hidden,
   onChange,
   variant = "card",
 }: {
   accounts: AccountRow[]
   items: ItemRow[]
+  demo?: boolean
   hidden: boolean
   onChange: () => void
   /** "rail": no card around it, for the quiet side column of the portfolio page. */
   variant?: "card" | "rail"
 }) {
+  const previewDemo = usePreviewDemo()
+  const isDemo = demo || previewDemo
   const { toast } = useToast()
   const confirm = useConfirm()
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -219,7 +224,7 @@ export function AccountsCard({
             <AlertTriangle className="h-4 w-4 shrink-0 text-[--series-4]" aria-hidden />
             <p className="min-w-0 flex-1 text-sm">
               <span className="font-medium">{item.institutionName}</span>{" "}
-              {connectionNotice(item).removeRequired
+              {isDemo ? "is a sample connection with a simulated sign-in issue." : connectionNotice(item).removeRequired
                 ? connectionNotice(item).message
                 : item.errorCode === "PRODUCT_NOT_READY"
                   ? "is still pulling in your data. First syncs can take a few minutes, and this updates on its own."
@@ -227,7 +232,7 @@ export function AccountsCard({
                   ? "needs you to sign in again before it can update."
                   : "hit an error on its last sync."}
             </p>
-            {connectionNotice(item).removeRequired ? (
+            {isDemo ? <span className="pf-chip">Demo only</span> : connectionNotice(item).removeRequired ? (
               <Button size="sm" variant="outline" disabled={busyId === item.id} onClick={() => void disconnect(item.id, item.institutionName)}>
                 Remove connection
               </Button>

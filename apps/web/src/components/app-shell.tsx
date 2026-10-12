@@ -1,10 +1,13 @@
 "use client"
 
-import { useEffect } from "react"
+import { createContext, useContext, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { AppNav } from "@web/components/app-nav"
 import { RouteProgress } from "@web/components/ui/route-progress"
+
+const PreviewDemoContext = createContext(false)
+export const usePreviewDemo = () => useContext(PreviewDemoContext)
 
 /**
  * The signed-in frame: nav and the page.
@@ -25,6 +28,7 @@ export function AppShell({ children, previewDemo = false }: { children: React.Re
   if (status === "unauthenticated") return null
 
   return (
+    <PreviewDemoContext.Provider value={previewDemo && !!session?.user?.email?.endsWith("@example.com")}>
     <div className="peerfolio-app min-h-screen">
       <RouteProgress />
       <AppNav />
@@ -32,5 +36,6 @@ export function AppShell({ children, previewDemo = false }: { children: React.Re
       {previewDemo && session?.user?.email?.endsWith("@example.com") ? <div className="pf-demo-pill" role="status">Demo data</div> : null}
       <main className="peerfolio-main">{children}</main>
     </div>
+    </PreviewDemoContext.Provider>
   )
 }

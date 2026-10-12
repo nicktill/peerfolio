@@ -243,9 +243,9 @@ export function HoldingsTable({
                 <ChevronDown className={cn("size-4 text-muted-foreground transition-transform duration-300 motion-reduce:transition-none", !open && "-rotate-90")} aria-hidden />
               </button>
             </h2>
-            <p className="mt-1 text-xs text-muted-foreground">One view across your accounts.</p>
+            <p className="hidden sm:block mt-1 text-xs text-muted-foreground">One view across your accounts.</p>
           </div>
-          <div className={cn("flex flex-wrap items-center gap-2", !open && "hidden")}>
+          <div className={cn("pf-holdings-controls flex flex-wrap items-center gap-2", !open && "hidden")}>
             <label className="flex h-9 items-center gap-2 rounded-lg border bg-background/60 px-3 transition-colors focus-within:border-foreground/30">
               <Search className="size-3.5 text-muted-foreground" aria-hidden />
               <input

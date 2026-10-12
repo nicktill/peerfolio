@@ -2,6 +2,7 @@
 
 import "@web/components/news/news.css"
 import { Fragment, useEffect, useState } from "react"
+import { usePreviewDemo } from "@web/components/app-shell"
 import { SectionCard } from "@web/components/ui/section-card"
 import { Segmented } from "@web/components/ui/segmented"
 import { Reveal } from "@web/components/motion/reveal"
@@ -74,7 +75,8 @@ export function NewsBoard({ holdingMoves, held = [] }: { holdingMoves: HoldingMo
   const newsApi = useApi<NewsResponse>("/api/news")
   const news = newsApi.data
   // The preview shows the sample figures; the real page shows live data or, where a source is down, nothing.
-  const sample = holdingMoves === "sample"
+  const previewDemo = usePreviewDemo()
+  const sample = holdingMoves === "sample" || previewDemo
   // Each part loads on its own, so a slow source never holds up the others.
   const boardApi = useApi<Pick<MarketResponse, "board">>(sample ? null : "/api/news/market?part=board")
   const earningsApi = useApi<Pick<MarketResponse, "earnings">>(sample ? null : "/api/news/market?part=earnings")
@@ -124,6 +126,7 @@ export function NewsBoard({ holdingMoves, held = [] }: { holdingMoves: HoldingMo
 
   return (
     <div className="nw">
+      {previewDemo ? <p className="rounded-lg border px-4 py-3 text-sm text-muted-foreground" role="status">Design preview · Market prices, earnings and sentiment below are illustrative sample data.</p> : null}
       <Reveal index={0} className="pf-phead">
         <div className="nw-head">
           <span className="pf-label">{period === "day" ? "The daily brief" : "The weekly brief"}</span>

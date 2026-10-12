@@ -30,7 +30,6 @@ export type Standing = {
   isYou: boolean
 }
 
-const MEDALS = ["var(--rank-1)", "var(--rank-2)", "var(--rank-3)"]
 
 /**
  * One member's line in a league table. Without `onReact` it renders read-only,
@@ -68,19 +67,10 @@ export function StandingRow({
         standing.isYou && (tone === "app" ? "surface-you -mx-2 rounded-xl px-3" : "-mx-2 rounded-lg bg-accent/40 px-2"),
       )}
     >
-      <div className="flex items-center gap-3">
-        <span
-          className="numeric pf-rank w-6 shrink-0 text-center text-sm font-bold"
-          data-rank={standing.rank}
-          style={standing.rank <= 3 && tone !== "app" ? { color: MEDALS[standing.rank - 1] } : undefined}
-        >
-          {standing.rank}
-        </span>
-
-        <span className="pf-av-wrap" data-rank={standing.rank <= 3 ? standing.rank : undefined}>
-          <Avatar src={standing.image} name={standing.name} handle={standing.handle} className="pf-medal-av" />
-        </span>
-
+      <span className="pf-av-wrap" data-rank={standing.rank} aria-label={`Rank ${standing.rank}`}>
+        <Avatar src={standing.image} name={standing.name} handle={standing.handle} className="pf-medal-av" />
+      </span>
+      <div className="pf-standing-identity flex items-center gap-3">
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">
             {standing.isYou ? "You" : (standing.name ?? standing.handle ?? "Member")}

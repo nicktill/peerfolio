@@ -1,24 +1,14 @@
 "use client"
 
-import { LayoutDashboard, Medal, Newspaper, Sparkles, Trophy } from "lucide-react"
-import { useId, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { Delta } from "@web/components/ui/delta"
 import { Sparkline } from "@web/components/ui/sparkline"
 import { TickerLogo } from "@web/components/ui/ticker-logo"
 import { TiltCard } from "@web/components/ui/tilt-card"
 import { CastAvatar } from "@web/components/landing/cast-avatar"
-import { ScrollTilt } from "@web/components/landing/scroll-tilt"
 import { CAST, type Member } from "@web/components/landing/demo"
 import { monotonePath, niceTicks, spreadLabels, xAt, pointIndexAt } from "@web/lib/chart-math"
 import { useMeasure } from "@web/lib/use-measure"
-
-const NAV = [
-  { label: "Portfolio", Icon: LayoutDashboard, on: false },
-  { label: "Leagues", Icon: Trophy, on: true },
-  { label: "Fantasy", Icon: Sparkles, on: false },
-  { label: "Board", Icon: Medal, on: false },
-  { label: "News", Icon: Newspaper, on: false },
-] as const
 
 /** Tickers the logo proxy has no icon for; they get the monogram without a failing request. */
 const NO_LOGO = new Set(["SOFI"])
@@ -27,28 +17,13 @@ const MEDALS = ["var(--rank-1)", "var(--rank-2)", "var(--rank-3)"]
 const signed = (v: number) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(1)}%`
 
 /** The hero: a sample league drawn the way the app draws one, tipping toward the cursor. */
-export function LeaguePreview() {
+export function LeaguePreview({ tilt = 1.5 }: { tilt?: number }) {
+  const [expanded, setExpanded] = useState(false)
   const [day, setDay] = useState<number | null>(null)
   const idx = day ?? CAST[0]!.points.length - 1
   return (
-    <ScrollTilt>
-      <div className="pf-window" aria-label="Peerfolio league preview">
-        <div className="pf-window-bar" aria-hidden>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="" className="pf-logo !size-5" />
-          <span className="pf-wordmark !text-[17px]">Peerfolio</span>
-        </div>
-        <div className="grid gap-4 lg:grid-cols-[132px_minmax(0,1fr)]">
-          <nav aria-hidden className="pf-side hidden lg:flex">
-            {NAV.map(({ label, Icon, on }) => (
-              <span key={label} data-on={on || undefined}>
-                <Icon className="size-4" strokeWidth={1.7} />
-                {label}
-              </span>
-            ))}
-          </nav>
       <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
-        <TiltCard max={7} glare={false} className="pf-panel pf-lift flex flex-col">
+        <TiltCard max={tilt} glare={false} className="pf-panel pf-lift flex flex-col">
           <div className="pf-ph">
             <h3 className="pf-label">
               The Group Chat<em>Last 30 days</em>
@@ -60,21 +35,19 @@ export function LeaguePreview() {
           </div>
         </TiltCard>
 
-        <TiltCard max={7} glare={false} className="pf-panel pf-lift">
+        <TiltCard max={tilt} glare={false} className="pf-panel pf-lift">
           <div className="pf-ph">
             <h3 className="pf-label">Standings</h3>
             <span className="pf-ph-end pf-sample">Ranked by return</span>
           </div>
-          <ul className="divide-y px-4 sm:px-[18px]">
+          <ul className="pf-hero-standings divide-y px-4 sm:px-[18px]" data-expanded={expanded}>
             {CAST.map((m, i) => (
               <Row key={m.id} member={m} rank={i + 1} percent={m.points[idx]! - 100} />
             ))}
           </ul>
+          <button type="button" className="pf-hero-more" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>{expanded ? "Show top three" : "See all five players"}</button>
         </TiltCard>
       </div>
-        </div>
-      </div>
-    </ScrollTilt>
   )
 }
 
@@ -121,7 +94,7 @@ function Row({ member, rank, percent }: { member: Member; rank: number; percent:
 /** Returns on one axis, everyone from 0% on day one. Hover or touch to scrub to a day. */
 export function RaceLines({ members, hover, setHover, upto, minHeight = 250 }: { members: Member[]; hover: number | null; setHover: (i: number | null) => void; /** Index the lines have reached (the tour grows them); defaults to the last day. */ upto?: number; minHeight?: number }) {
   const { ref, width, height } = useMeasure<HTMLDivElement>()
-  const gradientId = useId()
+  const [drawn, setDrawn] = useState(false)
   const days = members[0]!.points.length
 
   const compact = width > 0 && width < 520
@@ -155,10 +128,9 @@ export function RaceLines({ members, hover, setHover, upto, minHeight = 250 }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [g, idx, height])
 
-  const leader = g?.lines[0]
 
   return (
-    <div ref={ref} className="relative flex-1" style={{ touchAction: "pan-y", minHeight }}>
+    <div ref={ref} className="pf-race-lines relative flex-1" style={{ touchAction: "pan-y", minHeight }}>
       {g ? (
         <svg
           width={width}
@@ -172,15 +144,6 @@ export function RaceLines({ members, hover, setHover, upto, minHeight = 250 }: {
           }}
           onPointerLeave={() => setHover(null)}
         >
-          <defs>
-            {/* Fixed in chart space (not the path's bounding box), so it never re-rasterises as the card moves. */}
-            <linearGradient id={gradientId} gradientUnits="userSpaceOnUse" x1="0" x2="0" y1={Math.min(...leader!.pts.slice(0, reach + 1).map((p) => p[1]))} y2={g.y(0)}>
-              {[0, 0.25, 0.5, 0.75, 1].map((t) => (
-                <stop key={t} offset={t} stopColor={leader!.m.color} stopOpacity={(0.16 * (1 - t) ** 1.6).toFixed(4)} />
-              ))}
-            </linearGradient>
-          </defs>
-
           {g.ticks.map((t) => (
             <g key={t}>
               <line x1={pad.left} x2={pad.left + g.plotW} y1={g.y(t)} y2={g.y(t)} stroke="var(--hair)" strokeWidth={t === 0 ? 1.25 : 1} strokeDasharray={t === 0 ? undefined : "2 4"} />
@@ -191,10 +154,9 @@ export function RaceLines({ members, hover, setHover, upto, minHeight = 250 }: {
             </g>
           ))}
 
-          <path className="pf-area" d={`${leader!.d} L${leader!.pts[reach]![0].toFixed(2)},${g.y(0).toFixed(2)} L${leader!.pts[0]![0].toFixed(2)},${g.y(0).toFixed(2)} Z`} fill={`url(#${gradientId})`} />
 
           {[...g.lines].reverse().map(({ m, d }) => (
-            <path key={m.id} d={d} pathLength={1} fill="none" stroke={m.color} strokeWidth={m.isYou ? 2.6 : 1.9} strokeLinecap="round" strokeLinejoin="round" opacity={m.id === "theo" || m.isYou ? 1 : 0.85} className="pf-draw" />
+            <path key={m.id} d={d} pathLength={1} fill="none" stroke={m.color} strokeWidth={m.isYou ? 2.6 : 1.9} strokeLinecap="round" strokeLinejoin="round" opacity={m.id === "theo" || m.isYou ? 1 : 0.85} className={drawn ? "pf-landing-line" : "pf-landing-draw"} onAnimationEnd={() => setDrawn(true)} />
           ))}
 
           {hover !== null ? <line x1={g.lines[0]!.pts[idx]![0]} x2={g.lines[0]!.pts[idx]![0]} y1={pad.top} y2={height - pad.bottom} stroke="var(--fg3)" strokeWidth="1" opacity="0.55" /> : null}

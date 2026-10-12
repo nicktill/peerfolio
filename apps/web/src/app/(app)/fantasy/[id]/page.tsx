@@ -154,7 +154,7 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
           <section className="fw-panel reveal" style={revealStyle(2)} aria-labelledby="fw-race-title">
             <div className="fw-section-head">
               <h2 id="fw-race-title">The race</h2>
-              <p>Everyone starts at 100. Updated nightly, plus live values today.</p>
+              <p>Return since the start · updated daily</p>
             </div>
             <div className="fw-race">
               <RaceChart
