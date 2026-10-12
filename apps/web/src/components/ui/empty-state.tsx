@@ -16,8 +16,11 @@ export function EmptyState({
 }) {
   return (
     <div className={cn("flex flex-col items-center justify-center px-6 py-12 text-center", className)}>
-      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-secondary">
-        <Icon className="h-5 w-5 text-muted-foreground" aria-hidden />
+      <div className="pf-mark" aria-hidden>
+        {/* The brand mark, quietly: every empty page still feels like Peerfolio. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.png" alt="" width={26} height={26} />
+        <span className="pf-mark-badge"><Icon className="size-3" /></span>
       </div>
       <h3 className="text-base font-semibold">{title}</h3>
       {description ? <p className="mt-1.5 max-w-sm text-sm text-muted-foreground">{description}</p> : null}

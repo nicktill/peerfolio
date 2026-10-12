@@ -1,20 +1,18 @@
 "use client"
 
+import "@web/components/fantasy/fantasy-workspace.css"
+
 import { useState } from "react"
 import Link from "next/link"
-import { BorderBeam } from "@web/components/magicui/border-beam"
-import { Clock, Infinity as Forever, Plus, Users } from "lucide-react"
-import { Button } from "@web/components/ui/button"
-import { Delta } from "@web/components/ui/delta"
-import { Skeleton } from "@web/components/ui/skeleton"
+import { ArrowRight, Clock, Infinity as Forever, Plus, Users } from "lucide-react"
+import { formatPercent } from "@web/lib/format"
+import { visibleReturn } from "@web/lib/return-display"
 import { revealStyle } from "@web/components/motion/reveal"
 import { useToast } from "@web/components/ui/toast"
 import { mutate, useApi } from "@web/lib/use-api"
-import { cn } from "@web/lib/utils"
 import { timeLeft } from "@web/components/fantasy/time-left"
 import { Choice, Row } from "@web/components/fantasy/choice"
 import { LookPicker } from "@web/components/fantasy/league-look-picker"
-import { accentFor } from "@web/lib/league-look"
 
 type FantasySummary = {
   id: string
@@ -32,32 +30,21 @@ export default function FantasyPage() {
   const [mode, setMode] = useState<"none" | "create" | "join">("none")
 
   return (
-    <div className="space-y-6">
-      <header className="reveal relative overflow-hidden rounded-3xl border bg-card p-6 sm:p-8" style={revealStyle(0)}>
-        <div className="hero-grid absolute inset-0 opacity-70" aria-hidden />
-        <BorderBeam size={200} duration={11} colorFrom="hsl(var(--primary))" colorTo="hsl(var(--primary) / 0)" />
-        <div className="absolute -right-16 -top-16 size-64 rounded-full bg-primary/20 blur-3xl" aria-hidden />
-        <span aria-hidden className="absolute -bottom-6 right-4 select-none text-[7rem] leading-none opacity-20 sm:text-[9rem]">
-          🏈
-        </span>
-        <div className="relative max-w-lg">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-primary px-2.5 py-0.5 text-xs font-semibold text-primary-foreground">
-            Play money
-          </span>
-          <h1 className="mt-3 text-balance font-display text-3xl font-semibold tracking-tight sm:text-4xl">Fantasy leagues. Draft day for stocks.</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Everyone starts with the same cash. Pick your stocks, trash-talk your friends, and find out who actually
-            knows what they&apos;re doing.
-          </p>
-          <div className="mt-5 flex flex-wrap gap-2">
-            <Button onClick={() => setMode(mode === "create" ? "none" : "create")}>
-              <Plus aria-hidden />
-              Start fantasy league
-            </Button>
-            <Button variant="outline" onClick={() => setMode(mode === "join" ? "none" : "join")}>
-              Join with a code
-            </Button>
-          </div>
+    <div className="fw">
+      <header className="fw-intro reveal" style={revealStyle(0)}>
+        <div>
+          <span className="fw-eyebrow">The market. Your group chat.</span>
+          <h1>Fantasy leagues</h1>
+          <p className="fw-lede">Everyone starts with the same cash. Pick your stocks, compete with friends, and let the returns talk.</p>
+        </div>
+        <div className="fw-actions">
+          <span className="fw-pill">Play money</span>
+          <button type="button" className="fw-btn" data-solid aria-expanded={mode === "create"} onClick={() => setMode(mode === "create" ? "none" : "create")}>
+            <Plus aria-hidden /> Start fantasy league
+          </button>
+          <button type="button" className="fw-btn" aria-expanded={mode === "join"} onClick={() => setMode(mode === "join" ? "none" : "join")}>
+            Join with a code
+          </button>
         </div>
       </header>
 
@@ -65,46 +52,52 @@ export default function FantasyPage() {
       {mode === "join" ? <JoinForm onDone={() => { setMode("none"); void refetch() }} /> : null}
 
       {loading && !data ? (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          <Skeleton className="h-32 rounded-2xl" />
-          <Skeleton className="h-32 rounded-2xl" />
+        <div className="space-y-3">
+          <div className="fw-skeleton animate-pulse" />
+          <div className="fw-skeleton animate-pulse" />
         </div>
       ) : data && data.leagues.length > 0 ? (
-        <div className="grid gap-4 [&>*]:min-w-0 sm:grid-cols-2 xl:grid-cols-3">
-          {data.leagues.map((league, i) => (
-            <Link
-              key={league.id}
-              href={`/fantasy/${league.id}`}
-              style={revealStyle(i + 1)}
-              className="reveal press group relative overflow-hidden rounded-2xl border bg-card p-5 transition-all hover:-translate-y-0.5 hover:shadow-lg"
-            >
-              <div className={cn("pointer-events-none absolute inset-0 bg-gradient-to-br to-transparent", accentFor(league.accent).gradient)} aria-hidden />
-              <div className="relative flex items-start gap-3">
-                <span className="text-3xl transition-transform group-hover:scale-110" aria-hidden>
-                  {league.emoji}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <h2 className="truncate font-semibold">{league.name}</h2>
-                  <p className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
-                    <span className="inline-flex items-center gap-1">
-                      <Users className="size-3.5" aria-hidden />
-                      <span className="numeric">{league.memberCount}</span>
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      {league.endsAt ? <Clock className="size-3.5" aria-hidden /> : <Forever className="size-3.5" aria-hidden />}
-                      {league.isClosed ? "Final" : league.endsAt ? timeLeft(league.endsAt) : "All-time"}
-                    </span>
-                  </p>
-                </div>
-                <Delta value={league.yourReturn} size="sm" />
-              </div>
-            </Link>
-          ))}
-        </div>
+        <ul className="fw-leagues">
+          {data.leagues.map((league, i) => {
+            const shown = visibleReturn(league.yourReturn, 2)
+            return (
+              <li key={league.id} className="reveal" style={revealStyle(i + 1)}>
+                <Link href={`/fantasy/${league.id}`} className="fw-league">
+                  <span className="fw-art" data-accent={league.accent} aria-hidden>
+                    <span>{league.emoji}</span>
+                  </span>
+                  <div className="fw-league-body">
+                    <h2>{league.name}</h2>
+                    <p className="fw-league-meta">
+                      <span>
+                        <Users aria-hidden />
+                        <span className="numeric">{league.memberCount}</span> {league.memberCount === 1 ? "player" : "players"}
+                      </span>
+                      <span>
+                        {league.endsAt ? <Clock aria-hidden /> : <Forever aria-hidden />}
+                        {league.isClosed ? "Final" : league.endsAt ? timeLeft(league.endsAt) : "All-time"}
+                      </span>
+                    </p>
+                  </div>
+                  <div className="fw-league-return">
+                    <strong className={shown > 0 ? "fw-up" : shown < 0 ? "fw-down" : undefined}>{formatPercent(league.yourReturn, 2)}</strong>
+                    <span className="fw-note">Your return</span>
+                  </div>
+                  <ArrowRight aria-hidden />
+                </Link>
+              </li>
+            )
+          })}
+        </ul>
       ) : (
-        <p className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-          No fantasy leagues yet. Start one and drop the link in the group chat.
-        </p>
+        <div className="fw-empty-state">
+          <svg className="fw-empty-art" viewBox="0 0 120 64" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M8 56h104" opacity=".4" />
+            <path d="M14 48l22-14 18 8 24-22 20 10 10-12" />
+            <circle cx="108" cy="18" r="3.5" />
+          </svg>
+          <p>No fantasy leagues yet. Start one and drop the link in the group chat.</p>
+        </div>
       )}
     </div>
   )
@@ -154,11 +147,9 @@ function CreateForm({ onCancel }: { onCancel: () => void }) {
   }
 
   return (
-    <form onSubmit={submit} className="animate-rise-in space-y-5 rounded-2xl border bg-card p-5">
-      <div className="space-y-1.5">
-        <label htmlFor="fantasy-name" className="text-xs font-medium text-muted-foreground">
-          League name
-        </label>
+    <form onSubmit={submit} className="fw-form animate-rise-in">
+      <div>
+        <label htmlFor="fantasy-name">League name</label>
         <input
           id="fantasy-name"
           required
@@ -167,7 +158,7 @@ function CreateForm({ onCancel }: { onCancel: () => void }) {
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Wolves of Main Street"
-          className="h-10 w-full rounded-lg border bg-background px-3 text-sm"
+          className="fw-input"
         />
       </div>
       <LookPicker look={look} name={name} onChange={setLook} />
@@ -192,13 +183,13 @@ function CreateForm({ onCancel }: { onCancel: () => void }) {
           </Choice>
         ))}
       </Row>
-      <div className="flex justify-end gap-2">
-        <Button type="button" variant="ghost" onClick={onCancel}>
+      <div className="fw-form-actions">
+        <button type="button" className="fw-btn" onClick={onCancel}>
           Cancel
-        </Button>
-        <Button type="submit" loading={saving}>
-          Create league
-        </Button>
+        </button>
+        <button type="submit" className="fw-btn" data-solid disabled={saving} aria-busy={saving || undefined}>
+          {saving ? "Creating…" : "Create league"}
+        </button>
       </div>
     </form>
   )
@@ -224,17 +215,17 @@ function JoinForm({ onDone }: { onDone: () => void }) {
   }
 
   return (
-    <form onSubmit={submit} className="animate-rise-in flex gap-2 rounded-2xl border bg-card p-4">
+    <form onSubmit={submit} className="fw-form fw-form-inline animate-rise-in">
       <input
         aria-label="Invite code"
         value={code}
         onChange={(e) => setCode(e.target.value.toUpperCase())}
         placeholder="INVITE CODE"
-        className="numeric h-10 min-w-0 flex-1 rounded-lg border bg-background px-3 font-mono text-sm tracking-widest"
+        className="fw-input numeric"
       />
-      <Button type="submit" loading={saving}>
-        Join
-      </Button>
+      <button type="submit" className="fw-btn" data-solid disabled={saving} aria-busy={saving || undefined}>
+        {saving ? "Joining…" : "Join"}
+      </button>
     </form>
   )
 }

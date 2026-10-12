@@ -8,11 +8,9 @@ import { Gamepad2, LayoutDashboard, LogOut, Newspaper, Settings, ShieldCheck, Tr
 import { cn } from "@web/lib/utils"
 import { useApi } from "@web/lib/use-api"
 import { cacheClear } from "@web/lib/api-cache"
-import { slideStyle, useSlidingIndicator } from "@web/lib/use-sliding-indicator"
 import { Avatar } from "@web/components/ui/avatar"
 import { Button } from "@web/components/ui/button"
 import { Skeleton } from "@web/components/ui/skeleton"
-
 import { ThemeToggle } from "@web/components/theme-toggle"
 
 const LINKS = [
@@ -23,126 +21,79 @@ const LINKS = [
   { href: "/news", label: "News", icon: Newspaper },
 ]
 
+function Brand() {
+  return (
+    <Link href="/dashboard" aria-label="Peerfolio home" className="peerfolio-brand">
+      <Image src="/logo.png" alt="" width={30} height={30} data-brand-logo className="peerfolio-logo" />
+      <span>Peerfolio</span>
+    </Link>
+  )
+}
+
 export function AppNav() {
   const pathname = usePathname()
   const { data: session, status } = useSession()
   const { data: brokerageAccess, error: accessError } = useApi<{ admin: boolean }>(status === "authenticated" ? "/api/plaid/access" : null, [], { refreshMs: 60_000 })
-  const activeHref = LINKS.find((l) => pathname.startsWith(l.href))?.href ?? null
+  const activeHref = LINKS.find((link) => pathname.startsWith(link.href))?.href ?? null
+  const admin = brokerageAccess?.admin && !accessError
 
-  const desktop = useSlidingIndicator<HTMLElement>(activeHref)
-  const mobile = useSlidingIndicator<HTMLDivElement>(activeHref)
+  function logout() {
+    cacheClear()
+    void signOut({ callbackUrl: "/" })
+  }
+
+  const avatar = status === "loading" ? (
+    <Skeleton className="h-8 w-8 rounded-full" />
+  ) : (
+    <Avatar src={session?.user?.image} name={session?.user?.name} size="md" />
+  )
 
   return (
     <>
-      <header className="sticky top-0 z-40 border-b bg-background/85 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-[1360px] items-center gap-3 px-4 sm:px-6">
-          <Link href="/dashboard" className="press flex shrink-0 items-center gap-2">
-            <span className="grid size-7 place-items-center rounded-lg bg-white shadow-sm ring-1 ring-border">
-              <Image src="/logo.png" alt="" width={20} height={20} />
-            </span>
-            <span className="text-[15px] font-semibold tracking-tight">Peerfolio</span>
-          </Link>
-
-          <nav ref={desktop.containerRef} className="relative ml-4 hidden items-center gap-1 sm:flex">
-            {/* One pill that glides to whichever page you're on. */}
-            <span aria-hidden className="absolute inset-y-0 left-0 rounded-lg bg-card shadow-[0_1px_2px_hsl(var(--foreground)/0.08),0_0_0_1px_hsl(var(--border))]" style={slideStyle(desktop.rect, desktop.ready)} />
-            {LINKS.map((link) => (
-              <NavLink key={link.href} {...link} active={activeHref === link.href} />
-            ))}
-          </nav>
-
-          <div className="ml-auto flex items-center gap-1.5">
-            <ThemeToggle />
-            {brokerageAccess?.admin && !accessError ? (
-              <Link href="/admin/brokerages" className={cn("press inline-flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-secondary", pathname.startsWith("/admin") && "bg-secondary")}>
-                <ShieldCheck aria-hidden className="h-4 w-4" />
-                <span className="sr-only">Manage brokerage access</span>
-              </Link>
-            ) : null}
-            <Link
-              href="/settings"
-              className={cn(
-                "press inline-flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-secondary",
-                pathname === "/settings" && "bg-secondary",
-              )}
-            >
-              <Settings className="h-4 w-4" aria-hidden />
-              <span className="sr-only">Settings</span>
+      <aside className="peerfolio-sidebar">
+        <Brand />
+        <nav aria-label="Primary navigation" className="peerfolio-sidebar-links">
+          <span aria-hidden className="peerfolio-nav-ind" data-off={activeHref ? undefined : ""} style={{ "--i": Math.max(0, LINKS.findIndex((l) => l.href === activeHref)) } as React.CSSProperties} />
+          {LINKS.map(({ href, label, icon: Icon }) => (
+            <Link key={href} href={href} className="peerfolio-nav-link" aria-current={activeHref === href ? "page" : undefined}>
+              <Icon size={16} strokeWidth={1.5} aria-hidden />
+              <span>{label}</span>
             </Link>
-            {/* A placeholder circle until the session confirms, so it doesn't flash "?" first. */}
-            {status === "loading" ? (
-              <Skeleton className="ml-0.5 h-7 w-7 rounded-full" />
-            ) : (
-              <Avatar src={session?.user?.image} name={session?.user?.name} size="sm" className="ml-0.5" />
-            )}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => {
-                // Cached responses belong to this user.
-                cacheClear()
-                void signOut({ callbackUrl: "/" })
-              }}
-              className="hidden sm:inline-flex"
-            >
-              <LogOut className="h-4 w-4" aria-hidden />
-              <span className="sr-only">Sign out</span>
-            </Button>
+          ))}
+        </nav>
+        <div className="peerfolio-sidebar-footer">
+          {admin ? (
+            <Link href="/admin/brokerages" className="peerfolio-nav-link" aria-current={pathname.startsWith("/admin") ? "page" : undefined}>
+              <ShieldCheck size={16} strokeWidth={1.5} aria-hidden />Manage brokerages
+            </Link>
+          ) : null}
+          <Link href="/settings" className="peerfolio-nav-link" aria-current={pathname === "/settings" ? "page" : undefined}>
+            <Settings size={16} strokeWidth={1.5} aria-hidden />Settings
+          </Link>
+          <ThemeToggle variant="segmented" />
+          <div className="peerfolio-account">
+            {avatar}
+            <div className="min-w-0 flex-1"><b className="truncate">{status === "loading" ? "Your account" : session?.user?.name || "Your account"}</b><small className="truncate">{session?.user?.email || "Personal workspace"}</small></div>
+            <Button variant="ghost" size="icon" onClick={logout} aria-label="Sign out" title="Sign out"><LogOut size={16} aria-hidden /></Button>
           </div>
         </div>
-      </header>
-
-      {/* Thumb-reachable tab bar; the header nav hides below sm. */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 backdrop-blur safe-bottom sm:hidden">
-        <div ref={mobile.containerRef} className="relative flex items-stretch">
-          <span aria-hidden className="absolute left-0 top-0 h-0.5 rounded-full bg-primary" style={slideStyle(mobile.rect, mobile.ready)} />
-          {LINKS.map((link) => {
-            const active = activeHref === link.href
-            return (
-              <Link
-                key={link.href}
-                href={link.href}
-                data-slide-key={link.href}
-                className={cn(
-                  "press flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition-colors",
-                  active ? "text-primary" : "text-muted-foreground",
-                )}
-                aria-current={active ? "page" : undefined}
-              >
-                <link.icon className="h-5 w-5" aria-hidden />
-                {link.label}
-              </Link>
-            )
-          })}
+      </aside>
+      <header className="peerfolio-mobile-header">
+        <Brand />
+        <div className="flex items-center gap-1">
+          <ThemeToggle />
+          {admin ? <Link href="/admin/brokerages" className="peerfolio-mobile-control" aria-label="Manage brokerage access"><ShieldCheck size={17} aria-hidden /></Link> : null}
+          <Link href="/settings" className="peerfolio-mobile-control" aria-label="Settings"><Settings size={17} aria-hidden /></Link>
+          {avatar}
         </div>
+      </header>
+      <nav className="peerfolio-tabbar" aria-label="Mobile primary navigation">
+        {LINKS.map(({ href, label, icon: Icon }) => (
+          <Link key={href} href={href} aria-current={activeHref === href ? "page" : undefined} className={cn("peerfolio-tab", activeHref === href && "peerfolio-tab-active")}>
+            <Icon size={19} strokeWidth={1.5} aria-hidden />{label}
+          </Link>
+        ))}
       </nav>
     </>
-  )
-}
-
-function NavLink({
-  href,
-  label,
-  icon: Icon,
-  active,
-}: {
-  href: string
-  label: string
-  icon: typeof Users
-  active: boolean
-}) {
-  return (
-    <Link
-      href={href}
-      data-slide-key={href}
-      aria-current={active ? "page" : undefined}
-      className={cn(
-        "press relative z-10 inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-colors",
-        active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
-      )}
-    >
-      <Icon className="h-4 w-4" aria-hidden />
-      {label}
-    </Link>
   )
 }

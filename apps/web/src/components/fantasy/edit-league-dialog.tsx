@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { Button } from "@web/components/ui/button"
+import "@web/components/fantasy/fantasy-workspace.css"
+
 import { Dialog } from "@web/components/ui/dialog"
 import { useToast } from "@web/components/ui/toast"
 import { Choice, Row } from "@web/components/fantasy/choice"
@@ -22,7 +23,7 @@ type Extension = "keep" | "forever" | number
 /** Owner-only: rename the league, change its look, or give it more time. The server enforces who may. */
 export function EditLeagueDialog({ league, open, onClose, onSaved }: { league: EditableLeague; open: boolean; onClose: () => void; onSaved: () => void }) {
   return (
-    <Dialog open={open} onClose={onClose} title="Edit league" description="Only you, as the owner, can change this." className="sm:max-w-xl">
+    <Dialog open={open} onClose={onClose} title="Edit league" description="Only you, as the owner, can change this." className="fw-dialog-panel sm:max-w-xl">
       <EditForm league={league} onClose={onClose} onSaved={onSaved} />
     </Dialog>
   )
@@ -59,11 +60,9 @@ function EditForm({ league, onClose, onSaved }: { league: EditableLeague; onClos
   }
 
   return (
-    <form onSubmit={submit} className="space-y-5">
-      <div className="space-y-1.5">
-        <label htmlFor="edit-league-name" className="text-xs font-medium text-muted-foreground">
-          League name
-        </label>
+    <form onSubmit={submit} className="fw-form fw-form-bare">
+      <div>
+        <label htmlFor="edit-league-name">League name</label>
         <input
           id="edit-league-name"
           data-autofocus
@@ -72,7 +71,7 @@ function EditForm({ league, onClose, onSaved }: { league: EditableLeague; onClos
           maxLength={40}
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="h-10 w-full rounded-lg border bg-background px-3 text-sm"
+          className="fw-input"
         />
       </div>
 
@@ -94,13 +93,13 @@ function EditForm({ league, onClose, onSaved }: { league: EditableLeague; onClos
         </Row>
       ) : null}
 
-      <div className="flex justify-end gap-2">
-        <Button type="button" variant="ghost" onClick={onClose}>
+      <div className="fw-form-actions">
+        <button type="button" className="fw-btn" onClick={onClose}>
           Cancel
-        </Button>
-        <Button type="submit" loading={saving}>
-          Save changes
-        </Button>
+        </button>
+        <button type="submit" className="fw-btn" data-solid disabled={saving} aria-busy={saving || undefined}>
+          {saving ? "Saving…" : "Save changes"}
+        </button>
       </div>
     </form>
   )

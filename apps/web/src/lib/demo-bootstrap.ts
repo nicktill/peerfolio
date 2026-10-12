@@ -1,7 +1,7 @@
 import "server-only"
 import fs from "node:fs"
 import path from "node:path"
-import { eq, sql } from "drizzle-orm"
+import { eq, inArray, sql } from "drizzle-orm"
 import { migrate } from "drizzle-orm/postgres-js/migrator"
 import {
   db,
@@ -22,7 +22,20 @@ import {
   securities,
   users,
 } from "@web/db"
-import { DAYS, DEMO_FANTASY, DEMO_PEOPLE, MIXES, SECURITIES, makeRandom } from "@web/lib/demo-data"
+import {
+  DAYS,
+  DEMO_FANTASY_LEAGUES,
+  DEMO_PEOPLE,
+  FANTASY_START,
+  MIXES,
+  SECURITIES,
+  fantasyDayRange,
+  fantasyEndsAt,
+  fantasyHistory,
+  fantasyIsComplete,
+  makeRandom,
+  type DemoFantasyLeague,
+} from "@web/lib/demo-data"
 
 /** Postgres error code, wherever the driver or drizzle nested it. */
 function pgCode(error: unknown): string | undefined {
@@ -137,96 +150,153 @@ async function createDemoPerson(email: string) {
   return created
 }
 
-/** The shared world around one signed-in demo user: the other four people, a league, follows and a fantasy league. */
+const GROUP_CHAT_CODE = "BCDF2345"
+const rowsOf = <T>(result: unknown) => (Array.isArray(result) ? result : ((result as { rows?: unknown[] }).rows ?? [])) as T[]
+
+/**
+ * One cheap look at what's already there, so a repeat sign-in costs two queries and no writes. Says
+ * whether the people, the Group Chat seat and every fantasy league are whole for this user.
+ */
+async function worldIsComplete(meId: string, extraSeat: boolean) {
+  const codes = sql.join(DEMO_FANTASY_LEAGUES.map((l) => sql`${l.inviteCode}`), sql`, `)
+  const [basics, fantasy] = await Promise.all([
+    db.execute(sql`
+      select
+        (select count(*)::int from users where email in (${sql.join(DEMO_PEOPLE.map((p) => sql`${`${p.handle}@example.com`}`), sql`, `)})) as people,
+        (select count(*)::int from league_members lm join leagues l on l.id = lm.league_id where l.invite_code = ${GROUP_CHAT_CODE}) as members,
+        exists (select 1 from league_members lm join leagues l on l.id = lm.league_id where l.invite_code = ${GROUP_CHAT_CODE} and lm.user_id = ${meId}) as mine`),
+    db.execute(sql`
+      select l.invite_code, l.ends_at,
+        (select count(*)::int from fantasy_members where league_id = l.id) as members,
+        (select count(*)::int from fantasy_positions p join fantasy_members fm on fm.id = p.member_id where fm.league_id = l.id) as positions,
+        (select count(*)::int from fantasy_trades where league_id = l.id) as trades,
+        (select count(*)::int from fantasy_snapshots s join fantasy_members fm on fm.id = s.member_id where fm.league_id = l.id) as snapshots,
+        exists (select 1 from fantasy_members where league_id = l.id and user_id = ${meId}) as mine
+      from fantasy_leagues l where l.invite_code in (${codes})`),
+  ])
+  const [b] = rowsOf<{ people: number; members: number; mine: boolean }>(basics)
+  if (!b || b.people < DEMO_PEOPLE.length || b.members < DEMO_PEOPLE.length || !b.mine) return false
+  const rows = rowsOf<{ invite_code: string; ends_at: string | Date | null; members: number; positions: number; trades: number; snapshots: number; mine: boolean }>(fantasy).map((r) => ({
+    inviteCode: r.invite_code,
+    endsAt: r.ends_at ? new Date(r.ends_at) : null,
+    members: r.members,
+    positions: r.positions,
+    trades: r.trades,
+    snapshots: r.snapshots,
+    mine: r.mine,
+  }))
+  return fantasyIsComplete(rows, new Date(), extraSeat)
+}
+
+/**
+ * The shared world around one signed-in demo user: the other four people, a league, follows and the
+ * fantasy leagues. Every step only adds what's missing, so it also repairs a database an earlier build
+ * left half-made (or made around different people), and it does nothing once everything's there.
+ */
 async function ensureDemoWorld(me: { id: string; handle: string | null }) {
+  const extraSeat = !DEMO_PEOPLE.some((p) => p.handle === me.handle)
+  if (await worldIsComplete(me.id, extraSeat)) return
+
   const ids: Record<string, string> = {}
   for (const person of DEMO_PEOPLE) {
     const email = `${person.handle}@example.com`
     const user = (await db.query.users.findFirst({ where: eq(users.email, email) })) ?? (await createDemoPerson(email))
     if (user) ids[person.handle] = user.id
   }
-  if (!ids.theo || !ids.maya) return
+  if (!ids.theo || !ids.maya || !ids.deshawn || !ids.priya) return
 
   // "The Group Chat": everyone, with a few reactions and follows so the social screens aren't bare.
-  const [league] = await db
+  await db
     .insert(leagues)
-    .values({ name: "The Group Chat", description: "Bragging rights only", emoji: "🏆", accent: "emerald", ownerId: ids.theo, inviteCode: "BCDF2345" })
+    .values({ name: "The Group Chat", description: "Bragging rights only", emoji: "🏆", accent: "emerald", ownerId: ids.theo, inviteCode: GROUP_CHAT_CODE })
     .onConflictDoNothing()
-    .returning({ id: leagues.id })
-  const leagueId = league?.id ?? (await db.query.leagues.findFirst({ where: eq(leagues.inviteCode, "BCDF2345") }))?.id
+  const leagueId = (await db.query.leagues.findFirst({ where: eq(leagues.inviteCode, GROUP_CHAT_CODE) }))?.id
   if (leagueId) {
-    const members = [...Object.entries(ids).map(([handle, userId]) => ({ userId, role: handle === "theo" ? ("owner" as const) : ("member" as const) })), ...(Object.values(ids).includes(me.id) ? [] : [{ userId: me.id, role: "member" as const }])]
+    const members = [...Object.entries(ids).map(([handle, userId]) => ({ userId, role: handle === "theo" ? ("owner" as const) : ("member" as const) })), ...(extraSeat ? [{ userId: me.id, role: "member" as const }] : [])]
     await db.insert(leagueMembers).values(members.map((m) => ({ leagueId, ...m }))).onConflictDoNothing()
-    if (league) {
-      await db.insert(reactions).values([
+    await db
+      .insert(reactions)
+      .values([
         { leagueId, fromUserId: ids.maya, toUserId: ids.theo, emoji: "🔥" },
-        { leagueId, fromUserId: ids.deshawn!, toUserId: ids.theo, emoji: "👏" },
-        { leagueId, fromUserId: ids.theo, toUserId: ids.priya!, emoji: "😤" },
-      ]).onConflictDoNothing()
-      await db.insert(follows).values([
+        { leagueId, fromUserId: ids.deshawn, toUserId: ids.theo, emoji: "👏" },
+        { leagueId, fromUserId: ids.theo, toUserId: ids.priya, emoji: "😤" },
+      ])
+      .onConflictDoNothing()
+    await db
+      .insert(follows)
+      .values([
         { followerId: ids.theo, followingId: ids.maya },
-        { followerId: ids.theo, followingId: ids.priya! },
-      ]).onConflictDoNothing()
-    }
+        { followerId: ids.theo, followingId: ids.priya },
+      ])
+      .onConflictDoNothing()
   }
 
-  await ensureDemoFantasyLeague(ids, me.id)
+  for (const league of DEMO_FANTASY_LEAGUES) await ensureDemoFantasyLeague(league, ids, extraSeat ? me.id : null)
 }
 
 /**
- * "Friday Draft": a fantasy league with five players at different points in a 45-day race, so the
- * standings, race chart, balance cards and trade feed all have something to show. Positions are in the
- * demo securities, which sit at a flat $100, so each player's value is the cash and shares set here.
+ * One demo fantasy league with five players at different points in a race, so the standings, race
+ * chart, balance cards and trade feed all have something to show. Positions are in the demo
+ * securities, which sit at a flat $100, so each player's value is the cash and shares set here.
+ *
+ * Heals in place: it finds the league by invite code whatever built it, seats anyone missing, and
+ * fills in only the history, positions and trades a seat lacks. It never deletes or rewrites a seat
+ * that already has them, and every insert is conflict-safe so two sign-ins at once can't collide.
  */
-async function ensureDemoFantasyLeague(ids: Record<string, string>, meId: string) {
-  const inviteCode = "DEMO2345"
-  if (await db.query.fantasyLeagues.findFirst({ where: eq(fantasyLeagues.inviteCode, inviteCode) })) return
-
-  const [league] = await db
+async function ensureDemoFantasyLeague(plan: DemoFantasyLeague, ids: Record<string, string>, extraUserId: string | null) {
+  const owner = ids[plan.owner] ?? ids.maya!
+  const endsAt = fantasyEndsAt(plan)
+  await db
     .insert(fantasyLeagues)
-    .values({ name: "Friday Draft", emoji: "🏈", accent: "emerald", ownerId: ids.maya!, inviteCode, startingCash: "100000", maxPositionPct: 40, endsAt: new Date(Date.now() + 59 * 86_400_000) })
+    .values({ name: plan.name, emoji: plan.emoji, accent: plan.accent, ownerId: owner, inviteCode: plan.inviteCode, startingCash: String(FANTASY_START), maxPositionPct: 40, endsAt })
     .onConflictDoNothing()
-    .returning({ id: fantasyLeagues.id })
-  if (!league) return // another request is building it
+  const league = await db.query.fantasyLeagues.findFirst({ where: eq(fantasyLeagues.inviteCode, plan.inviteCode) })
+  if (!league) return
+  // A demo league is for showing a state: running ones stay running, the finished one stays finished.
+  const lapsed = plan.endsInDays === null ? league.endsAt !== null : plan.endsInDays < 0 ? league.endsAt === null || league.endsAt.getTime() > Date.now() : league.endsAt === null || league.endsAt.getTime() < Date.now() + 7 * 86_400_000
+  if (lapsed) await db.update(fantasyLeagues).set({ endsAt }).where(eq(fantasyLeagues.id, league.id))
 
-  const random = makeRandom(7)
+  const seats = plan.players.flatMap((p) => (ids[p.handle] ? [{ leagueId: league.id, userId: ids[p.handle]!, cash: p.cash.toFixed(6) }] : []))
+  if (extraUserId) seats.push({ leagueId: league.id, userId: extraUserId, cash: "100000.000000" })
+  await db.insert(fantasyMembers).values(seats).onConflictDoNothing()
+
+  const members = await db.select({ id: fantasyMembers.id, userId: fantasyMembers.userId }).from(fantasyMembers).where(eq(fantasyMembers.leagueId, league.id))
   const memberIds: Record<string, string> = {}
-  const start = 100_000
-  for (const plan of DEMO_FANTASY) {
-    const userId = ids[plan.handle]
-    if (!userId) continue
-    const finalValue = start * (1 + plan.returnPct / 100)
-    const investedTotal = finalValue - plan.cash
+  const have = (table: typeof fantasySnapshots | typeof fantasyPositions | typeof fantasyTrades) =>
+    db.select({ memberId: table.memberId }).from(table).where(inArray(table.memberId, members.map((m) => m.id)))
+  const [snapshotRows, positionRows, tradeRows] = await Promise.all([have(fantasySnapshots), have(fantasyPositions), have(fantasyTrades)])
+  const seen = (rows: { memberId: string }[]) => new Set(rows.map((r) => r.memberId))
+  const [hasSnapshots, hasPositions, hasTrades] = [seen(snapshotRows), seen(positionRows), seen(tradeRows)]
+  const { firstDay, lastDay } = fantasyDayRange(plan)
 
-    const [member] = await db
-      .insert(fantasyMembers)
-      .values({ leagueId: league.id, userId, cash: plan.cash.toFixed(6) })
-      .returning({ id: fantasyMembers.id })
-    memberIds[plan.handle] = member!.id
+  for (const [index, player] of plan.players.entries()) {
+    const userId = ids[player.handle]
+    const member = members.find((m) => m.userId === userId)
+    if (!member) continue
+    memberIds[player.handle] = member.id
+    const random = makeRandom(plan.seed * 31 + index)
+    const finalValue = FANTASY_START * (1 + player.returnPct / 100)
+    const investedTotal = finalValue - player.cash
 
-    // A 45-day path that wanders and ends on the target, so the race chart has a story.
-    const snapshots = []
-    for (let day = 45; day >= 1; day--) {
-      const progress = (45 - day) / 44
-      const wobble = (random() - 0.5) * 0.012 * start * (1 - progress * 0.6)
-      snapshots.push({ memberId: member!.id, date: isoDay(day), value: (start + (finalValue - start) * Math.pow(progress, 1.15) + wobble).toFixed(6) })
+    const history = fantasyHistory(plan, finalValue, random)
+    if (!hasSnapshots.has(member.id)) {
+      await db.insert(fantasySnapshots).values(history.map((h) => ({ memberId: member.id, date: isoDay(h.daysAgo), value: h.value.toFixed(6) }))).onConflictDoNothing()
     }
-    await db.insert(fantasySnapshots).values(snapshots)
-
-    for (const [securityId, weight] of plan.picks) {
-      const amount = investedTotal * weight
-      const shares = amount / 100
-      await db.insert(fantasyPositions).values({ memberId: member!.id, securityId, shares: shares.toFixed(8), costBasis: (amount * (0.88 + random() * 0.1)).toFixed(6) })
-      await db.insert(fantasyTrades).values({
-        leagueId: league.id,
-        memberId: member!.id,
-        securityId,
-        side: "buy",
-        shares: shares.toFixed(8),
-        price: "100.000000",
-        priceAsOf: isoDay(1 + Math.floor(random() * 30)),
-        createdAt: new Date(Date.now() - (1 + random() * 30) * 86_400_000),
-      })
+    // Positions and cash have to agree for the value to be right, so a seat that lacked positions is reset to the plan's cash.
+    if (!hasPositions.has(member.id)) {
+      await db.update(fantasyMembers).set({ cash: player.cash.toFixed(6) }).where(eq(fantasyMembers.id, member.id))
+      await db
+        .insert(fantasyPositions)
+        .values(player.picks.map(([securityId, weight]) => ({ memberId: member.id, securityId, shares: ((investedTotal * weight) / 100).toFixed(8), costBasis: (investedTotal * weight * (0.88 + random() * 0.1)).toFixed(6) })))
+        .onConflictDoNothing()
+    }
+    if (!hasTrades.has(member.id)) {
+      await db.insert(fantasyTrades).values(
+        player.picks.map(([securityId, weight]) => {
+          const daysAgo = lastDay + Math.floor(random() * (firstDay - lastDay + 1))
+          return { leagueId: league.id, memberId: member.id, securityId, side: "buy" as const, shares: ((investedTotal * weight) / 100).toFixed(8), price: "100.000000", priceAsOf: isoDay(daysAgo), createdAt: new Date(Date.now() - (daysAgo + random() * 0.9) * 86_400_000) }
+        }),
+      )
     }
   }
 
@@ -239,11 +309,6 @@ async function ensureDemoFantasyLeague(ids: Record<string, string>, meId: string
         { fromMemberId: memberIds.maya, toMemberId: memberIds.priya, emoji: "😤" },
       ])
       .onConflictDoNothing()
-  }
-
-  // A signed-in user who isn't one of the five still gets a seat, with the starting stack.
-  if (!Object.values(ids).includes(meId)) {
-    await db.insert(fantasyMembers).values({ leagueId: league.id, userId: meId, cash: "100000.000000" }).onConflictDoNothing()
   }
 }
 

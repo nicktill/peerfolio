@@ -104,6 +104,8 @@ per preview URL, but only when these are set on the Preview environment:
 - optionally `DEV_LOGIN_SECRET` (16+ characters): if set, a passcode is asked for. Otherwise the page is one click on a demo person.
 - optionally `DEV_LOGIN_EMAILS`: comma-separated emails it may open. Defaults to the five demo people.
 
+**/demo** is the one-click entry: it signs in as `theo@example.com` (first demo person) and lands on the dashboard, showing a small "Demo data" pill in the app. It 404s wherever the login is off, and redirects to `/dev-login` if `DEV_LOGIN_SECRET` is set. A preview needs, on the **Preview environment only**: `ENABLE_DEV_LOGIN=true`, `DEV_LOGIN_DEMO_DATABASE=true`, a separate demo `DATABASE_URL`, `NEXTAUTH_SECRET`, and optionally `DEV_LOGIN_SECRET` and `PRODUCTION_DATABASE_URL` (if it equals `DATABASE_URL` the login stays off). Leave `NEXTAUTH_URL` unset on previews so NextAuth uses the deployment's own URL (`VERCEL_URL`). Never set any of these on Production and never point Preview at the production database. Production builds run migrations on deploy; previews never do (`scripts/migrate-on-deploy.mjs` skips unless `VERCEL_ENV=production`).
+
 On a preview, a demo account that doesn't exist yet is created on first sign-in along with a demo world (four other players, "The Group Chat" league, and a "Friday Draft" fantasy league with standings and a trade feed), so a fresh demo database needs no seeding. Point previews at a database that holds only demo accounts. `VERCEL_ENV=production` always turns the login off, so the route 404s and the provider isn't registered there.
 
 For the real thing you need a Postgres URL (Neon and Supabase both work),

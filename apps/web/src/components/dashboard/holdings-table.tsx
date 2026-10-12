@@ -79,7 +79,7 @@ export function HoldingsTable({
   hidden: boolean
   /** What to call the "Today" column: "Today", or the date when the market hasn't traded today. */
   todayLabel: string
-  /** "section": open on the page under a hairline, with a search box, instead of a collapsible card. */
+  /** "section": a portfolio panel with search and the same remembered collapse state. */
   variant?: "card" | "section"
 }) {
   const [sort, setSort] = useState<Sort>("value")
@@ -156,7 +156,7 @@ export function HoldingsTable({
           </div>
         ) : null}
 
-        <div className="mt-4 hidden grid-cols-[minmax(0,2fr)_minmax(140px,0.9fr)_minmax(90px,0.65fr)_minmax(90px,0.7fr)_minmax(95px,0.75fr)] gap-4 border-b pb-2 text-xs font-medium text-muted-foreground md:grid">
+        <div className="mt-4 hidden grid-cols-[minmax(0,2fr)_minmax(100px,0.9fr)_minmax(90px,0.65fr)_minmax(90px,0.7fr)_minmax(95px,0.75fr)] gap-4 border-b pb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground md:grid">
           <span>Name</span>
           <span>Weight</span>
           <span className="text-right">Value</span>
@@ -166,11 +166,11 @@ export function HoldingsTable({
 
         <ul className="divide-y">
           {visible.map((h) => (
-            <li key={h.securityId} className="-mx-2 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-0.5 rounded-xl px-2 py-3 transition-colors duration-200 hover:bg-muted/50 md:grid-cols-[minmax(0,2fr)_minmax(140px,0.9fr)_minmax(90px,0.65fr)_minmax(90px,0.7fr)_minmax(95px,0.75fr)]">
+            <li key={h.securityId} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-0.5 py-4 md:grid-cols-[minmax(0,2fr)_minmax(100px,0.9fr)_minmax(90px,0.65fr)_minmax(90px,0.7fr)_minmax(95px,0.75fr)]">
               <div className="flex min-w-0 items-center gap-3">
                 <TickerLogo symbol={h.ticker ?? "?"} kind={h.type === "cryptocurrency" ? "crypto" : "stock"} size="sm" />
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold">{h.ticker ?? h.name ?? "Position"}</p>
+                  <p className="truncate text-sm font-medium">{h.ticker ?? h.name ?? "Position"}</p>
                   <p className="truncate text-xs text-muted-foreground">
                     {h.name ?? ""}
                     {h.positions > 1 ? ` · ${h.positions} accounts` : ""}
@@ -186,14 +186,14 @@ export function HoldingsTable({
               </div>
 
               <div className="text-right">
-                <p className="numeric text-sm font-semibold">{formatCurrency(h.value, { hidden })}</p>
+                <p className="numeric text-sm font-medium">{formatCurrency(h.value, { hidden })}</p>
                 <MobileMetric h={h} sort={sort} hidden={hidden} />
               </div>
 
               <div className="hidden text-right md:block">
                 {h.todayPercent != null ? (
                   <>
-                    <p className={cn("numeric text-sm font-semibold", tone(h.todayPercent))}>{formatPercent(h.todayPercent, 2)}</p>
+                    <p className={cn("numeric text-sm font-medium", tone(h.todayPercent))}>{formatPercent(h.todayPercent, 2)}</p>
                     <p className={cn("numeric text-xs", tone(h.todayAmount))}>{h.todayAmount != null ? signed(h.todayAmount, hidden) : ""}</p>
                   </>
                 ) : (
@@ -204,7 +204,7 @@ export function HoldingsTable({
               <div className="hidden text-right md:block">
                 {h.gainPercent != null ? (
                   <>
-                    <p className={cn("numeric text-sm font-semibold", tone(h.gainPercent))}>{formatPercent(h.gainPercent, 1)}</p>
+                    <p className={cn("numeric text-sm font-medium", tone(h.gainPercent))}>{formatPercent(h.gainPercent, 1)}</p>
                     <p className="numeric text-xs text-muted-foreground">{h.gainAmount != null ? signed(h.gainAmount, hidden) : ""}</p>
                   </>
                 ) : (
@@ -221,7 +221,7 @@ export function HoldingsTable({
           <button
             type="button"
             onClick={() => setShowAll((v) => !v)}
-            className="mt-2 w-full rounded-lg py-2 text-center text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground"
+            className="mt-2 min-h-10 w-full rounded-lg py-2 text-center text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground"
           >
             {showAll ? "Show fewer" : `Show all ${sorted.length} holdings`}
           </button>
@@ -233,15 +233,19 @@ export function HoldingsTable({
 
   if (variant === "section") {
     return (
-      <section aria-labelledby="holdings-title" className="border-t pt-6">
-        <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+      <section aria-labelledby="holdings-title" className="portfolio-holdings pf-panel overflow-hidden">
+        <div className="pf-body">
+        <div className={cn("pf-ph", open && "pf-ph-open")}>
           <div>
-            <h2 id="holdings-title" className="text-base font-semibold">
-              Holdings <span className="numeric font-normal text-muted-foreground">{holdings.length}</span>
+            <h2 id="holdings-title">
+              <button type="button" onClick={toggle} aria-expanded={open} aria-controls="portfolio-holdings-body" className="pf-lbl group flex min-h-10 items-center gap-2 rounded-md text-left">
+                Holdings <span className="numeric font-normal text-muted-foreground">{holdings.length}</span>
+                <ChevronDown className={cn("size-4 text-muted-foreground transition-transform duration-300 motion-reduce:transition-none", !open && "-rotate-90")} aria-hidden />
+              </button>
             </h2>
-            <p className="mt-1 text-xs text-muted-foreground">One view across your accounts.</p>
+            <p className="hidden sm:block mt-1 text-xs text-muted-foreground">One view across your accounts.</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className={cn("pf-holdings-controls flex flex-wrap items-center gap-2", !open && "hidden")}>
             <label className="flex h-9 items-center gap-2 rounded-lg border bg-background/60 px-3 transition-colors focus-within:border-foreground/30">
               <Search className="size-3.5 text-muted-foreground" aria-hidden />
               <input
@@ -255,8 +259,9 @@ export function HoldingsTable({
             {sortControl}
           </div>
         </div>
-        <div>
-        {content}
+        <div id="portfolio-holdings-body" className="pf-collapse" data-open={open} inert={!open}>
+          <div className="pf-collapse-in">{content}</div>
+        </div>
         </div>
       </section>
     )
@@ -279,9 +284,9 @@ export function HoldingsTable({
         )}
       </div>
 
-      <CardContent id="holdings-body" hidden={!open} className="pt-4">
-        {content}
-      </CardContent>
+      <div id="holdings-body" className="pf-collapse" data-open={open} inert={!open}>
+        <CardContent className="pf-collapse-in pt-4">{content}</CardContent>
+      </div>
     </Card>
   )
 }

@@ -85,9 +85,9 @@ export function Dialog({
   return createPortal(
     <AnimatePresence>
       {open ? (
+    <div key="dialog" className="pf-portal contents">
     <motion.div
-      key="dialog"
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-[2px] sm:items-center sm:p-6"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 sm:items-center sm:p-6"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0, transition: { duration: 0.16 } }}
@@ -107,13 +107,13 @@ export function Dialog({
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
         className={cn(
-          "surface relative flex max-h-[92dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl border bg-card shadow-2xl sm:rounded-3xl",
+          "surface relative flex max-h-[92dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-[14px] border bg-card shadow-[0_24px_64px_-12px_rgba(0,0,0,0.35)] sm:rounded-[14px]",
           className,
         )}
       >
         <header className="flex items-start justify-between gap-4 px-5 pb-3 pt-5 sm:px-6 sm:pt-6">
           <div className="min-w-0">
-            <h2 id={titleId} className="font-display text-xl font-semibold tracking-tight">
+            <h2 id={titleId} className="font-display text-[22px] font-normal leading-7 tracking-tight">
               {title}
             </h2>
             {description ? (
@@ -125,7 +125,7 @@ export function Dialog({
           <button
             type="button"
             onClick={onClose}
-            className="press -mr-2 -mt-1 grid size-10 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            className="press -mr-2 -mt-1 grid size-10 shrink-0 place-items-center rounded-[9px] text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
           >
             <X className="size-4" aria-hidden />
             <span className="sr-only">Close</span>
@@ -134,6 +134,7 @@ export function Dialog({
         <div className="overflow-y-auto px-5 pb-5 sm:px-6 sm:pb-6 safe-bottom">{children}</div>
       </motion.div>
     </motion.div>
+    </div>
       ) : null}
     </AnimatePresence>,
     document.body,

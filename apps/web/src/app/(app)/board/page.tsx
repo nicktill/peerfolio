@@ -1,5 +1,7 @@
 "use client"
 
+import "@web/components/app-4a.css"
+import "@web/components/board/board.css"
 import { useState } from "react"
 import Link from "next/link"
 import { Check, ShieldCheck, Trophy, UserPlus, Users } from "lucide-react"
@@ -9,9 +11,11 @@ import { Button } from "@web/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card"
 import { Delta } from "@web/components/ui/delta"
 import { EmptyState } from "@web/components/ui/empty-state"
+import "@web/components/app-4a.css"
 import { Segmented } from "@web/components/ui/segmented"
 import { SkeletonRow } from "@web/components/ui/skeleton"
 import { Sparkline } from "@web/components/ui/sparkline"
+import { TickerLogo } from "@web/components/ui/ticker-logo"
 import { useToast } from "@web/components/ui/toast"
 import { mutate, useApi } from "@web/lib/use-api"
 import { RANGES, type Range } from "@web/lib/ranges"
@@ -39,7 +43,21 @@ type BoardResponse = {
   scope: "all" | "following"
 }
 
-const MEDALS = ["var(--rank-1)", "var(--rank-2)", "var(--rank-3)"]
+
+function HoldingChip({ holding }: { holding: { ticker: string; name: string | null; weight: number; shownWeight: string } }) {
+  const fill = Math.min(100, Math.max(0, holding.weight))
+  return (
+    <span
+      className="pf-holding-chip numeric inline-flex items-center gap-1.5 rounded-full border bg-secondary/60 py-0.5 pl-0.5 pr-2.5 text-[10px] font-medium"
+      style={{ backgroundImage: `linear-gradient(90deg, hsl(var(--primary) / 0.16) ${fill}%, transparent ${fill}%)` }}
+      title={`${holding.name ?? holding.ticker}: ${holding.weight.toFixed(1)}% of their portfolio`}
+    >
+      <TickerLogo symbol={holding.ticker} size="xs" className="rounded-full border-0 shadow-none" />
+      <span className="font-mono font-semibold">{holding.ticker}</span>
+      <span className="text-muted-foreground">{holding.shownWeight}%</span>
+    </span>
+  )
+}
 
 export default function BoardPage() {
   const { toast } = useToast()
@@ -59,16 +77,16 @@ export default function BoardPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <header>
-        <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">The Board</h1>
+    <div className="pf-4a min-w-0 space-y-6">
+      <header className="pf-4a-heading">
+        <h1 className="font-display text-3xl font-normal tracking-tight sm:text-4xl">The Board</h1>
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
           Every return here is pulled straight from a connected brokerage and time-weighted, so deposits don&apos;t
           inflate anyone&apos;s number. Percentages only — no balances, ever.
         </p>
       </header>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="bd-controls">
         <Segmented<"all" | "following">
           options={[
             { value: "all", label: "Everyone" },
@@ -82,15 +100,15 @@ export default function BoardPage() {
         <Segmented options={RANGES} value={range} onChange={setRange} size="sm" label="Time range" />
       </div>
 
-      <Card>
-        <CardHeader className="flex-row items-center justify-between">
+      <Card className="bd-panel rounded-xl">
+        <CardHeader className="flex-row items-center justify-between px-[18px]">
           <CardTitle>{scope === "following" ? "Traders you follow" : "Top traders"}</CardTitle>
           <Badge variant="verified">
             <ShieldCheck aria-hidden />
             Verified only
           </Badge>
         </CardHeader>
-        <CardContent>
+        <CardContent className={data && data.traders.length > 0 ? "p-0 pb-2" : undefined}>
           {loading && !data ? (
             <div className="space-y-2">
               {Array.from({ length: 5 }, (_, i) => (
@@ -98,71 +116,68 @@ export default function BoardPage() {
               ))}
             </div>
           ) : data && data.traders.length > 0 ? (
-            <ul className="divide-y">
-              {data.traders.map((trader, i) => (
-                <li
-                  key={trader.handle ?? trader.rank}
-                  style={revealStyle(Math.min(i, 8))}
-                  className={cn("reveal py-3 first:pt-0 last:pb-0", trader.isYou ? "surface-you -mx-2 rounded-xl px-3" : "-mx-2 rounded-xl px-2 transition-colors duration-200 hover:bg-muted/50")}
-                >
-                  <div className="flex items-center gap-3">
-                    <span
-                      className="numeric w-6 shrink-0 text-center text-sm font-bold"
-                      style={trader.rank <= 3 ? { color: MEDALS[trader.rank - 1] } : undefined}
-                    >
+            <ul className="bd-list">
+              {data.traders.map((trader, i) => {
+                const label = trader.name ?? (trader.handle ? `@${trader.handle}` : "Trader")
+                return (
+                  <li
+                    key={trader.handle ?? trader.rank}
+                    style={revealStyle(Math.min(i, 8))}
+                    className={cn("reveal bd-row", trader.isYou && "bd-you")}
+                  >
+                    <span className="numeric pf-rank bd-rank font-bold" data-rank={trader.rank}>
                       {trader.rank}
                     </span>
 
                     <Avatar src={trader.image} name={trader.name} handle={trader.handle} />
 
-                    <div className="min-w-0 flex-1">
-                      {trader.handle ? (
-                        <Link href={`/u/${trader.handle}`} className="block truncate text-sm font-medium hover:underline">
-                          {trader.name ?? `@${trader.handle}`}
-                        </Link>
-                      ) : (
-                        <span className="block truncate text-sm font-medium">{trader.name ?? "Trader"}</span>
-                      )}
-                      <p className="truncate text-xs text-muted-foreground">
-                        {trader.handle ? `@${trader.handle}` : ""} · {trader.days}d<span className="max-sm:hidden"> tracked</span>
+                    <div className="bd-who">
+                      <p className="bd-name">
+                        {trader.handle ? (
+                          <Link href={`/u/${trader.handle}`} className="hover:underline">
+                            {label}
+                          </Link>
+                        ) : (
+                          <span>{label}</span>
+                        )}
+                        {trader.isYou ? <span className="bd-you-tag">you</span> : null}
                       </p>
+                      <span className="bd-handle">
+                        {trader.handle ? `@${trader.handle} · ` : ""}
+                        {trader.days}d<span className="max-sm:hidden"> tracked</span>
+                      </span>
                     </div>
 
-                    <Sparkline points={trader.spark} className="hidden shrink-0 sm:block" />
+                    <div className="bd-chips">
+                      {trader.holdings.length > 0 ? (
+                        withShownWeights(trader.holdings.slice(0, 5)).map((h) => <HoldingChip key={h.ticker} holding={h} />)
+                      ) : (
+                        <span className="bd-none">Nothing held yet</span>
+                      )}
+                    </div>
 
-                    <div className="shrink-0 text-right">
+                    <Sparkline points={trader.spark} className="bd-spark max-sm:hidden" />
+
+                    <div className="bd-ret">
                       <Delta value={trader.percent} variant="plain" />
                     </div>
 
-                    {!trader.isYou ? (
-                      <Button
-                        variant={trader.isFollowing ? "secondary" : "outline"}
-                        size="sm"
-                        className="shrink-0 max-sm:size-10 max-sm:px-0"
-                        onClick={() => void toggleFollow(trader)}
-                        aria-label={trader.isFollowing ? `Unfollow ${trader.name ?? trader.handle}` : `Follow ${trader.name ?? trader.handle}`}
-                      >
-                        {trader.isFollowing ? <Check aria-hidden className="sm:hidden" /> : <UserPlus aria-hidden />}
-                        <span className="max-sm:hidden">{trader.isFollowing ? "Following" : "Follow"}</span>
-                      </Button>
-                    ) : null}
-                  </div>
-
-                  {trader.holdings.length > 0 ? (
-                    <div className="mt-2 flex flex-wrap gap-1.5 pl-9">
-                      {withShownWeights(trader.holdings.slice(0, 5)).map((h) => (
-                        <span
-                          key={h.ticker}
-                          className="numeric rounded-md bg-secondary px-1.5 py-0.5 text-[11px] font-medium"
-                          title={`${h.name ?? h.ticker} — ${h.weight.toFixed(1)}% of their portfolio`}
+                    <div className="bd-act">
+                      {!trader.isYou ? (
+                        <Button
+                          variant={trader.isFollowing ? "secondary" : "outline"}
+                          size="sm"
+                          onClick={() => void toggleFollow(trader)}
+                          aria-label={trader.isFollowing ? `Unfollow ${label}` : `Follow ${label}`}
                         >
-                          {h.ticker} <span className="text-muted-foreground">{h.shownWeight}%</span>
-                        </span>
-                      ))}
+                          {trader.isFollowing ? <Check aria-hidden className="hidden max-[640px]:block" /> : <UserPlus aria-hidden />}
+                          <span className="max-[640px]:hidden">{trader.isFollowing ? "Following" : "Follow"}</span>
+                        </Button>
+                      ) : null}
                     </div>
-                  ) : null}
-                </li>
-              ))}
+                  </li>
+                )
+              })}
             </ul>
           ) : scope === "following" ? (
             <EmptyState

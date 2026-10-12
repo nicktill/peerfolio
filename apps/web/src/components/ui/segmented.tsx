@@ -40,9 +40,9 @@ export function Segmented<T extends string>({
   }
 
   return (
-    <div ref={containerRef} role="radiogroup" aria-label={label} onKeyDown={onKeyDown} className={cn("relative inline-flex rounded-lg bg-muted p-0.5", className)}>
+    <div ref={containerRef} role="radiogroup" aria-label={label} onKeyDown={onKeyDown} className={cn("relative inline-flex rounded-[9px] border border-border bg-background p-[3px]", className)}>
       {/* The selected pill glides between options instead of jumping. */}
-      <span aria-hidden className="absolute inset-y-0.5 left-0 rounded-[6px] bg-card shadow-sm" style={slideStyle(rect, ready)} />
+      <span aria-hidden className="absolute inset-y-[3px] left-0 rounded-[6px] bg-secondary shadow-[inset_0_0_0_1px_hsl(var(--input))]" style={slideStyle(rect, ready)} />
       {items.map((item) => {
         const selected = item.value === value
         return (
@@ -66,7 +66,7 @@ export function Segmented<T extends string>({
             className={cn(
               "press relative z-10 rounded-[6px] font-medium transition-colors",
               // Taller on touch screens, where 24px is too small a target.
-              size === "sm" ? "min-h-8 px-2.5 py-1 text-xs sm:min-h-7 sm:px-2" : "min-h-9 px-3 py-1.5 text-sm sm:min-h-8",
+              size === "sm" ? "h-10 px-3 font-mono text-[11px] tracking-[0.06em] sm:h-6 sm:px-2.5" : "h-10 px-4 text-[13px] sm:h-7",
               selected ? "text-foreground" : "text-muted-foreground hover:text-foreground",
               item.disabled && "cursor-not-allowed opacity-40 hover:text-muted-foreground",
             )}

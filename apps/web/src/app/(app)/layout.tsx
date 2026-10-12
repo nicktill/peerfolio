@@ -1,3 +1,4 @@
+import { devLoginMode } from "@web/lib/dev-login"
 import { AppShell } from "@web/components/app-shell"
 
 /**
@@ -7,5 +8,5 @@ import { AppShell } from "@web/components/app-shell"
  * renders straight away and steps aside if the session turns out to be missing.
  */
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  return <AppShell>{children}</AppShell>
+  return <AppShell previewDemo={devLoginMode() === "preview"}>{children}</AppShell>
 }

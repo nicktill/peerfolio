@@ -1,0 +1,102 @@
+/* Portfolio in the 5C Hybrid language: flat page head on a hairline, 14px data panels
+   with a labelled header strip (accent tick + mono label), open stat rows, 16px gaps,
+   18px insets. Scoped to the portfolio screen; colours come from the app tokens. */
+.portfolio-screen {
+  --pf-r: 14px; --ins: 18px;
+  --hair: hsl(var(--border)); --mono: var(--font-plex-mono), ui-monospace, monospace;
+}
+.portfolio-screen .pf-head { padding-bottom: 18px; margin-bottom: 4px; border-bottom: 1px solid var(--hair); align-items: center; }
+.portfolio-screen .pf-h1 { font: 400 36px/42px var(--font-display, var(--font-newsreader)), Georgia, serif; letter-spacing: -0.025em; }
+.portfolio-screen .pf-head p { margin-top: 4px; }
+.portfolio-screen .pf-grid { gap: 16px; }
+.portfolio-screen .pf-panel { border: 1px solid var(--hair); border-radius: var(--pf-r); background: hsl(var(--card)); box-shadow: none; padding: var(--ins) !important; }
+.portfolio-screen .portfolio-overview, .portfolio-screen .portfolio-holdings { padding: 0 !important; }
+.portfolio-screen .pf-body { padding: 0 var(--ins) 0; display: flex; flex-direction: column; }
+.portfolio-screen .portfolio-holdings .pf-body { padding-bottom: var(--ins); }
+.portfolio-screen .portfolio-overview > .pf-body > * { order: 0; }
+
+/* Header strip */
+.portfolio-screen .pf-ph { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; min-height: 46px; padding: 8px 0; margin: 0 calc(-1 * var(--ins)) 0; padding-inline: var(--ins); border-bottom: 1px solid var(--hair); }
+.portfolio-screen .pf-panel > .pf-ph { margin-top: calc(-1 * var(--ins)); margin-bottom: 14px; }
+.portfolio-screen a.pf-panel > .pf-ph { margin-bottom: 12px; }
+.portfolio-screen .pf-lbl { font: 500 10.5px/16px var(--mono); letter-spacing: 0.09em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+.portfolio-screen .pf-lbl::before { content: ""; display: inline-block; width: 2px; height: 9px; margin-right: 9px; background: var(--app-accent); opacity: 0.9; vertical-align: -1px; }
+.portfolio-screen .pf-lbl .numeric { letter-spacing: 0.02em; margin-left: 6px; }
+.portfolio-screen .pf-ph-open { margin-bottom: 16px; }
+.portfolio-screen #holdings-title button { text-transform: uppercase; }
+.portfolio-screen .pf-ph .live-dot { flex: none; }
+
+/* Hero figure + chart */
+.portfolio-screen .portfolio-balance { margin: 18px 0 0; font-size: clamp(46px, 4vw, 58px) !important; line-height: 1.1 !important; letter-spacing: -0.035em; font-weight: 400; }
+.portfolio-screen .portfolio-overview .swap-in { margin-top: 8px; }
+
+/* Card-less stat row under a hairline, flush to the panel edge */
+.portfolio-screen .pf-stats { order: 1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 4px calc(-1 * var(--ins)) 0; border-top: 1px solid var(--hair); }
+.portfolio-screen .pf-stat { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 16px var(--ins) 18px; border-left: 1px solid var(--hair); }
+.portfolio-screen .pf-stat:first-child { border-left: 0; }
+.portfolio-screen .pf-eyebrow { font: 500 10.5px/16px var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+.portfolio-screen .pf-stat dt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.portfolio-screen .pf-stat-v { font-size: 21px; line-height: 28px; font-weight: 500; letter-spacing: -0.02em; }
+.portfolio-screen .pf-foot { order: 2; margin: 0 calc(-1 * var(--ins)); padding: 12px var(--ins); border-top: 1px solid var(--hair); font-size: 12px; line-height: 19px; color: hsl(var(--muted-foreground)); }
+.portfolio-screen .pf-body > div.grid { order: 0; }
+
+/* Rail + holdings */
+.portfolio-screen .portfolio-rail { display: flex; flex-direction: column; gap: 16px; }
+.portfolio-screen .portfolio-accounts > .pf-ph { margin-bottom: 12px; }
+.portfolio-screen .portfolio-holdings ul > li { padding-block: 12px; min-height: 58px; }
+.portfolio-screen .portfolio-holdings ul, .portfolio-screen .portfolio-holdings .divide-y { border-color: var(--hair); }
+.portfolio-screen .portfolio-holdings .pf-ph input { font-size: 13px; }
+.portfolio-screen [role="radiogroup"] { background: hsl(var(--background)); border: 1px solid var(--hair); border-radius: 9px; padding: 3px; }
+.portfolio-screen [role="radiogroup"] > span[aria-hidden] { background: hsl(var(--secondary)); box-shadow: inset 0 0 0 1px hsl(var(--input)); border-radius: 6px; }
+.portfolio-screen [role="radiogroup"] > button { border-radius: 6px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.04em; }
+
+@media (max-width: 639px) {
+  .portfolio-screen .pf-h1 { font-size: 28px; line-height: 32px; }
+  .portfolio-screen .pf-head { flex-wrap: nowrap; gap: 8px; padding-bottom: 12px; }
+  .portfolio-screen .pf-head > div:first-child p { display: none; }
+  .portfolio-screen .pf-head > div:last-child { flex-wrap: nowrap; gap: 4px; }
+  .portfolio-screen .pf-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .portfolio-screen .pf-stat { border-top: 0; border-left: 1px solid var(--hair); padding: 10px 12px 12px; gap: 2px; }
+  .portfolio-screen .pf-stat:first-child { border-left: 0; }
+  .portfolio-screen .pf-stat-v { font-size: 15px; line-height: 20px; }
+  .portfolio-screen .pf-stat:nth-child(2) .text-xs { display: none; }
+  .portfolio-screen .pf-stat .text-xs { font-size: 11px; line-height: 14px; }
+  .portfolio-screen .pf-eyebrow { font-size: 9.5px; letter-spacing: 0.04em; }
+  .portfolio-screen .portfolio-balance { margin-top: 10px; font-size: 44px !important; line-height: 48px !important; }
+}
+@media (prefers-reduced-motion: reduce) { .portfolio-screen * { scroll-behavior: auto !important; } }
+
+/* 5D: mono for measurement metadata (subtitles, periods, captions, column heads). */
+.portfolio-screen .pf-stat .text-xs, .portfolio-screen .portfolio-holdings li p.text-xs, .portfolio-screen .portfolio-holdings li span.text-xs,
+.portfolio-screen .portfolio-accounts .text-xs, .portfolio-screen .portfolio-rail a .text-xs, .portfolio-screen .pf-ph .text-xs,
+.portfolio-screen .portfolio-overview .text-xs, .portfolio-screen .portfolio-holdings .pf-ph + div p.text-xs, .portfolio-screen .portfolio-holdings .pf-ph p {
+  font-family: var(--font-mono, var(--font-plex-mono)), ui-monospace, monospace; font-size: 11px; line-height: 17px; letter-spacing: 0;
+}
+.portfolio-screen .portfolio-holdings .md\:grid { font-family: var(--font-mono, var(--font-plex-mono)), ui-monospace, monospace; letter-spacing: 0.05em; }
+.portfolio-screen .portfolio-balance .numeric { font-family: var(--font-display, var(--font-newsreader)), Georgia, serif; }
+
+.portfolio-screen .pf-greet-page { min-height: 20px; margin: 0 0 8px; font: 400 14px/20px var(--sans); color: var(--fg2); }
+.pf-greet-page { animation: pf-greeting-in 650ms ease-out both; }
+@keyframes pf-greeting-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .pf-greet-page { animation: none; } }
+
+.pf-chart-about summary { cursor: pointer; width: fit-content; min-height: 40px; display: list-item; align-content: center; font-size: 12px; color: var(--fg2); }
+.pf-chart-about summary:focus-visible { outline: 2px solid var(--pf-accent); outline-offset: 3px; }
+.pf-chart-about p { max-width: 70ch; margin: 8px 0 0; }
+
+@media(max-width:639px) {
+ .portfolio-screen .portfolio-holdings .pf-ph { flex-direction:column; align-items:stretch; gap:10px; }
+ .portfolio-screen .pf-holdings-controls { display:grid; grid-template-columns:1fr; gap:8px; width:100%; }
+ .portfolio-screen .pf-holdings-controls.hidden { display:none; }
+ .portfolio-screen .pf-holdings-controls label { width:100%; height:40px; }
+ .portfolio-screen .pf-holdings-controls input { min-width:0; width:100%; flex:1; }
+ .portfolio-screen .pf-holdings-controls [role="radiogroup"] { display:flex; width:100%; }
+ .portfolio-screen .pf-holdings-controls [role="radio"] { flex:1; height:36px; padding-inline:8px; }
+}
+
+@media(max-width:639px) {
+ .portfolio-screen .pf-account-actions { flex-wrap:nowrap; align-items:center; gap:12px; }
+ .portfolio-screen .pf-account-actions > button { min-width:0; height:40px; padding-inline:12px; font-size:12px; white-space:nowrap; }
+ .portfolio-screen .pf-account-actions > button:disabled { border-color:transparent; background:transparent; padding-inline:0; font-size:11px; }
+ .portfolio-screen .pf-account-actions > button svg { width:15px; height:15px; }
+}

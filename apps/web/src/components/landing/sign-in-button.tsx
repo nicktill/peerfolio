@@ -32,7 +32,7 @@ export function SignInButton({ compact = false, shine = false }: { compact?: boo
     <Button
       size={compact ? "sm" : "lg"}
       variant={compact ? "outline" : "default"}
-      className={compact ? "rounded-full" : undefined}
+      className={compact ? "pf-hbtn" : "pf-cta"}
       loading={pending}
       onClick={() => {
         setPending(true)

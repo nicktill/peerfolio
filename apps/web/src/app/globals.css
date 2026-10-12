@@ -353,8 +353,9 @@
 }
 
 @keyframes page-in {
-  from { opacity: 0; translate: 0 8px; }
-  to { opacity: 1; translate: 0 0; }
+  0% { opacity: 0; translate: 0 8px; filter: blur(6px); }
+  70% { filter: blur(0); }
+  100% { opacity: 1; translate: 0 0; filter: blur(0); }
 }
 
 /* Sections arrive one after another: <Reveal index={n}>. */
@@ -407,14 +408,18 @@
   to { opacity: 0; }
 }
 
-/* Live indicator: a gently breathing dot. */
-.live-dot {
-  animation: live-breathe 2s ease-in-out infinite;
+/* Live indicator: a steady dot with a soft ring that swells and fades. The ring is a pseudo-element, so
+   only transform and opacity animate, and it stays inside the panel's padding. */
+.live-dot { position: relative; }
+.live-dot::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; background: inherit; pointer-events: none;
+  opacity: 0; transform: scale(1); animation: live-ring 2.6s ease-out infinite;
 }
-@keyframes live-breathe {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.45; transform: scale(0.8); }
+@keyframes live-ring {
+  0% { opacity: 0.45; transform: scale(1); }
+  70%, 100% { opacity: 0; transform: scale(2.4); }
 }
+@media (prefers-reduced-motion: reduce) { .live-dot::after { animation: none; } }
 
 /* A league logo popping in when you pick it (components/fantasy/league-look-picker.tsx). */
 .emoji-pop {
@@ -641,4 +646,14 @@
 }
 [data-magicui-theme-vt="active"]::view-transition-new(root) {
   clip-path: var(--magicui-theme-vt-clip-from);
+}
+
+/* Theme switch: the old page softens and fades out while the new one resolves from a slight blur. Brief, and only
+   on the toggle (the attribute is set for the duration of the transition). */
+[data-pf-vt]::view-transition-old(root) { animation: pf-vt-out 380ms cubic-bezier(0.4, 0, 0.2, 1) both; }
+[data-pf-vt]::view-transition-new(root) { animation: pf-vt-in 380ms cubic-bezier(0.4, 0, 0.2, 1) both; }
+@keyframes pf-vt-out { to { opacity: 0; filter: blur(6px); transform: scale(1.008); } }
+@keyframes pf-vt-in { from { opacity: 0; filter: blur(6px); transform: scale(0.992); } }
+@media (prefers-reduced-motion: reduce) {
+  [data-pf-vt]::view-transition-old(root), [data-pf-vt]::view-transition-new(root) { animation: none; }
 }

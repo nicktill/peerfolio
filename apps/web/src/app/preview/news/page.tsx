@@ -14,9 +14,9 @@ export default function NewsPreviewPage() {
   if (process.env.VERCEL_ENV === "production" || (!process.env.VERCEL_ENV && process.env.NODE_ENV === "production")) notFound()
 
   return (
-    <div className="app-bg min-h-screen">
+    <div className="peerfolio-app min-h-screen">
       <AppNav />
-      <main className="mx-auto max-w-[1360px] px-4 pb-24 pt-6 sm:px-6 sm:pb-12">
+      <main className="peerfolio-main">
         <NewsBoard holdingMoves="sample" />
       </main>
     </div>

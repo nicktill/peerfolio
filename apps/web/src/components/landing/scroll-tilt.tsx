@@ -16,11 +16,11 @@ export function ScrollTilt({ children, className }: { children: React.ReactNode;
   const scale = useTransform(progress, [0, 1], [0.94, 1])
   const y = useTransform(progress, [0, 1], [24, 0])
 
-  if (reduceMotion) return <div className={className}>{children}</div>
+  if (reduceMotion) return <div ref={ref} className={className}>{children}</div>
 
   return (
-    <div className="[perspective:1400px]">
-      <motion.div ref={ref} className={className} style={{ rotateX, scale, y, transformOrigin: "50% 0%" }}>
+    <div ref={ref} className="[perspective:1400px]">
+      <motion.div className={className} style={{ rotateX, scale, y, transformOrigin: "50% 0%" }}>
         {children}
       </motion.div>
     </div>

@@ -13,9 +13,12 @@ const config = {
   theme: {
   	extend: {
   		fontFamily: {
-  			sans: ['var(--font-geist-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-  			mono: ['var(--font-geist-mono)', 'ui-monospace', 'monospace'],
-  			display: ['var(--font-display)', 'var(--font-geist-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+			'app-sans': ['var(--font-hanken)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+			'editorial': ['var(--font-newsreader)', 'Georgia', 'serif'],
+			'measurement': ['var(--font-plex-mono)', 'ui-monospace', 'monospace'],
+  			sans: ['var(--font-hanken)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+  			mono: ['var(--font-plex-mono)', 'ui-monospace', 'monospace'],
+  			display: ['var(--font-display)', 'var(--font-hanken)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
   		},
   		colors: {
   			border: 'hsl(var(--border))',
@@ -65,8 +68,8 @@ const config = {
   		},
   		borderRadius: {
   			lg: 'var(--radius)',
-  			md: 'calc(var(--radius) - 2px)',
-  			sm: 'calc(var(--radius) - 4px)'
+  			md: 'calc(var(--radius) - 5px)',
+  			sm: 'calc(var(--radius) - 8px)'
   		},
 		boxShadow: { card: 'var(--shadow-card)', pop: 'var(--shadow-pop)' },
 		keyframes: {

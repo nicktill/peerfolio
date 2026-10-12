@@ -40,7 +40,8 @@ export function ConnectButton(props: Props) {
     return (
       <Button type="button" size={props.size} className={props.className} variant="outline" disabled title={data?.reason ? `${shown.title} (${data.reason})` : shown.title}>
         <Clock aria-hidden />
-        {shown.label}
+        <span className="hidden sm:inline">{shown.label}</span>
+        <span className="sm:hidden">{shown.label.replace("Brokerage linking", "Linking")}</span>
       </Button>
     )
   }

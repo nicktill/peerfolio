@@ -1,8 +1,10 @@
 "use client"
 
-import { useLayoutEffect, useRef, useState } from "react"
-import { useReducedMotion } from "motion/react"
-import { NumberTicker } from "@web/components/magicui/number-ticker"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
+import { animate, useInView, useReducedMotion } from "motion/react"
+
+/** One duration for every hero count-up, so they land together and quickly. */
+const COUNT_MS = 600
 
 const seenKey = (id: string) => `peerfolio:counted:${id}`
 const hasCounted = (id: string) => {
@@ -69,19 +71,46 @@ export function HeadlineNumber({
       {mode === "pending" ? (
         <span aria-hidden>{text}</span>
       ) : (
-        <NumberTicker
-          key={mode}
-          value={value}
-          startValue={mode === "count" ? Math.floor(value * 0.85) : value}
-          decimalPlaces={decimalPlaces}
-          className="tracking-[inherit] text-inherit dark:text-inherit"
-          aria-hidden
-        />
+        <Ticker key={mode} value={value} from={mode === "count" ? Math.floor(value * 0.85) : value} decimalPlaces={decimalPlaces} />
       )}
       <span className="sr-only">
         {currency ? "$" : ""}
         {text}
       </span>
+    </span>
+  )
+}
+
+/** Eases from `from` to `value` in ~600ms (ease-out, no delay) once on screen; tabular figures so the width never jumps. */
+function Ticker({ value, from, decimalPlaces }: { value: number; from: number; decimalPlaces: number }) {
+  const ref = useRef<HTMLSpanElement>(null)
+  const inView = useInView(ref, { once: true, margin: "0px" })
+  const current = useRef(from)
+  const fmt = (n: number) =>
+    new Intl.NumberFormat("en-US", { minimumFractionDigits: decimalPlaces, maximumFractionDigits: decimalPlaces }).format(n)
+
+  useEffect(() => {
+    const node = ref.current
+    if (!node || !inView) return
+    if (current.current === value) {
+      node.textContent = fmt(value)
+      return
+    }
+    const controls = animate(current.current, value, {
+      duration: COUNT_MS / 1000,
+      ease: [0.16, 1, 0.3, 1],
+      onUpdate: (latest) => {
+        current.current = latest
+        node.textContent = fmt(latest)
+      },
+    })
+    return () => controls.stop()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, inView])
+
+  return (
+    <span ref={ref} className="inline-block tabular-nums tracking-[inherit]" aria-hidden>
+      {fmt(from)}
     </span>
   )
 }
