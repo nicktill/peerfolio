@@ -59,7 +59,7 @@ export function ThemeToggle({ variant = "icon" }: { variant?: "icon" | "segmente
     <button
       type="button"
       onClick={blurSwap}
-      className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "[&_svg]:size-4")}
+      className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "pf-theme-icon [&_svg]:size-4")}
       aria-label={mounted ? `Switch to ${dark ? "light" : "dark"} mode` : "Toggle theme"}
     >
       {dark ? <Sun aria-hidden /> : <Moon aria-hidden />}

@@ -123,10 +123,11 @@ export function PerformanceChart({
         height={height}
         role="img"
         aria-label={ariaLabel}
-        className="touch-none select-none"
-        onPointerMove={handlePointer}
+        className="touch-pan-y select-none"
+        onPointerMove={(event) => { if (event.pointerType === "mouse") handlePointer(event) }}
         onPointerDown={handlePointer}
         onPointerLeave={clearHover}
+        onPointerCancel={clearHover}
       >
         <defs>
           <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">

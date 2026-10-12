@@ -100,3 +100,19 @@
  .portfolio-screen .pf-account-actions > button:disabled { border-color:transparent; background:transparent; padding-inline:0; font-size:11px; }
  .portfolio-screen .pf-account-actions > button svg { width:15px; height:15px; }
 }
+
+/* Let the lower holdings track fit its content rather than stretch. */
+.portfolio-screen .portfolio-layout { align-content:start; }
+
+@media(min-width:640px) {
+ .pf-account-row .pf-account-edit,.pf-account-row .pf-account-remove { position:absolute; z-index:2; top:50%; transform:translateY(-50%); background:var(--panel); }
+ .pf-account-row .pf-account-edit { right:58px; }
+ .pf-account-row .pf-account-remove { right:24px; }
+ .pf-account-row:has(.pf-account-edit):hover .pf-account-toggle,.pf-account-row:has(.pf-account-edit):focus-within .pf-account-toggle { padding-right:70px; }
+}
+
+@media(min-width:640px) {
+ .pf-account-toggle:has(> svg) { padding-right:24px; }
+ .pf-account-toggle > svg { position:absolute; right:0; top:50%; transform:translateY(-50%); }
+ .pf-account-row:has(.pf-account-edit):hover .pf-account-toggle,.pf-account-row:has(.pf-account-edit):focus-within .pf-account-toggle { padding-right:94px; }
+}
