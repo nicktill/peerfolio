@@ -535,3 +535,13 @@ a.pf-row:active, .pf-row.hov:active { background: var(--hair2); }
  .peerfolio-app .fw-standing { grid-template-columns:40px minmax(0,1fr) auto; column-gap:14px; }
  .peerfolio-app .fw-standing-extras { grid-column:2 / -1; }
 }
+
+@media(max-width:860px) {
+ .peerfolio-app .pf-standing { margin-inline:0; padding-inline:10px; }
+ .peerfolio-app .pf-standing.surface-you { margin-inline:0; padding-inline:10px; }
+ .peerfolio-app .pf-standing[data-medal]::before { left:0; }
+ .peerfolio-mobile-header .pf-theme-icon { border:0; background:transparent; box-shadow:none; width:36px; min-width:36px; }
+ .peerfolio-mobile-header .pf-theme-icon:hover { background:transparent; }
+}
+
+.peerfolio-app:not(.pf-landing) { overflow:clip; }

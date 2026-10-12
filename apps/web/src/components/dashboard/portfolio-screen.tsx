@@ -233,7 +233,7 @@ export function PortfolioScreen({
 
       {/* Three items, not two columns: phones stack overview, accounts, holdings; on
           desktop the rail runs beside both, so an opened account never leaves a hole. */}
-      <div className="portfolio-layout app-page-grid pf-grid [&>*]:min-w-0 xl:grid-rows-[auto_1fr]">
+      <div className="portfolio-layout app-page-grid pf-grid [&>*]:min-w-0 xl:grid-rows-[auto_auto]">
         <Card className="portfolio-overview pf-panel reveal overflow-hidden shadow-none xl:col-start-1 xl:row-start-1" style={revealStyle(1)}>
           <div className="pf-body">
             <div className="pf-ph">
