@@ -142,3 +142,7 @@ html.lenis, html.lenis body { height: auto; }
 .pf-side span[data-on] { background: rgba(var(--accent-a), 0.12); color: var(--fg); }
 .pf-side span[data-on] svg { color: var(--pf-accent); }
 @media (min-width: 1024px) { .pf-window { padding: 14px; } .pf-window-bar { display: flex; } }
+
+/* Quiet texture below the hero: a faint dot grid with a fine grain, so large black areas don't read as flat. */
+.pf-landing main > :not(.pf-hero) { background-image: radial-gradient(rgba(24, 36, 56, 0.07) 1px, transparent 1.2px); background-size: 24px 24px; }
+.dark .pf-landing main > :not(.pf-hero) { background-image: radial-gradient(rgba(255, 255, 255, 0.055) 1px, transparent 1.2px); }

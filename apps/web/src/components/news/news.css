@@ -227,7 +227,7 @@ a:hover > .nw-by .nw-by-go { opacity: 1; }
   .nw-tile-sk { height: 164px; }
   .nw-tile-px { font-size: 22px; line-height: 28px; }
   .nw-recap { padding-top: 18px; }
-  .nw-recap .nw-body { font-size: 14.5px; }
+  .nw-recap .nw-body { font-size: 14px; line-height: 22px; gap: 10px; }
   .nw-hide-sm { display: none; }
 }
 @media (max-width: 479px) {

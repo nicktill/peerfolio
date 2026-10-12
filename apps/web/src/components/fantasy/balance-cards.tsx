@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Briefcase, Trophy, TrendingUp, Wallet } from "lucide-react"
+import { Briefcase, Medal, Trophy, TrendingUp, Wallet } from "lucide-react"
 import { HeadlineNumber } from "@web/components/ui/headline-number"
 import { Delta } from "@web/components/ui/delta"
 import { formatCurrency } from "@web/lib/format"
@@ -32,7 +32,7 @@ export function RankStat({ rank, total, moved }: { rank: number; total: number; 
   return (
     <Stat label="Your rank" icon={<Trophy />} tone="rank">
       <span className="fw-figure">
-        #{rank}
+        {rank <= 3 ? <span className="fw-medal" data-rank={rank} aria-hidden><Medal /></span> : null}#{rank}
         <small>of {total}</small>
       </span>
       {moved !== null ? (

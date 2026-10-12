@@ -273,7 +273,7 @@ export function TradePanel({ leagueId, cash, positions, onTraded, closed = false
         />
         <button type="submit" className="fw-submit" data-side={side} disabled={pending || cashingOut} aria-busy={pending || undefined}>
           {pending ? <span className="spin" aria-hidden /> : null}
-          {pending ? "Placing order…" : side === "buy" ? (queues ? "Queue buy 🕘" : "Buy 🚀") : queues ? "Queue sell 🕘" : "Sell 💸"}
+          {pending ? "Placing order…" : side === "buy" ? (queues ? "Queue buy" : "Buy") : queues ? "Queue sell" : "Sell"}
         </button>
         {side === "sell" ? (
           <Button
@@ -287,7 +287,6 @@ export function TradePanel({ leagueId, cash, positions, onTraded, closed = false
           >
             {cashingOut ? "Cashing out…" : positions.length === 0 ? "Nothing to cash out yet" : (
               <>
-                <span aria-hidden className="inline-block transition-transform duration-200 group-hover:-rotate-12 group-hover:scale-125 motion-reduce:transition-none">🤑</span>
                 Cash out everything
               </>
             )}

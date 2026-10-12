@@ -51,11 +51,18 @@
 .portfolio-screen [role="radiogroup"] > button { border-radius: 6px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.04em; }
 
 @media (max-width: 639px) {
-  .portfolio-screen .pf-h1 { font-size: 32px; line-height: 36px; }
-  .portfolio-screen .pf-stats { grid-template-columns: 1fr; }
-  .portfolio-screen .pf-stat { border-left: 0; border-top: 1px solid var(--hair); padding: 14px var(--ins); }
-  .portfolio-screen .pf-stat:first-child { border-top: 0; }
-  .portfolio-screen .portfolio-balance { font-size: 46px !important; line-height: 52px !important; }
+  .portfolio-screen .pf-h1 { font-size: 28px; line-height: 32px; }
+  .portfolio-screen .pf-head { flex-wrap: nowrap; gap: 8px; padding-bottom: 12px; }
+  .portfolio-screen .pf-head > div:first-child p { display: none; }
+  .portfolio-screen .pf-head > div:last-child { flex-wrap: nowrap; gap: 4px; }
+  .portfolio-screen .pf-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .portfolio-screen .pf-stat { border-top: 0; border-left: 1px solid var(--hair); padding: 10px 12px 12px; gap: 2px; }
+  .portfolio-screen .pf-stat:first-child { border-left: 0; }
+  .portfolio-screen .pf-stat-v { font-size: 15px; line-height: 20px; }
+  .portfolio-screen .pf-stat:nth-child(2) .text-xs { display: none; }
+  .portfolio-screen .pf-stat .text-xs { font-size: 11px; line-height: 14px; }
+  .portfolio-screen .pf-eyebrow { font-size: 9.5px; letter-spacing: 0.04em; }
+  .portfolio-screen .portfolio-balance { margin-top: 10px; font-size: 44px !important; line-height: 48px !important; }
 }
 @media (prefers-reduced-motion: reduce) { .portfolio-screen * { scroll-behavior: auto !important; } }
 

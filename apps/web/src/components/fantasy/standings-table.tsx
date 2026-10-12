@@ -49,7 +49,7 @@ function Row({ standing, onReact }: { standing: Standing; onReact: (toUserId: st
   return (
     <li className={`fw-standing ${standing.isYou ? "fw-you" : ""}`} data-medal={standing.rank <= 3 ? standing.rank : undefined}>
       <span className="fw-rank" data-rank={standing.rank}>{standing.rank}</span>
-      <span className="fw-avatar-slot">
+      <span className="fw-avatar-slot" data-rank={standing.rank <= 3 ? standing.rank : undefined}>
         <Avatar src={standing.image} name={standing.name} handle={standing.handle} size="md" />
       </span>
       <div className="fw-standing-who">

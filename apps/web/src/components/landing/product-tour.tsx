@@ -170,6 +170,34 @@ export function ProductTour() {
     }
   }, [])
 
+  // Fast scrollers: when scrolling stops between steps, settle on the nearest finished step so no panel is left half-faded.
+  useEffect(() => {
+    if (mode !== "pinned") return
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const settle = () => {
+      const el = outer.current
+      if (!el) return
+      const runway = el.offsetHeight - (el.firstElementChild as HTMLElement).offsetHeight
+      const top = el.getBoundingClientRect().top + window.scrollY
+      const v = (window.scrollY - top) / runway
+      if (v <= 0.1 || v >= 0.95) return
+      const s = v * STEPS
+      const rests = [0.85, 1.85, 2.85]
+      const target = rests.reduce((a, b) => (Math.abs(b - s) < Math.abs(a - s) ? b : a))
+      if (s > 2.85 || Math.abs(target - s) < 0.04) return
+      scrollToY(top + (target / STEPS) * runway)
+    }
+    const onScroll = () => {
+      clearTimeout(timer)
+      timer = setTimeout(settle, 220)
+    }
+    window.addEventListener("scroll", onScroll, { passive: true })
+    return () => {
+      clearTimeout(timer)
+      window.removeEventListener("scroll", onScroll)
+    }
+  }, [mode])
+
   function jump(i: number) {
     if (mode !== "pinned" || !outer.current) return setTab(TABS[i]!.id)
     const rect = outer.current.getBoundingClientRect()
@@ -228,7 +256,8 @@ export function ProductTour() {
               </button>
             ))}
           </div>
-          <div className="pf-stack mt-7">
+          {pinned ? <p className="pf-label-plain mt-4 !text-[var(--fg3)]">Scroll or tap a step · {index + 1} / {STEPS}</p> : null}
+          <div className="pf-stack mt-5">
             {TABS.map((t) => (
               <Copy key={t.id} t={t} on={t.id === tab} />
             ))}
@@ -326,7 +355,7 @@ function PortfolioView({ e }: { e: number; scrub: boolean }) {
   const moving = hoverIndex !== null || e < 0.999
   const onHover = useCallback((i: number | null) => setHover(i), [])
   return (
-    <TiltCard max={4} glow className="pf-panel pf-lift">
+    <TiltCard max={4} glare={false} className="pf-panel pf-lift">
       <div className="pf-ph">
         <h3 className="pf-label">Net worth</h3>
         <span className="pf-ph-end text-xs text-[var(--fg3)]">Last 90 days</span>
@@ -375,7 +404,7 @@ function LeaguesView({ e }: { e: number }) {
     .sort((a, b) => b.pct - a.pct)
     .slice(0, 4)
   return (
-    <TiltCard max={4} glow className="pf-panel pf-lift">
+    <TiltCard max={4} glare={false} className="pf-panel pf-lift">
       <div className="pf-ph">
         <h3 className="pf-label">
           The Group Chat<em>Ranked by return</em>
@@ -441,7 +470,7 @@ function FantasyView({ e }: { e: number }) {
   const tick = (final: number) => final * smooth(clamp(e / 0.9))
   return (
     <div className="grid gap-4 sm:grid-cols-2" aria-label="Fantasy league preview">
-      <TiltCard max={4.5} glow className="pf-panel pf-lift">
+      <TiltCard max={4.5} glare={false} className="pf-panel pf-lift">
         <div className="pf-ph">
           <h3 className="pf-label">Make a move</h3>
           <span className="pf-ph-end pf-sample">Play money</span>
@@ -464,7 +493,7 @@ function FantasyView({ e }: { e: number }) {
         </div>
       </TiltCard>
 
-      <TiltCard max={4.5} glow className="pf-panel pf-lift">
+      <TiltCard max={4.5} glare={false} className="pf-panel pf-lift">
         <div className="pf-ph">
           <h3 className="pf-label">Standings</h3>
         </div>

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { ChevronDown } from "lucide-react"
+import { ArrowDownRight, ArrowUpRight, ChevronDown } from "lucide-react"
 import { Avatar } from "@web/components/ui/avatar"
 import { formatCurrency, formatRelativeTime } from "@web/lib/format"
 import { groupFeed, tradeCount, type FeedEntry } from "@web/lib/feed-groups"
@@ -13,7 +13,11 @@ export type FeedItem = { id: string; name: string | null; handle: string | null;
 const PREVIEW = 5
 
 const firstName = (item: FeedItem) => item.name?.split(" ")[0] ?? item.handle
-const emojiFor = (side: "buy" | "sell") => (side === "buy" ? "🚀" : "💸")
+const SideIcon = ({ side }: { side: "buy" | "sell" }) => (
+  <span className={`fw-side ${side === "buy" ? "fw-t-buy" : "fw-t-sell"}`} aria-hidden>
+    {side === "buy" ? <ArrowUpRight /> : <ArrowDownRight />}
+  </span>
+)
 
 /** The league's trades, newest first. The pump.fun-style pulse of a league. */
 export function TradeFeed({ items }: { items: FeedItem[] }) {
@@ -63,7 +67,7 @@ export function TradeFeed({ items }: { items: FeedItem[] }) {
                         · {formatCurrency(entry.item.shares * entry.item.price)} · {formatRelativeTime(entry.item.at)}
                       </span>
                     </p>
-                    <span aria-hidden>{emojiFor(entry.item.side)}</span>
+                    <SideIcon side={entry.item.side} />
                   </div>
                 </li>
               ) : (
@@ -97,7 +101,7 @@ function GroupLine({ entry, open, onToggle, fresh }: { entry: Extract<FeedEntry<
             · {formatCurrency(entry.total)} · {formatRelativeTime(entry.at)}
           </span>
         </p>
-        <span aria-hidden>{emojiFor(entry.side)}</span>
+        <SideIcon side={entry.side} />
         <ChevronDown aria-hidden />
       </button>
       {open ? (

@@ -106,7 +106,7 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
         <ArrowLeft className="size-3.5" aria-hidden /> Fantasy leagues
       </Link>
 
-      <header className="fw-head reveal" style={revealStyle(0)}>
+      <header className="fw-head reveal" data-accent={league.accent} style={revealStyle(0)}>
         <div className="fw-identity">
           <span className="fw-art" data-accent={league.accent} aria-hidden>
             <span>{league.emoji}</span>

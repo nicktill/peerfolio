@@ -97,7 +97,7 @@ export function RaceChart({
   // In the app every player gets a 22px avatar row at the line ends. With a big league the
   // rows don't fit in the base height and get squashed or pushed off the chart, so the chart
   // grows to give each player a row (capped, past which rows are squeezed together).
-  const height = rich ? Math.min(Math.max(minHeight, series.length * 26 + pad.top + pad.bottom + 12), 480) : minHeight
+  const height = rich ? Math.min(Math.max(minHeight, series.length * 30 + pad.top + pad.bottom + 12), 480) : minHeight
 
   const geometry = useMemo(() => {
     const usable = series
@@ -134,7 +134,7 @@ export function RaceChart({
     const groups = groupEndLabels(lines.map((l) => ({ id: l.id, label: l.label, isYou: l.isYou, value: l.last - 100, y: y(l.last) })))
     const twoLine = !rich && innerH >= groups.length * 28
     // In the app every player gets an avatar disc, so rows need room for a 22px disc.
-    const gap = rich ? 26 : twoLine ? 28 : 14
+    const gap = rich ? 29 : twoLine ? 28 : 14
     const labelYs = spreadLabels(groups.map((g) => g.y), gap, pad.top + 6, height - pad.bottom - 6)
 
     const byId = new Map(lines.map((l) => [l.id, l]))
@@ -362,7 +362,7 @@ export function RaceChart({
         ) : null}
       </svg>
 
-      {hover && hoverX !== null ? (
+      {hover ? (
         <div
           aria-hidden
           className="pointer-events-none absolute z-10 min-w-36 rounded-xl border bg-popover px-3 py-2 text-xs shadow-lg"
@@ -370,9 +370,10 @@ export function RaceChart({
         >
           <p className="mb-1 font-medium text-muted-foreground">{hover.title}</p>
           <ul className="space-y-0.5">
-            {hover.rows.map((r) => (
+            {hover.rows.map((r, rank) => (
               <li key={r.id} className="flex items-center justify-between gap-4">
                 <span className="flex items-center gap-1.5">
+                  <span className="numeric w-3 text-right text-[10px] text-muted-foreground">{rank + 1}</span>
                   <span className="size-2 rounded-full" style={{ backgroundColor: r.color }} />
                   <span className={r.isYou ? "font-semibold" : ""}>{shortName(r.label, 12)}</span>
                 </span>
@@ -410,7 +411,7 @@ export function RaceChart({
       {/* Standings in text form, best first: the same numbers, readable without the chart. */}
       {geometry && explore ? (
         <ul className="race-chips">
-          {(hover ? hover.rows : [...geometry.lines].sort((a, b) => b.last - a.last).map((l) => ({ id: l.id, label: l.isYou ? "You" : l.label, value: l.last - 100, color: l.color, isYou: l.isYou }))).map((r) => (
+          {(hover ? hover.rows : [...geometry.lines].sort((a, b) => b.last - a.last).map((l) => ({ id: l.id, label: l.isYou ? "You" : l.label, value: l.last - 100, color: l.color, isYou: l.isYou }))).map((r, rank) => (
             <li key={r.id}>
               <button
                 type="button"
@@ -418,6 +419,7 @@ export function RaceChart({
                 onClick={() => setFocusId((c) => (c === r.id ? null : r.id))}
                 title={focusId === r.id ? "Show every line" : `Highlight ${r.label}`}
               >
+                <em className="race-rank numeric" aria-hidden>{rank + 1}</em>
                 <i style={{ backgroundColor: r.color }} aria-hidden />
                 <span className={r.isYou ? "race-you" : undefined}>{shortName(r.label, 12)}</span>
                 <b className="numeric" style={{ color: toneOf(r.value) }}>

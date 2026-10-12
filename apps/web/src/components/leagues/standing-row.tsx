@@ -77,7 +77,9 @@ export function StandingRow({
           {standing.rank}
         </span>
 
-        <Avatar src={standing.image} name={standing.name} handle={standing.handle} className="pf-medal-av" />
+        <span className="pf-av-wrap" data-rank={standing.rank <= 3 ? standing.rank : undefined}>
+          <Avatar src={standing.image} name={standing.name} handle={standing.handle} className="pf-medal-av" />
+        </span>
 
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">

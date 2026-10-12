@@ -13,6 +13,7 @@ export function TiltCard({
   style,
   max = 3,
   glow: tinted = false,
+  glare = true,
   children,
 }: {
   className?: string
@@ -21,6 +22,8 @@ export function TiltCard({
   max?: number
   /** Tint the cursor light with the accent colour instead of the neutral primary. */
   glow?: boolean
+  /** Draw the soft light that follows the cursor. Off keeps the tilt only. */
+  glare?: boolean
   children: React.ReactNode
 }) {
   const reduceMotion = useReducedMotion()
@@ -58,11 +61,11 @@ export function TiltCard({
       }}
     >
       {children}
-      <motion.span
+      {glare ? <motion.span
         aria-hidden
         className="pointer-events-none absolute inset-0 rounded-[inherit] opacity-0 transition-opacity duration-300 group-hover/tilt:opacity-100"
         style={{ background: glow }}
-      />
+      /> : null}
     </motion.div>
   )
 }

@@ -66,7 +66,7 @@ export function Segmented<T extends string>({
             className={cn(
               "press relative z-10 rounded-[6px] font-medium transition-colors",
               // Taller on touch screens, where 24px is too small a target.
-              size === "sm" ? "h-9 px-3 font-mono text-[11px] tracking-[0.06em] sm:h-6 sm:px-2.5" : "h-9 px-4 text-[13px] sm:h-7",
+              size === "sm" ? "h-10 px-3 font-mono text-[11px] tracking-[0.06em] sm:h-6 sm:px-2.5" : "h-10 px-4 text-[13px] sm:h-7",
               selected ? "text-foreground" : "text-muted-foreground hover:text-foreground",
               item.disabled && "cursor-not-allowed opacity-40 hover:text-muted-foreground",
             )}

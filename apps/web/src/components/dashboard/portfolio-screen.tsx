@@ -222,9 +222,9 @@ export function PortfolioScreen({
             {hidden ? <Eye className="h-4 w-4" aria-hidden /> : <EyeOff className="h-4 w-4" aria-hidden />}
             <span className="sr-only">{hidden ? "Show amounts" : "Hide amounts"}</span>
           </Button>
-          <Button variant="outline" size="sm" onClick={() => void sync()} loading={syncing}>
+          <Button variant="outline" size="sm" onClick={() => void sync()} loading={syncing} aria-label="Refresh" className="max-[860px]:min-w-10 max-[860px]:px-0">
             {!syncing ? <RefreshCw aria-hidden /> : null}
-            Refresh
+            <span className="max-[860px]:sr-only">Refresh</span>
           </Button>
         </div>
       </Reveal>
@@ -287,7 +287,7 @@ export function PortfolioScreen({
                   <span className="text-sm text-muted-foreground">No change yet</span>
                 )}
               </Stat>
-              <Stat label="Investment return">
+              <Stat label="Return">
                 {data.hasHistory ? (
                   <>
                     <span className={cn("numeric pf-stat-v", data.performance.percent >= 0 ? "text-gain-ink" : "text-loss-ink")}>
@@ -318,7 +318,7 @@ export function PortfolioScreen({
             {canChart && shown ? (
               <>
                 {/* One fixed-height, non-wrapping line so the hover readout can never change the panel's height. */}
-                <div className="mt-3 flex h-7 flex-nowrap items-baseline gap-x-3 overflow-hidden whitespace-nowrap tabular-nums">
+                <div className={cn("mt-3 flex h-7 flex-nowrap items-baseline gap-x-3 overflow-hidden whitespace-nowrap tabular-nums", hoverIndex == null && "max-[860px]:hidden")}>
                   {hoverIndex != null ? <span className="numeric shrink-0 text-lg font-medium leading-7 tracking-tight">{hidden ? "••••••" : formatCurrency(shown.value)}</span> : null}
                   {shownReturn != null ? (
                     <span className={cn("numeric shrink-0 text-sm font-semibold", shownReturn >= 0 ? "text-gain-ink" : "text-loss-ink")}>

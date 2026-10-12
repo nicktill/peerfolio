@@ -353,8 +353,9 @@
 }
 
 @keyframes page-in {
-  from { opacity: 0; translate: 0 8px; }
-  to { opacity: 1; translate: 0 0; }
+  0% { opacity: 0; translate: 0 8px; filter: blur(6px); }
+  70% { filter: blur(0); }
+  100% { opacity: 1; translate: 0 0; filter: blur(0); }
 }
 
 /* Sections arrive one after another: <Reveal index={n}>. */
