@@ -549,3 +549,7 @@ button.fw-feed-row:hover p { color: var(--fw-fg); }
  .fw .fw-trade { scroll-margin-top:72px; }
 }
 @media(prefers-reduced-motion:reduce) { .fw .fw-trade { animation:none; } }
+
+/* Queued sell details wrap; the cancel action must never be ellipsized. */
+.fw-pick-body > .fw-selling { white-space:normal; overflow:visible; flex-wrap:wrap; }
+.fw-selling .fw-link,.fw-pick-side .fw-link { flex-shrink:0; min-height:36px; padding:6px 10px; border:1px solid var(--fw-hair); border-radius:8px; text-decoration:none; color:var(--fw-fg); }
