@@ -108,11 +108,18 @@
  .pf-account-row .pf-account-edit,.pf-account-row .pf-account-remove { position:absolute; z-index:2; top:50%; transform:translateY(-50%); background:var(--panel); }
  .pf-account-row .pf-account-edit { right:58px; }
  .pf-account-row .pf-account-remove { right:24px; }
- .pf-account-row:has(.pf-account-edit):hover .pf-account-toggle,.pf-account-row:has(.pf-account-edit):focus-within .pf-account-toggle { padding-right:70px; }
+
 }
 
 @media(min-width:640px) {
  .pf-account-toggle:has(> svg) { padding-right:24px; }
  .pf-account-toggle > svg { position:absolute; right:0; top:50%; transform:translateY(-50%); }
- .pf-account-row:has(.pf-account-edit):hover .pf-account-toggle,.pf-account-row:has(.pf-account-edit):focus-within .pf-account-toggle { padding-right:94px; }
+
+}
+
+@media(min-width:640px) {
+ .pf-account-row .pf-account-edit { right:158px; top:0; transform:none; }
+ .pf-account-row .pf-account-remove { right:124px; top:0; transform:none; }
+ .pf-account-row:has(.pf-account-edit) .pf-account-toggle { padding-right:24px; }
+ .pf-account-row:has(.pf-account-edit) .pf-account-toggle > span:nth-child(2) { padding-right:64px; }
 }
