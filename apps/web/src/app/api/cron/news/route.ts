@@ -6,9 +6,9 @@ export const maxDuration = 300
 
 /**
  * The news job: stores headlines from publishers' RSS feeds and writes whatever
- * recap is due (the midday update, the day's recap after the close, the week's
- * after its last session). Page visits run it too when it's due; this route is
- * the scheduled backup (Vercel Cron after the close, GitHub Actions at midday).
+ * briefing is due (7am, 10:15am, noon, 2:15pm and close + 20 minutes ET).
+ * Publication is idempotent within a slot; page visits catch up missed slots.
+ * GitHub schedules cover EDT/EST, with Vercel as an evening backup.
  * `?force=1` rewrites today's recaps (for checking a prompt change).
  */
 export const GET = withPublic<unknown>(async (request) => {

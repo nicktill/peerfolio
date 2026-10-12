@@ -207,3 +207,12 @@ in `globals.css` is the accessibility mechanism, not decoration. Re-run the
 validator before reshuffling it. Gain and loss always ship an arrow and a sign
 alongside the colour, because that red/green pair sits in the CVD warn band and
 colour alone wouldn't be readable for everyone.
+
+
+### News refresh cadence
+
+Trading-day briefings publish around **7:00 AM, 10:15 AM, noon, 2:15 PM, and 4:20 PM Eastern**. On early-close days, the final recap targets 20 minutes after the close. GitHub’s UTC schedule covers daylight saving and standard time; delayed or duplicate runs catch up the latest due slot without generating the same slot twice. Holidays and weekends skip intraday updates. The existing Vercel evening cron remains a backup.
+
+The latest published summary is shared through `/api/news`, with a server read cache invalidated after publication. Both signed-in News and the landing preview poll this endpoint; visitors do not trigger a new AI summary for every read. The landing preview mounts its News component in the background so quotes, the briefing and earnings are warm before the tab is selected. Preview deployments without provider keys reuse the cached public production quote/calendar endpoints, without forwarding cookies or accessing account data.
+
+AI generation remains metered by `NEWS_AI_MONTHLY_BUDGET_USD` (default **$1/month**). When the cap is reached, sourced headline-only summaries are used. Five updates per trading day increases generation volume; it does not increase the configured spending cap. RSS/provider outages preserve the last published summary.

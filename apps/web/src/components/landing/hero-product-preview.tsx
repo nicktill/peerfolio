@@ -3,6 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useApi } from "@web/lib/use-api"
+import { briefingSlot, BRIEFING_TITLES } from "@web/lib/news-brief"
 import type { NewsResponse } from "@web/lib/news"
 import type { MarketBoard, EarningsWeekData } from "@web/lib/news-market"
 import { CalendarDays, LayoutDashboard, Medal, Newspaper, Sparkles, Trophy } from "lucide-react"
@@ -58,7 +59,8 @@ export function HeroProductPreview() {
             ))}
           </div>
           <div id="hero-preview-page" role="tabpanel" aria-labelledby={`preview-tab-${page}`} tabIndex={0} className="pf-demo-page">
-            {page === "Leagues" ? <LeaguePreview tilt={0} /> : page === "Portfolio" ? <PortfolioView e={1} scrub={false} compact tilt={0} /> : page === "Fantasy" ? <FantasyView e={1} compact tilt={0} /> : page === "Board" ? <BoardPreview /> : <NewsPreview />}
+            {page === "Leagues" ? <LeaguePreview tilt={0} /> : page === "Portfolio" ? <PortfolioView e={1} scrub={false} compact tilt={0} /> : page === "Fantasy" ? <FantasyView e={1} compact tilt={0} /> : page === "Board" ? <BoardPreview /> : null}
+            <div hidden={page !== "News"} className={page === "News" ? "swap-in" : undefined}><NewsPreview /></div>
           </div>
         </div>
       </TiltCard>
@@ -88,10 +90,12 @@ function BoardPreview() {
 }
 
 function NewsPreview() {
-  const news = useApi<NewsResponse>("/api/news")
+  const news = useApi<NewsResponse>("/api/news", [], { refreshMs: 60_000 })
   const market = useApi<{ board: MarketBoard | null }>("/api/news/market?part=board")
   const earnings = useApi<{ earnings: EarningsWeekData | null }>("/api/news/market?part=earnings")
   const brief = news.data?.day
+  const briefingTitle = brief?.period === "midday" ? BRIEFING_TITLES[briefingSlot(new Date(brief.createdAt))?.phase ?? "midday"] : "Daily recap"
+  const stamp = brief ? new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(brief.createdAt)) + " ET" : "Latest briefing"
   const board = market.data?.board
   return (
     <div className="nw space-y-4">
@@ -102,7 +106,7 @@ function NewsPreview() {
       {board?.indexes.length ? <MarketStrip quotes={board.indexes} period="day" startIndex={0} /> : <NewsState pending={market.loading} message="Market quotes are temporarily unavailable." />}
       <div className="pf-preview-news-bottom">
         <section className="pf-panel pf-lift">
-          <div className="pf-ph"><h3 className="pf-label">Daily recap</h3><span className="pf-sample">{brief?.periodEnd ?? "Latest briefing"}</span></div>
+          <div className="pf-ph"><h3 className="pf-label">{briefingTitle}</h3><span className="pf-sample">{stamp}</span></div>
           <div className="pf-pb">
             {brief ? <><h4 className="pf-h3 line-clamp-2">{brief.headline}</h4><p className="pf-sub mt-4 max-w-[70ch] line-clamp-6 text-sm leading-6">{brief.body}</p></> : <p className="pf-sub text-sm" role="status">{news.loading ? "Loading the latest briefing…" : "The latest briefing is not available yet."}</p>}
           </div>

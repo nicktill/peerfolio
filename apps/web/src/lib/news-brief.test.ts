@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { briefTargets, briefWindow, middayTarget, checkBrief, claims, clipBytes, closeUtc, costOf, fallbackBrief, feedbackText, figures, inputTokenBound, isLastSessionOfWeek, MAX_INPUT_TOKENS, MAX_OUTPUT_TOKENS, selectItems, worstCaseUsd, writeBrief, type Brief, type BriefItem, type SpendLedger } from "./news-brief.ts"
+import { briefTargets, briefWindow, briefingSlot, briefingNeedsRefresh, latestDailyBrief, promptInput, checkBrief, claims, clipBytes, closeUtc, costOf, fallbackBrief, feedbackText, figures, inputTokenBound, isLastSessionOfWeek, MAX_INPUT_TOKENS, MAX_OUTPUT_TOKENS, selectItems, worstCaseUsd, writeBrief, type Brief, type BriefItem, type SpendLedger } from "./news-brief.ts"
 
 const at = (iso: string) => new Date(iso)
 const raw = [
@@ -253,16 +253,72 @@ test("briefTargets finds the latest day and week, recovering a missed Friday on 
   assert.deepEqual(briefTargets(at("2026-04-02T22:00:00Z")), { day: "2026-04-02", week: "2026-04-02" }) // before Good Friday
 })
 
-test("the midday update is due from 11:15am New York time on trading days only", () => {
-  assert.equal(middayTarget(at("2026-10-06T15:10:00Z")), null) // 11:10am EDT
-  assert.equal(middayTarget(at("2026-10-06T15:15:00Z")), "2026-10-06") // 11:15am EDT
-  assert.equal(middayTarget(at("2026-12-07T16:20:00Z")), "2026-12-07") // 11:20am EST
-  assert.equal(middayTarget(at("2026-10-10T16:00:00Z")), null) // Saturday
-})
-
 test("the midday window runs from the previous evening up to now", () => {
   const now = at("2026-10-06T15:20:00Z")
   const { from, to } = briefWindow("midday", "2026-10-06", now)
   assert.equal(to.getTime(), now.getTime())
   assert.equal(from.toISOString(), "2026-10-05T19:20:00.000Z")
+})
+
+
+test("five due slots use the NY clock and do not publish before 7am", () => {
+  assert.equal(briefingSlot(at("2026-10-06T10:59:00Z")), null)
+  const times = ["11:00", "14:15", "16:00", "18:15", "20:20"]
+  const phases = ["premarket", "opening", "midday", "afternoon", "close"]
+  times.forEach((time, i) => {
+    const slot = briefingSlot(at(`2026-10-06T${time}:00Z`))!
+    assert.equal(slot.phase, phases[i])
+    assert.equal(slot.scheduledAt.toISOString(), `2026-10-06T${time}:00.000Z`)
+    assert.equal(slot.period, i === 4 ? "day" : "midday")
+  })
+  assert.equal(briefingSlot(at("2026-10-06T13:00:00Z"))!.phase, "premarket") // 9am still serves 7am slot
+})
+
+test("standard time shifts UTC by an hour and skips weekends and holidays", () => {
+  const slot = briefingSlot(at("2026-12-07T12:00:00Z"))!
+  assert.equal(slot.phase, "premarket")
+  assert.equal(slot.scheduledAt.toISOString(), "2026-12-07T12:00:00.000Z")
+  assert.equal(briefingSlot(at("2026-10-10T16:00:00Z")), null)
+  assert.equal(briefingSlot(at("2026-12-25T16:00:00Z")), null)
+})
+
+test("early close replaces afternoon with a 1:20pm closing recap", () => {
+  const slot = briefingSlot(at("2026-11-27T18:20:00Z"))!
+  assert.equal(slot.phase, "close")
+  assert.equal(slot.scheduledAt.toISOString(), "2026-11-27T18:20:00.000Z")
+  assert.equal(briefingSlot(at("2026-11-27T19:15:00Z"))!.phase, "close")
+  assert.equal(briefTargets(at("2026-11-27T18:20:00Z")).day, "2026-11-27")
+})
+
+test("normal close is due at 4:20pm, not 4:30pm", () => {
+  assert.equal(briefTargets(at("2026-10-06T20:19:00Z")).day, "2026-10-05")
+  assert.equal(briefTargets(at("2026-10-06T20:20:00Z")).day, "2026-10-06")
+})
+
+test("retries and DST-pair runs do not regenerate a completed slot", () => {
+  const slot = briefingSlot(at("2026-10-06T16:00:00Z"))!
+  assert.equal(briefingNeedsRefresh(null, slot), true)
+  assert.equal(briefingNeedsRefresh(at("2026-10-06T14:20:00Z"), slot), true)
+  assert.equal(briefingNeedsRefresh(at("2026-10-06T16:00:00Z"), slot), false)
+  assert.equal(briefingNeedsRefresh(at("2026-10-06T16:08:00Z"), briefingSlot(at("2026-10-06T17:00:00Z"))!), false)
+})
+
+test("latest daily cache chooses publication time within a date, then trading date", () => {
+  const close = { periodEnd: "2026-10-06", createdAt: "2026-10-06T20:20:00Z" }
+  const noon = { periodEnd: "2026-10-06", createdAt: "2026-10-06T16:00:00Z" }
+  assert.equal(latestDailyBrief(close, noon), close)
+  const morning = { periodEnd: "2026-10-07", createdAt: "2026-10-07T11:00:00Z" }
+  assert.equal(latestDailyBrief(close, morning), morning)
+  assert.equal(latestDailyBrief(null, morning), morning)
+  assert.equal(latestDailyBrief(close, null), close)
+  assert.equal(latestDailyBrief(null, null), null)
+})
+
+test("pre-market prompts cannot describe regular-session moves as already happening", () => {
+  const items = selectItems(raw, window)
+  const morning = promptInput("midday", "2026-10-06", items, at("2026-10-06T11:05:00Z"))
+  assert.match(morning, /regular trading has not opened/)
+  const late = promptInput("midday", "2026-10-06", items, at("2026-10-06T13:45:00Z"))
+  assert.match(late, /Intraday briefing/)
+  assert.doesNotMatch(late, /regular trading has not opened/)
 })

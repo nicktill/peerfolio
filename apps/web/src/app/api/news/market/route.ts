@@ -74,6 +74,19 @@ export const GET = withPublic<unknown>(async (request) => {
   const now = new Date()
   const part = new URL(request.url).searchParams.get("part")
   const headers = { "Cache-Control": "public, s-maxage=120, stale-while-revalidate=600" }
+  // Preview deployments may omit paid provider keys. Reuse the public, cached
+  // production feed with no cookies or authorization headers; never proxy accounts.
+  const missingBoard = !process.env.FINNHUB_API_KEY && !alpacaAuth()
+  const missingEarnings = !process.env.FINNHUB_API_KEY
+  if (process.env.VERCEL_ENV === "preview" && ((part === "board" && missingBoard) || (part === "earnings" && missingEarnings))) {
+    try {
+      const response = await fetch(`https://www.peerfolio.org/api/news/market?part=${part}`, { next: { revalidate: part === "board" ? 300 : 3600 }, signal: AbortSignal.timeout(55_000) })
+      if (response.ok) return NextResponse.json(await response.json(), { headers })
+    } catch (error) {
+      console.error("[news] public market feed unavailable:", error instanceof Error ? error.message : error)
+    }
+  }
+
   if (part === "board") return NextResponse.json({ board: await board() }, { headers })
   if (part === "earnings") return NextResponse.json({ earnings: await earnings(earningsWeekDates(now)[0]!) }, { headers })
   if (part === "fear-greed") return NextResponse.json({ fearGreed: await fearGreed(nyDate(now)) }, { headers })

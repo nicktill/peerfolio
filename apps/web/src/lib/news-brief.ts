@@ -10,7 +10,7 @@ import { latestCompletedSession, regularSession } from "./market-hours.ts"
  * published instead. Nothing unchecked reaches the page.
  */
 
-/** "midday" is the late-morning update on a session still in progress; "day" is written after its close. */
+/** "midday" stores the latest intraday briefing; "day" stores the closing recap. */
 export type BriefPeriod = "day" | "week" | "midday"
 
 export type BriefItem = { id: string; source: string; title: string; url: string; summary: string | null; publishedAt: Date }
@@ -127,12 +127,12 @@ const timeEt = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", 
 const dayEt = (date: string) =>
   new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(new Date(`${date}T16:00:00Z`))
 
-export function promptInput(period: BriefPeriod, sessionDate: string, items: BriefItem[]) {
+export function promptInput(period: BriefPeriod, sessionDate: string, items: BriefItem[], asOf?: Date) {
   const header =
     period === "day"
       ? `Period: the US trading day of ${dayEt(sessionDate)}.`
       : period === "midday"
-        ? `Period: the US trading day of ${dayEt(sessionDate)} so far. This is a midday update: the market is still open, so describe moves as "so far" and never as closing levels.`
+        ? `Period: ${dayEt(sessionDate)}. ${asOf && nyClock(asOf) < (regularSession(asOf)?.open ?? 9 * 60 + 30) ? "Pre-market briefing: regular trading has not opened. Describe overnight developments and what to watch; never claim today’s regular session has already traded." : "Intraday briefing: regular trading is still in progress. Describe moves as so far, never as final closing levels."}${asOf ? ` As of ${timeEt.format(asOf)} ET.` : ""}`
         : `Period: the US trading week ending ${dayEt(sessionDate)}.`
   const clip = (t: string) => (t.length > MAX_ITEM_TEXT ? `${t.slice(0, MAX_ITEM_TEXT)}…` : t)
   const lines = items.map((i) => `[${i.id}] ${i.source} · ${timeEt.format(i.publishedAt)} ET — ${clip(i.title)}${i.summary ? `. ${clip(i.summary)}` : ""}`)
@@ -325,10 +325,12 @@ export async function writeBrief({
   sessionDate,
   items,
   ledger,
+  asOf,
 }: {
   client: Pick<OpenAI, "responses"> | null
   period: BriefPeriod
   sessionDate: string
+  asOf?: Date
   items: BriefItem[]
   /** Reserves each attempt's worst case before it's sent. Without one, attempts aren't metered (tests). */
   ledger?: SpendLedger
@@ -345,10 +347,10 @@ export async function writeBrief({
 
   // Drop the oldest stories until the prompt, with room for retry feedback, is under the input limit.
   let kept = items
-  let input = promptInput(period, sessionDate, kept)
+  let input = promptInput(period, sessionDate, kept, asOf)
   while (kept.length > 3 && inputTokenBound(input) + FEEDBACK_ROOM > MAX_INPUT_TOKENS) {
     kept = kept.slice(0, -1)
-    input = promptInput(period, sessionDate, kept)
+    input = promptInput(period, sessionDate, kept, asOf)
   }
   if (inputTokenBound(input) + FEEDBACK_ROOM > MAX_INPUT_TOKENS) return result(fallbackBrief(items), true, ["prompt over the input limit"])
   let inputTokens = 0
@@ -423,7 +425,8 @@ export function closeUtc(date: string): Date {
  * missed Friday is written on Monday). Holidays are skipped.
  */
 export function briefTargets(now: Date): { day: string | null; week: string | null } {
-  let day = latestCompletedSession(now)
+  const session = regularSession(now)
+  let day = session && nyClock(now) >= session.close + 20 ? session.date : latestCompletedSession(now)
   for (let i = 0; i < 10 && !isSessionDate(day); i++) day = previousDay(day)
   if (!isSessionDate(day)) return { day: null, week: null }
   let week = day
@@ -439,20 +442,46 @@ function nyClock(at: Date) {
   return get("hour") * 60 + get("minute")
 }
 
-/** Midday updates are written from 11:15am New York time on a trading day, until the day's own recap takes over. */
-export const MIDDAY_MINUTE = 11 * 60 + 15
-
-/** Today's date when a midday update is due (a trading day, 11:15am New York time or later), else null. */
-export function middayTarget(now: Date): string | null {
-  const session = regularSession(now)
-  if (!session) return null
-  return nyClock(now) >= MIDDAY_MINUTE ? session.date : null
-}
-
 export function briefWindow(period: BriefPeriod, date: string, now: Date) {
   // Midday: everything since the previous evening, up to now.
   if (period === "midday") return { from: new Date(now.getTime() - 20 * 3_600_000), to: now }
   const to = new Date(Math.min(now.getTime(), closeUtc(date).getTime() + 3 * 3_600_000))
   const from = new Date(to.getTime() - (period === "day" ? 30 * 3_600_000 : 7 * 86_400_000))
   return { from, to }
+}
+
+
+export type BriefingPhase = "premarket" | "opening" | "midday" | "afternoon" | "close"
+export type BriefingSlot = { date: string; period: "midday" | "day"; phase: BriefingPhase; scheduledAt: Date }
+/** Latest due slot on this NY trading day. Early-close days skip the afternoon slot. */
+export function briefingSlot(now: Date): BriefingSlot | null {
+  const session = regularSession(now)
+  if (!session) return null
+  const slots: { minute: number; phase: BriefingPhase }[] = [
+    { minute: 7 * 60, phase: "premarket" },
+    { minute: 10 * 60 + 15, phase: "opening" },
+    { minute: 12 * 60, phase: "midday" },
+    ...(session.close > 14 * 60 + 15 ? [{ minute: 14 * 60 + 15, phase: "afternoon" as const }] : []),
+    { minute: session.close + 20, phase: "close" },
+  ]
+  const due = slots.filter((slot) => slot.minute <= nyClock(now)).at(-1)
+  if (!due) return null
+  return { date: session.date, period: due.phase === "close" ? "day" : "midday", phase: due.phase,
+    scheduledAt: new Date(closeUtc(session.date).getTime() + (due.minute - 16 * 60) * 60_000) }
+}
+
+export function briefingNeedsRefresh(createdAt: Date | null, slot: BriefingSlot): boolean {
+  return !createdAt || createdAt.getTime() < slot.scheduledAt.getTime()
+}
+
+export const BRIEFING_TITLES: Record<BriefingPhase, string> = {
+  premarket: "Pre-market briefing", opening: "Opening update", midday: "Midday update", afternoon: "Afternoon update", close: "Daily recap",
+}
+
+/** Prefer a newer trading date first; on the same date use the latest publication. */
+export function latestDailyBrief<T extends { periodEnd: string; createdAt: string }>(day: T | null, intraday: T | null): T | null {
+  if (!day) return intraday
+  if (!intraday) return day
+  if (day.periodEnd !== intraday.periodEnd) return day.periodEnd > intraday.periodEnd ? day : intraday
+  return intraday.createdAt > day.createdAt ? intraday : day
 }
