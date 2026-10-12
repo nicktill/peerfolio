@@ -9,7 +9,7 @@ import { initialsFor } from "@web/components/ui/avatar"
 import { RaceChart } from "@web/components/charts/race-chart"
 import { StandingsTable } from "@web/components/fantasy/standings-table"
 import { EditLeagueDialog } from "@web/components/fantasy/edit-league-dialog"
-import { CashStat, PortfolioStat, RankStat, ReturnStat } from "@web/components/fantasy/balance-cards"
+import { CashStat, PortfolioStat, RankStat, ReturnStat, SplitBar } from "@web/components/fantasy/balance-cards"
 import { TradePanel } from "@web/components/fantasy/trade-panel"
 import { TradeFeed, type FeedItem } from "@web/components/fantasy/trade-feed"
 import { timeLeft } from "@web/components/fantasy/time-left"
@@ -114,12 +114,14 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
           <div>
             <span className="fw-eyebrow">Fantasy / Play money</span>
             <h1>{league.name}</h1>
-            <p className="fw-meta">
-              {standings.length} {standings.length === 1 ? "player" : "players"} · {formatCurrency(league.startingCash)} each ·{" "}
-              {league.maxPositionPct ? `max ${league.maxPositionPct}% per pick` : "no position cap"}
-            </p>
           </div>
         </div>
+        <ul className="fw-meta" aria-label="League rules">
+          <li className="fw-meta-status">{status}</li>
+          <li>{standings.length} {standings.length === 1 ? "player" : "players"}</li>
+          <li>{formatCurrency(league.startingCash)} each</li>
+          <li>{league.maxPositionPct ? `max ${league.maxPositionPct}% per pick` : "no position cap"}</li>
+        </ul>
         <div className="fw-actions">
           <span className="fw-pill">
             {league.isClosed ? <Flag aria-hidden /> : league.endsAt ? <Clock aria-hidden /> : <Forever aria-hidden />}
@@ -138,8 +140,9 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
       <dl className="fw-panel fw-scoreboard reveal" style={revealStyle(1)}>
         <RankStat rank={you.rank} total={standings.length} moved={moved} />
         <ReturnStat percent={you.percent} value={you.value} startingCash={league.startingCash} />
-        <PortfolioStat value={you.value} cash={you.cash} startingCash={league.startingCash} />
+        <PortfolioStat value={you.value} cash={you.cash} />
         <CashStat cash={you.cash} value={you.value} />
+        <SplitBar value={you.value} cash={you.cash} />
       </dl>
 
       {league.isOwner && !league.isClosed ? (

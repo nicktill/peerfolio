@@ -13,14 +13,13 @@ export function ScrollTilt({ children, className }: { children: React.ReactNode;
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "start 0.35"] })
   const progress = useSpring(scrollYProgress, { stiffness: 140, damping: 26, mass: 0.4 })
   const rotateX = useTransform(progress, [0, 1], [10, 0])
-  const scale = useTransform(progress, [0, 1], [0.94, 1])
   const y = useTransform(progress, [0, 1], [24, 0])
 
   if (reduceMotion) return <div className={className}>{children}</div>
 
   return (
     <div className="[perspective:1400px]">
-      <motion.div ref={ref} className={className} style={{ rotateX, scale, y, transformOrigin: "50% 0%" }}>
+      <motion.div ref={ref} className={className} style={{ rotateX, y, transformOrigin: "50% 0%", willChange: "transform" }}>
         {children}
       </motion.div>
     </div>

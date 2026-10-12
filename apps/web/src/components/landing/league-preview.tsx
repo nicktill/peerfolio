@@ -179,9 +179,6 @@ export function RaceLines({ members, hover, setHover, upto, minHeight = 250 }: {
                 <stop key={t} offset={t} stopColor={leader!.m.color} stopOpacity={(0.16 * (1 - t) ** 1.6).toFixed(4)} />
               ))}
             </linearGradient>
-            <clipPath id={`${gradientId}c`}>
-              <rect x={pad.left} y={pad.top} width={g.plotW} height={Math.max(0, g.y(0) - pad.top)} />
-            </clipPath>
           </defs>
 
           {g.ticks.map((t) => (
@@ -194,7 +191,7 @@ export function RaceLines({ members, hover, setHover, upto, minHeight = 250 }: {
             </g>
           ))}
 
-          <path className="pf-area" clipPath={`url(#${gradientId}c)`} d={`${leader!.d} L${leader!.pts[reach]![0].toFixed(2)},${g.y(0).toFixed(2)} L${leader!.pts[0]![0].toFixed(2)},${g.y(0).toFixed(2)} Z`} fill={`url(#${gradientId})`} />
+          <path className="pf-area" d={`${leader!.d} L${leader!.pts[reach]![0].toFixed(2)},${g.y(0).toFixed(2)} L${leader!.pts[0]![0].toFixed(2)},${g.y(0).toFixed(2)} Z`} fill={`url(#${gradientId})`} />
 
           {[...g.lines].reverse().map(({ m, d }) => (
             <path key={m.id} d={d} pathLength={1} fill="none" stroke={m.color} strokeWidth={m.isYou ? 2.6 : 1.9} strokeLinecap="round" strokeLinejoin="round" opacity={m.id === "theo" || m.isYou ? 1 : 0.85} className="pf-draw" />

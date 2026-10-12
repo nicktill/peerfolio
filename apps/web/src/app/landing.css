@@ -16,7 +16,7 @@
 .pf-btn { display: inline-flex; height: 44px; align-items: center; justify-content: center; gap: 8px; padding: 0 20px; border-radius: var(--r-s); border: 1px solid var(--line); background: transparent; color: var(--fg); font-size: 14px; line-height: 20px; font-weight: 500; transition: background-color 160ms ease, border-color 160ms ease; }
 .pf-btn:hover { background: var(--raise); }
 .pf-cta { height: 44px; padding-inline: 20px; font-size: 14px; min-height: 44px !important; }
-.pf-hbtn { height: 36px; min-height: 36px !important; }
+.pf-hbtn { height: 40px; min-height: 40px !important; }
 
 /* Header: flat, hairline, always the page colour. */
 .pf-header { position: sticky; top: 0; z-index: 40; background: var(--bg); border-bottom: 1px solid var(--hair); }

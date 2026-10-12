@@ -41,7 +41,7 @@ export function TiltCard({
   return (
     <motion.div
       className={cn("group/tilt relative", className)}
-      style={{ ...style, rotateX, rotateY, transformPerspective: 900 }}
+      style={{ ...style, rotateX, rotateY, transformPerspective: 900, willChange: "transform" }}
       onPointerMove={(event) => {
         if (event.pointerType !== "mouse") return
         const rect = event.currentTarget.getBoundingClientRect()

@@ -273,45 +273,6 @@ export function PortfolioScreen({
               )}
             </p>
 
-            {canChart && shown ? (
-              <>
-                {/* One fixed-height, non-wrapping line so the hover readout can never change the panel's height. */}
-                <div className="mt-3 flex h-7 flex-nowrap items-baseline gap-x-3 overflow-hidden whitespace-nowrap tabular-nums">
-                  {hoverIndex != null ? <span className="numeric shrink-0 text-lg font-medium leading-7 tracking-tight">{hidden ? "••••••" : formatCurrency(shown.value)}</span> : null}
-                  {shownReturn != null ? (
-                    <span className={cn("numeric shrink-0 text-sm font-semibold", shownReturn >= 0 ? "text-gain-ink" : "text-loss-ink")}>
-                      {formatPercent(shownReturn)} return
-                    </span>
-                  ) : null}
-                  <span className="min-w-0 truncate text-xs text-muted-foreground">
-                    {hoverIndex != null
-                      ? formatDate(shown.date)
-                      : `${windowLabel}${windowCoversAll ? ` · ${plural(data.performance.days, "day")} tracked` : ""}`}
-                  </span>
-                </div>
-                {/* Keyed so a range switch fades the new line in instead of morphing between unrelated shapes. */}
-                <div key={range} className="swap-in -mx-1 mt-3">
-                  <PerformanceChart
-                    points={series}
-                    height={250}
-                    showTooltip={false}
-                    onHover={setHoverIndex}
-                    ariaLabel={`Portfolio value in dollars over the last ${range}`}
-                    valueFormatter={(v) => (hidden ? "Hidden" : formatCurrency(v))}
-                  />
-                </div>
-                <p className="pf-foot">
-                  The line is your portfolio’s value, which moves when you add or withdraw money. The return leaves those out, so it shows only how
-                  your investments did.
-                  {nextRange ? ` The ${nextRange} view unlocks in ${plural(unlockIn[nextRange], "day")}.` : ""}
-                </p>
-              </>
-            ) : (
-              /* Being honest beats drawing a line through invented data. */
-              <div className="grid min-h-[250px] place-items-center">
-                <EmptyState icon={Sparkles} title="Your history starts now" description="We snapshot your portfolio once a day. Check back tomorrow for your first data point." />
-              </div>
-            )}
             {/* Today, how the investments did, and since purchase: side by side, not behind a toggle. */}
             <dl className="pf-stats">
               <Stat label={todayLabel === "today" ? "Today" : `Last session (${todayLabel.replace(/^on /, "")})`}>
@@ -353,6 +314,46 @@ export function PortfolioScreen({
                 )}
               </Stat>
             </dl>
+
+            {canChart && shown ? (
+              <>
+                {/* One fixed-height, non-wrapping line so the hover readout can never change the panel's height. */}
+                <div className="mt-3 flex h-7 flex-nowrap items-baseline gap-x-3 overflow-hidden whitespace-nowrap tabular-nums">
+                  {hoverIndex != null ? <span className="numeric shrink-0 text-lg font-medium leading-7 tracking-tight">{hidden ? "••••••" : formatCurrency(shown.value)}</span> : null}
+                  {shownReturn != null ? (
+                    <span className={cn("numeric shrink-0 text-sm font-semibold", shownReturn >= 0 ? "text-gain-ink" : "text-loss-ink")}>
+                      {formatPercent(shownReturn)} return
+                    </span>
+                  ) : null}
+                  <span className="min-w-0 truncate text-xs text-muted-foreground">
+                    {hoverIndex != null
+                      ? formatDate(shown.date)
+                      : `${windowLabel}${windowCoversAll ? ` · ${plural(data.performance.days, "day")} tracked` : ""}`}
+                  </span>
+                </div>
+                {/* Keyed so a range switch fades the new line in instead of morphing between unrelated shapes. */}
+                <div key={range} className="swap-in -mx-1 mt-3">
+                  <PerformanceChart
+                    points={series}
+                    height={250}
+                    showTooltip={false}
+                    onHover={setHoverIndex}
+                    ariaLabel={`Portfolio value in dollars over the last ${range}`}
+                    valueFormatter={(v) => (hidden ? "Hidden" : formatCurrency(v))}
+                  />
+                </div>
+                <p className="pf-foot">
+                  The line is your portfolio’s value, which moves when you add or withdraw money. The return leaves those out, so it shows only how
+                  your investments did.
+                  {nextRange ? ` The ${nextRange} view unlocks in ${plural(unlockIn[nextRange], "day")}.` : ""}
+                </p>
+              </>
+            ) : (
+              /* Being honest beats drawing a line through invented data. */
+              <div className="grid min-h-[250px] place-items-center">
+                <EmptyState icon={Sparkles} title="Your history starts now" description="We snapshot your portfolio once a day. Check back tomorrow for your first data point." />
+              </div>
+            )}
 
           </div>
         </Card>

@@ -407,14 +407,18 @@
   to { opacity: 0; }
 }
 
-/* Live indicator: a gently breathing dot. */
-.live-dot {
-  animation: live-breathe 2s ease-in-out infinite;
+/* Live indicator: a steady dot with a soft ring that swells and fades. The ring is a pseudo-element, so
+   only transform and opacity animate, and it stays inside the panel's padding. */
+.live-dot { position: relative; }
+.live-dot::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; background: inherit; pointer-events: none;
+  opacity: 0; transform: scale(1); animation: live-ring 2.6s ease-out infinite;
 }
-@keyframes live-breathe {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.45; transform: scale(0.8); }
+@keyframes live-ring {
+  0% { opacity: 0.45; transform: scale(1); }
+  70%, 100% { opacity: 0; transform: scale(2.4); }
 }
+@media (prefers-reduced-motion: reduce) { .live-dot::after { animation: none; } }
 
 /* A league logo popping in when you pick it (components/fantasy/league-look-picker.tsx). */
 .emoji-pop {
