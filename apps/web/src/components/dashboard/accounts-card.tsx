@@ -307,14 +307,14 @@ export function AccountsCard({
                     const worth = withBasis.reduce((sum, p) => sum + p.value, 0)
                     const detail = expandable ? (account.positions.length > 0 ? plural(account.positions.length, "position") : "No positions yet") : null
                     return (
-                      <div className="flex items-center gap-3">
+                      <div className="pf-account-row relative flex items-center gap-3">
                         <button
                           type="button"
                           onClick={() => expandable && toggle(account)}
                           aria-expanded={expandable ? open : undefined}
                           aria-controls={expandable ? `account-body-${account.id}` : undefined}
                           disabled={!expandable}
-                          className="flex min-w-0 flex-1 items-center gap-3 rounded-md text-left disabled:cursor-default"
+                          className="pf-account-toggle flex min-w-0 flex-1 items-center gap-3 rounded-md text-left disabled:cursor-default"
                         >
                           <InstitutionMark
                             logo={account.institutionLogo}
@@ -358,14 +358,14 @@ export function AccountsCard({
                           <EditAccountButton
                             account={{ id: account.id, name: account.name, institution: account.institutionName === "Manual account" ? "" : account.institutionName }}
                             onSaved={onChange}
-                            className="h-8 w-8 shrink-0 opacity-100 transition-opacity sm:opacity-0 sm:focus-visible:opacity-100 sm:group-hover:opacity-100"
+                            className="pf-account-edit h-8 w-8 shrink-0 opacity-100 transition-opacity sm:opacity-0 sm:focus-visible:opacity-100 sm:group-hover:opacity-100"
                           />
                         ) : null}
                         {account.source === "manual" ? (
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 shrink-0 opacity-100 transition-opacity sm:opacity-0 sm:focus-visible:opacity-100 sm:group-hover:opacity-100"
+                            className="pf-account-remove h-8 w-8 shrink-0 opacity-100 transition-opacity sm:opacity-0 sm:focus-visible:opacity-100 sm:group-hover:opacity-100"
                             onClick={() => void removeManual(account.id, account.name)}
                             disabled={busyId === account.id}
                           >
@@ -517,6 +517,11 @@ function BrandTile({ brand }: { brand: Brand }) {
     const el = image.current
     if (el?.complete && el.naturalWidth === 0) setFailed(true)
   }, [])
+  const localLogo = brand.name === "Fidelity" ? "/landing/brokerages/fidelity.png" : brand.name === "Vanguard" ? "/landing/brokerages/vanguard.png" : null
+  if (localLogo && !failed) {
+    // eslint-disable-next-line @next/next/no-img-element -- bundled official brokerage mark
+    return <img ref={image} src={localLogo} alt="" className="h-full w-full bg-white object-contain p-1" onError={() => setFailed(true)} />
+  }
   if (brand.ticker && !failed) {
     return (
       // eslint-disable-next-line @next/next/no-img-element -- proxied and cached at the edge
