@@ -110,3 +110,9 @@
  .pf-account-row .pf-account-remove { right:24px; }
  .pf-account-row:has(.pf-account-edit):hover .pf-account-toggle,.pf-account-row:has(.pf-account-edit):focus-within .pf-account-toggle { padding-right:70px; }
 }
+
+@media(min-width:640px) {
+ .pf-account-toggle:has(> svg) { padding-right:24px; }
+ .pf-account-toggle > svg { position:absolute; right:0; top:50%; transform:translateY(-50%); }
+ .pf-account-row:has(.pf-account-edit):hover .pf-account-toggle,.pf-account-row:has(.pf-account-edit):focus-within .pf-account-toggle { padding-right:94px; }
+}
