@@ -28,7 +28,7 @@ export function TiltCard({
   const rotateY = useSpring(0, { stiffness: 260, damping: 24, mass: 0.6 })
   const x = useMotionValue(-300)
   const y = useMotionValue(-300)
-  const glow = useMotionTemplate`radial-gradient(240px circle at ${x}px ${y}px, ${tinted ? "rgba(var(--accent-a), 0.15)" : "hsl(var(--primary) / 0.13)"}, transparent 70%)`
+  const glow = useMotionTemplate`radial-gradient(320px circle at ${x}px ${y}px, ${tinted ? "rgba(var(--accent-a), 0.14)" : "hsl(var(--primary) / 0.13)"}, rgba(var(--accent-a), 0) 72%)`
 
   if (reduceMotion) {
     return (

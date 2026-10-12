@@ -1,13 +1,27 @@
 "use client"
 
+import { LayoutDashboard, Medal, Newspaper, Sparkles, Trophy } from "lucide-react"
 import { useId, useMemo, useState } from "react"
 import { Delta } from "@web/components/ui/delta"
+import { Sparkline } from "@web/components/ui/sparkline"
+import { TickerLogo } from "@web/components/ui/ticker-logo"
 import { TiltCard } from "@web/components/ui/tilt-card"
 import { CastAvatar } from "@web/components/landing/cast-avatar"
 import { ScrollTilt } from "@web/components/landing/scroll-tilt"
 import { CAST, type Member } from "@web/components/landing/demo"
 import { monotonePath, niceTicks, spreadLabels, xAt, pointIndexAt } from "@web/lib/chart-math"
 import { useMeasure } from "@web/lib/use-measure"
+
+const NAV = [
+  { label: "Portfolio", Icon: LayoutDashboard, on: false },
+  { label: "Leagues", Icon: Trophy, on: true },
+  { label: "Fantasy", Icon: Sparkles, on: false },
+  { label: "Board", Icon: Medal, on: false },
+  { label: "News", Icon: Newspaper, on: false },
+] as const
+
+/** Tickers the logo proxy has no icon for; they get the monogram without a failing request. */
+const NO_LOGO = new Set(["SOFI"])
 
 const MEDALS = ["var(--rank-1)", "var(--rank-2)", "var(--rank-3)"]
 const signed = (v: number) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(1)}%`
@@ -18,8 +32,23 @@ export function LeaguePreview() {
   const idx = day ?? CAST[0]!.points.length - 1
   return (
     <ScrollTilt>
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
-        <TiltCard max={4.5} glow className="pf-panel pf-lift flex flex-col">
+      <div className="pf-window" aria-label="Peerfolio league preview">
+        <div className="pf-window-bar" aria-hidden>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="" className="pf-logo !size-5" />
+          <span className="pf-wordmark !text-[17px]">Peerfolio</span>
+        </div>
+        <div className="grid gap-4 lg:grid-cols-[132px_minmax(0,1fr)]">
+          <nav aria-hidden className="pf-side hidden lg:flex">
+            {NAV.map(({ label, Icon, on }) => (
+              <span key={label} data-on={on || undefined}>
+                <Icon className="size-4" strokeWidth={1.7} />
+                {label}
+              </span>
+            ))}
+          </nav>
+      <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+        <TiltCard max={7} glow className="pf-panel pf-lift flex flex-col">
           <div className="pf-ph">
             <h3 className="pf-label">
               The Group Chat<em>Last 30 days</em>
@@ -31,7 +60,7 @@ export function LeaguePreview() {
           </div>
         </TiltCard>
 
-        <TiltCard max={4.5} glow className="pf-panel pf-lift">
+        <TiltCard max={7} glow className="pf-panel pf-lift">
           <div className="pf-ph">
             <h3 className="pf-label">Standings</h3>
             <span className="pf-ph-end pf-sample">Ranked by return</span>
@@ -43,27 +72,48 @@ export function LeaguePreview() {
           </ul>
         </TiltCard>
       </div>
+        </div>
+      </div>
     </ScrollTilt>
   )
 }
 
 function Row({ member, rank, percent }: { member: Member; rank: number; percent: number }) {
+  const medal = rank <= 3 ? MEDALS[rank - 1] : undefined
   return (
-    <li className="flex items-center gap-3 py-3">
-      <span className="numeric w-5 shrink-0 text-center font-mono text-sm font-medium" style={{ color: rank <= 3 ? MEDALS[rank - 1] : "var(--fg3)" }}>
-        {rank}
-      </span>
-      <span className="rounded-full p-[2px]" style={{ boxShadow: `0 0 0 1.5px ${member.color}` }}>
-        <CastAvatar member={member} size={30} />
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium leading-5">
-          {member.name}
-          {member.isYou ? <span className="ml-1.5 rounded bg-foreground px-1 py-px align-middle text-[10px] font-semibold uppercase tracking-wide text-background">you</span> : null}
-        </p>
-        <p className="truncate text-xs leading-4 text-[var(--fg3)]">{member.note}</p>
+    <li className="py-3" style={medal ? { boxShadow: `inset 2px 0 0 ${medal}` } : undefined}>
+      <div className="flex items-center gap-3 pl-1">
+        <span className="numeric w-5 shrink-0 text-center font-mono text-sm font-medium" style={{ color: medal ?? "var(--fg3)" }}>
+          {rank}
+        </span>
+        <span className="rounded-full p-[2px]" style={{ boxShadow: `0 0 0 1.5px ${member.color}` }}>
+          <CastAvatar member={member} size={30} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium leading-5">
+            {member.name}
+            {member.isYou ? <span className="ml-1.5 rounded bg-foreground px-1 py-px align-middle text-[10px] font-semibold uppercase tracking-wide text-background">you</span> : null}
+          </p>
+          <p className="truncate text-xs leading-4 text-[var(--fg3)]">{member.note}</p>
+        </div>
+        <Sparkline points={member.points} width={72} height={24} className="hidden shrink-0 sm:block" />
+        <span className="w-[72px] shrink-0 text-right"><Delta value={percent} variant="plain" /></span>
       </div>
-      <Delta value={percent} variant="plain" />
+      <div className="mt-2 flex flex-wrap items-center gap-1.5 pl-[68px]">
+        {member.holdings.map((h) => (
+          <span key={h.ticker} className="numeric inline-flex items-center gap-1.5 rounded-full border py-px pl-1 pr-2 text-[11px] font-medium" style={{ borderColor: "var(--hair)", backgroundImage: `linear-gradient(90deg, rgba(var(--accent-a), 0.16) ${h.weight}%, transparent ${h.weight}%)` }}>
+            <TickerLogo symbol={h.ticker} kind={NO_LOGO.has(h.ticker) ? "crypto" : "stock"} size="xs" className="!size-[16px] !rounded-full !text-[5px]" />
+            <span className="font-mono font-semibold">{h.ticker}</span>
+            <span className="text-[var(--fg3)]">{h.weight}%</span>
+          </span>
+        ))}
+        {member.reactions.map((r) => (
+          <span key={r.emoji} className="numeric inline-flex items-center gap-1 rounded-full border px-2 py-px text-[11px] text-[var(--fg2)]" style={{ borderColor: "var(--hair)", background: "var(--raise)" }}>
+            <span aria-hidden>{r.emoji}</span>
+            {r.count}
+          </span>
+        ))}
+      </div>
     </li>
   )
 }
@@ -125,9 +175,13 @@ export function RaceLines({ members, hover, setHover, upto, minHeight = 250 }: {
           <defs>
             {/* Fixed in chart space (not the path's bounding box), so it never re-rasterises as the card moves. */}
             <linearGradient id={gradientId} gradientUnits="userSpaceOnUse" x1="0" x2="0" y1={Math.min(...leader!.pts.slice(0, reach + 1).map((p) => p[1]))} y2={g.y(0)}>
-              <stop offset="0" stopColor={leader!.m.color} stopOpacity="0.16" />
-              <stop offset="1" stopColor={leader!.m.color} stopOpacity="0" />
+              {[0, 0.25, 0.5, 0.75, 1].map((t) => (
+                <stop key={t} offset={t} stopColor={leader!.m.color} stopOpacity={(0.16 * (1 - t) ** 1.6).toFixed(4)} />
+              ))}
             </linearGradient>
+            <clipPath id={`${gradientId}c`}>
+              <rect x={pad.left} y={pad.top} width={g.plotW} height={Math.max(0, g.y(0) - pad.top)} />
+            </clipPath>
           </defs>
 
           {g.ticks.map((t) => (
@@ -140,7 +194,7 @@ export function RaceLines({ members, hover, setHover, upto, minHeight = 250 }: {
             </g>
           ))}
 
-          <path d={`${leader!.d} L${leader!.pts[reach]![0].toFixed(2)},${g.y(0).toFixed(2)} L${leader!.pts[0]![0].toFixed(2)},${g.y(0).toFixed(2)} Z`} fill={`url(#${gradientId})`} />
+          <path className="pf-area" clipPath={`url(#${gradientId}c)`} d={`${leader!.d} L${leader!.pts[reach]![0].toFixed(2)},${g.y(0).toFixed(2)} L${leader!.pts[0]![0].toFixed(2)},${g.y(0).toFixed(2)} Z`} fill={`url(#${gradientId})`} />
 
           {[...g.lines].reverse().map(({ m, d }) => (
             <path key={m.id} d={d} pathLength={1} fill="none" stroke={m.color} strokeWidth={m.isYou ? 2.6 : 1.9} strokeLinecap="round" strokeLinejoin="round" opacity={m.id === "theo" || m.isYou ? 1 : 0.85} className="pf-draw" />

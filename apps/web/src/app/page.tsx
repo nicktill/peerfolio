@@ -43,6 +43,10 @@ export default async function HomePage() {
         <section className="pf-hero relative isolate">
           <HeroBackdrop />
           <div className="mx-auto max-w-5xl px-6 pb-14 pt-16 text-center sm:px-5 sm:pb-16 sm:pt-24">
+            <p style={revealStyle(0)} className="reveal pf-pill mb-6">
+              <i aria-hidden />
+              Season&apos;s live. Bragging rights on the line.
+            </p>
             <h1 style={revealStyle(0)} className="reveal pf-h1">
               {/* Top line is fixed; the line below is the accent and keeps changing. */}
               Track your investments
@@ -58,15 +62,15 @@ export default async function HomePage() {
                 See how it works <ArrowDown className="size-4" aria-hidden />
               </a>
             </div>
-            <p style={revealStyle(3)} className="reveal pf-muted mt-4 text-xs">Free to use.</p>
+            <p style={revealStyle(3)} className="reveal pf-muted mt-4 text-xs">Free. Add your positions by hand, or play with fantasy money.</p>
           </div>
 
-          <div className="relative mx-auto max-w-6xl px-6 pb-16 sm:px-5 sm:pb-24 xl:pt-10">
-            <ChatBubble from="Theo" className="-top-[74px] left-[5%] -rotate-1" delay={0}>
-              NVDA is a personality at this point.
+          <div className="relative mx-auto max-w-[1280px] px-6 pb-16 sm:px-5 sm:pb-24 xl:pt-10">
+            <ChatBubble memberId="theo" side="left" className="-top-[4px] left-[2%] -rotate-3" delay={0}>
+              NVDA carrying me rn 🚀
             </ChatBubble>
-            <ChatBubble from="Dev" className="-top-[72px] right-[5%] rotate-1" delay={1.5}>
-              Down 4.6% and feeling great.
+            <ChatBubble memberId="dev" side="right" className="-top-[4px] right-[2%] rotate-2" delay={1.5}>
+              Down 4.6% and feeling great 🧊
             </ChatBubble>
             <LeaguePreview />
           </div>

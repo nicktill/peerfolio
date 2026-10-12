@@ -31,8 +31,15 @@ export function RotatingWord({ words, prefix = "" }: { words: readonly string[];
     <span className="italic text-[var(--pf-accent)]">
       <span className="sr-only">{prefix}{words[0]}</span>
       <span aria-hidden>
-        {prefix}<span className="whitespace-nowrap">{text}
-        <span className="caret ml-0.5 inline-block w-[3px] translate-y-[0.08em] self-stretch bg-primary/60" style={{ height: "0.9em" }} /></span>
+        {prefix}
+        {/* The current word's full width is reserved by an invisible copy, so typing never moves the line. */}
+        <span className="inline-grid whitespace-nowrap text-left">
+          <span className="invisible col-start-1 row-start-1">{words[index]}</span>
+          <span className="col-start-1 row-start-1">
+            {text}
+            <span className="caret ml-0.5 inline-block w-[3px] translate-y-[0.08em] self-stretch bg-primary/60" style={{ height: "0.9em" }} />
+          </span>
+        </span>
       </span>
     </span>
   )
