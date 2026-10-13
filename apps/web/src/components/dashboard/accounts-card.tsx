@@ -355,7 +355,7 @@ export function AccountsCard({
 
                         {account.source === "manual" ? (
                           <EditAccountButton
-                            account={{ id: account.id, name: account.name, institution: account.institutionName === "Manual account" ? "" : account.institutionName }}
+                            account={{ id: account.id, name: account.name, institution: account.institutionName === "Manual account" ? "" : account.institutionName, cashBalance: account.category === "cash" ? account.balance : undefined }}
                             onSaved={onChange}
                             className="pf-account-edit h-8 w-8 shrink-0 opacity-100 transition-opacity sm:opacity-0 sm:focus-visible:opacity-100 sm:group-hover:opacity-100"
                           />
