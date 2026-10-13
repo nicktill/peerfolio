@@ -10,7 +10,7 @@ Keep `PLAID_CLIENT_ID` and `PLAID_SECRET` unchanged for legacy paid Items.
 Set `PLAID_ENV=production`, `PLAID_CONNECTION_PROFILE=trial`,
 `PLAID_TRIAL_CLIENT_ID`, and the secret `PLAID_TRIAL_SECRET` on the intended deployment.
 Trial fails closed if either Trial credential is missing, or its client ID matches the paid team.
-There is no fallback to the paid team. Never paste secrets into issue descriptions or logs.
+There is no fallback to the paid team. While Trial mode is active, all paid-client calls are blocked, including legacy sync/repair/removal; disable Trial mode explicitly before managing any pre-existing paid Items. Never paste secrets into issue descriptions or logs.
 
 In the Trial team's Plaid dashboard, confirm Investments access and register the deployed
 `PLAID_REDIRECT_URI` and `PLAID_WEBHOOK_URL`. The same HTTPS app URLs may be registered
@@ -38,7 +38,7 @@ The Trial dashboard remains authoritative for Items created outside this app.
 
 Set `PLAID_CONNECTION_PROFILE=paid` and redeploy to send *new* connections to the original
 paid team. Existing connections retain their profile inside the encrypted access-token envelope.
-Legacy untagged tokens remain paid; Trial tokens stay Trial for sync, repair, and removal.
+Legacy untagged tokens remain tagged as paid but cannot be called while Trial mode is active; Trial tokens stay Trial for sync, repair, and removal.
 Keep both credential pairs. Switching keys alone cannot migrate an Item between Plaid teams.
 No database migration is required. After creating Trial Items, rollbacks must retain the envelope
 reader; versions predating this PR cannot read tagged tokens.

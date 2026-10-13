@@ -9,6 +9,10 @@ export function newPlaidProfile(env: Env): PlaidProfile {
 }
 
 export function plaidCredentials(env: Env, profile: PlaidProfile) {
+  // The paid team is dormant while Trial is selected, including legacy Item calls.
+  if (profile === "paid" && env.PLAID_ENV === "production" && newPlaidProfile(env) === "trial") {
+    throw new Error("Paid Plaid credentials are disabled while Trial mode is active")
+  }
   const clientId = (profile === "trial" ? env.PLAID_TRIAL_CLIENT_ID : env.PLAID_CLIENT_ID)?.trim()
   const secret = (profile === "trial" ? env.PLAID_TRIAL_SECRET : env.PLAID_SECRET)?.trim()
   if (!clientId || !secret) throw new Error(`Plaid ${profile} credentials are not configured`)

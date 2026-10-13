@@ -275,9 +275,15 @@ try {
   assert.equal(exchangeRequests, callsBeforeCap + 1)
   assert.equal((await productionCapacity()).used, 1)
   assert.equal((await getBrokerageAccess(user!.id)).allowed, false)
-  // Existing repair remains possible when production capacity is exhausted.
+  // Trial-only mode cannot call the paid team even to repair a legacy Item.
+  const repairsBeforePaidBlock = linkRequests
+  await assert.rejects(createLinkToken(new Request('http://localhost/api/plaid/link-token', { method: 'POST', body: JSON.stringify({ itemId: item!.id }) }), {}), /Paid Plaid credentials are disabled/)
+  assert.equal(linkRequests, repairsBeforePaidBlock)
+  // Explicit paid mode restores legacy repair even when capacity is exhausted.
+  process.env.PLAID_CONNECTION_PROFILE = 'paid'
   assert.equal((await createLinkToken(new Request('http://localhost/api/plaid/link-token', { method: 'POST', body: JSON.stringify({ itemId: item!.id }) }), {})).status, 200)
   process.env.PLAID_ENV = 'sandbox'
+  delete process.env.PLAID_CONNECTION_PROFILE
   // Closed/revoked accounts stop contributing and lose their holdings.
   empty = true
   await syncItem(item!.id)

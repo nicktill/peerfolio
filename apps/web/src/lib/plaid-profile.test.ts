@@ -35,3 +35,8 @@ test("Trial cannot accidentally use the Sandbox API", () => {
 test("accidentally copying the paid team into Trial is rejected", () => {
   assert.throws(() => plaidCredentials({ ...env, PLAID_TRIAL_CLIENT_ID: env.PLAID_CLIENT_ID }, "trial"), /different Plaid team/)
 })
+
+test("Trial mode blocks paid calls even when both paid credentials exist", () => {
+  assert.throws(() => plaidCredentials(env, "paid"), /disabled while Trial/)
+  assert.deepEqual(plaidCredentials({ ...env, PLAID_CONNECTION_PROFILE: "paid" }, "paid"), { clientId: "paid-id", secret: "paid-secret" })
+})
