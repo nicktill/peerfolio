@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useId, useMemo, useState } from "react"
 import { Delta } from "@web/components/ui/delta"
 import { Sparkline } from "@web/components/ui/sparkline"
 import { TickerLogo } from "@web/components/ui/ticker-logo"
@@ -95,6 +95,8 @@ function Row({ member, rank, percent }: { member: Member; rank: number; percent:
 export function RaceLines({ members, hover, setHover, upto, minHeight = 250 }: { members: Member[]; hover: number | null; setHover: (i: number | null) => void; /** Index the lines have reached (the tour grows them); defaults to the last day. */ upto?: number; minHeight?: number }) {
   const { ref, width, height } = useMeasure<HTMLDivElement>()
   const [drawn, setDrawn] = useState(false)
+  const revealId = useId()
+  const reveal = upto === undefined && !drawn
   const days = members[0]!.points.length
 
   const compact = width > 0 && width < 520
@@ -155,9 +157,16 @@ export function RaceLines({ members, hover, setHover, upto, minHeight = 250 }: {
           ))}
 
 
-          {[...g.lines].reverse().map(({ m, d }) => (
-            <path key={m.id} d={d} pathLength={1} fill="none" stroke={m.color} strokeWidth={m.isYou ? 2.6 : 1.9} strokeLinecap="round" strokeLinejoin="round" opacity={m.id === "theo" || m.isYou ? 1 : 0.85} className={drawn ? "pf-landing-line" : "pf-landing-draw"} onAnimationEnd={() => setDrawn(true)} />
-          ))}
+          <defs>
+            <clipPath id={revealId} clipPathUnits="userSpaceOnUse">
+              <rect width={width} height={height} className={reveal ? "pf-landing-reveal" : undefined} onAnimationEnd={() => setDrawn(true)} />
+            </clipPath>
+          </defs>
+          <g clipPath={reveal ? `url(#${revealId})` : undefined}>
+            {[...g.lines].reverse().map(({ m, d }) => (
+              <path key={m.id} d={d} fill="none" stroke={m.color} strokeWidth={m.isYou ? 2.6 : 1.9} strokeLinecap="round" strokeLinejoin="round" opacity={m.id === "theo" || m.isYou ? 1 : 0.85} />
+            ))}
+          </g>
 
           {hover !== null ? <line x1={g.lines[0]!.pts[idx]![0]} x2={g.lines[0]!.pts[idx]![0]} y1={pad.top} y2={height - pad.bottom} stroke="var(--fg3)" strokeWidth="1" opacity="0.55" /> : null}
 

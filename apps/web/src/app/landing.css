@@ -273,3 +273,8 @@ html.lenis, html.lenis body { height: auto; }
  .pf-hero-copy .reveal.flex { align-items:center; }
  .pf-hero-copy .pf-cta { width:auto; max-width:100%; min-width:0; padding-inline:24px; height:44px; font-size:14px; }
 }
+
+/* Reveal stable, solid paths instead of recalculating normalized dash strokes. */
+.pf-landing-reveal { transform-origin:0 0; animation:pf-landing-reveal 1.3s cubic-bezier(.22,1,.36,1) both; }
+@keyframes pf-landing-reveal { from { transform:scaleX(0); } to { transform:scaleX(1); } }
+@media(prefers-reduced-motion:reduce) { .pf-landing-reveal { animation:none; } }
