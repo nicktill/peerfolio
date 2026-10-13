@@ -329,7 +329,6 @@ export function AccountsCard({
                             <span className="block truncate text-xs text-muted-foreground">
                               {account.institutionName}
                               {account.mask ? ` ···· ${account.mask}` : ""}
-                              {account.source === "manual" ? " · by hand" : ""}
                               {detail ? ` · ${detail}` : ""}
                             </span>
                           </span>
