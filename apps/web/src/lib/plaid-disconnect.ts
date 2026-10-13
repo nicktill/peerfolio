@@ -1,3 +1,4 @@
+import { decodePlaidToken } from "@web/lib/plaid-profile"
 import "server-only"
 import { eq, sql } from "drizzle-orm"
 import { db, accounts, plaidItems } from "@web/db"
@@ -16,7 +17,8 @@ type Item = typeof plaidItems.$inferSelect
  */
 export async function disconnectItem(item: Item): Promise<void> {
   try {
-    await getPlaidClient().itemRemove({ access_token: decrypt(item.accessToken) })
+    const stored = decodePlaidToken(decrypt(item.accessToken))
+    await getPlaidClient(stored.profile).itemRemove({ access_token: stored.token })
   } catch (error) {
     const code = plaidErrorCode(error)
     if (code !== "INVALID_ACCESS_TOKEN" && code !== "ITEM_NOT_FOUND") {

@@ -1,3 +1,4 @@
+import { newPlaidProfile, encodePlaidToken } from "@web/lib/plaid-profile"
 import { NextResponse } from "next/server"
 import { CountryCode } from "plaid"
 import { and, eq, ne, sql } from "drizzle-orm"
@@ -27,7 +28,8 @@ export const POST = withUser<unknown>(async (userId, request) => {
   if (!plaidLinkingEnabled()) throw new ApiError("Brokerage linking is coming soon", 409)
   if (!body || typeof body.publicToken !== "string" || !body.publicToken.trim()) throw new ApiError("publicToken is required")
 
-  const client = getPlaidClient()
+  const profile = newPlaidProfile(process.env)
+  const client = getPlaidClient(profile)
 
   // This reservation commits independently so remote creation cannot outlive our budget accounting.
   const attemptId = await reserveProductionLinkAttempt(userId, body.publicToken)
@@ -114,7 +116,7 @@ export const POST = withUser<unknown>(async (userId, request) => {
       }
 
       const values = {
-        accessToken: encrypt(accessToken), institutionName, institutionId, institutionLogo,
+        accessToken: encrypt(encodePlaidToken(accessToken, profile)), institutionName, institutionId, institutionLogo,
       }
       const [saved] = existing
         ? await store.update(plaidItems).set({ ...values, status: "active", errorCode: null })

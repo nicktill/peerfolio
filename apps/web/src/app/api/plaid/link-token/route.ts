@@ -1,3 +1,4 @@
+import { decodePlaidToken } from "@web/lib/plaid-profile"
 import { NextResponse } from "next/server"
 import { CountryCode, Products } from "plaid"
 import type { InvestmentAccountSubtype } from "plaid"
@@ -33,7 +34,7 @@ export const POST = withUser<unknown>(async (userId, request) => {
     console.error("[plaid] PLAID_REDIRECT_URI and PLAID_WEBHOOK_URL must be set in production")
     throw new ApiError("Brokerage linking isn't fully set up yet. Check back soon.", 503)
   }
-  const client = getPlaidClient()
+  let client: ReturnType<typeof getPlaidClient>
 
   let accessToken: string | undefined
   if (body.itemId) {
@@ -42,11 +43,15 @@ export const POST = withUser<unknown>(async (userId, request) => {
     })
     if (!item) throw new ApiError("Connection not found", 404)
     if (item.status === "disconnected") throw new ApiError("Access was revoked. Remove this connection and connect again.", 409)
-    accessToken = decrypt(item.accessToken)
+    const stored = decodePlaidToken(decrypt(item.accessToken))
+    accessToken = stored.token
+    client = getPlaidClient(stored.profile)
   }
 
+  if (!body.itemId) client = getPlaidClient()
+
   try {
-    const { data } = await client.linkTokenCreate({
+    const { data } = await client!.linkTokenCreate({
       user: { client_user_id: userId },
       client_name: "Peerfolio",
       language: "en",

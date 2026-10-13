@@ -261,6 +261,13 @@ try {
   assert.equal(await reserveProductionLinkAttempt(user!.id, 'sandbox-attempt'), null)
   assert.equal((await productionCapacity()).used, 0)
   process.env.PLAID_ENV = 'production'
+  // Paid keys remain set, but absent Trial keys must block new connections.
+  const callsBeforeMissingTrial = exchangeRequests
+  await assert.rejects(exchange(new Request('http://localhost/api/plaid/exchange', { method: 'POST', body: JSON.stringify({ publicToken: 'missing-trial' }) }), {}), /coming soon/)
+  assert.equal(exchangeRequests, callsBeforeMissingTrial)
+  process.env.PLAID_TRIAL_CLIENT_ID = 'trial-test'
+  process.env.PLAID_TRIAL_SECRET = 'trial-test-secret'
+
   process.env.PLAID_PRODUCTION_ITEM_LIMIT = '1'
   process.env.PLAID_PRODUCTION_ITEMS_PREVIOUSLY_USED = '0'
   const callsBeforeCap = exchangeRequests
@@ -268,9 +275,15 @@ try {
   assert.equal(exchangeRequests, callsBeforeCap + 1)
   assert.equal((await productionCapacity()).used, 1)
   assert.equal((await getBrokerageAccess(user!.id)).allowed, false)
-  // Existing repair remains possible when production capacity is exhausted.
+  // Trial-only mode cannot call the paid team even to repair a legacy Item.
+  const repairsBeforePaidBlock = linkRequests
+  await assert.rejects(createLinkToken(new Request('http://localhost/api/plaid/link-token', { method: 'POST', body: JSON.stringify({ itemId: item!.id }) }), {}), /Paid Plaid credentials are disabled/)
+  assert.equal(linkRequests, repairsBeforePaidBlock)
+  // Explicit paid mode restores legacy repair even when capacity is exhausted.
+  process.env.PLAID_CONNECTION_PROFILE = 'paid'
   assert.equal((await createLinkToken(new Request('http://localhost/api/plaid/link-token', { method: 'POST', body: JSON.stringify({ itemId: item!.id }) }), {})).status, 200)
   process.env.PLAID_ENV = 'sandbox'
+  delete process.env.PLAID_CONNECTION_PROFILE
   // Closed/revoked accounts stop contributing and lose their holdings.
   empty = true
   await syncItem(item!.id)

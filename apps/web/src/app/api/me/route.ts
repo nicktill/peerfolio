@@ -1,3 +1,4 @@
+import { decodePlaidToken } from "@web/lib/plaid-profile"
 import { NextResponse } from "next/server"
 import { and, asc, eq, ne, sql } from "drizzle-orm"
 import { z } from "zod"
@@ -90,7 +91,8 @@ export const DELETE = withUser<unknown>(async (userId) => {
     const items = await tx.select().from(plaidItems).where(eq(plaidItems.userId, userId))
     for (const item of items) {
       try {
-        await getPlaidClient().itemRemove({ access_token: decrypt(item.accessToken) })
+        const stored = decodePlaidToken(decrypt(item.accessToken))
+        await getPlaidClient(stored.profile).itemRemove({ access_token: stored.token })
       } catch (error) {
         const code = plaidErrorCode(error)
         if (code !== "INVALID_ACCESS_TOKEN" && code !== "ITEM_NOT_FOUND") {
