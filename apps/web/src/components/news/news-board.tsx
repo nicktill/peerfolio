@@ -79,9 +79,9 @@ export function NewsBoard({ holdingMoves, held = [] }: { holdingMoves: HoldingMo
   const previewDemo = usePreviewDemo()
   const sample = holdingMoves === "sample" || previewDemo
   // Each part loads on its own, so a slow source never holds up the others.
-  const boardApi = useApi<Pick<MarketResponse, "board">>(sample ? null : "/api/news/market?part=board")
-  const earningsApi = useApi<Pick<MarketResponse, "earnings">>(sample ? null : "/api/news/market?part=earnings")
-  const fearGreedApi = useApi<Pick<MarketResponse, "fearGreed">>(sample ? null : "/api/news/market?part=fear-greed")
+  const boardApi = useApi<Pick<MarketResponse, "board">>(sample ? null : "/api/news/market?part=board", [], { refreshMs: 5 * 60_000 })
+  const earningsApi = useApi<Pick<MarketResponse, "earnings">>(sample ? null : "/api/news/market?part=earnings", [], { refreshMs: 60 * 60_000 })
+  const fearGreedApi = useApi<Pick<MarketResponse, "fearGreed">>(sample ? null : "/api/news/market?part=fear-greed", [], { refreshMs: 60 * 60_000 })
   const pending = (api: { data: unknown; error: string | null }) => !sample && !api.data && !api.error
   // Whether a source has answered yet, in the preview too (it shows the live recap when there is one).
   const waiting = (api: { data: unknown; error: string | null }) => !api.data && !api.error

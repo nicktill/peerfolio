@@ -91,8 +91,8 @@ function BoardPreview() {
 
 function NewsPreview() {
   const news = useApi<NewsResponse>("/api/news", [], { refreshMs: 60_000 })
-  const market = useApi<{ board: MarketBoard | null }>("/api/news/market?part=board")
-  const earnings = useApi<{ earnings: EarningsWeekData | null }>("/api/news/market?part=earnings")
+  const market = useApi<{ board: MarketBoard | null }>("/api/news/market?part=board", [], { refreshMs: 5 * 60_000 })
+  const earnings = useApi<{ earnings: EarningsWeekData | null }>("/api/news/market?part=earnings", [], { refreshMs: 60 * 60_000 })
   const brief = news.data?.day
   const briefingTitle = brief?.period === "midday" ? BRIEFING_TITLES[briefingSlot(new Date(brief.createdAt))?.phase ?? "midday"] : "Daily recap"
   const stamp = brief ? new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(brief.createdAt)) + " ET" : "Latest briefing"
