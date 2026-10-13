@@ -18,6 +18,7 @@ import type { EarningsWeekData, FearGreedReading, MarketBoard } from "@web/lib/n
 import { CNN_FEAR_GREED_PAGE } from "@web/lib/news-market"
 import { isUsMarketOpen } from "@web/lib/market-hours"
 import { useApi } from "@web/lib/use-api"
+import { briefingSlot, BRIEFING_TITLES } from "@web/lib/news-brief"
 import type { NewsResponse, PublishedBrief } from "@web/lib/news"
 
 /** Your holdings' moves today, or "sample" for the preview's placeholder ones. */
@@ -50,7 +51,7 @@ function toView(brief: PublishedBrief): RecapView {
   const day = dayLabel(brief.periodEnd, { weekday: "short", month: "short", day: "numeric" })
   const time = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" }).format(new Date(brief.createdAt))
   return {
-    title: brief.period === "midday" ? "Midday update" : brief.period === "day" ? "Daily recap" : "Weekly recap",
+    title: brief.period === "midday" ? BRIEFING_TITLES[briefingSlot(new Date(brief.createdAt))?.phase ?? "midday"] : brief.period === "day" ? "Daily recap" : "Weekly recap",
     stamp:
       brief.period === "midday"
         ? `${day} · as of ${time} ET`
@@ -72,15 +73,15 @@ function toView(brief: PublishedBrief): RecapView {
  */
 export function NewsBoard({ holdingMoves, held = [] }: { holdingMoves: HoldingMoves; held?: string[] }) {
   const [period, setPeriod] = useState<Period>("day")
-  const newsApi = useApi<NewsResponse>("/api/news")
+  const newsApi = useApi<NewsResponse>("/api/news", [], { refreshMs: 60_000 })
   const news = newsApi.data
   // The preview shows the sample figures; the real page shows live data or, where a source is down, nothing.
   const previewDemo = usePreviewDemo()
   const sample = holdingMoves === "sample" || previewDemo
   // Each part loads on its own, so a slow source never holds up the others.
-  const boardApi = useApi<Pick<MarketResponse, "board">>(sample ? null : "/api/news/market?part=board")
-  const earningsApi = useApi<Pick<MarketResponse, "earnings">>(sample ? null : "/api/news/market?part=earnings")
-  const fearGreedApi = useApi<Pick<MarketResponse, "fearGreed">>(sample ? null : "/api/news/market?part=fear-greed")
+  const boardApi = useApi<Pick<MarketResponse, "board">>(sample ? null : "/api/news/market?part=board", [], { refreshMs: 5 * 60_000 })
+  const earningsApi = useApi<Pick<MarketResponse, "earnings">>(sample ? null : "/api/news/market?part=earnings", [], { refreshMs: 60 * 60_000 })
+  const fearGreedApi = useApi<Pick<MarketResponse, "fearGreed">>(sample ? null : "/api/news/market?part=fear-greed", [], { refreshMs: 60 * 60_000 })
   const pending = (api: { data: unknown; error: string | null }) => !sample && !api.data && !api.error
   // Whether a source has answered yet, in the preview too (it shows the live recap when there is one).
   const waiting = (api: { data: unknown; error: string | null }) => !api.data && !api.error

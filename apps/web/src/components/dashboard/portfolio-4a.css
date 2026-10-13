@@ -104,22 +104,31 @@
 /* Let the lower holdings track fit its content rather than stretch. */
 .portfolio-screen .portfolio-layout { align-content:start; }
 
+/* Reveal desktop actions by smoothly making room beside the expand control. */
+.pf-account-row .pf-account-edit,
+.pf-account-row .pf-account-remove { width:26px; min-width:26px; height:30px; }
 @media(min-width:640px) {
- .pf-account-row .pf-account-edit,.pf-account-row .pf-account-remove { position:absolute; z-index:2; top:50%; transform:translateY(-50%); background:var(--panel); }
- .pf-account-row .pf-account-edit { right:58px; }
- .pf-account-row .pf-account-remove { right:24px; }
-
-}
-
-@media(min-width:640px) {
+ .pf-account-row { gap:4px; }
+ .pf-account-row .pf-account-edit,
+ .pf-account-row .pf-account-remove { position:absolute; top:50%; transform:translateY(-50%); }
+ .pf-account-row .pf-account-edit { right:50px; }
+ .pf-account-row .pf-account-remove { right:22px; }
  .pf-account-toggle:has(> svg) { padding-right:24px; }
+ .pf-account-row:has(.pf-account-edit) .pf-account-toggle { padding-right:24px; transition:padding-right 200ms cubic-bezier(0.22,1,0.36,1); }
+ .group:hover .pf-account-row:has(.pf-account-edit) .pf-account-toggle,
+ .pf-account-row:focus-within:has(.pf-account-edit) .pf-account-toggle { padding-right:82px; }
+ .pf-account-row:focus-within .pf-account-edit,
+ .pf-account-row:focus-within .pf-account-remove { opacity:1; }
+ @media(prefers-reduced-motion:reduce) { .pf-account-row .pf-account-toggle { transition:none; } }
  .pf-account-toggle > svg { position:absolute; right:0; top:50%; transform:translateY(-50%); }
-
 }
 
-@media(min-width:640px) {
- .pf-account-row .pf-account-edit { right:158px; top:0; transform:none; }
- .pf-account-row .pf-account-remove { right:124px; top:0; transform:none; }
- .pf-account-row:has(.pf-account-edit) .pf-account-toggle { padding-right:24px; }
- .pf-account-row:has(.pf-account-edit) .pf-account-toggle > span:nth-child(2) { padding-right:64px; }
+@media(max-width:639px) {
+ .pf-account-row { gap:4px; }
+ .pf-account-row .pf-account-edit,
+ .pf-account-row .pf-account-remove { position:absolute; top:50%; transform:translateY(-50%); width:36px; min-width:36px; height:40px; }
+ .pf-account-row .pf-account-edit { right:64px; }
+ .pf-account-row .pf-account-remove { right:28px; }
+ .pf-account-row:has(.pf-account-edit) .pf-account-toggle { padding-right:104px; }
+ .pf-account-toggle > svg { position:absolute; right:0; top:50%; transform:translateY(-50%); }
 }

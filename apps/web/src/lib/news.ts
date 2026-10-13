@@ -1,11 +1,12 @@
 import "server-only"
 import OpenAI from "openai"
 import { after } from "next/server"
+import { unstable_cache, revalidateTag } from "next/cache"
 import { and, desc, eq, gte, lt, max, sql } from "drizzle-orm"
 import { db } from "@web/db"
 import { newsAiSpend, newsBriefs, newsItems } from "@web/db/schema"
 import { fetchFeeds } from "@web/lib/news-feeds"
-import { briefTargets, briefWindow, middayTarget, NEWS_MODEL, selectItems, writeBrief, type BriefPeriod, type SpendLedger } from "@web/lib/news-brief"
+import { briefTargets, briefWindow, briefingSlot, briefingNeedsRefresh, latestDailyBrief, NEWS_MODEL, selectItems, writeBrief, type BriefPeriod, type SpendLedger } from "@web/lib/news-brief"
 
 /** Most the recaps may spend in a calendar month (UTC). Past it, recaps are written from headlines only. */
 const MONTHLY_BUDGET_USD = Number(process.env.NEWS_AI_MONTHLY_BUDGET_USD) || 1
@@ -65,7 +66,7 @@ async function publish(period: BriefPeriod, periodEnd: string, now: Date) {
   // Too little to write from (every feed down): publish nothing, so a later run can still write this period.
   if (items.length < 3) return { period, periodEnd, items: items.length, skipped: "too few stories" as const }
 
-  const result = await writeBrief({ client: client(), period, sessionDate: periodEnd, items, ledger: ledgerFor(period, periodEnd, now) })
+  const result = await writeBrief({ client: client(), period, sessionDate: periodEnd, items, ledger: ledgerFor(period, periodEnd, now), asOf: now })
 
   // Keep only the items the recap cites, so links survive pruning.
   const cited = new Set([...result.brief.sourceIds, ...result.brief.takeaways.flatMap((t) => t.sourceIds)])
@@ -89,13 +90,14 @@ async function publish(period: BriefPeriod, periodEnd: string, now: Date) {
     .insert(newsBriefs)
     .values(values)
     .onConflictDoUpdate({ target: [newsBriefs.period, newsBriefs.periodEnd], set: values })
+  revalidateTag("news-latest")
   return { period, periodEnd, items: items.length, fallback: result.fallback, problems: result.problems, costUsd: result.costUsd }
 }
 
 /**
- * The nightly news run: store new headlines, then write whichever recaps are
- * due and missing: the latest completed trading day's, and the latest completed
- * week's (so a Friday that failed is written on Monday). `force` rewrites them.
+ * Store fresh headlines and publish the latest due intraday slot, plus any
+ * missing daily/weekly recap. Publication remains serialized by runNewsOnce,
+ * and each request writes at most two summaries. `force` rewrites due targets.
  */
 export async function runNews(now = new Date(), { force = false }: { force?: boolean } = {}) {
   const { items, failures } = await fetchFeeds()
@@ -113,23 +115,33 @@ export async function runNews(now = new Date(), { force = false }: { force?: boo
     (await db.select({ id: newsBriefs.id }).from(newsBriefs).where(and(eq(newsBriefs.period, period), eq(newsBriefs.periodEnd, date))).limit(1)).length > 0
 
   const briefs = []
-  const midday = middayTarget(now)
+  const slot = briefingSlot(now)
+  if (slot?.period === "midday") {
+    const [current] = await db.select({ at: newsBriefs.createdAt }).from(newsBriefs)
+      .where(and(eq(newsBriefs.period, "midday"), eq(newsBriefs.periodEnd, slot.date))).limit(1)
+    if (force || briefingNeedsRefresh(current?.at ?? null, slot)) briefs.push(await publish("midday", slot.date, now))
+  }
+  // At most two summaries per request, so backfill cannot exceed the route duration.
   if (targets.day && (force || !(await exists("day", targets.day)))) briefs.push(await publish("day", targets.day, now))
-  if (targets.week && (force || !(await exists("week", targets.week)))) briefs.push(await publish("week", targets.week, now))
-  // The midday update only matters until that day's own recap exists.
-  if (midday && midday !== targets.day && (force || !(await exists("midday", midday)))) briefs.push(await publish("midday", midday, now))
-  return { fetched: items.length, feedFailures: failures, targets: { ...targets, midday }, briefs }
+  if (briefs.length < 2 && targets.week && (force || !(await exists("week", targets.week)))) briefs.push(await publish("week", targets.week, now))
+
+  return { fetched: items.length, feedFailures: failures, targets: { ...targets, slot }, briefs }
 }
 
 /** What a run would do right now: refresh stale headlines or write a recap that's due. */
 async function newsDue(now: Date) {
   const [latest] = await db.select({ at: max(newsItems.fetchedAt) }).from(newsItems)
   if (!latest?.at || now.getTime() - latest.at.getTime() > STALE_MS) return true
+  const slot = briefingSlot(now)
+  if (slot?.period === "midday") {
+    const [row] = await db.select({ at: newsBriefs.createdAt }).from(newsBriefs)
+      .where(and(eq(newsBriefs.period, "midday"), eq(newsBriefs.periodEnd, slot.date))).limit(1)
+    if (briefingNeedsRefresh(row?.at ?? null, slot)) return true
+  }
   const targets = briefTargets(now)
   const wanted: [BriefPeriod, string | null][] = [
     ["day", targets.day],
     ["week", targets.week],
-    ["midday", middayTarget(now) === targets.day ? null : middayTarget(now)],
   ]
   for (const [period, date] of wanted) {
     if (!date) continue
@@ -207,9 +219,13 @@ export async function readNews() {
       .orderBy(desc(newsItems.publishedAt))
       .limit(12),
   ])
-  // The day's slot shows the freshest of the two: today's midday update until today's closing recap exists.
-  const today = midday && (!day || midday.periodEnd > day.periodEnd) ? midday : day
+  // Both surfaces read the newest publication for the newest trading date.
+  const today = latestDailyBrief(day, midday)
   return { day: today, week, headlines: headlines.map((h) => ({ ...h, publishedAt: h.publishedAt.toISOString() })) }
 }
 
 export type NewsResponse = Awaited<ReturnType<typeof readNews>>
+
+
+/** One shared read cache for signed-in News and the public landing preview. */
+export const readCachedNews = unstable_cache(readNews, ["news-latest-v2"], { tags: ["news-latest"], revalidate: 60 })

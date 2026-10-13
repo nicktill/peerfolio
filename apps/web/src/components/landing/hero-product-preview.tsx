@@ -1,6 +1,11 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
+import { useApi } from "@web/lib/use-api"
+import { briefingSlot, BRIEFING_TITLES } from "@web/lib/news-brief"
+import type { NewsResponse } from "@web/lib/news"
+import type { MarketBoard, EarningsWeekData } from "@web/lib/news-market"
 import { CalendarDays, LayoutDashboard, Medal, Newspaper, Sparkles, Trophy } from "lucide-react"
 import { LeaguePreview } from "@web/components/landing/league-preview"
 import { PortfolioView, FantasyView } from "@web/components/landing/product-tour"
@@ -11,7 +16,6 @@ import { TiltCard } from "@web/components/ui/tilt-card"
 import { Sparkline } from "@web/components/ui/sparkline"
 import { TickerLogo } from "@web/components/ui/ticker-logo"
 import { MarketStrip } from "@web/components/news/market-strip"
-import { EARNINGS_WEEK, INDEXES, RECAPS } from "@web/lib/news-sample"
 import "@web/components/news/news.css"
 
 const PAGES = [
@@ -33,7 +37,7 @@ export function HeroProductPreview() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.png" alt="" className="pf-logo !size-5" />
           <span className="pf-wordmark !text-[17px]">Peerfolio</span>
-          <span className="pf-sample ml-auto">Interactive preview · sample data</span>
+          <span className="pf-sample ml-auto">{page === "News" ? "Public market news" : "Interactive preview · sample data"}</span>
         </div>
         <div className="pf-demo-layout">
           <div className="pf-preview-nav" role="tablist" aria-label="Explore Peerfolio pages">
@@ -55,7 +59,8 @@ export function HeroProductPreview() {
             ))}
           </div>
           <div id="hero-preview-page" role="tabpanel" aria-labelledby={`preview-tab-${page}`} tabIndex={0} className="pf-demo-page">
-            {page === "Leagues" ? <LeaguePreview tilt={0} /> : page === "Portfolio" ? <PortfolioView e={1} scrub={false} compact tilt={0} /> : page === "Fantasy" ? <FantasyView e={1} compact tilt={0} /> : page === "Board" ? <BoardPreview /> : <NewsPreview />}
+            {page === "Leagues" ? <LeaguePreview tilt={0} /> : page === "Portfolio" ? <PortfolioView e={1} scrub={false} compact tilt={0} /> : page === "Fantasy" ? <FantasyView e={1} compact tilt={0} /> : page === "Board" ? <BoardPreview /> : null}
+            <div hidden={page !== "News"} className={page === "News" ? "swap-in" : undefined}><NewsPreview /></div>
           </div>
         </div>
       </TiltCard>
@@ -85,33 +90,49 @@ function BoardPreview() {
 }
 
 function NewsPreview() {
+  const news = useApi<NewsResponse>("/api/news", [], { refreshMs: 60_000 })
+  const market = useApi<{ board: MarketBoard | null }>("/api/news/market?part=board", [], { refreshMs: 5 * 60_000 })
+  const earnings = useApi<{ earnings: EarningsWeekData | null }>("/api/news/market?part=earnings", [], { refreshMs: 60 * 60_000 })
+  const brief = news.data?.day
+  const briefingTitle = brief?.period === "midday" ? BRIEFING_TITLES[briefingSlot(new Date(brief.createdAt))?.phase ?? "midday"] : "Daily recap"
+  const stamp = brief ? new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(brief.createdAt)) + " ET" : "Latest briefing"
+  const board = market.data?.board
   return (
     <div className="nw space-y-4">
-      <div className="px-2 py-3"><h3 className="pf-h3">Markets at a glance</h3><p className="pf-sample mt-2">Illustrative sample figures</p></div>
-      <MarketStrip quotes={INDEXES} period="day" startIndex={0} />
+      <div className="flex flex-wrap items-center justify-between gap-3 px-2 py-3">
+        <div><h3 className="pf-h3">Markets at a glance</h3><p className="pf-sample mt-2">{board ? `Market data · session ${board.session}` : "Public market news"}</p></div>
+        <Link href="/market-news" className="pf-btn">Read the news →</Link>
+      </div>
+      {board?.indexes.length ? <MarketStrip quotes={board.indexes} period="day" startIndex={0} /> : <NewsState pending={market.loading} message="Market quotes are temporarily unavailable." />}
       <div className="pf-preview-news-bottom">
-      <section className="pf-panel pf-lift">
-        <div className="pf-ph"><h3 className="pf-label">Daily recap</h3><span className="pf-sample">Sample briefing</span></div>
-        <div className="pf-pb"><h4 className="pf-h3">{RECAPS.day.headline}</h4><p className="pf-sub mt-4 max-w-[70ch] text-sm leading-6">{RECAPS.day.body}</p></div>
-      </section>
-      <EarningsPreview />
+        <section className="pf-panel pf-lift">
+          <div className="pf-ph"><h3 className="pf-label">{briefingTitle}</h3><span className="pf-sample">{stamp}</span></div>
+          <div className="pf-pb">
+            {brief ? <><h4 className="pf-h3 line-clamp-2">{brief.headline}</h4><p className="pf-sub mt-4 max-w-[70ch] line-clamp-6 text-sm leading-6">{brief.body}</p></> : <p className="pf-sub text-sm" role="status">{news.loading ? "Loading the latest briefing…" : "The latest briefing is not available yet."}</p>}
+          </div>
+        </section>
+        {earnings.data?.earnings?.days.length ? <EarningsPreview key={earnings.data.earnings.asOf} week={earnings.data.earnings} /> : <NewsState pending={earnings.loading} message="The earnings calendar is temporarily unavailable." />}
       </div>
     </div>
   )
 }
 
-function EarningsPreview() {
-  const [selected, setSelected] = useState(3)
-  const day = EARNINGS_WEEK.days[selected]!
+function NewsState({ pending, message }: { pending: boolean; message: string }) {
+  return <div className="pf-panel pf-pb flex min-h-[180px] items-center" role="status"><p className="pf-sub text-sm">{pending ? "Loading market news…" : message}</p></div>
+}
+
+function EarningsPreview({ week }: { week: EarningsWeekData }) {
+  const [selected, setSelected] = useState(Math.max(0, week.days.findIndex((day) => day.today)))
+  const day = week.days[selected]!
   return (
     <section className="pf-panel pf-lift" aria-labelledby="preview-earnings-title">
       <div className="pf-ph"><h3 id="preview-earnings-title" className="pf-label">Earnings calendar</h3><CalendarDays className="size-4 text-[var(--fg3)]" aria-hidden /></div>
       <div className="pf-pb !pb-3">
-        <p className="pf-sample mb-3">{EARNINGS_WEEK.label} · sample</p>
-        <div className="grid grid-cols-5 gap-1" role="group" aria-label="Sample earnings days">
-          {EARNINGS_WEEK.days.map((d,i) => (
+        <p className="pf-sample mb-3">{week.label}</p>
+        <div className="grid grid-cols-5 gap-1" role="group" aria-label="Earnings days">
+          {week.days.map((d,i) => (
             <button key={d.date} type="button" aria-pressed={i === selected} aria-label={d.label} onClick={() => setSelected(i)} className="pf-preview-earnings-day">
-              <span>{d.dow === "Today" ? "Tue" : d.dow}</span><b className="numeric">{d.date}</b>
+              <span>{d.dow}</span><b className="numeric">{d.date}</b>
             </button>
           ))}
         </div>
@@ -124,7 +145,7 @@ function EarningsPreview() {
             <span className="text-[11px] text-[var(--fg2)]">{report.when === "before-open" ? "Before open" : report.when === "after-close" ? "After close" : "During trading"}</span>
           </li>
         ))}
-        {day.reports.length === 0 ? <li className="py-5 text-xs text-[var(--fg3)]">No major reports in this sample.</li> : null}
+        {day.reports.length === 0 ? <li className="py-5 text-xs text-[var(--fg3)]">No reports scheduled for this day.</li> : null}
       </ul>
     </section>
   )

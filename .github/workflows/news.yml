@@ -6,8 +6,12 @@ name: News recap
 # Times are UTC; each pair covers daylight saving and standard time.
 on:
   schedule:
-    - cron: "20 15,16 * * 1-5" # 11:20am ET: the midday update
-    - cron: "40 20,21 * * 1-5" # 4:40pm ET: the day's recap (and the week's on its last session)
+    - cron: "0 11,12 * * 1-5" # 7:00am ET pre-market, EDT/EST pair
+    - cron: "15 14,15 * * 1-5" # 10:15am ET opening update
+    - cron: "0 16,17 * * 1-5" # noon ET
+    - cron: "15 18,19 * * 1-5" # 2:15pm ET afternoon update
+    - cron: "20 20,21 * * 1-5" # 4:20pm ET closing recap
+    - cron: "20 17,18 * * 1-5" # 1:20pm ET early-close backup; otherwise no new slot
   workflow_dispatch: {}
 
 concurrency:
