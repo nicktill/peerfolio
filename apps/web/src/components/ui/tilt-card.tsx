@@ -105,7 +105,7 @@ export function TiltCard({
     }
   }, [reduceMotion, max, rotateX, rotateY, x, y])
 
-  if (reduceMotion) {
+  if (reduceMotion || max === 0) {
     return (
       <div className={className} style={style}>
         {children}
