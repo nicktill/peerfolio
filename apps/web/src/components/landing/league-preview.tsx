@@ -94,9 +94,8 @@ function Row({ member, rank, percent }: { member: Member; rank: number; percent:
 /** Returns on one axis, everyone from 0% on day one. Hover or touch to scrub to a day. */
 export function RaceLines({ members, hover, setHover, upto, minHeight = 250 }: { members: Member[]; hover: number | null; setHover: (i: number | null) => void; /** Index the lines have reached (the tour grows them); defaults to the last day. */ upto?: number; minHeight?: number }) {
   const { ref, width, height } = useMeasure<HTMLDivElement>()
-  const [drawn, setDrawn] = useState(false)
   const revealId = useId()
-  const reveal = upto === undefined && !drawn
+  const reveal = upto === undefined
   const days = members[0]!.points.length
 
   const compact = width > 0 && width < 520
@@ -159,10 +158,10 @@ export function RaceLines({ members, hover, setHover, upto, minHeight = 250 }: {
 
           <defs>
             <clipPath id={revealId} clipPathUnits="userSpaceOnUse">
-              <rect width={width} height={height} className={reveal ? "pf-landing-reveal" : undefined} onAnimationEnd={() => setDrawn(true)} />
+              <rect width={width} height={height} className={reveal ? "pf-landing-reveal" : undefined} />
             </clipPath>
           </defs>
-          <g clipPath={reveal ? `url(#${revealId})` : undefined}>
+          <g clipPath={`url(#${revealId})`}>
             {[...g.lines].reverse().map(({ m, d }) => (
               <path key={m.id} d={d} fill="none" stroke={m.color} strokeWidth={m.isYou ? 2.6 : 1.9} strokeLinecap="round" strokeLinejoin="round" opacity={m.id === "theo" || m.isYou ? 1 : 0.85} />
             ))}
