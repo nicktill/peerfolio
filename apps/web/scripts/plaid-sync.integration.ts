@@ -261,6 +261,13 @@ try {
   assert.equal(await reserveProductionLinkAttempt(user!.id, 'sandbox-attempt'), null)
   assert.equal((await productionCapacity()).used, 0)
   process.env.PLAID_ENV = 'production'
+  // Paid keys remain set, but absent Trial keys must block new connections.
+  const callsBeforeMissingTrial = exchangeRequests
+  await assert.rejects(exchange(new Request('http://localhost/api/plaid/exchange', { method: 'POST', body: JSON.stringify({ publicToken: 'missing-trial' }) }), {}), /coming soon/)
+  assert.equal(exchangeRequests, callsBeforeMissingTrial)
+  process.env.PLAID_TRIAL_CLIENT_ID = 'trial-test'
+  process.env.PLAID_TRIAL_SECRET = 'trial-test-secret'
+
   process.env.PLAID_PRODUCTION_ITEM_LIMIT = '1'
   process.env.PLAID_PRODUCTION_ITEMS_PREVIOUSLY_USED = '0'
   const callsBeforeCap = exchangeRequests

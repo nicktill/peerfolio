@@ -1,3 +1,4 @@
+import { decodePlaidToken } from "@web/lib/plaid-profile"
 import { and, eq, inArray, isNull, min, ne, sql } from "drizzle-orm"
 import type { AccountBase, Holding as PlaidHolding, Security as PlaidSecurity } from "plaid"
 import { db, holdings, accounts, plaidItems, portfolioSnapshots, securities, plaidInvestmentFlows } from "@web/db"
@@ -52,8 +53,9 @@ export async function syncItem(itemRowId: string, deadline = Date.now() + 90_000
       const current = await store.query.plaidItems.findFirst({ where: eq(plaidItems.id, item.id) })
       if (!current) throw new Error("Item not found")
       if (current.status === "disconnected") throw new Error("Item disconnected")
-      const client = getPlaidClient()
-      const accessToken = decrypt(current.accessToken)
+      const stored = decodePlaidToken(decrypt(current.accessToken))
+      const client = getPlaidClient(stored.profile)
+      const accessToken = stored.token
       const { data } = await retryPlaid(() => client.accountsGet({ access_token: accessToken }), undefined, deadline)
       const priorAccounts = await store.select().from(accounts).where(eq(accounts.itemId, item.id))
       const existingIds = new Set(priorAccounts.filter((a) => a.isActive).map((a) => a.plaidAccountId))

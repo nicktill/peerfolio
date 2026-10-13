@@ -1,5 +1,7 @@
 import { Configuration, PlaidApi, PlaidEnvironments } from "plaid"
-import { plaidEnvironment, plaidConfigured } from "@web/lib/plaid-config"
+import { plaidEnvironment } from "@web/lib/plaid-config"
+
+import { newPlaidProfile, plaidCredentials, type PlaidProfile } from "@web/lib/plaid-profile"
 
 /**
  * Plaid retired the `development` environment; sandbox and production are the
@@ -12,31 +14,22 @@ function getPlaidEnv(): "sandbox" | "production" {
 
 /** Whether new connections may be made. Mirrors NEXT_PUBLIC_PLAID_LINKING in next.config. */
 export function plaidLinkingEnabled(): boolean {
-  return plaidConfigured(process.env) && (getPlaidEnv() === "production" || process.env.ENABLE_PLAID_SANDBOX === "true")
+  try { plaidCredentials(process.env, newPlaidProfile(process.env)) } catch { return false }
+  return getPlaidEnv() === "production" || process.env.ENABLE_PLAID_SANDBOX === "true"
 }
 
-let cached: PlaidApi | null = null
+const clients = new Map<PlaidProfile, PlaidApi>()
 
-export function getPlaidClient(): PlaidApi {
-  if (cached) return cached
-
-  const clientId = process.env.PLAID_CLIENT_ID
-  const secret = process.env.PLAID_SECRET
-  if (!clientId || !secret) {
-    throw new Error("PLAID_CLIENT_ID and PLAID_SECRET must be set.")
-  }
-
-  cached = new PlaidApi(
-    new Configuration({
-      basePath: PlaidEnvironments[getPlaidEnv()],
-      baseOptions: {
-        headers: { "PLAID-CLIENT-ID": clientId, "PLAID-SECRET": secret },
-        // Bound each request so retries and webhook processing fit the route budget.
-        timeout: 15_000,
-      },
-    }),
-  )
-  return cached
+export function getPlaidClient(profile: PlaidProfile = newPlaidProfile(process.env)): PlaidApi {
+  const { clientId, secret } = plaidCredentials(process.env, profile)
+  const existing = clients.get(profile)
+  if (existing) return existing
+  const client = new PlaidApi(new Configuration({
+    basePath: PlaidEnvironments[getPlaidEnv()],
+    baseOptions: { headers: { "PLAID-CLIENT-ID": clientId, "PLAID-SECRET": secret }, timeout: 15_000 },
+  }))
+  clients.set(profile, client)
+  return client
 }
 
 /** Narrows an unknown thrown value to a Plaid API error code, if it is one. */

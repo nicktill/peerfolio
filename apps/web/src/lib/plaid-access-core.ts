@@ -13,8 +13,10 @@ function nonnegativeInteger(value: string | undefined, fallback: number, name: s
 }
 
 export function productionBudgetSettings(env: Record<string, string | undefined>) {
+  const configuredLimit = nonnegativeInteger(env.PLAID_PRODUCTION_ITEM_LIMIT, 10, "PLAID_PRODUCTION_ITEM_LIMIT")
+  const trial = env.PLAID_ENV === "production" && env.PLAID_CONNECTION_PROFILE !== "paid"
   return {
-    limit: nonnegativeInteger(env.PLAID_PRODUCTION_ITEM_LIMIT, 10, "PLAID_PRODUCTION_ITEM_LIMIT"),
+    limit: trial ? Math.min(10, configuredLimit) : configuredLimit,
     previouslyUsed: nonnegativeInteger(env.PLAID_PRODUCTION_ITEMS_PREVIOUSLY_USED, 0, "PLAID_PRODUCTION_ITEMS_PREVIOUSLY_USED"),
   }
 }
