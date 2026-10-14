@@ -124,23 +124,20 @@ export const GET = withUser<unknown>(async (userId, request) => {
       // A linked investment account with a balance but no positions: the broker is still sending them.
       holdingsPending: account.source !== "manual" && account.category === "investment" && balance > 0 && !holdingRows.some((h) => h.accountId === account.id),
       holdingPreview: holdingRows.filter((h) => h.accountId === account.id).slice(0, 4).map((h) => h.ticker ?? h.securityName ?? "Holding"),
-      positions:
-        account.source === "manual"
-          ? holdingRows
-              .filter((h) => h.accountId === account.id)
-              .map((h) => ({
-                id: h.id,
-                ticker: h.ticker,
-                name: h.securityName,
-                kind: h.securityType === "cryptocurrency" ? ("crypto" as const) : ("stock" as const),
-                quantity: n(h.quantity),
-                price: n(h.closePrice),
-                value: n(h.institutionValue),
-                costBasis: h.costBasis == null ? null : n(h.costBasis),
-                priceAsOf: h.closePriceAsOf,
-              }))
-              .sort((a, b) => b.value - a.value)
-          : [],
+      positions: holdingRows
+        .filter((h) => h.accountId === account.id)
+        .map((h) => ({
+          id: h.id,
+          ticker: h.ticker,
+          name: h.securityName,
+          kind: h.securityType === "cryptocurrency" ? ("crypto" as const) : ("stock" as const),
+          quantity: n(h.quantity),
+          price: account.source === "plaid" && n(h.quantity) > 0 ? n(h.institutionValue) / n(h.quantity) : n(h.closePrice),
+          value: n(h.institutionValue),
+          costBasis: h.costBasis == null ? null : n(h.costBasis),
+          priceAsOf: h.closePriceAsOf,
+        }))
+        .sort((a, b) => b.value - a.value),
     }
   })
 

@@ -6,7 +6,7 @@ import { eq, sql } from 'drizzle-orm'
 import type { PlaidLinkOnSuccessMetadata } from 'react-plaid-link'
 import type { InvestmentFlow } from '../src/lib/plaid-sync-core'
 import * as schema from '../src/db/schema'
-import { db, users, plaidItems, accounts, holdings, portfolioSnapshots, plaidInvestmentFlows, accountEvents, securities } from '../src/db'
+import { db, plaidSyncRuns, users, plaidItems, accounts, holdings, portfolioSnapshots, plaidInvestmentFlows, accountEvents, securities } from '../src/db'
 import { getBrokerageAccess, productionCapacity, reserveProductionLinkAttempt } from '../src/lib/plaid-access'
 import { loadLivePoints } from '../src/lib/returns'
 import { encrypt } from '../src/lib/crypto'
@@ -24,6 +24,7 @@ import { DELETE as disconnect } from '../src/app/api/plaid/items/[id]/route'
 import { GET as listAdminBrokerages, PATCH as updateBrokeragePermission } from '../src/app/api/admin/brokerages/route'
 import { GET as brokerageAccess } from '../src/app/api/plaid/access/route'
 import { POST as createLinkToken } from '../src/app/api/plaid/link-token/route'
+import { GET as portfolio } from '../src/app/api/portfolio/route'
 import { POST as exchange } from '../src/app/api/plaid/exchange/route'
 
 declare global {
@@ -48,7 +49,7 @@ try {
   let accountCurrency = 'USD'
   let extraAccount = false
   let balance: number | null = 1000
-  let holdingList: Array<{ account_id: string; security_id: string; quantity: number; institution_value: number | null; cost_basis: number; iso_currency_code?: string }> = [{ account_id: 'a', security_id: 'stock', quantity: 10, institution_value: 1000, cost_basis: 1000, iso_currency_code: 'USD' }]
+  let holdingList: Array<{ account_id: string; security_id: string; quantity: number; institution_value: number | null; cost_basis: number; iso_currency_code?: string | null }> = [{ account_id: 'a', security_id: 'stock', quantity: 10, institution_value: 1000, cost_basis: 1000, iso_currency_code: 'USD' }]
   let transactionList: InvestmentFlow[] = []
   let failure: string | null = null
   let empty = false
@@ -144,6 +145,12 @@ try {
   assert.deepEqual([Number(fund!.value), fund!.name, fund!.ticker, Number(fund!.price)], [100, '315911750', null, 25])
   holdingList = [{ account_id: 'a', security_id: 'stock', quantity: 10, institution_value: 1000, cost_basis: 1000, iso_currency_code: 'USD' }]
   assert.equal((await syncItem(item!.id)).holdingsPending, 0)
+  // Every attempt leaves a row of counts and codes: ok, partial (balance but no positions) and failed.
+  const runs = await db.select().from(plaidSyncRuns)
+  assert.ok(runs.some((r) => r.status === 'partial' && r.balanceWithoutHoldings && r.holdingsReceived === 0))
+  assert.ok(runs.some((r) => r.status === 'ok' && r.holdingsKept === 1 && r.trigger === 'manual'))
+  assert.ok(runs.some((r) => r.status === 'failed' && r.errorCode === 'ITEM_LOGIN_REQUIRED'))
+  assert.ok(runs.every((r) => r.itemId === item!.id && !JSON.stringify(r).includes('duplicate-token')))
   // A same-day post-link deposit is neutralized through the baseline balance delta.
   const baselineFlows = Number((await db.select().from(portfolioSnapshots))[0]!.netFlows)
   balance = 1100
@@ -202,6 +209,15 @@ try {
   assert.equal((await syncItem(item!.id)).status, 'active')
   assert.equal(Number((await db.select().from(accounts))[0]!.currentBalance), 1600)
   assert.equal((await db.select().from(holdings)).length, 0)
+  holdingList[0]!.iso_currency_code = null
+  assert.equal((await syncItem(item!.id)).status, 'active')
+  assert.equal((await db.select().from(holdings)).length, 1, 'Missing holding currency inherits the validated USD account')
+  const importedPortfolio = await (await portfolio(new Request('http://localhost/api/portfolio?range=ALL'), {})).json()
+  const linkedAccountView = importedPortfolio.accounts.find((a: { source: string }) => a.source === 'plaid')
+  assert.equal(linkedAccountView.positions.length, 1, 'Linked account drawer receives imported positions')
+  assert.equal(linkedAccountView.positions[0].price, 100, 'Displayed linked price agrees with its authoritative holding value')
+  assert.equal(linkedAccountView.positions[0].costBasis, 1000)
+  assert.equal(importedPortfolio.holdings.length, 1, 'Imported positions also reach the aggregate Holdings table')
   holdingList[0]!.iso_currency_code = 'USD'
   holdingList[0]!.institution_value = null
   assert.equal((await syncItem(item!.id)).status, 'active')
@@ -390,6 +406,11 @@ try {
   const [secondManual] = await db.insert(accounts).values({ userId: replacementUser!.id, name: 'Other IRA', source: 'manual', category: 'investment', currentBalance: '500' }).returning()
   await writeDailySnapshot(replacementUser!.id, Number(secondManual!.currentBalance))
   await assert.rejects(replaceManualAccount(replacementUser!.id, secondManual!.id, linkedReplacement!.id), /already replaced/)
+  // A linked account with a balance but no positions yet must not silently hide the manual holdings.
+  const [emptyLinked] = await db.insert(accounts).values({ userId: replacementUser!.id, itemId: replacementItem!.id, plaidAccountId: 'empty-linked', name: 'Loading IRA', source: 'plaid', category: 'investment', currentBalance: '500' }).returning()
+  await assert.rejects(replaceManualAccount(replacementUser!.id, secondManual!.id, emptyLinked!.id), /no holdings yet/)
+  assert.equal((await db.query.accounts.findFirst({ where: eq(accounts.id, secondManual!.id) }))!.isActive, true)
+  await db.delete(accounts).where(eq(accounts.id, emptyLinked!.id))
   // Archived backups must be frozen even when their shared security is repriced.
   await db.update(securities).set({ marketTicker: 'ARCHIVE_TEST', closePrice: '200', closePriceAsOf: new Date().toISOString().slice(0, 10), closePriceFinal: true }).where(eq(securities.id, 'replacement-stock'))
   await revalueSecurities(['replacement-stock'])
@@ -464,7 +485,7 @@ try {
     await writeDailySnapshot(replacementUser!.id, (await investableTotal(replacementUser!.id, tx)) - beforeEdit, undefined, tx)
   })
   await started
-  const replacement = replaceManualAccount(replacementUser!.id, raceManual!.id, raceLinked!.id)
+  const replacement = replaceManualAccount(replacementUser!.id, raceManual!.id, raceLinked!.id, { acknowledgeNoHoldings: true })
   releaseEdit(); await Promise.all([edit, replacement])
   assert.equal(Number((await db.query.accounts.findFirst({ where: eq(accounts.id, raceManual!.id) }))!.currentBalance), 350)
   await assert.rejects(manualMutation(replacementUser!.id, (tx) => requireManualAccount(replacementUser!.id, raceManual!.id, tx)), /archived/)

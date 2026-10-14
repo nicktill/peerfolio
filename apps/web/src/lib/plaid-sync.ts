@@ -9,6 +9,8 @@ import { keepsEntryValue } from "@web/lib/ranges"
 import { categorizeAccount, type AccountCategory } from "@web/lib/account-category"
 import { accountBalance } from "@web/lib/account-balance"
 import { assertPlaidActive, plaidPaused } from "@web/lib/plaid-switch"
+import { buildSyncRun, countMissingTicker, emptyMetrics, plaidRequestId, type SyncTrigger } from "@web/lib/plaid-sync-runs-core"
+import { recordSyncRun } from "@web/lib/plaid-sync-runs"
 
 export { categorizeAccount, type AccountCategory }
 
@@ -43,12 +45,14 @@ class SyncValidationError extends Error {
   constructor(readonly code: string, message: string) { super(message) }
 }
 
-export async function syncItem(itemRowId: string, deadline = Date.now() + 90_000): Promise<SyncResult> {
+export async function syncItem(itemRowId: string, deadline = Date.now() + 90_000, trigger: SyncTrigger = "manual"): Promise<SyncResult> {
   await assertPlaidActive()
   const item = await db.query.plaidItems.findFirst({ where: eq(plaidItems.id, itemRowId) })
   if (!item) throw new Error("Item not found")
+  const startedAt = new Date()
+  const metrics = emptyMetrics()
   try {
-    return await db.transaction(async (store) => {
+    const result: SyncResult = await db.transaction(async (store) => {
       // All paths (cron, webhook, refresh, relink) serialize for this user's returns.
       await store.execute(sql`set local lock_timeout = '10s'`)
       await store.execute(sql`select pg_advisory_xact_lock(hashtext(${item.userId}))`)
@@ -68,7 +72,13 @@ export async function syncItem(itemRowId: string, deadline = Date.now() + 90_000
       const hasInvestments = data.accounts.some((a) => categorizeAccount(a.type, a.subtype) === "investment")
       const investmentAccountIds = new Set(data.accounts.filter((a) => categorizeAccount(a.type, a.subtype) === "investment").map((a) => a.account_id))
       // Fetch everything before changing stored balances. A failure rolls the whole sync back.
-      let holdingData = hasInvestments ? (await retryPlaid(() => client.investmentsHoldingsGet({ access_token: accessToken }), undefined, deadline)).data : null
+      metrics.accounts = data.accounts.length
+      const fetchHoldings = async () => {
+        const response = await retryPlaid(() => client.investmentsHoldingsGet({ access_token: accessToken }), undefined, deadline)
+        metrics.requestId = plaidRequestId(response) ?? metrics.requestId
+        return response.data
+      }
+      let holdingData = hasInvestments ? await fetchHoldings() : null
       // A new Item's positions can still be loading: Plaid answers 200 with no lines for accounts that do have a balance.
       // Ask again a couple of times before settling for that.
       const awaitingNow = (d: NonNullable<typeof holdingData>) => accountsAwaitingHoldings(
@@ -79,7 +89,7 @@ export async function syncItem(itemRowId: string, deadline = Date.now() + 90_000
       for (const waitMs of syncTuning.emptyHoldingsWaits) {
         if (!holdingData || awaitingNow(holdingData).length === 0 || Date.now() + waitMs + 5_000 >= deadline) break
         await new Promise<void>((resolve) => setTimeout(resolve, waitMs))
-        holdingData = (await retryPlaid(() => client.investmentsHoldingsGet({ access_token: accessToken }), undefined, deadline)).data
+        holdingData = await fetchHoldings()
         holdingAttempts++
       }
       const awaiting = new Set(holdingData ? awaitingNow(holdingData) : [])
@@ -97,12 +107,13 @@ export async function syncItem(itemRowId: string, deadline = Date.now() + 90_000
       })
       // One odd line (crypto, a margin debit, a short) must not take the whole connection down.
       if (holdingData) {
-        const { kept, skipped } = splitUsableHoldings(holdingData.holdings)
+        const { kept, skipped, assumedCurrency } = splitUsableHoldings(holdingData.holdings, new Map(importedAccounts.filter((a) => categorizeAccount(a.type, a.subtype) === "investment").map((a) => [a.account_id, a.balances.iso_currency_code])))
         holdingData.holdings = mergeDuplicateHoldings(kept)
+        Object.assign(metrics, { holdingsReceived, holdingsKept: kept.length, skipped: countByReason(skipped), currencyAssumed: assumedCurrency, securitiesMissingTicker: countMissingTicker(holdingData.securities), balanceWithoutHoldings: awaiting.size > 0 })
         // One structured line per sync, so an empty Holdings view can be explained from the logs alone.
         const summary = JSON.stringify({
           item: item.id, accounts: holdingData.accounts.length, received: holdingsReceived, securities: holdingData.securities.length,
-          skipped: countByReason(skipped), kept: kept.length, saved: holdingData.holdings.length, awaitingAccounts: awaiting.size, attempts: holdingAttempts,
+          skipped: countByReason(skipped), currencyAssumed: assumedCurrency, missingTicker: metrics.securitiesMissingTicker, kept: kept.length, saved: holdingData.holdings.length, awaitingAccounts: awaiting.size, attempts: holdingAttempts,
         })
         if (awaiting.size) console.warn(`[plaid-sync] holdings still loading ${summary}`)
         else console.info(`[plaid-sync] holdings ${summary}`)
@@ -135,8 +146,12 @@ export async function syncItem(itemRowId: string, deadline = Date.now() + 90_000
       await writeDailySnapshot(item.userId, structuralFlow + changes.net, today(), store)
       return { itemId: item.id, accounts: accountCount, holdings: holdingCount, holdingsPending: awaiting.size, status: "active" }
     })
+    await recordSyncRun(buildSyncRun({ itemId: item.id, userId: item.userId, trigger, startedAt, finishedAt: new Date(), failed: false, metrics }))
+    return result
   } catch (error) {
     const code = error instanceof SyncValidationError ? error.code : plaidErrorCode(error)
+    metrics.requestId = plaidRequestId(error) ?? metrics.requestId
+    await recordSyncRun(buildSyncRun({ itemId: item.id, userId: item.userId, trigger, startedAt, finishedAt: new Date(), failed: true, errorCode: code, metrics }))
     const status = isReauthRequired(code) ? "needs_reauth" : "error"
     // This timestamp means the last successful import, never the last attempt.
     await db.update(plaidItems).set({ status, errorCode: code ?? "SYNC_FAILED" }).where(and(eq(plaidItems.id, item.id), ne(plaidItems.status, "disconnected"), item.lastSyncedAt ? eq(plaidItems.lastSyncedAt, item.lastSyncedAt) : isNull(plaidItems.lastSyncedAt)))
@@ -399,7 +414,7 @@ export async function writeDailySnapshot(userId: string, externalFlow = 0, when:
 }
 
 /** Full refresh for one user: every active item, then today's snapshot. */
-export async function syncUser(userId: string) {
+export async function syncUser(userId: string, trigger: SyncTrigger = "manual") {
   const deadline = Date.now() + 90_000
   // While paused nothing reaches Plaid; the last synced numbers stay as they are.
   const paused = await plaidPaused()
@@ -412,7 +427,7 @@ export async function syncUser(userId: string) {
       results.push({ itemId: item.id, accounts: 0, holdings: 0, status: "error", errorCode: "SYNC_DEADLINE_EXCEEDED" })
       continue
     }
-    results.push(await syncItem(item.id, deadline))
+    results.push(await syncItem(item.id, deadline, trigger))
   }
 
   // Each successful Item atomically records its balances, deduplicated flows and snapshot.

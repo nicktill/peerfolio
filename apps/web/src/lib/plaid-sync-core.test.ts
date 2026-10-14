@@ -132,6 +132,18 @@ describe("Holdings from real brokerages", () => {
     assert.deepEqual(kept.map((k) => k.security_id), ["s"])
     assert.equal(skipped.length, 5)
   })
+  it("inherits missing currency only from a validated USD account", () => {
+    const missing = line({ iso_currency_code: null })
+    const crypto = line({ iso_currency_code: null, unofficial_currency_code: "BTC" })
+    const euro = line({ iso_currency_code: "EUR" })
+    const unknown = line({ account_id: "unknown", iso_currency_code: null })
+    const result = splitUsableHoldings([missing, crypto, euro, unknown], new Map([["a", "USD"]]))
+    assert.equal(result.kept.length, 1)
+    assert.equal(result.kept[0]!.iso_currency_code, "USD")
+    assert.equal(missing.iso_currency_code, null, "normalization does not mutate the provider payload")
+    assert.equal(result.skipped.length, 3)
+    assert.equal(splitUsableHoldings([missing]).kept.length, 0, "unknown parent currency is never guessed")
+  })
   it("combines the same security in one account, and keeps different accounts apart", () => {
     const merged = mergeDuplicateHoldings([line(), line({ quantity: 1, institution_value: 50, cost_basis: null }), line({ account_id: "b" })])
     assert.equal(merged.length, 2)
@@ -165,5 +177,13 @@ describe("holdings that are slow or odd", () => {
   it("flags accounts with a balance and no lines, but not ones whose lines were all skipped", () => {
     const accounts = [{ account_id: "401k", balance: 86000 }, { account_id: "hsa", balance: 0 }, { account_id: "crypto", balance: 500 }, { account_id: "gap", balance: null }]
     assert.deepEqual(accountsAwaitingHoldings(accounts, new Map([["crypto", 3]])), ["401k"])
+  })
+})
+
+describe("assumed line currency", () => {
+  it("counts lines that took the account's currency", () => {
+    const result = splitUsableHoldings([{ account_id: "a", security_id: "s", quantity: 1, institution_value: 5, iso_currency_code: null }, { account_id: "a", security_id: "t", quantity: 1, institution_value: 5, iso_currency_code: "USD" }], new Map([["a", "USD"]]))
+    assert.equal(result.assumedCurrency, 1)
+    assert.equal(result.kept.length, 2)
   })
 })

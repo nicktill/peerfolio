@@ -46,7 +46,7 @@ async function snapshot() {
 
   for (const userId of userIds) {
     try {
-      const { results } = await syncUser(userId)
+      const { results } = await syncUser(userId, "cron")
       brokenConnections += results.filter((r) => r.status !== "active").length
       succeeded++
     } catch (error) {

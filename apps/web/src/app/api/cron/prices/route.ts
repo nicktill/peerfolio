@@ -3,6 +3,7 @@ import { assertCronAuthorized, withPublic } from "@web/lib/api"
 import { withProviderPatience } from "@web/lib/provider-fetch"
 import { fillQueuedOrders } from "@web/lib/fantasy"
 import { pruneProviderStats } from "@web/lib/provider-stats"
+import { pruneSyncRuns } from "@web/lib/plaid-sync-runs"
 import { refreshLivePrices } from "@web/lib/live-quotes"
 import { refreshSecurityMetadata, refreshStalePrices } from "@web/lib/positions"
 
@@ -36,6 +37,7 @@ async function refresh() {
 
   const metadata = await refreshSecurityMetadata().catch(() => ({ checked: 0 }))
   await pruneProviderStats().catch(() => {})
+  await pruneSyncRuns().catch(() => {})
   const orders = await fillQueuedOrders().catch((error) => ({ error: error instanceof Error ? error.message : "unknown" }))
 
   const liveBroken = "error" in live || ("claimed" in live && (live.claimed ?? 0) > 0 && live.refreshed === 0)

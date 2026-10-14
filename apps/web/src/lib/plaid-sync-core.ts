@@ -42,9 +42,10 @@ export type HoldingLine = {
  * Retirement plans often report a position with a price but no total value, or a total but no
  * quantity; the missing figure is derived from the other two instead of dropping the line.
  */
-export function splitUsableHoldings<T extends HoldingLine>(list: T[]): { kept: T[]; skipped: { line: T; reason: string }[] } {
+export function splitUsableHoldings<T extends HoldingLine>(list: T[], accountCurrencies = new Map<string, string | null | undefined>()): { kept: T[]; skipped: { line: T; reason: string }[]; assumedCurrency: number } {
   const kept: T[] = []
   const skipped: { line: T; reason: string }[] = []
+  let assumedCurrency = 0
   const finite = (n: number | null | undefined): n is number => n != null && Number.isFinite(n)
   for (const raw of list) {
     const line = { ...raw }
@@ -53,15 +54,20 @@ export function splitUsableHoldings<T extends HoldingLine>(list: T[]): { kept: T
     if (!finite(line.quantity) && finite(line.institution_value) && finite(price) && price > 0) line.quantity = Number((line.institution_value / price).toFixed(8))
     const value = line.institution_value
     const quantity = line.quantity
+    // Some institutions omit the holding currency; inherit only a validated account currency.
+    const currency = line.iso_currency_code ?? accountCurrencies.get(line.account_id)
     const reason =
-      line.iso_currency_code !== "USD" || line.unofficial_currency_code ? "not in US dollars"
+      currency !== "USD" || line.unofficial_currency_code ? "not in US dollars"
         : value == null || !Number.isFinite(value) || quantity == null || !Number.isFinite(quantity) ? "no value reported"
           : value < 0 || quantity < 0 ? "short or margin position"
             : null
     if (reason) skipped.push({ line: raw, reason })
-    else kept.push(line)
+    else {
+      if (raw.iso_currency_code == null) assumedCurrency++
+      kept.push({ ...line, iso_currency_code: currency })
+    }
   }
-  return { kept, skipped }
+  return { kept, skipped, assumedCurrency }
 }
 
 /** Counts per reason, for the one-line sync log. */

@@ -8,7 +8,7 @@ import { buildAccountEvent } from "@web/lib/account-events-core"
 import { investableTotal, writeDailySnapshot } from "@web/lib/plaid-sync"
 
 /** Explicit reconciliation only. Retain manual records; never guess by account name. */
-export async function replaceManualAccount(userId: string, manualId: string, linkedId: string) {
+export async function replaceManualAccount(userId: string, manualId: string, linkedId: string, options: { acknowledgeNoHoldings?: boolean } = {}) {
   if (manualId === linkedId) throw new ApiError("Choose two different accounts", 409)
   return db.transaction(async (store) => {
     await store.execute(sql`set local lock_timeout = '10s'`)
@@ -24,6 +24,12 @@ export async function replaceManualAccount(userId: string, manualId: string, lin
     if (linked.currentBalance === null || !Number.isFinite(Number(linked.currentBalance))) throw new ApiError("Wait for the linked balance to finish importing", 409)
     const item = await store.query.plaidItems.findFirst({ where: and(eq(plaidItems.id, linked.itemId), eq(plaidItems.userId, userId)) })
     if (!item || item.status !== "active" || !item.lastSyncedAt) throw new ApiError("Refresh the linked account before replacing a manual entry", 409)
+    // A linked account with a balance but no positions is usually still loading. Archiving the manual entry now would
+    // leave an empty Holdings view, so this needs an explicit yes.
+    if (!options.acknowledgeNoHoldings && Number(linked.currentBalance) > 0) {
+      const [linkedHolding] = await store.select({ id: holdings.id }).from(holdings).where(eq(holdings.accountId, linkedId)).limit(1)
+      if (!linkedHolding) throw new ApiError("This linked account has a balance but no holdings yet. Your broker may still be sending them. Refresh the connection and wait for the holdings to appear before replacing your manual entry, or confirm that you want to replace it anyway.", 409, { code: "LINKED_HOLDINGS_MISSING" })
+    }
     const previous = await store.query.accountEvents.findFirst({ where: and(eq(accountEvents.userId, userId), eq(accountEvents.action, "account_replaced"), sql`${accountEvents.detail}->>'linkedAccountId' = ${linkedId}`) })
     if (previous) throw new ApiError("This linked account already replaced a manual entry", 409)
 
