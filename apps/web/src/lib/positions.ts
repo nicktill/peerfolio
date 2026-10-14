@@ -4,13 +4,13 @@ import { and, eq, inArray, isNotNull, isNull, lt, sql, type SQL } from "drizzle-
 import { accounts, db, holdings, securities } from "@web/db"
 import type { MutationStore } from "@web/lib/manual-mutation"
 import { ApiError } from "@web/lib/api"
-import { isUsMarketOpen, latestCompletedSession } from "@web/lib/market-hours"
+import { isUsMarketOpen, latestCompletedSession, latestTradingSession } from "@web/lib/market-hours"
 import { previousCloseOnUpdate } from "@web/lib/price-write"
 import { acceptSessionClose, createQuoteProvider, quoteDate } from "@web/lib/quote-provider"
 import { createFinnhubProvider } from "@web/lib/finnhub"
 import { isPlanIdentifier } from "@web/lib/import-parse"
 import { tiingoApiKey, tiingoFundCloses } from "@web/lib/tiingo"
-import { staleHeldSecurities } from "@web/lib/stale-prices"
+import { canSkipCloseCheck, staleHeldSecurities, unsettledHeldSql } from "@web/lib/stale-prices"
 import {
   displaySymbol,
   isNewerClose,
@@ -610,6 +610,11 @@ export async function refreshStalePrices({
   lastRefreshAttempt = now
 
   try {
+    // Steady state: market closed and every held security already has the last session's
+    // official close. Nothing newer can appear, so no provider call and no stale-row scan.
+    const [pending] = [...(await db.execute<{ n: number }>(unsettledHeldSql(latestTradingSession(new Date(now)))))]
+    if (canSkipCloseCheck({ marketOpen: isUsMarketOpen(new Date(now)), unsettled: Number(pending?.n ?? 0) })) return { refreshed: 0, awaitingClose: 0, unconfirmed: 0, behind: 0 }
+
     const cutoff = new Date(now - maxAgeHours * 3_600_000)
     // Also look when the stored close is older than the latest finished session, so a
     // new official close is picked up shortly after it's published, not hours later.
