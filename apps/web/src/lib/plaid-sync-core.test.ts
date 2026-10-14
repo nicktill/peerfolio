@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { externalFlow, flowChanges, investmentHistoryStart, investmentPages, mergeDuplicateHoldings, retryPlaid, splitUsableHoldings, type InvestmentFlow } from "./plaid-sync-core.ts"
+import { accountsAwaitingHoldings, countByReason, securityDisplayName, externalFlow, flowChanges, investmentHistoryStart, investmentPages, mergeDuplicateHoldings, retryPlaid, splitUsableHoldings, type InvestmentFlow } from "./plaid-sync-core.ts"
 import { timeWeightedReturn } from "./ranges.ts"
 
 const tx = (id: string, subtype: string, amount: number, account = "a"): InvestmentFlow => ({ investment_transaction_id: id, account_id: account, type: "cash", subtype, amount })
@@ -139,5 +139,31 @@ describe("Holdings from real brokerages", () => {
     assert.equal(a.quantity, 3)
     assert.equal(a.institution_value, 150)
     assert.equal(a.cost_basis, 80)
+  })
+})
+
+describe("holdings that are slow or odd", () => {
+  const line = (over: Record<string, unknown> = {}) => ({ account_id: "a", security_id: "s", quantity: 2, institution_value: 100, iso_currency_code: "USD", ...over })
+  it("derives a missing total from quantity and price, and a missing quantity from total and price", () => {
+    const { kept, skipped } = splitUsableHoldings([line({ institution_value: null, institution_price: 25 }), line({ security_id: "t", quantity: null, institution_value: 100, institution_price: 20 })])
+    assert.equal(skipped.length, 0)
+    assert.equal(kept[0]!.institution_value, 50)
+    assert.equal(kept[1]!.quantity, 5)
+  })
+  it("still skips lines it cannot value and counts them by reason", () => {
+    const { kept, skipped } = splitUsableHoldings([line({ institution_value: null }), line({ iso_currency_code: "EUR" }), line({ quantity: -1 }), line()])
+    assert.equal(kept.length, 1)
+    assert.deepEqual(countByReason(skipped), { "no value reported": 1, "not in US dollars": 1, "short or margin position": 1 })
+  })
+  it("names securities that have no ticker", () => {
+    assert.equal(securityDisplayName({ name: "Fidelity 500 Index", ticker_symbol: null }), "Fidelity 500 Index")
+    assert.equal(securityDisplayName({ name: " ", ticker_symbol: null, cusip: "315911750" }), "315911750")
+    assert.equal(securityDisplayName({ name: null, isin: "US3159117500" }), "US3159117500")
+    assert.equal(securityDisplayName({ type: "cash" }), "Cash")
+    assert.equal(securityDisplayName({}), "Unnamed security")
+  })
+  it("flags accounts with a balance and no lines, but not ones whose lines were all skipped", () => {
+    const accounts = [{ account_id: "401k", balance: 86000 }, { account_id: "hsa", balance: 0 }, { account_id: "crypto", balance: 500 }, { account_id: "gap", balance: null }]
+    assert.deepEqual(accountsAwaitingHoldings(accounts, new Map([["crypto", 3]])), ["401k"])
   })
 })

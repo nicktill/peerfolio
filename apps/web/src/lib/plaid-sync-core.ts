@@ -27,6 +27,7 @@ export type HoldingLine = {
   security_id: string
   quantity: number | null
   institution_value: number | null
+  institution_price?: number | null
   cost_basis?: number | null
   iso_currency_code?: string | null
   unofficial_currency_code?: string | null
@@ -37,11 +38,19 @@ export type HoldingLine = {
  * non-USD lines, margin debits and short positions, lines with no value). An odd line used to fail
  * the whole connection; now only that line is left out. The account's own balance is still the
  * source of truth for net worth and returns, so skipping a line never changes those.
+ *
+ * Retirement plans often report a position with a price but no total value, or a total but no
+ * quantity; the missing figure is derived from the other two instead of dropping the line.
  */
 export function splitUsableHoldings<T extends HoldingLine>(list: T[]): { kept: T[]; skipped: { line: T; reason: string }[] } {
   const kept: T[] = []
   const skipped: { line: T; reason: string }[] = []
-  for (const line of list) {
+  const finite = (n: number | null | undefined): n is number => n != null && Number.isFinite(n)
+  for (const raw of list) {
+    const line = { ...raw }
+    const price = line.institution_price
+    if (!finite(line.institution_value) && finite(line.quantity) && finite(price)) line.institution_value = Number((line.quantity * price).toFixed(4))
+    if (!finite(line.quantity) && finite(line.institution_value) && finite(price) && price > 0) line.quantity = Number((line.institution_value / price).toFixed(8))
     const value = line.institution_value
     const quantity = line.quantity
     const reason =
@@ -49,10 +58,36 @@ export function splitUsableHoldings<T extends HoldingLine>(list: T[]): { kept: T
         : value == null || !Number.isFinite(value) || quantity == null || !Number.isFinite(quantity) ? "no value reported"
           : value < 0 || quantity < 0 ? "short or margin position"
             : null
-    if (reason) skipped.push({ line, reason })
+    if (reason) skipped.push({ line: raw, reason })
     else kept.push(line)
   }
   return { kept, skipped }
+}
+
+/** Counts per reason, for the one-line sync log. */
+export function countByReason(skipped: { reason: string }[]): Record<string, number> {
+  const counts: Record<string, number> = {}
+  for (const { reason } of skipped) counts[reason] = (counts[reason] ?? 0) + 1
+  return counts
+}
+
+/**
+ * A name worth showing for a security Plaid knows no ticker for (401(k) funds, CUSIP-only mutual
+ * funds, cash sweeps): its name, else its ticker, CUSIP, ISIN or SEDOL, else a plain label.
+ */
+export function securityDisplayName(s: { name?: string | null; ticker_symbol?: string | null; cusip?: string | null; isin?: string | null; sedol?: string | null; type?: string | null; is_cash_equivalent?: boolean | null }): string {
+  const clean = (v?: string | null) => (v && v.trim() ? v.trim() : null)
+  return clean(s.name) ?? clean(s.ticker_symbol) ?? clean(s.cusip) ?? clean(s.isin) ?? clean(s.sedol) ?? (s.type === "cash" || s.is_cash_equivalent ? "Cash" : "Unnamed security")
+}
+
+/**
+ * Accounts that carry a balance but came back with no position lines at all. Plaid answers
+ * "no holdings" with a 200 while it is still extracting a new Item's data, so this is a pending
+ * state to retry and to show, never a complete sync. Accounts whose lines were all left out on
+ * purpose (crypto, shorts) are not listed: more waiting would not change them.
+ */
+export function accountsAwaitingHoldings(accounts: { account_id: string; balance: number | null }[], rawLineCounts: Map<string, number>): string[] {
+  return accounts.filter((a) => a.balance != null && Number.isFinite(a.balance) && a.balance > 0 && (rawLineCounts.get(a.account_id) ?? 0) === 0).map((a) => a.account_id)
 }
 
 /** Combines lines for the same security in the same account (separate lots, sub-positions) into one. */

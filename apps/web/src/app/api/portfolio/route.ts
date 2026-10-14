@@ -121,6 +121,8 @@ export const GET = withUser<unknown>(async (userId, request) => {
       institutionLogo: item?.institutionLogo ?? null,
       itemId: account.itemId,
       holdingCount: holdingRows.filter((h) => h.accountId === account.id).length,
+      // A linked investment account with a balance but no positions: the broker is still sending them.
+      holdingsPending: account.source !== "manual" && account.category === "investment" && balance > 0 && !holdingRows.some((h) => h.accountId === account.id),
       holdingPreview: holdingRows.filter((h) => h.accountId === account.id).slice(0, 4).map((h) => h.ticker ?? h.securityName ?? "Holding"),
       positions:
         account.source === "manual"
@@ -239,6 +241,7 @@ export const GET = withUser<unknown>(async (userId, request) => {
       })),
     allocation,
     holdings: holdingSummaries,
+    holdingsPending: accountPayload.some((a) => a.holdingsPending),
     today,
     allTime,
     leagues: leaguePills,

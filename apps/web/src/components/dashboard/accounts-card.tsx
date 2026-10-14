@@ -47,6 +47,7 @@ export type AccountRow = {
   itemId: string | null
   positions: PositionRow[]
   holdingCount?: number
+  holdingsPending?: boolean
   holdingPreview?: string[]
 }
 

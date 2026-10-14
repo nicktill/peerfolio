@@ -4,7 +4,7 @@ import type { AccountBase, Holding as PlaidHolding, Security as PlaidSecurity } 
 import { db, holdings, accounts, plaidItems, portfolioSnapshots, securities, plaidInvestmentFlows } from "@web/db"
 import { decrypt } from "@web/lib/crypto"
 import { getPlaidClient, isReauthRequired, plaidErrorCode } from "@web/lib/plaid"
-import { flowChanges, investmentHistoryStart, investmentPages, mergeDuplicateHoldings, retryPlaid, splitUsableHoldings } from "@web/lib/plaid-sync-core"
+import { accountsAwaitingHoldings, countByReason, flowChanges, investmentHistoryStart, investmentPages, mergeDuplicateHoldings, retryPlaid, securityDisplayName, splitUsableHoldings } from "@web/lib/plaid-sync-core"
 import { keepsEntryValue } from "@web/lib/ranges"
 import { categorizeAccount, type AccountCategory } from "@web/lib/account-category"
 import { accountBalance } from "@web/lib/account-balance"
@@ -26,6 +26,8 @@ export type SyncResult = {
   itemId: string
   accounts: number
   holdings: number
+  /** Investment accounts with a balance but no positions yet; a later sync (webhook or nightly) fills them in. */
+  holdingsPending?: number
   status: "active" | "needs_reauth" | "error"
   errorCode?: string
 }
@@ -66,7 +68,22 @@ export async function syncItem(itemRowId: string, deadline = Date.now() + 90_000
       const hasInvestments = data.accounts.some((a) => categorizeAccount(a.type, a.subtype) === "investment")
       const investmentAccountIds = new Set(data.accounts.filter((a) => categorizeAccount(a.type, a.subtype) === "investment").map((a) => a.account_id))
       // Fetch everything before changing stored balances. A failure rolls the whole sync back.
-      const holdingData = hasInvestments ? (await retryPlaid(() => client.investmentsHoldingsGet({ access_token: accessToken }), undefined, deadline)).data : null
+      let holdingData = hasInvestments ? (await retryPlaid(() => client.investmentsHoldingsGet({ access_token: accessToken }), undefined, deadline)).data : null
+      // A new Item's positions can still be loading: Plaid answers 200 with no lines for accounts that do have a balance.
+      // Ask again a couple of times before settling for that.
+      const awaitingNow = (d: NonNullable<typeof holdingData>) => accountsAwaitingHoldings(
+        d.accounts.map((a) => ({ account_id: a.account_id, balance: a.balances.current })),
+        rawLineCounts(d.holdings),
+      )
+      let holdingAttempts = 1
+      for (const waitMs of syncTuning.emptyHoldingsWaits) {
+        if (!holdingData || awaitingNow(holdingData).length === 0 || Date.now() + waitMs + 5_000 >= deadline) break
+        await new Promise<void>((resolve) => setTimeout(resolve, waitMs))
+        holdingData = (await retryPlaid(() => client.investmentsHoldingsGet({ access_token: accessToken }), undefined, deadline)).data
+        holdingAttempts++
+      }
+      const awaiting = new Set(holdingData ? awaitingNow(holdingData) : [])
+      const holdingsReceived = holdingData?.holdings.length ?? 0
       // accounts/get and holdings/get may be separate cached snapshots. Use the
       // balances accompanying the holdings so values and positions agree.
       const holdingsAccounts = new Map(holdingData?.accounts.map((a) => [a.account_id, a]) ?? [])
@@ -81,8 +98,14 @@ export async function syncItem(itemRowId: string, deadline = Date.now() + 90_000
       // One odd line (crypto, a margin debit, a short) must not take the whole connection down.
       if (holdingData) {
         const { kept, skipped } = splitUsableHoldings(holdingData.holdings)
-        if (skipped.length) console.warn(`[plaid-sync] left out ${skipped.length} holding line(s) for item ${item.id}: ${[...new Set(skipped.map((s) => s.reason))].join(", ")}`)
         holdingData.holdings = mergeDuplicateHoldings(kept)
+        // One structured line per sync, so an empty Holdings view can be explained from the logs alone.
+        const summary = JSON.stringify({
+          item: item.id, accounts: holdingData.accounts.length, received: holdingsReceived, securities: holdingData.securities.length,
+          skipped: countByReason(skipped), kept: kept.length, saved: holdingData.holdings.length, awaitingAccounts: awaiting.size, attempts: holdingAttempts,
+        })
+        if (awaiting.size) console.warn(`[plaid-sync] holdings still loading ${summary}`)
+        else console.info(`[plaid-sync] holdings ${summary}`)
       }
       // Structural capital must use the same authoritative balances as the import.
       const structuralFlow = importedAccounts.filter((a) => baselineAccounts.has(a.account_id) && categorizeAccount(a.type, a.subtype) === "investment")
@@ -104,13 +127,13 @@ export async function syncItem(itemRowId: string, deadline = Date.now() + 90_000
       const changes = flowChanges(transactions.filter((tx) => investmentAccountIds.has(tx.account_id)), new Map(previous.filter((r) => investmentAccountIds.has(r.accountId)).map((r) => [r.transactionId, { amount: num(r.amount), baseline: r.baseline, date: r.transactionDate, accountId: r.accountId }])), current.flowsInitialized ? baselineAccounts : incomingIds, baselineDates, hasInvestments ? transactionWindow : undefined)
       const accountCount = await upsertPlaidAccounts(item.id, item.userId, importedAccounts, store)
       let holdingCount = 0
-      if (holdingData) holdingCount = await syncHoldings(item.id, item.userId, holdingData, store)
+      if (holdingData) holdingCount = await syncHoldings(item.id, item.userId, holdingData, store, awaiting)
       if (changes.entries.length) await store.insert(plaidInvestmentFlows).values(changes.entries.map((r) => ({
         transactionId: r.transactionId, itemId: item.id, accountId: r.accountId, amount: r.amount.toFixed(4), baseline: r.baseline, transactionDate: r.date,
       }))).onConflictDoUpdate({ target: plaidInvestmentFlows.transactionId, set: { amount: sqlExcluded("amount"), transactionDate: sqlExcluded("transaction_date") } })
       await store.update(plaidItems).set({ status: "active", errorCode: null, lastSyncedAt: new Date(), flowsInitialized: true }).where(eq(plaidItems.id, item.id))
       await writeDailySnapshot(item.userId, structuralFlow + changes.net, today(), store)
-      return { itemId: item.id, accounts: accountCount, holdings: holdingCount, status: "active" }
+      return { itemId: item.id, accounts: accountCount, holdings: holdingCount, holdingsPending: awaiting.size, status: "active" }
     })
   } catch (error) {
     const code = error instanceof SyncValidationError ? error.code : plaidErrorCode(error)
@@ -120,6 +143,10 @@ export async function syncItem(itemRowId: string, deadline = Date.now() + 90_000
     return { itemId: item.id, accounts: 0, holdings: 0, status, errorCode: code ?? undefined }
   }
 }
+
+/** Pauses between re-asking for positions that are still loading; tests shorten them. */
+export const syncTuning = { emptyHoldingsWaits: [3000, 6000] }
+const rawLineCounts = (lines: { account_id: string }[]) => lines.reduce((counts, l) => counts.set(l.account_id, (counts.get(l.account_id) ?? 0) + 1), new Map<string, number>())
 
 async function upsertPlaidAccounts(itemRowId: string, userId: string, list: AccountBase[], store: SyncDb): Promise<number> {
   const incomingIds = list.map((a) => a.account_id)
@@ -173,15 +200,17 @@ async function upsertPlaidAccounts(itemRowId: string, userId: string, list: Acco
   return list.length
 }
 
-async function syncHoldings(itemRowId: string, userId: string, data: { accounts: { account_id: string }[]; holdings: PlaidHolding[]; securities: PlaidSecurity[] }, store: SyncDb): Promise<number> {
-  await upsertSecurities(data.securities, store)
+async function syncHoldings(itemRowId: string, userId: string, data: { accounts: { account_id: string }[]; holdings: PlaidHolding[]; securities: PlaidSecurity[] }, store: SyncDb, awaiting: Set<string> = new Set()): Promise<number> {
+  await upsertSecurities(data.securities, store, data.holdings)
   // Scope to accounts in this response, including those with ZERO positions.
   const rows = await store.select({ id: accounts.id, plaidAccountId: accounts.plaidAccountId }).from(accounts)
     .where(and(eq(accounts.itemId, itemRowId), eq(accounts.userId, userId), inArray(accounts.plaidAccountId, data.accounts.map((a) => a.account_id))))
   const idByPlaidId = new Map(rows.map((r) => [r.plaidAccountId, r.id]))
   if (data.holdings.some((h) => !idByPlaidId.has(h.account_id))) throw new Error("Holdings reference an unknown account")
   // Replace the authoritative holdings set atomically; failures roll back deletion.
-  if (rows.length) await store.delete(holdings).where(inArray(holdings.accountId, rows.map((r) => r.id)))
+  // An account that reports a balance but no lines yet keeps what it had; an early empty answer is not "everything was sold".
+  const replaced = rows.filter((r) => !awaiting.has(r.plaidAccountId!))
+  if (replaced.length) await store.delete(holdings).where(inArray(holdings.accountId, replaced.map((r) => r.id)))
   const values = data.holdings
     .map((h: PlaidHolding) => {
       const accountId = idByPlaidId.get(h.account_id)
@@ -217,8 +246,11 @@ async function syncHoldings(itemRowId: string, userId: string, data: { accounts:
   return values.length
 }
 
-async function upsertSecurities(list: PlaidSecurity[], store: SyncDb) {
+async function upsertSecurities(list: PlaidSecurity[], store: SyncDb, lines: PlaidHolding[] = []) {
   if (list.length === 0) return
+  // Funds without a close price (401(k) options, sweeps) still carry the institution's own price.
+  const institutionPrice = new Map<string, { price: number; asOf: string | null }>()
+  for (const l of lines) if (l.institution_price != null && Number.isFinite(l.institution_price) && !institutionPrice.has(l.security_id)) institutionPrice.set(l.security_id, { price: l.institution_price, asOf: l.institution_price_as_of ?? null })
 
   await store
     .insert(securities)
@@ -226,10 +258,10 @@ async function upsertSecurities(list: PlaidSecurity[], store: SyncDb) {
       list.map((s) => ({
         id: s.security_id,
         tickerSymbol: s.ticker_symbol ?? null,
-        name: s.name ?? null,
+        name: securityDisplayName(s),
         type: s.type ?? null,
-        closePrice: s.close_price?.toString() ?? null,
-        closePriceAsOf: s.close_price_as_of ?? null,
+        closePrice: (s.close_price ?? institutionPrice.get(s.security_id)?.price)?.toString() ?? null,
+        closePriceAsOf: s.close_price != null ? s.close_price_as_of ?? null : institutionPrice.get(s.security_id)?.asOf ?? s.close_price_as_of ?? null,
         isoCurrencyCode: s.iso_currency_code ?? "USD",
         updatedAt: new Date(),
       })),

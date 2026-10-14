@@ -16,7 +16,7 @@ import { requireManualAccount } from '../src/lib/positions'
 import { DELETE as deleteAccount } from '../src/app/api/accounts/[id]/route'
 import { revalueSecurities } from '../src/lib/positions'
 import { timeWeightedReturn } from '../src/lib/ranges'
-import { syncItem, investableTotal, writeDailySnapshot } from '../src/lib/plaid-sync'
+import { syncItem, syncTuning, investableTotal, writeDailySnapshot } from '../src/lib/plaid-sync'
 import { replaceManualAccount, restoreManualAccount } from '../src/lib/account-replacement'
 import { exchangePublicToken, pendingLinkToken } from '../src/lib/plaid-link'
 import { DELETE as deleteProfile } from '../src/app/api/me/route'
@@ -59,6 +59,9 @@ try {
   let institutionMissing = false
   let holdingsAccountsMissing = false
   let holdingsBalance: number | null = null
+  let lateHoldings: typeof holdingList | null = null
+  let holdingsCalls = 0
+  syncTuning.emptyHoldingsWaits = []
   let transactionFailureOffset: number | null = null
   let linkRequests = 0
   let exchangeRequests = 0
@@ -67,7 +70,7 @@ try {
     accountsGet: async () => ({ data: { accounts: [...(empty ? [] : [account('a', balance)]), ...(extraAccount ? [account('b', 100)] : [])] } }),
     investmentsHoldingsGet: async () => {
       if (failure) throw { response: { data: { error_code: failure } } }
-      return { data: { accounts: holdingsAccountsMissing ? [] : [...(empty ? [] : [account('a', holdingsBalance ?? balance)]), ...(extraAccount ? [account('b', 100)] : [])], holdings: holdingList, securities: [{ security_id: 'stock', name: 'Stock', type: 'equity', close_price: 100 }] } }
+      return { data: { accounts: holdingsAccountsMissing ? [] : [...(empty ? [] : [account('a', holdingsBalance ?? balance)]), ...(extraAccount ? [account('b', 100)] : [])], holdings: lateHoldings && holdingsCalls++ > 0 ? lateHoldings : holdingList, securities: [{ security_id: 'stock', name: 'Stock', type: 'equity', close_price: 100 }, { security_id: 'fund', name: null, ticker_symbol: null, cusip: '315911750', type: 'mutual fund', close_price: null }] } }
     },
     investmentsTransactionsGet: async ({ options }: { options: { offset: number } }) => {
       if (options.offset === transactionFailureOffset) throw { response: { data: { error_code: 'INVALID_REQUEST' } } }
@@ -103,10 +106,12 @@ try {
   assert.equal((await createLinkToken(new Request('http://localhost/api/plaid/link-token', { method: 'POST', body: '{}' }), {})).status, 200)
   assert.equal((await syncItem(item!.id)).status, 'active')
   assert.equal((await db.select().from(holdings)).length, 1)
-  // A sold position vanishes, including an account with no remaining holdings.
+  // A sold position vanishes, including an account with no remaining holdings and no balance.
   holdingList = []
+  balance = 0
   await syncItem(item!.id)
   assert.equal((await db.select().from(holdings)).length, 0)
+  balance = 1000
   // Restore then fail: stored balances and holdings must survive unchanged.
   holdingList = [{ account_id: 'a', security_id: 'stock', quantity: 10, institution_value: 1000, cost_basis: 1000, iso_currency_code: 'USD' }]
   await syncItem(item!.id)
@@ -119,6 +124,26 @@ try {
   assert.equal(Number((await db.select().from(accounts))[0]!.currentBalance), 1000)
   assert.equal((await db.select().from(holdings)).length, 1)
   failure = null
+  // A balance with no positions is "still loading", not a complete sync: say so and keep what we had.
+  balance = 1000
+  holdingList = []
+  const pendingSync = await syncItem(item!.id)
+  assert.equal(pendingSync.status, 'active')
+  assert.equal(pendingSync.holdingsPending, 1)
+  assert.equal((await db.select().from(holdings)).length, 1)
+  // An empty answer that fills in on a retry is saved without waiting for the next cron.
+  syncTuning.emptyHoldingsWaits = [1]
+  lateHoldings = [{ account_id: 'a', security_id: 'fund', quantity: 4, institution_value: null, institution_price: 25, cost_basis: 90, iso_currency_code: 'USD' } as never]
+  holdingsCalls = 0
+  const lateSync = await syncItem(item!.id)
+  assert.equal(lateSync.holdingsPending, 0)
+  lateHoldings = null
+  syncTuning.emptyHoldingsWaits = []
+  // A fund with no ticker or name is kept, named from its CUSIP and priced from the institution.
+  const [fund] = await db.select({ value: holdings.institutionValue, name: securities.name, ticker: securities.tickerSymbol, price: securities.closePrice }).from(holdings).innerJoin(securities, eq(holdings.securityId, securities.id))
+  assert.deepEqual([Number(fund!.value), fund!.name, fund!.ticker, Number(fund!.price)], [100, '315911750', null, 25])
+  holdingList = [{ account_id: 'a', security_id: 'stock', quantity: 10, institution_value: 1000, cost_basis: 1000, iso_currency_code: 'USD' }]
+  assert.equal((await syncItem(item!.id)).holdingsPending, 0)
   // A same-day post-link deposit is neutralized through the baseline balance delta.
   const baselineFlows = Number((await db.select().from(portfolioSnapshots))[0]!.netFlows)
   balance = 1100
