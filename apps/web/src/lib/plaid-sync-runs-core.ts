@@ -1,7 +1,7 @@
 /** Pure parts of the persistent sync log, so recording and highlighting can be tested without a database. */
 export const SYNC_RUN_RETENTION_DAYS = 30
 
-export type SyncTrigger = "cron" | "webhook" | "manual" | "link"
+export type SyncTrigger = "cron" | "webhook" | "manual" | "link" | "admin-refresh"
 export type SyncRunStatus = "ok" | "partial" | "failed"
 
 export type SyncRunMetrics = {
@@ -72,13 +72,20 @@ export function plaidRequestId(source: unknown): string | null {
 /** One on-demand run per connection per minute, so the page can't hammer Plaid. */
 export const MANUAL_RUN_COOLDOWN_MS = 60_000
 
+/**
+ * Asking Plaid to re-extract from the institution (/investments/refresh) is far rarer: once per connection per 10 minutes.
+ * Plaid may rate-limit it, and it is billed per call outside the Trial plan.
+ */
+export const REFRESH_COOLDOWN_MS = 10 * 60_000
+
 export type ManualRunGate = { ok: true } | { ok: false; reason: "in_flight" | "cooldown"; retryAfterSec: number }
 
 /** Decides whether an admin-triggered run may start. `lastFinishedAt` is when the connection's latest run of any kind ended. */
-export function manualRunGate(input: { lastFinishedAt: Date | null; now: Date; inFlight: boolean }): ManualRunGate {
-  if (input.inFlight) return { ok: false, reason: "in_flight", retryAfterSec: Math.ceil(MANUAL_RUN_COOLDOWN_MS / 1000) }
+export function manualRunGate(input: { lastFinishedAt: Date | null; now: Date; inFlight: boolean; cooldownMs?: number }): ManualRunGate {
+  const cooldownMs = input.cooldownMs ?? MANUAL_RUN_COOLDOWN_MS
+  if (input.inFlight) return { ok: false, reason: "in_flight", retryAfterSec: Math.ceil(cooldownMs / 1000) }
   if (!input.lastFinishedAt) return { ok: true }
-  const waitMs = input.lastFinishedAt.getTime() + MANUAL_RUN_COOLDOWN_MS - input.now.getTime()
+  const waitMs = input.lastFinishedAt.getTime() + cooldownMs - input.now.getTime()
   return waitMs > 0 ? { ok: false, reason: "cooldown", retryAfterSec: Math.ceil(waitMs / 1000) } : { ok: true }
 }
 

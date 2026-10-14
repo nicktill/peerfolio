@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { MANUAL_RUN_COOLDOWN_MS, buildSyncRun, isItemRowId, manualRunGate, summarizeRun, countMissingTicker, emptyMetrics, plaidRequestId, runConcern, runStatus } from "./plaid-sync-runs-core.ts"
+import { MANUAL_RUN_COOLDOWN_MS, REFRESH_COOLDOWN_MS, buildSyncRun, isItemRowId, manualRunGate, summarizeRun, countMissingTicker, emptyMetrics, plaidRequestId, runConcern, runStatus } from "./plaid-sync-runs-core.ts"
 
 const base = { itemId: "i", userId: "u", trigger: "cron" as const, startedAt: new Date("2026-10-14T04:44:12Z"), finishedAt: new Date("2026-10-14T04:44:15.5Z") }
 
@@ -56,6 +56,13 @@ describe("admin on-demand sync", () => {
     const gate = manualRunGate({ lastFinishedAt: null, now, inFlight: true })
     assert.equal(gate.ok, false)
     assert.equal(!gate.ok && gate.reason, "in_flight")
+  })
+  it("holds Plaid refresh requests to one per ten minutes", () => {
+    const gate = (agoMs: number | null) => manualRunGate({ lastFinishedAt: agoMs === null ? null : ago(agoMs), now, inFlight: false, cooldownMs: REFRESH_COOLDOWN_MS })
+    assert.deepEqual(gate(null), { ok: true })
+    assert.deepEqual(gate(5 * 60_000), { ok: false, reason: "cooldown", retryAfterSec: 300 })
+    assert.deepEqual(gate(REFRESH_COOLDOWN_MS), { ok: true })
+    assert.equal(manualRunGate({ lastFinishedAt: null, now, inFlight: true, cooldownMs: REFRESH_COOLDOWN_MS }).ok, false)
   })
   it("accepts only full item row ids", () => {
     assert.equal(isItemRowId("0b9a2d3e-5c1f-4a77-9e0d-1f2a3b4c5d6e"), true)

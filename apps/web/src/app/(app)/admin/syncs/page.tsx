@@ -17,7 +17,7 @@ type Run = {
 
 type Item = { id: string; institution: string | null; status: string; lastSyncedAt: string | null }
 type RunSummary = { status: "ok" | "partial" | "failed"; errorCode: string | null; durationMs: number; accounts: number; received: number; kept: number; skipped: Record<string, number>; awaiting: boolean; concern: string | null }
-type Outcome = { state: "confirm" | "running" } | { state: "done"; summary: RunSummary | null; status: string } | { state: "error"; message: string }
+type Outcome = { state: "refresh-confirm" } | { state: "refresh-done"; requestId: string | null } | { state: "confirm" | "running" } | { state: "done"; summary: RunSummary | null; status: string } | { state: "error"; message: string }
 
 const skippedText = (skipped: Record<string, number>) => Object.entries(skipped).map(([reason, n]) => `${n} ${reason}`).join(", ") || "–"
 
@@ -38,6 +38,18 @@ export default function SyncRunsPage() {
       const body = await res.json().catch(() => ({}))
       if (!res.ok) { setOutcome(id, { state: "error", message: body.error ?? "Sync failed" }); return }
       setOutcome(id, { state: "done", summary: body.run, status: body.result.status })
+      void refetch()
+    } catch {
+      setOutcome(id, { state: "error", message: "Could not reach the server" })
+    }
+  }
+  async function requestRefresh(id: string) {
+    setOutcome(id, { state: "running" })
+    try {
+      const res = await fetch("/api/admin/plaid-syncs/refresh", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ itemId: id }) })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) { setOutcome(id, { state: "error", message: `${body.code ? `${body.code}: ` : ""}${body.error ?? "Refresh request failed"}` }); return }
+      setOutcome(id, { state: "refresh-done", requestId: body.requestId ?? null })
       void refetch()
     } catch {
       setOutcome(id, { state: "error", message: "Could not reach the server" })
@@ -85,16 +97,26 @@ export default function SyncRunsPage() {
                         : `Finished (${o.status}); the run was not logged`}
                     </span>
                   ) : null}
-                  {o?.state === "confirm" ? (
+                  {o?.state === "refresh-done" ? <span className="text-xs text-gain-ink">Refresh requested{o.requestId ? ` (${o.requestId})` : ""}. Plaid will notify us when ready; Sync now afterwards also works.</span> : null}
+                  {o?.state === "refresh-confirm" ? (
+                    <>
+                      <span className="text-xs text-muted-foreground">Ask Plaid to re-extract from the institution? Limited to once per 10 min; may be rate-limited or billed outside the Trial.</span>
+                      <Button size="sm" onClick={() => void requestRefresh(it.id)}>Confirm refresh</Button>
+                      <Button size="sm" variant="outline" onClick={() => setOutcome(it.id, null)}>Cancel</Button>
+                    </>
+                  ) : o?.state === "confirm" ? (
                     <>
                       <span className="text-xs text-muted-foreground">Re-run this sync from the stored data at Plaid?</span>
                       <Button size="sm" onClick={() => void syncNow(it.id)}>Confirm</Button>
                       <Button size="sm" variant="outline" onClick={() => setOutcome(it.id, null)}>Cancel</Button>
                     </>
                   ) : (
+                    <>
+                    <Button size="sm" variant="outline" disabled={o?.state === "running"} onClick={() => setOutcome(it.id, { state: "refresh-confirm" })}>Ask Plaid to refresh from the institution</Button>
                     <Button size="sm" variant="outline" disabled={o?.state === "running"} onClick={() => setOutcome(it.id, { state: "confirm" })}>
-                      <RefreshCw aria-hidden className={cn("size-3.5", o?.state === "running" && "animate-spin")} />{o?.state === "running" ? "Syncing…" : "Sync now"}
+                      <RefreshCw aria-hidden className={cn("size-3.5", o?.state === "running" && "animate-spin")} />{o?.state === "running" ? "Working…" : "Sync now"}
                     </Button>
+                    </>
                   )}
                 </div>
               </div>

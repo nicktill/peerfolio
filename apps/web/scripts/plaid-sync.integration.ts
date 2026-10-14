@@ -22,6 +22,7 @@ import { exchangePublicToken, pendingLinkToken } from '../src/lib/plaid-link'
 import { DELETE as deleteProfile } from '../src/app/api/me/route'
 import { DELETE as disconnect } from '../src/app/api/plaid/items/[id]/route'
 import { POST as runAdminSync } from '../src/app/api/admin/plaid-syncs/run/route'
+import { POST as refreshAdmin } from '../src/app/api/admin/plaid-syncs/refresh/route'
 import { GET as listAdminSyncs } from '../src/app/api/admin/plaid-syncs/route'
 import { GET as listAdminBrokerages, PATCH as updateBrokeragePermission } from '../src/app/api/admin/brokerages/route'
 import { GET as brokerageAccess } from '../src/app/api/plaid/access/route'
@@ -54,6 +55,8 @@ try {
   let holdingList: Array<{ account_id: string; security_id: string; quantity: number; institution_value: number | null; cost_basis: number; iso_currency_code?: string | null }> = [{ account_id: 'a', security_id: 'stock', quantity: 10, institution_value: 1000, cost_basis: 1000, iso_currency_code: 'USD' }]
   let transactionList: InvestmentFlow[] = []
   let failure: string | null = null
+  let refreshCalls = 0
+  let refreshFailure: string | null = null
   let empty = false
   let removed = 0
   let removeFailure = false
@@ -82,6 +85,7 @@ try {
     itemPublicTokenExchange: async () => { exchangeRequests++; return { data: { access_token: 'duplicate-token', item_id: 'duplicate-item' } } },
     itemGet: async () => { if (revokeDuringMetadata) await db.update(users).set({ brokerageLinkingEnabled: false }).where(eq(users.id, user!.id)); if (metadataFailure) throw new Error('metadata outage'); return { data: { item: { institution_id: institutionMissing ? null : 'institution' } } } },
     institutionsGetById: async () => ({ data: { institution: { name: 'Test brokerage' } } }),
+    investmentsRefresh: async () => { refreshCalls++; if (refreshFailure) throw { response: { data: { error_code: refreshFailure, error_message: 'refresh not allowed', request_id: 'req-refresh-err' } } }; return { data: { request_id: 'req-refresh' } } },
     itemRemove: async () => { if (removeFailure) throw { response: { data: { error_code: 'INTERNAL_SERVER_ERROR' } } }; removed++; return { data: {} } },
   }
   ;globalThis.plaidTestClient = client
@@ -184,6 +188,24 @@ try {
     await db.update(plaidSyncRuns).set({ startedAt: new Date(Date.now() - 3_600_000) })
     process.env.PLAID_KILL_SWITCH = 'true'
     await assert.rejects(run(item!.id), /paused/)
+    delete process.env.PLAID_KILL_SWITCH
+    // Plaid refresh request: admin only, one per ten minutes, logged, Plaid errors surfaced.
+    const refresh = () => refreshAdmin(new Request('http://localhost/api/admin/plaid-syncs/refresh', { method: 'POST', body: JSON.stringify({ itemId: item!.id }) }), {})
+    globalThis.plaidTestUser = asUser
+    await assert.rejects(refresh(), /Administrator/)
+    globalThis.plaidTestUser = adminUser!.id
+    refreshFailure = 'PRODUCTS_NOT_SUPPORTED'
+    await assert.rejects(refresh(), (e: { status?: number; message: string }) => e.status === 502 && /refresh not allowed/.test(e.message))
+    assert.ok((await db.select().from(plaidSyncRuns)).some((r) => r.trigger === 'admin-refresh' && r.status === 'failed' && r.errorCode === 'PRODUCTS_NOT_SUPPORTED' && r.requestId === 'req-refresh-err'))
+    await db.update(plaidSyncRuns).set({ startedAt: new Date(Date.now() - 3_600_000) })
+    refreshFailure = null
+    const refreshed = await (await refresh()).json()
+    assert.deepEqual([refreshed.requested, refreshed.requestId, refreshCalls], [true, 'req-refresh', 2])
+    assert.ok((await db.select().from(plaidSyncRuns)).some((r) => r.trigger === 'admin-refresh' && r.status === 'ok' && r.requestId === 'req-refresh'))
+    await assert.rejects(refresh(), /Try again in \d+ min/)
+    assert.equal(refreshCalls, 2)
+    process.env.PLAID_KILL_SWITCH = 'true'
+    await assert.rejects(refresh(), /paused/)
     delete process.env.PLAID_KILL_SWITCH
     globalThis.plaidTestUser = asUser
   }
