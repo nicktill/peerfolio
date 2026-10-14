@@ -40,7 +40,16 @@ describe("todayChange", () => {
     assert.ok(change)
     assert.equal(change.amount, 100 - 10)
     assert.equal(change.asOf, "2026-09-29")
-    assert.ok(Math.abs(change.percent - (90 / (1800 - 90)) * 100) < 1e-9)
+    // A share of what the covered holdings were worth at the previous close (10 x 100 + 2 x 105).
+    assert.ok(Math.abs(change.percent - (90 / 1210) * 100) < 1e-9)
+    assert.equal(change.coverage, 1)
+  })
+
+  it("reports how much of the portfolio the move covers, leaving out what has no previous close", () => {
+    const change = todayChange([pos({}), pos({ securityId: "plan:X", value: 1100, previousClose: null })], 2200)
+    assert.ok(change)
+    assert.equal(change.coverage, 0.5)
+    assert.equal(change.amount, 100)
   })
 
   it("says nothing when too little of the portfolio has a previous close", () => {

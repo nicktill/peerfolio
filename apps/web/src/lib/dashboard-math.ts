@@ -97,7 +97,9 @@ export function todayChange(positions: PositionInput[], netWorth: number, minCov
   if (known.length === 0 || total <= 0 || knownValue / total < minCoverage) return null
 
   const amount = known.reduce((sum, p) => sum + p.quantity * (p.price - p.previousClose!), 0)
-  const before = netWorth - amount
+  // The move as a share of what the covered holdings were worth at the previous close: with plan
+  // funds and cash left out, the whole net worth would understate it.
+  const before = known.reduce((sum, p) => sum + p.quantity * p.previousClose!, 0)
   const dates = known.map((p) => p.priceAsOf).filter((d): d is string => !!d)
   return {
     amount,

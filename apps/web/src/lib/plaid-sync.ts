@@ -9,6 +9,7 @@ import { keepsEntryValue } from "@web/lib/ranges"
 import { categorizeAccount, type AccountCategory } from "@web/lib/account-category"
 import { accountBalance } from "@web/lib/account-balance"
 import { latestStartedSession } from "@web/lib/market-hours"
+import { revalue } from "@web/lib/positions"
 import { assertPlaidActive, plaidPaused } from "@web/lib/plaid-switch"
 import { buildSyncRun, countMissingTicker, emptyMetrics, plaidRequestId, type SyncTrigger } from "@web/lib/plaid-sync-runs-core"
 import { recordSyncRun } from "@web/lib/plaid-sync-runs"
@@ -143,6 +144,9 @@ export async function syncItem(itemRowId: string, deadline = Date.now() + 90_000
       const accountCount = await upsertPlaidAccounts(item.id, item.userId, importedAccounts, store)
       let holdingCount = 0
       if (holdingData) holdingCount = await syncHoldings(item.id, item.userId, holdingData, store, awaiting)
+      // The sync wrote the institution's values; bring them to our prices before anything is recorded
+      // (the snapshot below), so the page, the snapshot and today's change all agree.
+      if (holdingData) for (const account of await store.select({ id: accounts.id }).from(accounts).where(and(eq(accounts.itemId, item.id), eq(accounts.userId, item.userId), eq(accounts.isActive, true)))) await revalue(account.id, undefined, store)
       if (changes.entries.length) await store.insert(plaidInvestmentFlows).values(changes.entries.map((r) => ({
         transactionId: r.transactionId, itemId: item.id, accountId: r.accountId, amount: r.amount.toFixed(4), baseline: r.baseline, transactionDate: r.date,
       }))).onConflictDoUpdate({ target: plaidInvestmentFlows.transactionId, set: { amount: sqlExcluded("amount"), transactionDate: sqlExcluded("transaction_date") } })
@@ -340,7 +344,7 @@ function seedPrice(s: PlaidSecurity, institution: { price: number; asOf: string 
   if (institution) {
     const session = latestStartedSession(new Date())
     const close = s.close_price != null && s.close_price_as_of && s.close_price_as_of < session ? s.close_price : null
-    return { closePrice: institution.price.toString(), closePriceAsOf: session, previousClose: close?.toString() ?? null, closePriceFinal: false }
+    return { closePrice: institution.price.toString(), closePriceAsOf: session, previousClose: close?.toString() ?? null, closePriceFinal: true }
   }
   return { closePrice: s.close_price?.toString() ?? null, closePriceAsOf: s.close_price_as_of ?? null, closePriceFinal: true }
 }

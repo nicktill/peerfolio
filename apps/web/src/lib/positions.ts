@@ -868,12 +868,15 @@ export async function revalue(accountId?: string, securityIds?: string[], store:
   // same difference. A sync starts again from the institution's numbers.
   await executeRevaluation(sql`
     WITH changed AS (
-      SELECT h.id, h.quantity * s.close_price AS new_value, COALESCE(h.institution_value, 0) AS old_value
+      SELECT h.id, round(h.quantity * s.close_price, 4) AS new_value,
+        COALESCE(h.institution_value, round(h.quantity * s.close_price, 4)) AS old_value
       FROM holdings h
       JOIN securities s ON s.id = h.security_id
       JOIN accounts a ON a.id = h.account_id
       WHERE s.market_ticker IS NOT NULL AND s.close_price IS NOT NULL AND h.quantity IS NOT NULL
         AND a.is_active AND a.source <> 'manual' ${onlyAccount} ${onlySecurities}
+      -- Locked before the old value is read, so two overlapping revaluations can't both count the same move.
+      ORDER BY h.id FOR UPDATE OF h
     ), moved AS (
       UPDATE holdings h SET institution_value = c.new_value, updated_at = now()
       FROM changed c
