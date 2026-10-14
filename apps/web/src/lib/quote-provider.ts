@@ -59,7 +59,7 @@ export function createQuoteProvider(
   now: () => Date = () => new Date(),
   // `anyAge` keeps the last trade however old it is. Live refreshes want only recent
   // trades; pricing a ticker for the first time (an import) wants the best price there is.
-  { anyAge = false }: { anyAge?: boolean } = {},
+  { anyAge = false, maxAgeMs = MAX_QUOTE_AGE_MS }: { anyAge?: boolean; maxAgeMs?: number } = {},
 ): QuoteProvider | null {
   const name = (env.QUOTE_PROVIDER ?? "auto").trim().toLowerCase()
 
@@ -70,7 +70,7 @@ export function createQuoteProvider(
     case "auto": {
       const list = [alpaca(), finnhub()].filter((p): p is QuoteProvider => p !== null)
       if (list.length === 0) return null
-      return list.length === 1 ? list[0]! : createCompositeProvider(list, (quote) => anyAge || acceptQuote(quote, now()))
+      return list.length === 1 ? list[0]! : createCompositeProvider(list, (quote) => anyAge || acceptQuote(quote, now(), maxAgeMs))
     }
     case "alpaca":
       return alpaca()
@@ -90,17 +90,26 @@ export function createQuoteProvider(
 export const MAX_QUOTE_AGE_MS = 30 * 60_000
 
 /**
+ * How recent the last trade must be for an order to fill at it. A display price can be
+ * 30 minutes old, but a fill can't: on a thin stock the free IEX feed's last print may
+ * predate a move elsewhere, and filling there lets someone trade on a price the market
+ * has left. A source whose last trade is older is skipped (the next source is asked),
+ * and with no qualifying price the order waits for one.
+ */
+export const FILL_QUOTE_MAX_AGE_MS = (Number(process.env.FILL_QUOTE_MAX_AGE_SECONDS) || 120) * 1000
+
+/**
  * Whether a quote is fit to store as the current price: a real positive number
  * from a recent trade. This is what stops a holiday's or halt's stale print
  * from overwriting a good price.
  */
-export function acceptQuote(quote: Quote | undefined, now: Date): quote is Quote {
+export function acceptQuote(quote: Quote | undefined, now: Date, maxAgeMs = MAX_QUOTE_AGE_MS): quote is Quote {
   if (!quote || !Number.isFinite(quote.price) || !(quote.price > 0)) return false
   const at = Date.parse(quote.asOf)
   if (!Number.isFinite(at)) return false
   const age = now.getTime() - at
   // A little clock skew into the future is fine; far more is a bad timestamp.
-  if (age > MAX_QUOTE_AGE_MS || age < -5 * 60_000) return false
+  if (age > maxAgeMs || age < -5 * 60_000) return false
   // Only regular-session prints are live. A pre-market or after-hours print can
   // be recent and still far from where the stock opens, and a trade filled at
   // one is the stale-price gap this exists to close.
