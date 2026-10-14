@@ -60,12 +60,19 @@ export function TradePanel({ leagueId, cash, positions, onTraded, closed = false
       return
     }
     let cancelled = false
+    let timer: ReturnType<typeof setTimeout>
     setLookup({ state: "loading" })
-    const timer = setTimeout(async () => {
+    // A 429 is the provider's budget running out for a moment (often on a half-typed ticker),
+    // not an answer about this ticker: keep "Looking up…" and ask again shortly.
+    const look = async (retries: number) => {
       try {
         const response = await fetch(`/api/market/quote?symbol=${encodeURIComponent(ticker)}&kind=stock`)
         const body = await response.json().catch(() => ({}))
         if (cancelled) return
+        if (response.status === 429 && retries > 0) {
+          timer = setTimeout(() => look(retries - 1), 2500)
+          return
+        }
         setLookup(
           response.ok
             ? { state: "found", quote: body as Quote }
@@ -74,7 +81,8 @@ export function TradePanel({ leagueId, cash, positions, onTraded, closed = false
       } catch {
         if (!cancelled) setLookup({ state: "missing", message: "Couldn't reach the price service. Try again." })
       }
-    }, 350)
+    }
+    timer = setTimeout(() => look(2), 350)
     return () => {
       cancelled = true
       clearTimeout(timer)
