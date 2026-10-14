@@ -287,12 +287,12 @@ export function AccountsCard({
                   className={cn(
                     "group rounded-xl p-2 transition-[background-color,box-shadow] duration-300",
                     variant === "rail" && "-mx-2",
-                    account.source === "manual" && account.category === "investment" && isOpen(account) ? "bg-secondary/50 shadow-[inset_0_0_0_1px_hsl(var(--border))]" : "hover:bg-secondary/50",
+                    account.category === "investment" && isOpen(account) ? "bg-secondary/50 shadow-[inset_0_0_0_1px_hsl(var(--border))]" : "hover:bg-secondary/50",
                     highlightId === account.id && "shadow-[0_0_0_2px_hsl(var(--primary))]",
                   )}
                 >
                   {(() => {
-                    const expandable = account.source === "manual" && account.category === "investment"
+                    const expandable = account.category === "investment"
                     const open = expandable && isOpen(account)
                     const withBasis = account.positions.filter((p) => p.costBasis)
                     const cost = withBasis.reduce((sum, p) => sum + (p.costBasis ?? 0), 0)
@@ -368,7 +368,7 @@ export function AccountsCard({
                     )
                   })()}
 
-                  {account.source === "manual" && account.category === "investment" ? (
+                  {account.category === "investment" ? (
                     // Closed drawers leave layout entirely: hidden holdings must not extend document scroll height.
                     <div
                       id={`account-body-${account.id}`}
@@ -381,6 +381,7 @@ export function AccountsCard({
                           <PositionsEditor
                             accountId={account.id}
                             positions={account.positions}
+                            readOnly={account.source === "plaid"}
                             hidden={hidden}
                             onChange={onChange}
                           />

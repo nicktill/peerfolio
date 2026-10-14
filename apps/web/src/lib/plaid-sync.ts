@@ -80,7 +80,7 @@ export async function syncItem(itemRowId: string, deadline = Date.now() + 90_000
       })
       // One odd line (crypto, a margin debit, a short) must not take the whole connection down.
       if (holdingData) {
-        const { kept, skipped } = splitUsableHoldings(holdingData.holdings)
+        const { kept, skipped } = splitUsableHoldings(holdingData.holdings, new Map(importedAccounts.filter((a) => categorizeAccount(a.type, a.subtype) === "investment").map((a) => [a.account_id, a.balances.iso_currency_code])))
         if (skipped.length) console.warn(`[plaid-sync] left out ${skipped.length} holding line(s) for item ${item.id}: ${[...new Set(skipped.map((s) => s.reason))].join(", ")}`)
         holdingData.holdings = mergeDuplicateHoldings(kept)
       }
