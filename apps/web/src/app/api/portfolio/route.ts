@@ -202,7 +202,7 @@ export const GET = withUser<unknown>(async (userId, request) => {
     )
     .catch(() => [])
 
-  const isVerified = hasVerifiedAccounts(accountRows, items)
+  const isVerified = hasVerifiedAccounts(activeRows, items)
 
   // Snapshots are nightly, so end the series on today's live value.
   const points = withLivePoint(
