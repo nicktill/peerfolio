@@ -99,6 +99,19 @@ export function isSessionPrint(at: Date): boolean {
 }
 
 /**
+ * The date of the latest regular session that has opened by `now`: today once the bell
+ * has rung on a trading day, otherwise the last trading day before it.
+ */
+export function latestStartedSession(now: Date): string {
+  const ny = newYork(now)
+  for (let back = 0; back < 8; back++) {
+    const session = regularSession(new Date(now.getTime() - back * 86_400_000))
+    if (session && (back > 0 || ny.minutes >= session.open)) return session.date
+  }
+  return ny.date
+}
+
+/**
  * The most recent US trading day whose closing bar should exist by `now`:
  * today once it is past 4:30pm New York time on a weekday, otherwise the
  * previous weekday. Holidays are deliberately ignored here, so on one this
