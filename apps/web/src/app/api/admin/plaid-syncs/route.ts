@@ -1,14 +1,20 @@
 import { NextResponse } from "next/server"
 import { withUser } from "@web/lib/api"
 import { assertAdmin } from "@web/lib/plaid-access"
+import { db, plaidItems } from "@web/db"
+import { ne } from "drizzle-orm"
 import { listRecentSyncRuns } from "@web/lib/plaid-sync-runs"
 import { runConcern } from "@web/lib/plaid-sync-runs-core"
 
 export const GET = withUser<unknown>(async (userId) => {
   await assertAdmin(userId)
-  const rows = await listRecentSyncRuns(100)
-  // Item and user ids are shortened: enough to tell runs apart, nothing to act on elsewhere.
+  const [rows, items] = await Promise.all([
+    listRecentSyncRuns(100),
+    db.select({ id: plaidItems.id, institution: plaidItems.institutionName, status: plaidItems.status, lastSyncedAt: plaidItems.lastSyncedAt }).from(plaidItems).where(ne(plaidItems.status, "disconnected")),
+  ])
+  // Run rows carry shortened ids. Only `items` has full ids, for the admin-only "Sync now" action.
   return NextResponse.json({
+    items,
     runs: rows.map(({ run, institution }) => ({
       id: run.id,
       item: run.itemId.slice(0, 8),

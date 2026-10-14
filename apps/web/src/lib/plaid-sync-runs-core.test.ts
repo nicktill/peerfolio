@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { buildSyncRun, countMissingTicker, emptyMetrics, plaidRequestId, runConcern, runStatus } from "./plaid-sync-runs-core.ts"
+import { MANUAL_RUN_COOLDOWN_MS, buildSyncRun, isItemRowId, manualRunGate, summarizeRun, countMissingTicker, emptyMetrics, plaidRequestId, runConcern, runStatus } from "./plaid-sync-runs-core.ts"
 
 const base = { itemId: "i", userId: "u", trigger: "cron" as const, startedAt: new Date("2026-10-14T04:44:12Z"), finishedAt: new Date("2026-10-14T04:44:15.5Z") }
 
@@ -38,5 +38,34 @@ describe("sync run records", () => {
     assert.equal(plaidRequestId({ data: { request_id: "a" } }), "a")
     assert.equal(plaidRequestId({ response: { data: { request_id: "b" } } }), "b")
     assert.equal(plaidRequestId(new Error("x")), null)
+  })
+})
+
+describe("admin on-demand sync", () => {
+  const now = new Date("2026-10-14T12:00:00Z")
+  const ago = (ms: number) => new Date(now.getTime() - ms)
+  it("allows a first run and a run after the cooldown", () => {
+    assert.deepEqual(manualRunGate({ lastFinishedAt: null, now, inFlight: false }), { ok: true })
+    assert.deepEqual(manualRunGate({ lastFinishedAt: ago(MANUAL_RUN_COOLDOWN_MS), now, inFlight: false }), { ok: true })
+  })
+  it("blocks within a minute of the last run and says how long to wait", () => {
+    assert.deepEqual(manualRunGate({ lastFinishedAt: ago(20_000), now, inFlight: false }), { ok: false, reason: "cooldown", retryAfterSec: 40 })
+    assert.deepEqual(manualRunGate({ lastFinishedAt: ago(0), now, inFlight: false }), { ok: false, reason: "cooldown", retryAfterSec: 60 })
+  })
+  it("blocks a second run while one is in flight", () => {
+    const gate = manualRunGate({ lastFinishedAt: null, now, inFlight: true })
+    assert.equal(gate.ok, false)
+    assert.equal(!gate.ok && gate.reason, "in_flight")
+  })
+  it("accepts only full item row ids", () => {
+    assert.equal(isItemRowId("0b9a2d3e-5c1f-4a77-9e0d-1f2a3b4c5d6e"), true)
+    for (const bad of ["0b9a2d3e", "", "0b9a2d3e-5c1f-4a77-9e0d-1f2a3b4c5d6e; drop", null, 5, undefined]) assert.equal(isItemRowId(bad), false)
+  })
+  it("summarizes a run without ids or tokens", () => {
+    const row = buildSyncRun({ ...base, failed: false, metrics: { ...emptyMetrics(), accounts: 2, holdingsReceived: 4, holdingsKept: 3, skipped: { x: 1 }, balanceWithoutHoldings: true, requestId: "r" } })
+    const summary = summarizeRun(row)
+    assert.equal(summary.awaiting, true)
+    assert.deepEqual([summary.received, summary.kept, summary.skipped], [4, 3, { x: 1 }])
+    assert.equal("itemId" in summary || "userId" in summary, false)
   })
 })
