@@ -19,24 +19,11 @@
  */
 
 import { AsyncLocalStorage } from "node:async_hooks"
-import { symbolCount } from "./provider-stats-core.ts"
+import { BUDGET_DEFAULTS, buildEvent, classifyError, createEventLimiter, symbolCount, type EventKind, type NewProviderEvent } from "./provider-stats-core.ts"
 
 export type ProviderName = "finnhub" | "alpaca" | "massive" | "tiingo"
 
 export type Budget = { perMinute: number; burst: number }
-
-/**
- * Free-plan allowances and what we let ourselves use of them: at most `burst +
- * perMinute` in any minute, below each allowance. Massive allows only 5 a minute, so
- * at most 4: two at once, then one every 30 seconds. Tiingo allows 50 an hour and
- * 1,000 a day; 40 an hour plus a burst of 5 stays under both.
- */
-const DEFAULTS: Record<ProviderName, Budget> = {
-  finnhub: { perMinute: 40, burst: 5 }, // allows 60 a minute
-  alpaca: { perMinute: 150, burst: 10 }, // allows 200 a minute
-  massive: { perMinute: 2, burst: 2 }, // allows 5 a minute
-  tiingo: { perMinute: 40 / 60, burst: 5 }, // allows 50 an hour, 1,000 a day
-}
 
 /** The budget for `provider`, overridable with e.g. FINNHUB_PER_MINUTE and FINNHUB_BURST. */
 export function budgetFor(provider: ProviderName, env: Record<string, string | undefined> = process.env): Budget {
@@ -45,7 +32,7 @@ export function budgetFor(provider: ProviderName, env: Record<string, string | u
     const value = Number(env[`${name}_${key}`])
     return Number.isFinite(value) && value > 0 ? value : fallback
   }
-  return { perMinute: read("PER_MINUTE", DEFAULTS[provider].perMinute), burst: Math.max(1, read("BURST", DEFAULTS[provider].burst)) }
+  return { perMinute: read("PER_MINUTE", BUDGET_DEFAULTS[provider].perMinute), burst: Math.max(1, read("BURST", BUDGET_DEFAULTS[provider].burst)) }
 }
 
 /**
@@ -60,7 +47,7 @@ export function retryAfterSeconds(header: string | null, now = Date.now()): numb
   return Math.max(1, Math.ceil(seconds))
 }
 
-export type Take = { granted: boolean; waitSeconds: number; unavailable?: boolean }
+export type Take = { granted: boolean; waitSeconds: number; unavailable?: boolean; cooldown?: boolean }
 
 type Gate = {
   take(provider: ProviderName, budget: Budget): Promise<Take>
@@ -85,6 +72,51 @@ const loadGate = () =>
 type Outcome = { requests?: number; symbols?: number; denied?: number; rateLimited?: number; failed?: number }
 function record(provider: ProviderName, outcome: Outcome) {
   import("./provider-stats.ts").then((m) => m.recordProviderRequest(provider, outcome)).catch(() => {})
+}
+
+const callers = new AsyncLocalStorage<string>()
+
+/**
+ * Labels the provider requests made inside `fn` (e.g. "live-quotes", "closes") so the
+ * event log can say what asked. Nested labels read outer>inner.
+ */
+export function withProviderCaller<T>(label: string, fn: () => Promise<T>): Promise<T> {
+  const outer = callers.getStore()
+  return callers.run(outer && outer !== label ? `${outer}>${label}` : label, fn)
+}
+
+const eventLimiter = createEventLimiter()
+
+/** Reads at most the start of an error body, giving up after two seconds. */
+async function readBody(response: Response): Promise<string | undefined> {
+  const timeout = new Promise<undefined>((resolve) => setTimeout(resolve, 2_000))
+  const text = response.text().then((t) => t.slice(0, 2_000))
+  return Promise.race([text, timeout]).catch(() => undefined)
+}
+
+/**
+ * Logs a request that didn't succeed. Fire and forget, capped per provider per minute,
+ * and silent on any failure: the log never holds up or breaks a fetch. The body of an
+ * error response is read from a clone, and only for the events that will be stored.
+ */
+function logEvent(
+  provider: ProviderName,
+  input: RequestInfo | URL,
+  event: { kind: EventKind; status?: number; reason?: string; waitSeconds?: number; response?: Response },
+) {
+  try {
+    const admit = eventLimiter.admit(provider)
+    if (!admit.write) return
+    const caller = callers.getStore()
+    const store = (body?: string) => {
+      const row: NewProviderEvent = buildEvent({ provider, input, ...event, body, caller, suppressed: admit.suppressed })
+      import("./provider-stats.ts").then((m) => m.recordProviderEvent(row)).catch(() => {})
+    }
+    if (event.response && event.reason === undefined) readBody(event.response.clone()).then(store, () => store())
+    else store()
+  } catch {
+    // never throw from logging
+  }
 }
 
 /**
@@ -129,6 +161,11 @@ export function providerFetch(provider: ProviderName): ProviderFetch {
       const wait = take.waitSeconds * 1000 + 50
       if (Date.now() + wait > deadline) {
         record(provider, { denied: 1 })
+        logEvent(provider, input, {
+          kind: "denied",
+          reason: take.unavailable ? "budget unavailable" : take.cooldown ? "cooldown" : "budget spent",
+          waitSeconds: take.waitSeconds,
+        })
         return refuse(take.waitSeconds, take.unavailable ? "request budget unavailable" : "request budget spent")
       }
       await sleep(wait)
@@ -144,6 +181,7 @@ export function providerFetch(provider: ProviderName): ProviderFetch {
       response = await globalThis.fetch(input, { ...options, signal })
     } catch (error) {
       record(provider, { requests: 1, symbols, failed: 1 })
+      logEvent(provider, input, classifyError(error))
       throw error
     }
     record(provider, {
@@ -152,8 +190,10 @@ export function providerFetch(provider: ProviderName): ProviderFetch {
       rateLimited: response.status === 429 ? 1 : 0,
       failed: response.status >= 400 && response.status !== 429 ? 1 : 0,
     })
+    if (response.status >= 400 && response.status !== 429) logEvent(provider, input, { kind: "failed", status: response.status, response })
     if (response.status === 429) {
       const seconds = retryAfterSeconds(response.headers.get("retry-after"))
+      logEvent(provider, input, { kind: "rate_limited", status: 429, waitSeconds: seconds, response })
       console.warn(`[budget] ${provider} rate limited us; every server waits ${seconds}s`)
       await budgeted.cooldown(provider, seconds)
     }

@@ -32,7 +32,7 @@ async function take(provider: ProviderName, { perMinute, burst }: Budget): Promi
     const blockedFor = Math.max(0, Number(row.blocked_for ?? 0))
     // After a cooldown the bucket starts empty, so the first token is one interval later.
     const toNextToken = Math.max(0, 1 - Number(row.tokens)) / perSecond
-    return { granted: false, waitSeconds: blockedFor + toNextToken }
+    return { granted: false, waitSeconds: blockedFor + toNextToken, cooldown: blockedFor > 0 }
   } catch (error) {
     // Unmetered requests are what this exists to prevent: refuse, and the stored prices stand.
     console.error(`[budget] ${provider} budget check failed, so the request doesn't go out:`, error instanceof Error ? error.message : error)
