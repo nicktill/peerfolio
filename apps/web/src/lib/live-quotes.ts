@@ -1,3 +1,4 @@
+import { withProviderCaller } from "@web/lib/provider-fetch"
 import { after } from "next/server"
 import { eq } from "drizzle-orm"
 import { db, securities } from "@web/db"
@@ -44,8 +45,8 @@ export const CALLS_PER_MINUTE = Number(process.env.LIVE_QUOTE_CALLS_PER_MINUTE) 
 const RETRY_AFTER_ERROR_SECONDS = 120
 const RETRY_AFTER_REJECTED_SECONDS = 300
 
-/** Refreshes prices claimed for this interval. Safe to call from any number of servers at once. */
-export async function refreshLivePrices({
+/** Refreshes prices claimed for this interval. Safe to call from any number of servers at once. Its provider requests are labeled `live-quotes` in the event log. */
+async function refreshLivePricesRun({
   now = new Date(),
   maxAgeSeconds = REFRESH_SECONDS,
   maxSymbols = Number(process.env.LIVE_QUOTE_MAX_SYMBOLS) || DEFAULT_MAX_SYMBOLS,
@@ -95,6 +96,10 @@ export async function refreshLivePrices({
 
   if (result.rateLimited) console.warn(`[quotes] ${provider.name} rate limited us after ${result.quotes.size}/${claimed.length}`)
   return { provider: provider.name, sources: result.sources, claimed: claimed.length, refreshed: updated.length, rejected, rejectedExample, rateLimited: result.rateLimited, failed: result.failed }
+}
+
+export function refreshLivePrices(options: Parameters<typeof refreshLivePricesRun>[0] = {}) {
+  return withProviderCaller("live-quotes", () => refreshLivePricesRun(options))
 }
 
 /** Whether a live price source is configured at all. Without one, stock trades can never fill. */

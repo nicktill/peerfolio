@@ -10,6 +10,8 @@ import { StatTile } from "@web/components/ui/stat-tile"
 import { GroupedBarChart, UsageLineChart } from "@web/components/charts/usage-chart"
 import { useApi } from "@web/lib/use-api"
 import { cn } from "@web/lib/utils"
+import { BudgetHelp } from "./budget-help"
+import { EventsSection, type EventFilter, type KindFilter } from "./events-section"
 import { WARN_RATIO, type Dashboard, type ProviderDashboard, type RangeKey } from "@web/lib/provider-stats-core"
 
 const RANGE_OPTIONS: readonly { value: RangeKey; label: string }[] = [
@@ -89,6 +91,11 @@ function ProviderCard({ p, range }: { p: ProviderDashboard; range: RangeKey }) {
 
 export default function ProviderUsagePage() {
   const [range, setRange] = useState<RangeKey>("24h")
+  const [eventFilter, setEventFilter] = useState<EventFilter>({ provider: "all", kind: "all" })
+  const showEvents = (kind: KindFilter) => {
+    setEventFilter({ provider: "all", kind })
+    document.getElementById("events")?.scrollIntoView({ behavior: "smooth", block: "start" })
+  }
   const { data, error, loading, refetch } = useApi<Dashboard>(`/api/admin/provider-stats?range=${range}`, [], { refreshMs: 60_000 })
 
   const providers = data?.providers ?? []
@@ -139,10 +146,12 @@ export default function ProviderUsagePage() {
               hint={hottest ? `${hottest.provider} ${num(hottest.peak.value)}/${hottest.limit.per === "hour" ? "hr" : "min"} · ${formatWhen(hottest.peak.at!, range)}` : "no requests in range"}
               className={hottest?.warn ? "border-loss/50" : undefined}
             />
-            <StatTile label="Rate limited" value={num(sum((p) => p.totals.rateLimited))} hint={`last ${range}, by the provider`} className={sum((p) => p.totals.rateLimited) > 0 ? "border-loss/50" : undefined} />
-            <StatTile label="Denied" value={num(sum((p) => p.totals.denied))} hint={`last ${range}, by our budget`} />
-            <StatTile label="Failed" value={num(sum((p) => p.totals.failed))} hint={`last ${range}, errors`} />
+            <button type="button" onClick={() => showEvents("rate_limited")} className="rounded-2xl text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2" aria-label="Show rate limited events"><StatTile label="Rate limited" value={num(sum((p) => p.totals.rateLimited))} hint={`last ${range}, by the provider`} className={sum((p) => p.totals.rateLimited) > 0 ? "border-loss/50" : undefined} /></button>
+            <button type="button" onClick={() => showEvents("denied")} className="rounded-2xl text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2" aria-label="Show denied events"><StatTile label="Denied" value={num(sum((p) => p.totals.denied))} hint={`last ${range}, by our budget`} /></button>
+            <button type="button" onClick={() => showEvents("errors")} className="rounded-2xl text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2" aria-label="Show failed events"><StatTile label="Failed" value={num(sum((p) => p.totals.failed))} hint={`last ${range}, errors`} /></button>
           </div>
+
+          <BudgetHelp />
 
           {providers.map((p) => <ProviderCard key={p.provider} p={p} range={range} />)}
 
@@ -166,6 +175,8 @@ export default function ProviderUsagePage() {
           </Card>
         </>
       ) : null}
+
+      {data ? <EventsSection range={range} filter={eventFilter} onFilter={setEventFilter} /> : null}
     </main>
   )
 }

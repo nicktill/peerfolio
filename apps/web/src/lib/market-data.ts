@@ -8,7 +8,7 @@
  * Free of database imports so the tests can exercise it with a stubbed fetch.
  */
 
-import { providerFetch } from "./provider-fetch.ts"
+import { providerFetch, withProviderCaller } from "./provider-fetch.ts"
 
 const BASE_URL = process.env.MASSIVE_BASE_URL ?? "https://api.massive.com"
 
@@ -63,14 +63,25 @@ async function get(path: string, fetchImpl: typeof fetch): Promise<AggsResponse>
   return getJson<AggsResponse>(path, fetchImpl)
 }
 
+/** What a Massive request is for, by its path, for the provider event log. */
+function callerOf(path: string): string {
+  if (path.includes("/aggs/grouped/")) return "closes"
+  if (path.includes("/aggs/ticker/")) return "close"
+  if (path.startsWith("/v3/reference/tickers?")) return "search"
+  if (path.startsWith("/v3/reference/tickers/")) return "metadata"
+  return "massive"
+}
+
 async function getJson<T>(path: string, fetchImpl: typeof fetch): Promise<T> {
   const key = process.env.MASSIVE_API_KEY
   if (!key) throw new MarketDataError("MASSIVE_API_KEY is not set")
 
-  const response = await fetchImpl(`${BASE_URL}${path}`, {
-    headers: { Authorization: `Bearer ${key}` },
-    cache: "no-store",
-  })
+  const response = await withProviderCaller(callerOf(path), () =>
+    fetchImpl(`${BASE_URL}${path}`, {
+      headers: { Authorization: `Bearer ${key}` },
+      cache: "no-store",
+    }),
+  )
 
   if (!response.ok) throw new MarketDataError(`Market data request failed (${response.status})`, response.status)
   return (await response.json()) as T

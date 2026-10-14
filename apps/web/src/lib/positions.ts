@@ -1,3 +1,4 @@
+import { withProviderCaller } from "@web/lib/provider-fetch"
 import { after } from "next/server"
 import { and, eq, inArray, isNotNull, isNull, lt, sql, type SQL } from "drizzle-orm"
 import { accounts, db, holdings, securities } from "@web/db"
@@ -387,7 +388,7 @@ async function ensureUnpriced(marketTicker: string, kind: AssetKind, name: strin
  * mention are removed afterwards, but only when every row went in, so a bad
  * ticker can never leave an account half-emptied.
  */
-export async function importPositions(accountId: string, userId: string, rows: ImportRowInput[], { replace }: { replace: boolean }, store: MutationStore = db): Promise<ImportResult> {
+async function importPositionsRun(accountId: string, userId: string, rows: ImportRowInput[], { replace }: { replace: boolean }, store: MutationStore = db): Promise<ImportResult> {
   const result: ImportResult = { imported: 0, removed: 0, fromFile: [], failed: [], pending: [] }
 
   const keptSecurityIds = new Set<string>()
@@ -489,6 +490,11 @@ export async function importPositions(accountId: string, userId: string, rows: I
 
   await revalue(accountId, undefined, store)
   return result
+}
+
+/** Its provider requests are labeled `import` in the event log. */
+export function importPositions(...args: Parameters<typeof importPositionsRun>): ReturnType<typeof importPositionsRun> {
+  return withProviderCaller("import", () => importPositionsRun(...args))
 }
 
 export async function removePosition(accountId: string, holdingId: string, store: MutationStore = db) {
