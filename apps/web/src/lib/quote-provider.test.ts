@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { acceptQuote, acceptSessionClose, createQuoteProvider, isUsMarketOpen, priceLabel, quoteDate } from "./quote-provider.ts"
+import { acceptQuote, acceptSessionClose, createQuoteProvider, FILL_QUOTE_MAX_AGE_MS, isUsMarketOpen, priceLabel, quoteDate } from "./quote-provider.ts"
 import { latestCompletedSession } from "./market-hours.ts"
 
 describe("isUsMarketOpen", () => {
@@ -171,5 +171,39 @@ describe("latestCompletedSession", () => {
   it("follows daylight saving", () => {
     assert.equal(latestCompletedSession(new Date("2026-12-15T21:29:00Z")), "2026-12-14") // 4:29pm EST
     assert.equal(latestCompletedSession(new Date("2026-12-15T21:30:00Z")), "2026-12-15") // 4:30pm EST
+  })
+})
+
+describe("fill price freshness", () => {
+  const now = new Date("2026-09-29T17:00:00Z")
+  const tenMinutesOld = "2026-09-29T16:50:00.000Z"
+  const secondsOld = "2026-09-29T16:59:40.000Z"
+
+  it("a display price may be older than a fill price may be", () => {
+    assert.equal(acceptQuote({ price: 10, asOf: tenMinutesOld }, now), true)
+    assert.equal(acceptQuote({ price: 10, asOf: tenMinutesOld }, now, FILL_QUOTE_MAX_AGE_MS), false)
+    assert.equal(acceptQuote({ price: 10, asOf: secondsOld }, now, FILL_QUOTE_MAX_AGE_MS), true)
+  })
+
+  it("a stale first source is skipped so the next source fills, and nothing stale ever fills", async () => {
+    const env = { ALPACA_API_KEY: "i", ALPACA_API_SECRET: "s", FINNHUB_API_KEY: "k" }
+    const respond = (alpacaTrade: string, finnhubTrade: string) =>
+      (async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.includes("alpaca")) return Response.json({ XYZ: { latestTrade: { p: 10, t: alpacaTrade } } })
+        return Response.json({ c: 11, t: Date.parse(finnhubTrade) / 1000 })
+      }) as typeof fetch
+
+    // Alpaca's last IEX print is ten minutes old; Finnhub has a fresh one.
+    const filled = await createQuoteProvider(env, respond(tenMinutesOld, secondsOld), () => now, { maxAgeMs: FILL_QUOTE_MAX_AGE_MS })!.getQuotes(["XYZ"])
+    assert.equal(filled.quotes.get("XYZ")?.price, 11)
+
+    // Both are stale: no quote, so the order waits instead of filling.
+    const none = await createQuoteProvider(env, respond(tenMinutesOld, tenMinutesOld), () => now, { maxAgeMs: FILL_QUOTE_MAX_AGE_MS })!.getQuotes(["XYZ"])
+    assert.equal(none.quotes.size, 0)
+
+    // The display path still takes the ten-minute-old Alpaca print.
+    const shown = await createQuoteProvider(env, respond(tenMinutesOld, tenMinutesOld), () => now)!.getQuotes(["XYZ"])
+    assert.equal(shown.quotes.get("XYZ")?.price, 10)
   })
 })

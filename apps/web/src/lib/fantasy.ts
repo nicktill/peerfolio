@@ -41,6 +41,7 @@ import {
 } from "@web/lib/fantasy-rules"
 import { displaySymbol, toMarketTicker, type AssetKind } from "@web/lib/market-data"
 import { ensureLivePrice, hasLiveQuotes, scheduleLiveRefresh } from "@web/lib/live-quotes"
+import { FILL_QUOTE_MAX_AGE_MS } from "@web/lib/quote-provider"
 import { isTradingSession } from "@web/lib/market-hours"
 import { ensurePriced, refreshStalePrices } from "@web/lib/positions"
 
@@ -349,7 +350,7 @@ export async function placeTrade(
   // everyone so the fill and every valuation agree and a buy can't show an
   // instant gain. With no such price (an outage, a halt, an unlisted holiday)
   // the order waits for one instead of falling back to an old close.
-  const live = await ensureLivePrice(marketTicker, { now })
+  const live = await ensureLivePrice(marketTicker, { now, maxQuoteAgeMs: FILL_QUOTE_MAX_AGE_MS })
   if (!live) return queueOrder(league.id, member.id, securityId, marketTicker, input, now, "no-live-price")
 
   try {
@@ -472,7 +473,7 @@ export async function fillQueuedOrders({ now = new Date() }: { now?: Date } = {}
   const prices = new Map<string, { price: number; asOf: string; printedAt?: string } | null>()
   if (isTradingSession(now)) {
     for (const ticker of new Set(pending.map((o) => o.marketTicker).filter((t): t is string => !!t))) {
-      prices.set(ticker, await ensureLivePrice(ticker, { now }))
+      prices.set(ticker, await ensureLivePrice(ticker, { now, maxQuoteAgeMs: FILL_QUOTE_MAX_AGE_MS }))
     }
   }
 

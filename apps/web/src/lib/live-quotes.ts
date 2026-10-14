@@ -167,11 +167,11 @@ export function scheduleLiveRefresh() {
  */
 export async function ensureLivePrice(
   marketTicker: string,
-  { maxAgeSeconds = 0, now = new Date() }: { maxAgeSeconds?: number; now?: Date } = {},
+  { maxAgeSeconds = 0, now = new Date(), maxQuoteAgeMs }: { maxAgeSeconds?: number; now?: Date; maxQuoteAgeMs?: number } = {},
 ): Promise<{ price: number; asOf: string; printedAt?: string } | null> {
   try {
     if (!isUsMarketOpen(now)) return null
-    const provider = createQuoteProvider(process.env)
+    const provider = createQuoteProvider(process.env, undefined, undefined, { maxAgeMs: maxQuoteAgeMs })
     if (!provider) return null
 
     const securityId = `mkt:${marketTicker}`
@@ -187,7 +187,7 @@ export async function ensureLivePrice(
     if (fresh) return { price: Number(existing.closePrice), asOf: existing.closePriceAsOf!.slice(0, 10) }
 
     const quote = (await provider.getQuotes([marketTicker])).quotes.get(marketTicker)
-    if (!acceptQuote(quote, now)) return null
+    if (!acceptQuote(quote, now, maxQuoteAgeMs)) return null
     if (!isNewerClose(quoteDate(quote), existing.closePriceAsOf)) return null
 
     await db
