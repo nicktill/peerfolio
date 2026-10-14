@@ -9,8 +9,8 @@
  */
 export const SITE = {
   name: "Peerfolio",
-  title: "Peerfolio: stock leagues with friends",
+  title: "Peerfolio — Track your portfolio. Invest with friends.",
   description:
-    "Private stock leagues ranked on returns. Friends see how well you invest, never how much. Play with $100k of fantasy money or track your real picks.",
+    "Track your portfolio, compare returns in private leagues, and play fantasy investing with friends. Your account balances stay private.",
   baseUrl: process.env.NEXTAUTH_URL ?? "https://www.peerfolio.org",
 } as const
