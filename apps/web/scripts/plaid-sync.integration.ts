@@ -362,7 +362,7 @@ try {
   assert.equal(audit!.detail.linkedAccountId, linkedReplacement!.id)
   await assert.rejects(replaceManualAccount(replacementUser!.id, manualReplacement!.id, linkedReplacement!.id), /active manual/)
   const [secondManual] = await db.insert(accounts).values({ userId: replacementUser!.id, name: 'Other IRA', source: 'manual', category: 'investment', currentBalance: '500' }).returning()
-  await writeDailySnapshot(replacementUser!.id, 200)
+  await writeDailySnapshot(replacementUser!.id, Number(secondManual!.currentBalance))
   await assert.rejects(replaceManualAccount(replacementUser!.id, secondManual!.id, linkedReplacement!.id), /already replaced/)
   // Archived backups must be frozen even when their shared security is repriced.
   await db.update(securities).set({ marketTicker: 'ARCHIVE_TEST', closePrice: '200', closePriceAsOf: new Date().toISOString().slice(0, 10), closePriceFinal: true }).where(eq(securities.id, 'replacement-stock'))
