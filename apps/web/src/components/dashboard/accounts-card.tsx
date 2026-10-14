@@ -28,6 +28,7 @@ import { ImportPositionsButton } from "@web/components/dashboard/import-position
 import { PositionsEditor, type PositionRow } from "@web/components/dashboard/positions-editor"
 import { formatCurrency, formatRelativeTime } from "@web/lib/format"
 import { plural } from "@web/lib/plural"
+import { isEmptyLinkedAccount } from "@web/lib/empty-account"
 import { mutate } from "@web/lib/use-api"
 import { cn } from "@web/lib/utils"
 import { ReplaceAccountButton } from "@web/components/dashboard/replace-account-dialog"
@@ -117,10 +118,16 @@ export function AccountsCard({
     return () => clearTimeout(timer)
   }, [highlightId, accounts])
 
+  // Linked accounts a brokerage reports at $0 with nothing in them (Robinhood's empty "Crypto")
+  // stay in the database so later syncs can fill them, but they only clutter the list.
+  const [showEmpty, setShowEmpty] = useState(false)
+  const emptyLinked = accounts.filter(isEmptyLinkedAccount)
+  const listed = showEmpty ? accounts : accounts.filter((a) => !isEmptyLinkedAccount(a))
+
   const grouped = GROUP_ORDER.map((key) => ({
     key,
     label: GROUP_LABELS[key]!,
-    rows: accounts.filter((a) => a.category === key),
+    rows: listed.filter((a) => a.category === key),
   })).filter((g) => g.rows.length > 0)
 
   const needsAttention = items.filter((i) => i.status !== "active")
@@ -396,6 +403,17 @@ export function AccountsCard({
           </div>
         ))}
 
+        {emptyLinked.length > 0 ? (
+          <button
+            type="button"
+            onClick={() => setShowEmpty((v) => !v)}
+            aria-expanded={showEmpty}
+            className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+          >
+            {showEmpty ? "Hide empty accounts" : `${plural(emptyLinked.length, "empty account")} hidden`}
+          </button>
+        ) : null}
+
         {items.length > 0 ? (
           <div className="space-y-2 border-t pt-4">
             <h3 className={cn("pf-notick font-mono text-[11px] font-medium uppercase tracking-[0.045em] text-muted-foreground", variant === "card" ? "px-2" : "px-0")}>Connections</h3>
@@ -443,7 +461,7 @@ export function AccountsCard({
       <section aria-labelledby="rail-accounts" className="portfolio-accounts pf-panel min-w-0 p-4 sm:p-5">
         <div className="pf-ph">
           <h2 id="rail-accounts" className="pf-lbl">
-            Your accounts <span className="numeric font-normal text-muted-foreground">{accounts.length}</span>
+            Your accounts <span className="numeric font-normal text-muted-foreground">{listed.length}</span>
           </h2>
           {importButton}
         </div>
@@ -453,7 +471,7 @@ export function AccountsCard({
   }
 
   return (
-    <SectionCard label={`Accounts · ${accounts.length}`} labelId="card-accounts" action={importButton}>
+    <SectionCard label={`Accounts · ${listed.length}`} labelId="card-accounts" action={importButton}>
       {body}
     </SectionCard>
   )
