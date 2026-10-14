@@ -15,6 +15,9 @@ import { cn } from "@web/lib/utils"
 type TabId = "portfolio" | "leagues" | "fantasy"
 type Mode = "tabs" | "pinned" | "stacked"
 
+const PINNED_QUERY = "(min-width: 1024px) and (min-height: 620px)"
+const DESKTOP_QUERY = "(min-width: 1024px)"
+
 const TABS: { id: TabId; label: string; title: string; body: string; points: string[]; note?: string }[] = [
   {
     id: "portfolio",
@@ -138,10 +141,10 @@ export function ProductTour() {
   useEffect(() => {
     const decide = () => {
       if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return setMode("tabs")
-      setMode(window.matchMedia("(min-width: 1024px) and (min-height: 760px)").matches ? "pinned" : "stacked")
+      setMode(window.matchMedia(PINNED_QUERY).matches ? "pinned" : window.matchMedia(DESKTOP_QUERY).matches ? "tabs" : "stacked")
     }
     decide()
-    const queries = ["(prefers-reduced-motion: reduce)", "(min-width: 1024px) and (min-height: 760px)"].map((q) => window.matchMedia(q))
+    const queries = ["(prefers-reduced-motion: reduce)", PINNED_QUERY, DESKTOP_QUERY].map((q) => window.matchMedia(q))
     queries.forEach((q) => q.addEventListener("change", decide))
     return () => queries.forEach((q) => q.removeEventListener("change", decide))
   }, [])
@@ -224,11 +227,11 @@ export function ProductTour() {
 
   const pinned = mode === "pinned"
   const stage = (
-    <div className={cn("mx-auto max-w-6xl px-6 sm:px-5", pinned ? "flex h-full flex-col justify-center py-6" : "py-16 sm:py-24")}>
-      <Heading />
-      <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-14">
-        <div>
-          <div role="tablist" aria-label="Product tour" className="pf-rail relative flex flex-col">
+    <div className={cn("pf-tour-stage mx-auto max-w-6xl px-6 sm:px-5", pinned ? "flex h-full flex-col justify-center py-6" : "py-16 sm:py-24")}>
+      <div className="pf-tour-heading"><Heading /></div>
+      <div className="pf-tour-grid mt-8 grid gap-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-14">
+        <div className="pf-tour-copy">
+          <div role="tablist" aria-label="Product tour" className="pf-tour-tabs pf-rail relative flex flex-col">
             <span aria-hidden className="pf-rail-line" />
             <span aria-hidden ref={fill} className="pf-rail-fill" style={pinned ? undefined : { transform: `scaleY(${(index + 1) / STEPS})` }} />
             {TABS.map((t, i) => (
@@ -257,14 +260,14 @@ export function ProductTour() {
             ))}
           </div>
           {pinned ? <p className="pf-label-plain mt-4 !text-[var(--fg3)]">Scroll or tap a step · {index + 1} / {STEPS}</p> : null}
-          <div className="pf-stack mt-5">
+          <div className="pf-tour-description pf-stack mt-5">
             {TABS.map((t) => (
               <Copy key={t.id} t={t} on={t.id === tab} />
             ))}
           </div>
         </div>
 
-        <div id="tour-panel" role="tabpanel" aria-labelledby={`tour-tab-${tab}`} className="pf-stack min-w-0 lg:min-h-[470px]">
+        <div id="tour-panel" role="tabpanel" aria-labelledby={`tour-tab-${tab}`} className="pf-tour-preview pf-stack min-w-0 lg:min-h-[470px]">
           {pinned
             ? TABS.map((t, i) => (
                 <div key={t.id} ref={(el) => { panes.current[i] = el }} className="pf-live" style={{ opacity: i === 0 ? 1 : 0, visibility: i === 0 ? "visible" : "hidden" }}>
@@ -278,16 +281,16 @@ export function ProductTour() {
               ))}
         </div>
       </div>
-      <p className="pf-muted mt-8 text-sm">Also: a daily News tab with the market recap, movers and earnings week.</p>
+      <p className="pf-tour-foot pf-muted mt-8 text-sm">Also: a daily News tab with the market recap, movers and earnings week.</p>
     </div>
   )
 
   return (
-    <section id="how" className="pf-rule scroll-mt-14">
+    <section id="how" className="pf-rule scroll-mt-14" data-tour-mode={mode}>
       {pinned ? (
         <div ref={outer} style={{ height: "300vh" }}>
           <PinnedDriver outer={outer} onProgress={onProgress} />
-          <div className="sticky top-14 overflow-hidden" style={{ height: "calc(100vh - 56px)" }}>{stage}</div>
+          <div className="pf-tour-sticky sticky top-14 overflow-hidden" style={{ height: "calc(100vh - 56px)" }}>{stage}</div>
         </div>
       ) : (
         stage
