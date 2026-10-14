@@ -97,8 +97,7 @@ export function AccountsCard({
   // A just-created account is scrolled into view and briefly outlined, so the
   // eye lands where the next step (adding holdings) is.
   const [highlightId, setHighlightId] = useState<string | null>(null)
-  // Accounts with many positions start collapsed so a big portfolio stays a
-  // short list; a person's own choice wins once they click.
+  // All accounts start closed; refreshes retain the person's choice once they click.
   const [openById, setOpenById] = useState<Record<string, boolean>>(() => reconcileAccountExpansion({}, accounts))
   const isOpen = (a: AccountRow) => openById[a.id] ?? false
   const toggle = (a: AccountRow) => {
