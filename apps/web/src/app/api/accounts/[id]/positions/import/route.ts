@@ -1,3 +1,4 @@
+import { manualMutation } from "@web/lib/manual-mutation"
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { investableTotal, writeDailySnapshot } from "@web/lib/plaid-sync"
@@ -30,30 +31,32 @@ const Body = z.object({
 
 /** Saves a confirmed import into a manual investment account. */
 export const POST = withUser<Ctx>(async (userId, request, { params }) => {
-  const { id } = await params
-  const account = await requireManualAccount(userId, id)
-  if (account.category !== "investment") throw new ApiError("Positions can only be added to investment accounts")
+  return manualMutation(userId, async (store) => {
+    const { id } = await params
+    const account = await requireManualAccount(userId, id, store)
+    if (account.category !== "investment") throw new ApiError("Positions can only be added to investment accounts")
 
-  const parsed = Body.safeParse(await readJson(request))
-  if (!parsed.success) throw new ApiError(parsed.error.issues[0]?.message ?? "Invalid import")
+    const parsed = Body.safeParse(await readJson(request))
+    if (!parsed.success) throw new ApiError(parsed.error.issues[0]?.message ?? "Invalid import")
 
-  // Money that arrives with the import is a flow, like a deposit: bringing your
-  // holdings in must not read as a gain.
-  const before = await investableTotal(userId)
-  const result = await importPositions(id, userId, parsed.data.rows, { replace: parsed.data.replace })
-  await writeDailySnapshot(userId, (await investableTotal(userId)) - before)
-  await recordAccountEvent(userId, before, {
-    action: "positions_imported",
-    accountId: id,
-    accountName: account.name,
-    detail: {
-      rows: parsed.data.rows.length,
-      replace: parsed.data.replace,
-      imported: result.imported,
-      removed: result.removed,
-      failed: result.failed.length,
-    },
+    // Money that arrives with the import is a flow, like a deposit: bringing your
+    // holdings in must not read as a gain.
+    const before = await investableTotal(userId, store)
+    const result = await importPositions(id, userId, parsed.data.rows, { replace: parsed.data.replace }, store)
+    await writeDailySnapshot(userId, (await investableTotal(userId, store)) - before, undefined, store)
+    await recordAccountEvent(userId, before, {
+      action: "positions_imported",
+      accountId: id,
+      accountName: account.name,
+      detail: {
+        rows: parsed.data.rows.length,
+        replace: parsed.data.replace,
+        imported: result.imported,
+        removed: result.removed,
+        failed: result.failed.length,
+      },
+    }, store)
+
+    return NextResponse.json(result, { status: 200 })
   })
-
-  return NextResponse.json(result, { status: 200 })
 })

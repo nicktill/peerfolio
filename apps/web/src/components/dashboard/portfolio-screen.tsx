@@ -22,6 +22,7 @@ import { PerformanceChart } from "@web/components/charts/performance-chart"
 import { AccountsCard, type AccountRow, type ItemRow } from "@web/components/dashboard/accounts-card"
 import { ConnectButton } from "@web/components/dashboard/connect-button"
 import { HoldingsTable, type HoldingRow } from "@web/components/dashboard/holdings-table"
+import { ArchivedHoldings } from "@web/components/dashboard/archived-holdings"
 import { AddAccountButton } from "@web/components/dashboard/add-account-dialog"
 import { formatCurrency, formatDate, formatPercent } from "@web/lib/format"
 import { isUsMarketOpen } from "@web/lib/market-hours"
@@ -31,7 +32,10 @@ import { mutate, useApi } from "@web/lib/use-api"
 import type { NewsResponse } from "@web/lib/news"
 import { defaultRange, rangeAvailability, rangeUnlockDays, RANGES, type Range } from "@web/lib/ranges"
 
+export type ArchivedAccount = { id: string; name: string; institutionName: string; balance: number; positions: { id: string; ticker: string | null; name: string | null; quantity: number; value: number }[] }
+
 export type PortfolioResponse = {
+  archivedAccounts?: ArchivedAccount[]
   summary: { totalAssets: number; totalLiabilities: number; netWorth: number; investableAssets: number }
   accounts: AccountRow[]
   items: ItemRow[]
@@ -461,6 +465,7 @@ export function PortfolioScreen({
             hidden={hidden}
             todayLabel={data.today?.asOf && !isToday ? formatDate(`${data.today.asOf}T12:00:00`, "short") : "Today"}
           />
+          <ArchivedHoldings accounts={data.archivedAccounts ?? []} hidden={hidden} disabled={demo} onSaved={refetch} />
         </Reveal>
       </div>
     </div>

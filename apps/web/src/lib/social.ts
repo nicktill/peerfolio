@@ -1,6 +1,6 @@
 import { isPlanIdentifier } from "@web/lib/import-parse"
 import { and, desc, eq, inArray, sql } from "drizzle-orm"
-import { db, holdings, leagueMembers, leagues, reactions, securities, users } from "@web/db"
+import { accounts, db, holdings, leagueMembers, leagues, reactions, securities, users } from "@web/db"
 import { ApiError } from "@web/lib/api"
 import { buildStandings, type Range, type Standing } from "@web/lib/returns"
 
@@ -27,7 +27,8 @@ export async function loadSharedHoldings(userIds: string[], limit = 5): Promise<
     })
     .from(holdings)
     .innerJoin(securities, eq(holdings.securityId, securities.id))
-    .where(inArray(holdings.userId, userIds))
+    .innerJoin(accounts, and(eq(holdings.accountId, accounts.id), eq(holdings.userId, accounts.userId)))
+    .where(and(inArray(holdings.userId, userIds), eq(accounts.isActive, true)))
 
   const byUser = new Map<string, { ticker: string; name: string | null; value: number }[]>()
   for (const row of rows) {

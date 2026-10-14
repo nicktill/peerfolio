@@ -1,4 +1,5 @@
 import "server-only"
+import type { MutationStore } from "@web/lib/manual-mutation"
 import { accountEvents, db } from "@web/db"
 import { investableTotal } from "@web/lib/plaid-sync"
 import { buildAccountEvent, type AccountEventInput } from "@web/lib/account-events-core"
@@ -13,11 +14,13 @@ export type { AccountEventInput }
  * History is for explaining numbers after the fact, so a failure to write it is
  * logged and swallowed: someone's edit must never fail because the audit row did.
  */
-export async function recordAccountEvent(userId: string, investableBefore: number, input: AccountEventInput) {
+export async function recordAccountEvent(userId: string, investableBefore: number, input: AccountEventInput, store: MutationStore = db) {
   try {
-    const after = await investableTotal(userId)
-    await db.insert(accountEvents).values(buildAccountEvent(userId, investableBefore, after, input))
+    const after = await investableTotal(userId, store)
+    await store.insert(accountEvents).values(buildAccountEvent(userId, investableBefore, after, input))
   } catch (error) {
+    // An audit failure inside a transaction must propagate so the mutation rolls back.
+    if (store !== db) throw error
     console.error("[account-events] could not record", input.action, error)
   }
 }

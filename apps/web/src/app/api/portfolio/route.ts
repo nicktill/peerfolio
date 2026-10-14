@@ -46,7 +46,7 @@ export const GET = withUser<unknown>(async (userId, request) => {
   scheduleMetadataRefresh()
 
   const [accountRows, items, allHoldingRows] = await Promise.all([
-    db.select().from(accounts).where(and(eq(accounts.userId, userId), eq(accounts.isActive, true))),
+    db.select().from(accounts).where(eq(accounts.userId, userId)),
     db.select().from(plaidItems).where(eq(plaidItems.userId, userId)),
     db
       .select({
@@ -70,7 +70,9 @@ export const GET = withUser<unknown>(async (userId, request) => {
   ])
 
   // Revoked/removed accounts never contribute positions to allocation or performance.
-  const activeAccountIds = new Set(accountRows.map((a) => a.id))
+  const archivedRows = accountRows.filter((a) => !a.isActive && a.source === "manual")
+  const activeRows = accountRows.filter((a) => a.isActive)
+  const activeAccountIds = new Set(activeRows.map((a) => a.id))
   const holdingRows = allHoldingRows.filter((h) => activeAccountIds.has(h.accountId))
 
   const start = rangeStart(range)
@@ -93,7 +95,7 @@ export const GET = withUser<unknown>(async (userId, request) => {
 
   const accountsByItem = new Map(items.map((i) => [i.id, i]))
 
-  const accountPayload = accountRows.map((account) => {
+  const accountPayload = activeRows.map((account) => {
     const balance = accountBalance(n(account.currentBalance), account.category)
     const isLiability = LIABILITY.has(account.category)
 
@@ -118,6 +120,8 @@ export const GET = withUser<unknown>(async (userId, request) => {
       institutionName: item?.institutionName ?? account.institutionLabel ?? "Manual account",
       institutionLogo: item?.institutionLogo ?? null,
       itemId: account.itemId,
+      holdingCount: holdingRows.filter((h) => h.accountId === account.id).length,
+      holdingPreview: holdingRows.filter((h) => h.accountId === account.id).slice(0, 4).map((h) => h.ticker ?? h.securityName ?? "Holding"),
       positions:
         account.source === "manual"
           ? holdingRows
@@ -200,7 +204,7 @@ export const GET = withUser<unknown>(async (userId, request) => {
     )
     .catch(() => [])
 
-  const isVerified = hasVerifiedAccounts(accountRows, items)
+  const isVerified = hasVerifiedAccounts(activeRows, items)
 
   // Snapshots are nightly, so end the series on today's live value.
   const points = withLivePoint(
@@ -220,6 +224,10 @@ export const GET = withUser<unknown>(async (userId, request) => {
   return NextResponse.json({
     summary: { totalAssets, totalLiabilities, netWorth, investableAssets },
     accounts: accountPayload,
+    archivedAccounts: archivedRows.map((a) => ({
+      id: a.id, name: a.name, institutionName: a.institutionLabel ?? "Manual account", balance: n(a.currentBalance),
+      positions: allHoldingRows.filter((h) => h.accountId === a.id).map((h) => ({ id: h.id, ticker: h.ticker, name: h.securityName, quantity: n(h.quantity), value: n(h.institutionValue) })),
+    })),
     items: items
       .map((i) => ({
         id: i.id,
