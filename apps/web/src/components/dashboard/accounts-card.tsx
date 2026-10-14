@@ -251,24 +251,9 @@ export function AccountsCard({
 
         {showOverlap ? (
           <div className="space-y-2 rounded-lg border border-border bg-secondary/50 p-3">
-            <p className="text-sm">
-              You&apos;ve linked a brokerage and still have {manualInvestments.length === 1 ? "an account" : "accounts"} you entered by hand. If{" "}
-              {manualInvestments.length === 1 ? "it holds" : "they hold"} the same money, remove {manualInvestments.length === 1 ? "it" : "them"} so it isn&apos;t counted twice.
-              Linked accounts can also qualify you for verified rankings; accounts entered by hand can&apos;t.
-            </p>
+            <p className="text-sm">Already tracking this brokerage manually? Replace its manual entry after checking the linked balance. We save the manual holdings as an archived backup and exclude them from your portfolio.</p>
             <div className="flex flex-wrap items-center gap-2">
-              {manualInvestments.map((account) => (
-                <Button
-                  key={account.id}
-                  size="sm"
-                  variant="outline"
-                  disabled={busyId === account.id}
-                  onClick={() => void removeManual(account.id, account.name)}
-                >
-                  <Trash2 aria-hidden />
-                  Remove {account.name}
-                </Button>
-              ))}
+              <ReplaceAccountButton accounts={accounts} hidden={hidden} disabled={isDemo} onSaved={onChange} />
               <Button size="sm" variant="ghost" onClick={dismissOverlap}>
                 Keep both
               </Button>

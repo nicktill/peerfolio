@@ -60,7 +60,8 @@ export async function syncItem(itemRowId: string, deadline = Date.now() + 90_000
       const priorAccounts = await store.select().from(accounts).where(eq(accounts.itemId, item.id))
       const existingIds = new Set(priorAccounts.filter((a) => a.isActive).map((a) => a.plaidAccountId))
       const priorById = new Map(priorAccounts.map((a) => [a.plaidAccountId, a]))
-      const baselineDates = new Map(data.accounts.map((a) => [a.account_id, existingIds.has(a.account_id) ? priorById.get(a.account_id)?.plaidBaselineDate ?? today() : today()]))
+      const recovering = current.flowsInitialized && current.status !== "active"
+      const baselineDates = new Map(data.accounts.map((a) => [a.account_id, !recovering && existingIds.has(a.account_id) ? priorById.get(a.account_id)?.plaidBaselineDate ?? today() : today()]))
       const baselineAccounts = new Set(data.accounts.filter((a) => baselineDates.get(a.account_id) === today()).map((a) => a.account_id))
       const incomingIds = new Set(data.accounts.map((a) => a.account_id))
       const hasInvestments = data.accounts.some((a) => categorizeAccount(a.type, a.subtype) === "investment")
@@ -103,13 +104,14 @@ export async function syncItem(itemRowId: string, deadline = Date.now() + 90_000
       // Its withdrawals and disappeared transactions must not neutralize it again.
       const changes = flowChanges(transactions.filter((tx) => investmentAccountIds.has(tx.account_id)), new Map(previous.filter((r) => investmentAccountIds.has(r.accountId)).map((r) => [r.transactionId, { amount: num(r.amount), baseline: r.baseline, date: r.transactionDate, accountId: r.accountId }])), current.flowsInitialized ? baselineAccounts : incomingIds, baselineDates, hasInvestments ? transactionWindow : undefined)
       const accountCount = await upsertPlaidAccounts(item.id, item.userId, importedAccounts, store)
+      if (recovering) await store.update(accounts).set({ plaidBaselineDate: today() }).where(eq(accounts.itemId, item.id))
       let holdingCount = 0
       if (holdingData) holdingCount = await syncHoldings(item.id, item.userId, holdingData, store)
       if (changes.entries.length) await store.insert(plaidInvestmentFlows).values(changes.entries.map((r) => ({
         transactionId: r.transactionId, itemId: item.id, accountId: r.accountId, amount: r.amount.toFixed(4), baseline: r.baseline, transactionDate: r.date,
       }))).onConflictDoUpdate({ target: plaidInvestmentFlows.transactionId, set: { amount: sqlExcluded("amount"), transactionDate: sqlExcluded("transaction_date") } })
       await store.update(plaidItems).set({ status: "active", errorCode: null, lastSyncedAt: new Date(), flowsInitialized: true }).where(eq(plaidItems.id, item.id))
-      await writeDailySnapshot(item.userId, structuralFlow + changes.net, today(), store)
+      await writeDailySnapshot(item.userId, structuralFlow + (recovering ? 0 : changes.net), today(), store)
       return { itemId: item.id, accounts: accountCount, holdings: holdingCount, status: "active" }
     })
   } catch (error) {

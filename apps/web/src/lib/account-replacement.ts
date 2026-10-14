@@ -37,3 +37,28 @@ export async function replaceManualAccount(userId: string, manualId: string, lin
     return { ok: true, archivedAccountId: manualId, linkedAccountId: linkedId }
   })
 }
+
+/** Restore the frozen backup only after its linked counterpart has been removed. */
+export async function restoreManualAccount(userId: string, manualId: string) {
+  return db.transaction(async (store) => {
+    await store.execute(sql`set local lock_timeout = '10s'`)
+    await store.execute(sql`select pg_advisory_xact_lock(hashtext(${userId}))`)
+    const [manual] = await store.select().from(accounts).where(and(eq(accounts.id, manualId), eq(accounts.userId, userId))).for("update")
+    if (!manual) throw new ApiError("Account not found", 404)
+    if (manual.source !== "manual" || manual.isActive) throw new ApiError("Choose an archived manual account", 409)
+    const event = await store.query.accountEvents.findFirst({ where: and(eq(accountEvents.userId, userId), eq(accountEvents.accountId, manualId), eq(accountEvents.action, "account_replaced")) })
+    if (!event) throw new ApiError("This account is not a replacement backup", 409)
+    const linkedId = (event.detail as Record<string, unknown>)?.linkedAccountId
+    if (typeof linkedId === "string") {
+      const linked = await store.query.accounts.findFirst({ where: and(eq(accounts.id, linkedId), eq(accounts.userId, userId)) })
+      // Even an inactive revoked account may reappear on the next sync.
+      if (linked) throw new ApiError("Remove the linked brokerage connection before restoring this backup, so its balance cannot be counted twice", 409)
+    }
+    const before = await investableTotal(userId, store)
+    await store.update(accounts).set({ isActive: true, updatedAt: new Date() }).where(eq(accounts.id, manualId))
+    const after = await investableTotal(userId, store)
+    await writeDailySnapshot(userId, after - before, undefined, store)
+    await store.insert(accountEvents).values(buildAccountEvent(userId, before, after, { action: "account_restored", accountId: manualId, accountName: manual.name, detail: { restoredBackup: true } }))
+    return { ok: true }
+  })
+}

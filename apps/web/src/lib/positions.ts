@@ -810,7 +810,8 @@ async function revalue(accountId?: string, securityIds?: string[]) {
     UPDATE holdings h
     SET institution_value = h.quantity * s.close_price, updated_at = now()
     FROM securities s
-    WHERE s.id = h.security_id AND s.market_ticker IS NOT NULL ${onlyAccount} ${onlySecurities}
+    WHERE s.id = h.security_id AND s.market_ticker IS NOT NULL
+      AND EXISTS (SELECT 1 FROM accounts a WHERE a.id = h.account_id AND a.is_active) ${onlyAccount} ${onlySecurities}
   `)
 
   // With a list of securities, only the accounts that hold them need a new balance.
@@ -824,7 +825,7 @@ async function revalue(accountId?: string, securityIds?: string[]) {
     UPDATE accounts a
     SET current_balance = COALESCE((SELECT sum(institution_value) FROM holdings WHERE account_id = a.id), 0),
         updated_at = now()
-    WHERE a.source = 'manual' AND ${affected}
+    WHERE a.source = 'manual' AND a.is_active AND ${affected}
   `)
 }
 

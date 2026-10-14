@@ -10,8 +10,10 @@ import { db, users, plaidItems, accounts, holdings, portfolioSnapshots, plaidInv
 import { getBrokerageAccess, productionCapacity, reserveProductionLinkAttempt } from '../src/lib/plaid-access'
 import { loadLivePoints } from '../src/lib/returns'
 import { encrypt } from '../src/lib/crypto'
+import { revalueSecurities } from '../src/lib/positions'
+import { timeWeightedReturn } from '../src/lib/ranges'
 import { syncItem, investableTotal, writeDailySnapshot } from '../src/lib/plaid-sync'
-import { replaceManualAccount } from '../src/lib/account-replacement'
+import { replaceManualAccount, restoreManualAccount } from '../src/lib/account-replacement'
 import { exchangePublicToken, pendingLinkToken } from '../src/lib/plaid-link'
 import { DELETE as deleteProfile } from '../src/app/api/me/route'
 import { DELETE as disconnect } from '../src/app/api/plaid/items/[id]/route'
@@ -352,6 +354,39 @@ try {
   await assert.rejects(replaceManualAccount(replacementUser!.id, manualReplacement!.id, linkedReplacement!.id), /active manual/)
   const [secondManual] = await db.insert(accounts).values({ userId: replacementUser!.id, name: 'Other IRA', source: 'manual', category: 'investment', currentBalance: '500' }).returning()
   await assert.rejects(replaceManualAccount(replacementUser!.id, secondManual!.id, linkedReplacement!.id), /already replaced/)
+  // Archived backups must be frozen even when their shared security is repriced.
+  await db.update(securities).set({ marketTicker: 'ARCHIVE_TEST', closePrice: '200' }).where(eq(securities.id, 'replacement-stock'))
+  await revalueSecurities(['replacement-stock'])
+  assert.equal(Number((await db.query.holdings.findFirst({ where: eq(holdings.accountId, manualReplacement!.id) }))!.institutionValue), 1000)
+  assert.equal(Number((await db.query.accounts.findFirst({ where: eq(accounts.id, manualReplacement!.id) }))!.currentBalance), 1000)
+  await assert.rejects(restoreManualAccount(adminUser!.id, manualReplacement!.id), /not found/)
+  await assert.rejects(restoreManualAccount(replacementUser!.id, manualReplacement!.id), /Remove the linked/)
+  // Removing the linked counterpart permits restoration without creating a new Item.
+  await db.delete(accounts).where(eq(accounts.id, linkedReplacement!.id))
+  await writeDailySnapshot(replacementUser!.id, -1100)
+  await restoreManualAccount(replacementUser!.id, manualReplacement!.id)
+  assert.equal((await db.query.accounts.findFirst({ where: eq(accounts.id, manualReplacement!.id) }))!.isActive, true)
+  assert.equal(Number((await db.query.holdings.findFirst({ where: eq(holdings.accountId, manualReplacement!.id) }))!.institutionValue), 1000)
+  assert.deepEqual(await db.query.portfolioSnapshots.findFirst({ where: sql`${portfolioSnapshots.userId} = ${replacementUser!.id} AND ${portfolioSnapshots.date} = '2000-01-01'` }), yesterday)
+  await assert.rejects(restoreManualAccount(replacementUser!.id, manualReplacement!.id), /archived manual/)
+  assert.equal(exchangeRequests, exchangesBeforeReplacement)
+  // A 100-value reconciliation is capital correction, not a ten-percent league gain.
+  const corrected = timeWeightedReturn([{ date: '2026-01-01', netWorth: 1000, investableAssets: 1000, netFlows: 0, isVerified: false }, { date: '2026-01-02', netWorth: 1100, investableAssets: 1100, netFlows: 100, isVerified: false }, { date: '2026-01-03', netWorth: 1111, investableAssets: 1111, netFlows: 0, isVerified: false }])
+  assert.ok(Math.abs(corrected.percent - 1) < 0.0001, 'Only the next day market gain counts')
+
   assert.equal((await db.query.accounts.findFirst({ where: eq(accounts.id, secondManual!.id) }))!.isActive, true)
+  // Recovery adopts the authoritative account balance without claiming the correction as return.
+  const [repairUser] = await db.insert(users).values({ email: 'repair-baseline@test.peerfolio.invalid' }).returning()
+  const [repairItem] = await db.insert(plaidItems).values({ userId: repairUser!.id, plaidItemId: 'repair-baseline', institutionName: 'Demo', accessToken: encrypt('repair-token'), flowsInitialized: true, status: 'needs_reauth', lastSyncedAt: new Date('2000-01-01') }).returning()
+  await db.insert(accounts).values({ userId: repairUser!.id, itemId: repairItem!.id, plaidAccountId: 'a', source: 'plaid', name: 'Demo account', category: 'investment', currentBalance: '1000', plaidBaselineDate: '2000-01-01' })
+  await writeDailySnapshot(repairUser!.id)
+  empty = false; extraAccount = false; balance = 1100; holdingsBalance = null; holdingsAccountsMissing = false; holdingList = []; transactionList = []; failure = null; transactionFailureOffset = null
+  assert.equal((await syncItem(repairItem!.id)).status, 'active')
+  const repairSnapshot = await db.query.portfolioSnapshots.findFirst({ where: eq(portfolioSnapshots.userId, repairUser!.id) })
+  assert.equal(Number(repairSnapshot!.investableAssets), 1100)
+  assert.equal(Number(repairSnapshot!.netFlows), 100)
+  balance = 1111
+  await syncItem(repairItem!.id)
+  assert.equal(Number((await db.query.portfolioSnapshots.findFirst({ where: eq(portfolioSnapshots.userId, repairUser!.id) }))!.netFlows), 111, 'Further recovery-day changes stay neutral')
   console.log('Plaid integration regressions passed: migration, sold/empty holdings, rollback/timestamps, transaction pagination failure, baseline-day neutralization, flow corrections/withdrawals/dividends/cancellations, concurrent deduplication, complete Holdings coverage, authoritative balances, null balance rejection, signed investment equity, stale verification, duplicate/ownership/metadata cleanup, OAuth state, closed accounts, disconnect/profile-delete retry and cascades, denied server access, admin authorization/toggles, revoked-during-link cleanup, sandbox quota exemption, concurrent permanent production cap, repairs at capacity.')
 } finally { await connection.end() }

@@ -63,7 +63,7 @@ function ReplacementForm({ accounts, hidden, onCancel, onSaved }: { accounts: Ac
           <p className="text-xs text-muted-foreground">{a.positions.length} holdings</p>
         </div>)}
       </div>
-      <p className="text-sm text-muted-foreground">The linked balance and holdings will be used. The manual entry is archived, with its records retained. Existing portfolio history stays intact; removing the duplicate value is treated as a correction, not an investment loss.</p>
+      <p className="text-sm text-muted-foreground">The linked balance and holdings will be used. The manual entry is archived, with its holdings saved as a backup below Holdings. You can restore it after removing the linked connection. Existing portfolio history stays intact; removing the duplicate value is treated as a correction, not an investment loss.</p>
       {manual.balance !== linked.balance ? <p className="text-sm text-muted-foreground">These balances differ. Compare the account details with your brokerage before confirming.</p> : null}
       <label className="flex items-start gap-3 text-sm"><input type="checkbox" className="mt-1 size-4" checked={confirmed} disabled={saving} onChange={(e) => setConfirmed(e.target.checked)} /><span>I confirm these are the same investment account.</span></label>
     </> : null}
