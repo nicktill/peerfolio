@@ -1,6 +1,6 @@
 import { withProviderCaller } from "@web/lib/provider-fetch"
 import { after } from "next/server"
-import { eq } from "drizzle-orm"
+import { and, eq, inArray } from "drizzle-orm"
 import { db, securities } from "@web/db"
 import { isNewerClose } from "@web/lib/market-data"
 import { previousCloseOnUpdate } from "@web/lib/price-write"
@@ -44,6 +44,8 @@ export const CALLS_PER_MINUTE = Number(process.env.LIVE_QUOTE_CALLS_PER_MINUTE) 
 /** When to try a ticker again that didn't get a price: soon for a hiccup, later for a rejected or empty quote. */
 const RETRY_AFTER_ERROR_SECONDS = 120
 const RETRY_AFTER_REJECTED_SECONDS = 300
+/** A ticker the source says it will never price: ask again tomorrow, not every cycle. */
+const RETRY_AFTER_UNSUPPORTED_SECONDS = 24 * 3600
 
 /** Refreshes prices claimed for this interval. Safe to call from any number of servers at once. Its provider requests are labeled `live-quotes` in the event log. */
 async function refreshLivePricesRun({
@@ -90,8 +92,16 @@ async function refreshLivePricesRun({
   const done = new Set(updated)
   const missed = claimed.filter((row) => !done.has(row.id)).map((row) => row.id)
   if (missed.length > 0) {
+    const unsupported = new Set(claimed.filter((r) => result.unsupported?.has(r.market_ticker)).map((r) => r.id))
+    const transient = missed.filter((id) => !unsupported.has(id))
     const retry = result.rateLimited || result.failed > 0 ? RETRY_AFTER_ERROR_SECONDS : RETRY_AFTER_REJECTED_SECONDS
-    await db.execute(releaseClaimsSql(missed, retry, maxAgeSeconds))
+    if (transient.length > 0) await db.execute(releaseClaimsSql(transient, retry, maxAgeSeconds))
+    // A retry longer than the period puts updated_at in the future, so it isn't due until then.
+    // Five letters ending in X is a mutual fund: nothing here prices it intraday, but typed as one
+    // it joins the nightly Tiingo run instead of being asked of Finnhub (and refused) every cycle.
+    const funds = claimed.filter((r) => unsupported.has(r.id) && /^[A-Z]{4}X$/.test(r.market_ticker)).map((r) => r.id)
+    if (funds.length > 0) await db.update(securities).set({ type: "mutual_fund" }).where(and(inArray(securities.id, funds), eq(securities.type, "equity")))
+    if (unsupported.size > 0) await db.execute(releaseClaimsSql([...unsupported].filter((id) => missed.includes(id)), RETRY_AFTER_UNSUPPORTED_SECONDS, maxAgeSeconds))
   }
 
   if (result.rateLimited) console.warn(`[quotes] ${provider.name} rate limited us after ${result.quotes.size}/${claimed.length}`)

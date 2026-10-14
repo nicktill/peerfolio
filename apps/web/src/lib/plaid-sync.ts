@@ -287,9 +287,13 @@ async function upsertSecurities(list: PlaidSecurity[], store: SyncDb, lines: Pla
         tickerSymbol: sqlExcluded("ticker_symbol"),
         name: sqlExcluded("name"),
         type: sqlExcluded("type"),
-        // Keep a price we already have when Plaid sends none (cash sweeps, some funds).
-        closePrice: sql`coalesce(excluded.close_price, ${securities.closePrice})`,
-        closePriceAsOf: sql`coalesce(excluded.close_price_as_of, ${securities.closePriceAsOf})`,
+        // Plaid securities have no market ticker, so nothing else prices them: the close
+        // Plaid reports is the only history. When it moves to a newer date the old close
+        // becomes `previous_close`, which is what "today" is measured against. A sync
+        // carrying an older (or no) close never steps the stored price back.
+        previousClose: sql`CASE WHEN excluded.close_price IS NOT NULL AND excluded.close_price_as_of > securities.close_price_as_of THEN securities.close_price ELSE securities.previous_close END`,
+        closePrice: sql`CASE WHEN excluded.close_price IS NOT NULL AND (securities.close_price_as_of IS NULL OR excluded.close_price_as_of >= securities.close_price_as_of) THEN excluded.close_price ELSE securities.close_price END`,
+        closePriceAsOf: sql`CASE WHEN excluded.close_price IS NOT NULL AND (securities.close_price_as_of IS NULL OR excluded.close_price_as_of >= securities.close_price_as_of) THEN excluded.close_price_as_of ELSE securities.close_price_as_of END`,
         updatedAt: sqlExcluded("updated_at"),
       },
     })

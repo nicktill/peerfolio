@@ -22,6 +22,7 @@ export function createCompositeProvider(providers: QuoteProvider[], accept: (quo
         if (remaining.length === 0) break
         const answer = await provider.getQuotes(remaining)
         result.failed += answer.failed
+        for (const t of answer.unsupported ?? []) (result.unsupported ??= new Set()).add(t)
 
         for (const [symbol, quote] of answer.quotes) {
           if (!accept(quote)) continue

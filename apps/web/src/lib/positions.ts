@@ -47,6 +47,12 @@ export async function requireManualAccount(userId: string, id: string, store: Mu
   return account
 }
 
+/** A last trade of any age from the live sources, for when Massive has no requests left. */
+async function liveFirstPrice(marketTicker: string) {
+  const quote = (await createQuoteProvider(process.env, undefined, undefined, { anyAge: true })?.getQuotes([marketTicker]).catch(() => null))?.quotes.get(marketTicker)
+  return { live: quote ?? null }
+}
+
 /**
  * Makes sure a `mkt:` security row exists with a close price, fetching one only
  * when there is none yet or (with `maxAgeHours`) the stored one is stale.
@@ -66,10 +72,24 @@ export async function ensurePriced(marketTicker: string, kind: AssetKind, { maxA
     // An unknown ticker is "not found", not an outage.
     if (error.status === 404) return null
     console.error("[positions] price lookup failed:", error.message)
+    // Only when Massive is out of requests: a last trade from the live sources proves the
+    // ticker exists, so a user isn't turned away (the nightly close replaces it).
+    if (error.status === 429 && kind === "stock") return liveFirstPrice(marketTicker)
     throw error.status === 429
       ? new ApiError("Too many price lookups right now. Try again in a minute.", 429)
       : new ApiError("Prices are unavailable right now", 503)
   })
+  if (close && "live" in close) {
+    if (close.live) {
+      const asOf = quoteDate(close.live)
+      await db
+        .insert(securities)
+        .values({ id: securityId, tickerSymbol: displaySymbol(marketTicker), type: "equity", marketTicker, closePrice: close.live.price.toString(), closePriceAsOf: asOf, closePriceFinal: false })
+        .onConflictDoNothing()
+      return { securityId, price: close.live.price, asOf, name: existing?.name ?? null }
+    }
+    throw new ApiError("Too many price lookups right now. Try again in a minute.", 429)
+  }
   if (!close) {
     // A stale price beats none when the provider has nothing newer.
     if (existing?.closePrice && existing.closePriceAsOf) {

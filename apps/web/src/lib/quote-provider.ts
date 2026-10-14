@@ -25,6 +25,8 @@ export type QuoteResult = {
   quotes: Map<string, Quote>
   /** The provider told us to slow down. Whatever was gathered before that is still returned. */
   rateLimited: boolean
+  /** Tickers this source will never price (e.g. mutual funds on Finnhub's free plan): not worth asking again soon. */
+  unsupported?: Set<string>
   /** Requests that failed for any other reason. */
   failed: number
   /** How many quotes each source supplied, when several were combined. */

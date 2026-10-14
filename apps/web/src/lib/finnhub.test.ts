@@ -22,6 +22,15 @@ const T = 1_790_702_000 // unix seconds
 const ok = (c: number) => ({ status: 200, body: { c, t: T } })
 
 describe("finnhub provider", () => {
+  it("reports a 403 as unsupported (a fund its plan doesn't cover), not as a failure", async () => {
+    const { fetchImpl } = stub({ FSPTX: { status: 403 }, AAPL: ok(338.4) })
+    const result = await createFinnhubProvider({ apiKey: "k", fetchImpl }).getQuotes(["FSPTX", "AAPL"])
+
+    assert.deepEqual([...(result.unsupported ?? [])], ["FSPTX"])
+    assert.equal(result.failed, 0)
+    assert.equal(result.quotes.get("AAPL")?.price, 338.4)
+  })
+
   it("returns prices with the time of the last trade", async () => {
     const { fetchImpl } = stub({ AAPL: ok(338.4), NVDA: ok(228.86) })
     const result = await createFinnhubProvider({ apiKey: "k", fetchImpl }).getQuotes(["AAPL", "NVDA"])
