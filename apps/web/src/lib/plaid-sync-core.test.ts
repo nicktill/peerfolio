@@ -132,6 +132,18 @@ describe("Holdings from real brokerages", () => {
     assert.deepEqual(kept.map((k) => k.security_id), ["s"])
     assert.equal(skipped.length, 5)
   })
+  it("inherits missing currency only from a validated USD account", () => {
+    const missing = line({ iso_currency_code: null })
+    const crypto = line({ iso_currency_code: null, unofficial_currency_code: "BTC" })
+    const euro = line({ iso_currency_code: "EUR" })
+    const unknown = line({ account_id: "unknown", iso_currency_code: null })
+    const result = splitUsableHoldings([missing, crypto, euro, unknown], new Map([["a", "USD"]]))
+    assert.equal(result.kept.length, 1)
+    assert.equal(result.kept[0]!.iso_currency_code, "USD")
+    assert.equal(missing.iso_currency_code, null, "normalization does not mutate the provider payload")
+    assert.equal(result.skipped.length, 3)
+    assert.equal(splitUsableHoldings([missing]).kept.length, 0, "unknown parent currency is never guessed")
+  })
   it("combines the same security in one account, and keeps different accounts apart", () => {
     const merged = mergeDuplicateHoldings([line(), line({ quantity: 1, institution_value: 50, cost_basis: null }), line({ account_id: "b" })])
     assert.equal(merged.length, 2)

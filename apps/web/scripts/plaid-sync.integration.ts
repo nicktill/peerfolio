@@ -24,6 +24,7 @@ import { DELETE as disconnect } from '../src/app/api/plaid/items/[id]/route'
 import { GET as listAdminBrokerages, PATCH as updateBrokeragePermission } from '../src/app/api/admin/brokerages/route'
 import { GET as brokerageAccess } from '../src/app/api/plaid/access/route'
 import { POST as createLinkToken } from '../src/app/api/plaid/link-token/route'
+import { GET as portfolio } from '../src/app/api/portfolio/route'
 import { POST as exchange } from '../src/app/api/plaid/exchange/route'
 
 declare global {
@@ -48,7 +49,7 @@ try {
   let accountCurrency = 'USD'
   let extraAccount = false
   let balance: number | null = 1000
-  let holdingList: Array<{ account_id: string; security_id: string; quantity: number; institution_value: number | null; cost_basis: number; iso_currency_code?: string }> = [{ account_id: 'a', security_id: 'stock', quantity: 10, institution_value: 1000, cost_basis: 1000, iso_currency_code: 'USD' }]
+  let holdingList: Array<{ account_id: string; security_id: string; quantity: number; institution_value: number | null; cost_basis: number; iso_currency_code?: string | null }> = [{ account_id: 'a', security_id: 'stock', quantity: 10, institution_value: 1000, cost_basis: 1000, iso_currency_code: 'USD' }]
   let transactionList: InvestmentFlow[] = []
   let failure: string | null = null
   let empty = false
@@ -177,6 +178,15 @@ try {
   assert.equal((await syncItem(item!.id)).status, 'active')
   assert.equal(Number((await db.select().from(accounts))[0]!.currentBalance), 1600)
   assert.equal((await db.select().from(holdings)).length, 0)
+  holdingList[0]!.iso_currency_code = null
+  assert.equal((await syncItem(item!.id)).status, 'active')
+  assert.equal((await db.select().from(holdings)).length, 1, 'Missing holding currency inherits the validated USD account')
+  const importedPortfolio = await (await portfolio(new Request('http://localhost/api/portfolio?range=ALL'), {})).json()
+  const linkedAccountView = importedPortfolio.accounts.find((a: { source: string }) => a.source === 'plaid')
+  assert.equal(linkedAccountView.positions.length, 1, 'Linked account drawer receives imported positions')
+  assert.equal(linkedAccountView.positions[0].price, 100, 'Displayed linked price agrees with its authoritative holding value')
+  assert.equal(linkedAccountView.positions[0].costBasis, 1000)
+  assert.equal(importedPortfolio.holdings.length, 1, 'Imported positions also reach the aggregate Holdings table')
   holdingList[0]!.iso_currency_code = 'USD'
   holdingList[0]!.institution_value = null
   assert.equal((await syncItem(item!.id)).status, 'active')

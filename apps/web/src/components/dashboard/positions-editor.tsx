@@ -53,8 +53,10 @@ export function PositionsEditor({
   positions,
   hidden,
   onChange,
+  readOnly = false,
 }: {
   id?: string
+  readOnly?: boolean
   accountId: string
   positions: PositionRow[]
   hidden: boolean
@@ -65,6 +67,7 @@ export function PositionsEditor({
   const [busyId, setBusyId] = useState<string | null>(null)
 
   async function remove(position: PositionRow) {
+    if (readOnly) return
     setBusyId(position.id)
     try {
       await mutate(`/api/accounts/${accountId}/positions/${position.id}`, { method: "DELETE" })
@@ -91,7 +94,7 @@ export function PositionsEditor({
             return (
               <li key={p.id} className="group flex items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-secondary/60">
                 <TickerLogo symbol={p.ticker ?? "?"} kind={p.kind} />
-                <button type="button" onClick={() => setEditing(p)} className="min-w-0 flex-1 text-left">
+                <button type="button" disabled={readOnly} onClick={() => setEditing(p)} className="min-w-0 flex-1 text-left disabled:cursor-default">
                   <p className="flex items-baseline gap-2">
                     <span className="font-mono text-sm font-semibold">{p.ticker}</span>
                     <span className="truncate text-xs text-muted-foreground">{p.name}</span>
@@ -102,16 +105,16 @@ export function PositionsEditor({
                   </p>
                 </button>
                 <div className="shrink-0 text-right">
-                  <p className="numeric text-sm font-semibold">{p.price > 0 ? formatCurrency(p.value, { hidden }) : "—"}</p>
+                  <p className="numeric text-sm font-semibold">{readOnly || p.price > 0 ? formatCurrency(p.value, { hidden }) : "—"}</p>
                   {gain !== null ? (
                     <Delta value={(gain / p.costBasis!) * 100} size="sm" variant="plain" className="justify-end" />
-                  ) : (
+                  ) : readOnly ? <span className="text-[11px] text-muted-foreground">Cost basis unavailable</span> : (
                     <button type="button" onClick={() => setEditing(p)} className="text-[11px] text-muted-foreground underline-offset-2 hover:underline">
                       + add avg cost
                     </button>
                   )}
                 </div>
-                <div className="flex shrink-0 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
+                {!readOnly ? <div className="flex shrink-0 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
                   <Button variant="ghost" size="icon" className="size-8" onClick={() => setEditing(p)}>
                     <Pencil className="size-3.5" aria-hidden />
                     <span className="sr-only">Edit {p.ticker}</span>
@@ -120,7 +123,7 @@ export function PositionsEditor({
                     <Trash2 className="size-3.5" aria-hidden />
                     <span className="sr-only">Remove {p.ticker}</span>
                   </Button>
-                </div>
+                </div> : null}
               </li>
             )
           })}
@@ -146,7 +149,9 @@ export function PositionsEditor({
         </div>
       ) : null}
 
-      {positions.length === 0 ? (
+      {readOnly && positions.length === 0 ? <p className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">No holdings reported by your brokerage yet. If you expect positions here, refresh the existing connection below.</p> : null}
+
+      {!readOnly && positions.length === 0 ? (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-dashed p-4">
           <div className="min-w-0">
             <p className="text-sm font-semibold">Got a lot to add?</p>
@@ -162,7 +167,7 @@ export function PositionsEditor({
         </div>
       ) : null}
 
-      {positions.length > 0 ? (
+      {!readOnly && positions.length > 0 ? (
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" className="rounded-full" onClick={() => setEditing("new")}>
             <Plus aria-hidden />
@@ -172,7 +177,7 @@ export function PositionsEditor({
         </div>
       ) : null}
 
-      {asOf ? <p className="text-xs text-muted-foreground">Prices as of the {asOfLabel(asOf)} close. Updated nightly.</p> : null}
+      {readOnly ? <p className="text-xs text-muted-foreground">Synced from your brokerage. Update holdings at your institution.</p> : asOf ? <p className="text-xs text-muted-foreground">Prices as of the {asOfLabel(asOf)} close. Updated nightly.</p> : null}
 
       <Dialog
         open={editing !== null}

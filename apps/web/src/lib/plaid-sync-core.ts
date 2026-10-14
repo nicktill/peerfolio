@@ -38,19 +38,21 @@ export type HoldingLine = {
  * the whole connection; now only that line is left out. The account's own balance is still the
  * source of truth for net worth and returns, so skipping a line never changes those.
  */
-export function splitUsableHoldings<T extends HoldingLine>(list: T[]): { kept: T[]; skipped: { line: T; reason: string }[] } {
+export function splitUsableHoldings<T extends HoldingLine>(list: T[], accountCurrencies = new Map<string, string | null | undefined>()): { kept: T[]; skipped: { line: T; reason: string }[] } {
   const kept: T[] = []
   const skipped: { line: T; reason: string }[] = []
   for (const line of list) {
     const value = line.institution_value
     const quantity = line.quantity
+    // Some institutions omit the holding currency; inherit only a validated account currency.
+    const currency = line.iso_currency_code ?? accountCurrencies.get(line.account_id)
     const reason =
-      line.iso_currency_code !== "USD" || line.unofficial_currency_code ? "not in US dollars"
+      currency !== "USD" || line.unofficial_currency_code ? "not in US dollars"
         : value == null || !Number.isFinite(value) || quantity == null || !Number.isFinite(quantity) ? "no value reported"
           : value < 0 || quantity < 0 ? "short or margin position"
             : null
     if (reason) skipped.push({ line, reason })
-    else kept.push(line)
+    else kept.push({ ...line, iso_currency_code: currency })
   }
   return { kept, skipped }
 }
