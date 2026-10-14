@@ -1,7 +1,9 @@
 "use client"
 
-import { useRef } from "react"
-import { motion, useReducedMotion, useScroll, useSpring, useTransform } from "motion/react"
+import { useEffect, useRef } from "react"
+import { motion, useReducedMotion, useScroll, useSpring, useTransform, useMotionValue } from "motion/react"
+
+import { useBootComplete } from "@web/lib/use-boot-complete"
 
 /**
  * Lets the hero preview start slightly tipped back and settle flat as it scrolls
@@ -11,7 +13,14 @@ export function ScrollTilt({ children, className }: { children: React.ReactNode;
   const ref = useRef<HTMLDivElement>(null)
   const reduceMotion = useReducedMotion()
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "start 0.35"] })
-  const progress = useSpring(scrollYProgress, { stiffness: 140, damping: 26, mass: 0.4 })
+  const bootComplete = useBootComplete()
+  const visibleProgress = useMotionValue(0)
+  useEffect(() => {
+    if (!bootComplete) return
+    visibleProgress.set(scrollYProgress.get())
+    return scrollYProgress.on("change", (value) => visibleProgress.set(value))
+  }, [bootComplete, scrollYProgress, visibleProgress])
+  const progress = useSpring(visibleProgress, { stiffness: 140, damping: 26, mass: 0.4 })
   const rotateX = useTransform(progress, [0, 1], [10, 0])
   const scale = useTransform(progress, [0, 1], [0.94, 1])
   const y = useTransform(progress, [0, 1], [24, 0])

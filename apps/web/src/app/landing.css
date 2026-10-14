@@ -278,3 +278,7 @@ html.lenis, html.lenis body { height: auto; }
 .pf-landing-reveal { transform-origin:0 0; animation:pf-landing-reveal 1.3s cubic-bezier(.22,1,.36,1) both; }
 @keyframes pf-landing-reveal { from { transform:scaleX(0); } to { transform:scaleX(1); } }
 @media(prefers-reduced-motion:reduce) { .pf-landing-reveal { animation:none; } }
+
+/* First-visit intro owns the screen; start chart motion after the logo lands. */
+html:not([data-boot="done"]) .pf-landing-reveal,
+html:not([data-boot="done"]) .pf-lbl-end { animation-play-state:paused; }
