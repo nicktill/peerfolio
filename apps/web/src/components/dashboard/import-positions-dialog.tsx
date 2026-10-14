@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useRef, useState } from "react"
-import { ChevronDown, FileUp, Loader2, X } from "lucide-react"
+import { ChevronDown, FileUp, ImageUp, Loader2, TriangleAlert, X } from "lucide-react"
 import { Button } from "@web/components/ui/button"
 import { Dialog } from "@web/components/ui/dialog"
 import { useToast } from "@web/components/ui/toast"
@@ -10,8 +10,9 @@ import { mutate } from "@web/lib/use-api"
 import { cn } from "@web/lib/utils"
 import { hasMultipleImportAccounts, duplicateImportDestination } from "@web/lib/import-flow"
 
-type Row = { symbol: string; quantity: number; avgCost: number | null; name: string | null; kind: "stock" | "crypto"; account: string | null; price: number | null }
-type Preview = { rows: Row[]; warnings: string[]; reader: "table" | "ai" }
+type Row = { symbol: string; quantity: number; avgCost: number | null; name: string | null; kind: "stock" | "crypto"; account: string | null; price: number | null; value?: number | null; flag?: string | null }
+type Shot = { mediaType: "image/jpeg"; data: string }
+type Preview = { rows: Row[]; warnings: string[]; reader: "table" | "ai"; skipped?: { text: string; reason: string }[] }
 type Result = { imported: number; removed: number; failed: { symbol: string; reason: string }[]; pending: string[]; fromFile?: string[]; created?: number }
 
 /**
@@ -32,8 +33,19 @@ function friendlyAccountName(label: string) {
   return /^[A-Za-z]?\d{6,}$/.test(label) ? `Account ••${label.slice(-4)}` : label
 }
 
+/** Shrinks a screenshot to something the reader can use and we can afford to send (about 1600px, JPEG). */
+async function shrinkImage(file: File): Promise<Shot> {
+  const bitmap = await createImageBitmap(file)
+  const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height))
+  const canvas = document.createElement("canvas")
+  canvas.width = Math.round(bitmap.width * scale)
+  canvas.height = Math.round(bitmap.height * scale)
+  canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+  const url = canvas.toDataURL("image/jpeg", 0.85)
+  return { mediaType: "image/jpeg", data: url.slice(url.indexOf(",") + 1) }
+}
+
 const fmt = (n: number) => new Intl.NumberFormat("en-US", { maximumFractionDigits: 8 }).format(n)
-const money = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n)
 
 /**
  * Bring many positions in at once: paste what you copied from your brokerage,
@@ -89,6 +101,7 @@ function ImportFlow({ accounts, onClose, onSaved, onSavingChange }: { accounts: 
   const [accountId, setAccountId] = useState(accounts[0]!.id)
   const hasPositions = accounts.find((a) => a.id === accountId)?.hasPositions ?? false
   const file = useRef<HTMLInputElement>(null)
+  const shotInput = useRef<HTMLInputElement>(null)
   const [text, setText] = useState("")
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -107,11 +120,11 @@ function ImportFlow({ accounts, onClose, onSaved, onSavingChange }: { accounts: 
   const multi = hasMultipleImportAccounts(preview?.rows ?? [])
   const duplicateDestination = duplicateImportDestination([...groups.keys()], dest)
 
-  async function read(source: string) {
+  async function read(source: string, image?: Shot) {
     setError(null)
     setBusy(true)
     try {
-      const data = await mutate<Preview>("/api/import/parse", { body: { text: source } })
+      const data = await mutate<Preview>("/api/import/parse", { body: image ? { image } : { text: source } })
       setPreview(data)
       setRows(data.rows)
       setDest({})
@@ -127,6 +140,7 @@ function ImportFlow({ accounts, onClose, onSaved, onSavingChange }: { accounts: 
     const picked = event.target.files?.[0]
     event.target.value = ""
     if (!picked) return
+    if (picked.type.startsWith("image/")) return void onImage(picked)
     if (picked.size > 2_000_000) return setError("That file is too big. Export just your positions.")
     try {
       const content = await picked.text()
@@ -135,6 +149,23 @@ function ImportFlow({ accounts, onClose, onSaved, onSavingChange }: { accounts: 
     } catch {
       setError("Couldn’t open that file. Try choosing it again.")
     }
+  }
+
+  async function onImage(picked: File) {
+    if (!/^image\/(png|jpeg|webp)$/.test(picked.type)) return setError("Use a PNG, JPEG or WebP screenshot.")
+    try {
+      await read("", await shrinkImage(picked))
+    } catch {
+      setError("Couldn’t open that image. Try another screenshot.")
+    }
+  }
+
+  /** Pasting a screenshot (Cmd/Ctrl+V) into the box works like uploading it. */
+  function onPaste(event: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const shot = [...event.clipboardData.files].find((f) => f.type.startsWith("image/"))
+    if (!shot) return
+    event.preventDefault()
+    void onImage(shot)
   }
 
   async function save() {
@@ -146,6 +177,12 @@ function ImportFlow({ accounts, onClose, onSaved, onSavingChange }: { accounts: 
     if (multi && duplicateDestination) {
       setError("Choose a different destination for each account in your file so one account’s holdings don’t overwrite another’s.")
       return
+    }
+    const seen = new Set<string>()
+    for (const r of rows) {
+      const key = `${r.account ?? ""}|${r.symbol}`
+      if (seen.has(key)) return setError(`${r.symbol} appears twice. Leave one out or change its ticker.`)
+      seen.add(key)
     }
     setError(null)
     setBusy(true)
@@ -242,7 +279,7 @@ function ImportFlow({ accounts, onClose, onSaved, onSavingChange }: { accounts: 
         <div className="flex items-baseline justify-between gap-3">
           <p className="text-sm font-medium">
             {plural(rows.length, "holding")} found
-            <span className="ml-2 text-xs font-normal text-muted-foreground">{preview.reader === "ai" ? "read by AI, please check" : "read from your table"}</span>
+            <span className="ml-2 text-xs font-normal text-muted-foreground">{preview.reader === "ai" ? "read by AI, please check the numbers" : "read from what you pasted"}</span>
           </p>
           <button type="button" className="text-xs text-muted-foreground underline-offset-2 hover:underline" disabled={busy} onClick={() => { setPreview(null); setError(null) }}>
             Back
@@ -252,6 +289,23 @@ function ImportFlow({ accounts, onClose, onSaved, onSavingChange }: { accounts: 
         {preview.warnings.map((w) => (
           <p key={w} className="text-xs text-muted-foreground">{w}</p>
         ))}
+        {preview.skipped && preview.skipped.length > 0 ? (
+          <details className="rounded-xl border px-3 py-2 text-xs text-muted-foreground">
+            <summary className="cursor-pointer font-medium text-foreground">{plural(preview.skipped.length, "line")} left out</summary>
+            <ul className="mt-2 max-h-32 space-y-1 overflow-auto">
+              {preview.skipped.map((k, i) => (
+                <li key={i}>
+                  <span className="font-mono text-foreground">{k.text}</span> — {k.reason}
+                </li>
+              ))}
+            </ul>
+          </details>
+        ) : null}
+        {rows.some((r) => r.avgCost == null) ? (
+          <p className="text-xs text-muted-foreground">
+            {plural(rows.filter((r) => r.avgCost == null).length, "holding")} {rows.filter((r) => r.avgCost == null).length === 1 ? "has" : "have"} no cost. Type one in, or leave it blank; those holdings are still valued at today’s price, they just won’t show a gain or loss.
+          </p>
+        ) : null}
 
         {multi ? (
           <div className="max-h-[22rem] space-y-3 overflow-auto pr-0.5">
@@ -279,13 +333,13 @@ function ImportFlow({ accounts, onClose, onSaved, onSavingChange }: { accounts: 
                     ))}
                   </select>
                 </div>
-                <RowsTable disabled={busy} rows={groupRows} onRemove={(r) => setRows(rows.filter((x) => x !== r))} />
+                <RowsTable disabled={busy} rows={groupRows} onRemove={(r) => setRows(rows.filter((x) => x !== r))} onChange={(r, next) => setRows(rows.map((x) => (x === r ? next : x)))} />
               </div>
             ))}
           </div>
         ) : (
           <div className="max-h-72 overflow-auto rounded-xl border">
-            <RowsTable disabled={busy} rows={rows} onRemove={(r) => setRows(rows.filter((x) => x !== r))} />
+            <RowsTable disabled={busy} rows={rows} onRemove={(r) => setRows(rows.filter((x) => x !== r))} onChange={(r, next) => setRows(rows.map((x) => (x === r ? next : x)))} />
           </div>
         )}
 
@@ -358,8 +412,9 @@ function ImportFlow({ accounts, onClose, onSaved, onSavingChange }: { accounts: 
           data-autofocus
           value={text}
           onChange={(e) => setText(e.target.value)}
+          onPaste={onPaste}
           rows={8}
-          placeholder={"Copy the positions table from your brokerage and paste it here.\n\nOr type one per line:\nAAPL 10 @ 150\nVTI 25 @ 210.50"}
+          placeholder={"Select your positions on your brokerage’s page, copy, and paste here. Any layout works.\n\nOr paste a screenshot, or type one per line:\nAAPL 10 @ 150\nVTI 25 @ 210.50"}
           className="w-full resize-y rounded-xl border bg-background p-3 font-mono text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
       </div>
@@ -369,10 +424,17 @@ function ImportFlow({ accounts, onClose, onSaved, onSavingChange }: { accounts: 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <input ref={file} type="file" accept=".csv,.tsv,.txt,text/csv,text/plain" className="sr-only" onChange={(e) => void onFile(e)} />
-          <Button type="button" variant="outline" size="sm" onClick={() => file.current?.click()} disabled={busy}>
-            <FileUp aria-hidden />
-            Upload a CSV
-          </Button>
+          <input ref={shotInput} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={(e) => void onFile(e)} />
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => file.current?.click()} disabled={busy}>
+              <FileUp aria-hidden />
+              Upload a CSV
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => shotInput.current?.click()} disabled={busy}>
+              <ImageUp aria-hidden />
+              Screenshot
+            </Button>
+          </div>
         </div>
         <div className="flex gap-2">
           <Button variant="ghost" disabled={busy} onClick={onClose}>Cancel</Button>
@@ -384,7 +446,7 @@ function ImportFlow({ accounts, onClose, onSaved, onSavingChange }: { accounts: 
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Nothing is saved until you confirm. Symbols, account labels, share counts, costs and file prices are used. Text that isn’t a plain table may be read by an AI model.
+        Nothing is saved until you confirm. Symbols, account labels, share counts, costs and file prices are used. Text or screenshots that aren’t a plain table are read by an AI model.
       </p>
     </div>
   )
@@ -395,7 +457,7 @@ const BROKERS: { name: string; steps: string }[] = [
   { name: "Vanguard", steps: "My accounts → Holdings → Download (spreadsheet/CSV), then upload the file here." },
   { name: "Schwab", steps: "Open Positions and use Export at the top right of the table, then upload the file here." },
   { name: "E*TRADE", steps: "Portfolios → Positions → Download, then upload the file here." },
-  { name: "Robinhood", steps: "Robinhood’s report is a trade history, not your holdings. Instead open your account page on the website, select the list of stocks, copy it and paste it below." },
+  { name: "Robinhood", steps: "Open your account page on the website, select the list of stocks (name through equity), copy it and paste it below. A screenshot works too." },
   { name: "Something else", steps: "Open your positions page, select the table, copy it and paste it below. Or type one per line: AAPL 10 @ 150." },
 ]
 
@@ -441,7 +503,8 @@ function BrokerHelp() {
   )
 }
 
-function RowsTable({ rows, onRemove, disabled = false }: { rows: Row[]; onRemove: (row: Row) => void; disabled?: boolean }) {
+function RowsTable({ rows, onRemove, onChange, disabled = false }: { rows: Row[]; onRemove: (row: Row) => void; onChange: (row: Row, next: Row) => void; disabled?: boolean }) {
+  const input = "h-7 w-24 rounded-md border bg-background px-2 text-right text-sm tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring"
   return (
     <table className="w-full text-sm">
       <thead className="sticky top-0 bg-card text-[11px] uppercase tracking-wide text-muted-foreground">
@@ -453,14 +516,59 @@ function RowsTable({ rows, onRemove, disabled = false }: { rows: Row[]; onRemove
         </tr>
       </thead>
       <tbody className="divide-y">
-        {rows.map((r) => (
-          <tr key={`${r.account ?? ""}|${r.symbol}`}>
+        {rows.map((r, i) => (
+          <tr key={`${r.account ?? ""}|${r.symbol}|${i}`} className={cn(r.flag && "bg-amber-500/10")}>
             <td className="px-3 py-2">
-              <span className="font-mono font-semibold">{r.symbol}</span>
+              <input
+                disabled={disabled}
+                aria-label={`Ticker for ${r.name ?? r.symbol}`}
+                defaultValue={r.symbol}
+                maxLength={12}
+                className="h-7 w-24 rounded-md border border-transparent bg-transparent px-1.5 font-mono font-semibold uppercase outline-none hover:border-border focus-visible:border-border focus-visible:ring-2 focus-visible:ring-ring"
+                onBlur={(e) => {
+                  const next = e.target.value.trim().toUpperCase()
+                  if (/^[A-Z0-9][A-Z0-9.\-]{0,11}$/.test(next)) onChange(r, { ...r, symbol: next.replace(/-/g, "."), kind: r.kind })
+                  else e.target.value = r.symbol
+                }}
+              />
               {r.name ? <span className="ml-2 hidden text-xs text-muted-foreground sm:inline">{r.name}</span> : null}
+              {r.flag ? (
+                <span className="mt-0.5 flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400">
+                  <TriangleAlert className="size-3" aria-hidden />
+                  {r.flag}
+                </span>
+              ) : null}
             </td>
-            <td className="numeric px-3 py-2 text-right">{fmt(r.quantity)}</td>
-            <td className="numeric px-3 py-2 text-right text-muted-foreground">{r.avgCost != null ? money(r.avgCost) : "—"}</td>
+            <td className="px-3 py-1.5 text-right">
+              <input
+                disabled={disabled}
+                aria-label={`${r.symbol} shares`}
+                inputMode="decimal"
+                defaultValue={fmt(r.quantity)}
+                className={input}
+                onBlur={(e) => {
+                  const n = Number(e.target.value.replace(/,/g, ""))
+                  if (Number.isFinite(n) && n > 0) onChange(r, { ...r, quantity: n, flag: null })
+                  else e.target.value = fmt(r.quantity)
+                }}
+              />
+            </td>
+            <td className="px-3 py-1.5 text-right">
+              <input
+                disabled={disabled}
+                aria-label={`${r.symbol} average cost`}
+                inputMode="decimal"
+                placeholder="—"
+                defaultValue={r.avgCost != null ? String(Math.round(r.avgCost * 1e4) / 1e4) : ""}
+                className={cn(input, "text-muted-foreground")}
+                onBlur={(e) => {
+                  const raw = e.target.value.replace(/[$,\s]/g, "")
+                  const n = raw === "" ? null : Number(raw)
+                  if (n === null || (Number.isFinite(n) && n > 0)) onChange(r, { ...r, avgCost: n })
+                  else e.target.value = r.avgCost != null ? String(r.avgCost) : ""
+                }}
+              />
+            </td>
             <td className="pr-2 text-right">
               <button disabled={disabled} type="button" className="rounded p-1 text-muted-foreground hover:bg-secondary hover:text-foreground" onClick={() => onRemove(r)}>
                 <X className="size-3.5" aria-hidden />
