@@ -4,10 +4,12 @@ import type { AccountBase, Holding as PlaidHolding, Security as PlaidSecurity } 
 import { db, holdings, accounts, plaidItems, portfolioSnapshots, securities, plaidInvestmentFlows } from "@web/db"
 import { decrypt } from "@web/lib/crypto"
 import { getPlaidClient, isReauthRequired, plaidErrorCode } from "@web/lib/plaid"
-import { accountsAwaitingHoldings, countByReason, flowChanges, investmentHistoryStart, investmentPages, mergeDuplicateHoldings, retryPlaid, securityDisplayName, splitUsableHoldings } from "@web/lib/plaid-sync-core"
+import { accountsAwaitingHoldings, countByReason, flowChanges, investmentHistoryStart, investmentPages, marketTarget, mergeDuplicateHoldings, retryPlaid, securityDisplayName, splitUsableHoldings } from "@web/lib/plaid-sync-core"
 import { keepsEntryValue } from "@web/lib/ranges"
 import { categorizeAccount, type AccountCategory } from "@web/lib/account-category"
 import { accountBalance } from "@web/lib/account-balance"
+import { latestStartedSession } from "@web/lib/market-hours"
+import { revalue } from "@web/lib/positions"
 import { assertPlaidActive, plaidPaused } from "@web/lib/plaid-switch"
 import { buildSyncRun, countMissingTicker, emptyMetrics, plaidRequestId, type SyncTrigger } from "@web/lib/plaid-sync-runs-core"
 import { recordSyncRun } from "@web/lib/plaid-sync-runs"
@@ -108,7 +110,10 @@ export async function syncItem(itemRowId: string, deadline = Date.now() + 90_000
       // One odd line (crypto, a margin debit, a short) must not take the whole connection down.
       if (holdingData) {
         const { kept, skipped, assumedCurrency } = splitUsableHoldings(holdingData.holdings, new Map(importedAccounts.filter((a) => categorizeAccount(a.type, a.subtype) === "investment").map((a) => [a.account_id, a.balances.iso_currency_code])))
-        holdingData.holdings = mergeDuplicateHoldings(kept)
+        // Stocks, ETFs and funds with a market ticker are tracked under our shared price rows, so
+        // they are priced like manual positions; two Plaid securities for one ticker merge here.
+        const targets = new Map(holdingData.securities.flatMap((s) => { const t = marketTarget(s); return t ? [[s.security_id, t.id] as const] : [] }))
+        holdingData.holdings = mergeDuplicateHoldings(kept.map((h) => (targets.has(h.security_id) ? { ...h, security_id: targets.get(h.security_id)! } : h)))
         Object.assign(metrics, { holdingsReceived, holdingsKept: kept.length, skipped: countByReason(skipped), currencyAssumed: assumedCurrency, securitiesMissingTicker: countMissingTicker(holdingData.securities), balanceWithoutHoldings: awaiting.size > 0 })
         // One structured line per sync, so an empty Holdings view can be explained from the logs alone.
         const summary = JSON.stringify({
@@ -139,6 +144,9 @@ export async function syncItem(itemRowId: string, deadline = Date.now() + 90_000
       const accountCount = await upsertPlaidAccounts(item.id, item.userId, importedAccounts, store)
       let holdingCount = 0
       if (holdingData) holdingCount = await syncHoldings(item.id, item.userId, holdingData, store, awaiting)
+      // The sync wrote the institution's values; bring them to our prices before anything is recorded
+      // (the snapshot below), so the page, the snapshot and today's change all agree.
+      if (holdingData) for (const account of await store.select({ id: accounts.id }).from(accounts).where(and(eq(accounts.itemId, item.id), eq(accounts.userId, item.userId), eq(accounts.isActive, true)))) await revalue(account.id, undefined, store)
       if (changes.entries.length) await store.insert(plaidInvestmentFlows).values(changes.entries.map((r) => ({
         transactionId: r.transactionId, itemId: item.id, accountId: r.accountId, amount: r.amount.toFixed(4), baseline: r.baseline, transactionDate: r.date,
       }))).onConflictDoUpdate({ target: plaidInvestmentFlows.transactionId, set: { amount: sqlExcluded("amount"), transactionDate: sqlExcluded("transaction_date") } })
@@ -267,6 +275,33 @@ async function upsertSecurities(list: PlaidSecurity[], store: SyncDb, lines: Pla
   const institutionPrice = new Map<string, { price: number; asOf: string | null }>()
   for (const l of lines) if (l.institution_price != null && Number.isFinite(l.institution_price) && !institutionPrice.has(l.security_id)) institutionPrice.set(l.security_id, { price: l.institution_price, asOf: l.institution_price_as_of ?? null })
 
+  // Securities we price ourselves get (or keep) the shared row, seeded with Plaid's close only when new:
+  // after that the row belongs to our price jobs and a sync never moves its price.
+  const shared = new Map<string, typeof securities.$inferInsert>()
+  for (const s of list) {
+    const target = marketTarget(s)
+    if (!target || shared.has(target.id)) continue
+    const fallback = institutionPrice.get(s.security_id)
+    shared.set(target.id, {
+      id: target.id,
+      tickerSymbol: target.marketTicker,
+      name: securityDisplayName(s),
+      type: target.type,
+      marketTicker: target.marketTicker,
+      ...seedPrice(s, fallback),
+      isoCurrencyCode: s.iso_currency_code ?? "USD",
+      updatedAt: new Date(),
+    })
+  }
+  if (shared.size > 0) {
+    await store
+      .insert(securities)
+      .values([...shared.values()])
+      .onConflictDoUpdate({ target: securities.id, set: { name: sql`coalesce(securities.name, excluded.name)` } })
+  }
+  list = list.filter((s) => !marketTarget(s))
+  if (list.length === 0) return
+
   await store
     .insert(securities)
     .values(
@@ -297,6 +332,21 @@ async function upsertSecurities(list: PlaidSecurity[], store: SyncDb, lines: Pla
         updatedAt: sqlExcluded("updated_at"),
       },
     })
+}
+
+/**
+ * The first price for a new shared row. The institution's own price is current, so it is used
+ * (dated to the latest session) with Plaid's close, which is the previous session's, kept as
+ * the close "today" is measured from. Without one, Plaid's close stands on its own. Our price
+ * jobs take over from the next refresh.
+ */
+function seedPrice(s: PlaidSecurity, institution: { price: number; asOf: string | null } | undefined) {
+  if (institution) {
+    const session = latestStartedSession(new Date())
+    const close = s.close_price != null && s.close_price_as_of && s.close_price_as_of < session ? s.close_price : null
+    return { closePrice: institution.price.toString(), closePriceAsOf: session, previousClose: close?.toString() ?? null, closePriceFinal: true }
+  }
+  return { closePrice: s.close_price?.toString() ?? null, closePriceAsOf: s.close_price_as_of ?? null, closePriceFinal: true }
 }
 
 /** `excluded.<column>` reference for use inside onConflictDoUpdate. */

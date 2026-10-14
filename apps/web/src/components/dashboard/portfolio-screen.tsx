@@ -42,7 +42,7 @@ export type PortfolioResponse = {
   allocation: AllocationSlice[]
   holdings: HoldingRow[]
   holdingsPending?: boolean
-  today: { amount: number; percent: number; asOf: string | null } | null
+  today: { amount: number; percent: number; asOf: string | null; coverage?: number } | null
   allTime: { amount: number; percent: number; cost: number; coverage: number } | null
   leagues: { id: string; name: string; emoji: string; rank: number | null; members: number }[]
   history: { date: string; netWorth: number; investableAssets: number }[]
@@ -290,6 +290,9 @@ export function PortfolioScreen({
                       {hidden ? formatPercent(data.today.percent) : signedUsd(data.today.amount)}
                     </span>
                     {hidden ? null : <span className={cn("numeric text-xs", data.today.amount >= 0 ? "text-gain-ink" : "text-loss-ink")}>{formatPercent(data.today.percent)}</span>}
+                    {data.today.coverage != null && data.today.coverage < 0.95 ? (
+                      <span className="text-xs text-muted-foreground">on {Math.round(data.today.coverage * 100)}% of holdings</span>
+                    ) : null}
                   </>
                 ) : (
                   <span className="text-sm text-muted-foreground">No change yet</span>

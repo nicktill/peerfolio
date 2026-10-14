@@ -89,7 +89,7 @@ export function summarizeHoldings(positions: PositionInput[]): HoldingSummary[] 
  * has a previous close to say anything honest. `asOf` is the newest price date,
  * so the page can call it "today" only when it is.
  */
-export function todayChange(positions: PositionInput[], netWorth: number, minCoverage = 0.9) {
+export function todayChange(positions: PositionInput[], netWorth: number, minCoverage = 0.5) {
   const priced = positions.filter((p) => p.value > 0)
   const total = priced.reduce((sum, p) => sum + p.value, 0)
   const known = priced.filter((p) => p.previousClose != null && p.previousClose > 0)
@@ -97,11 +97,15 @@ export function todayChange(positions: PositionInput[], netWorth: number, minCov
   if (known.length === 0 || total <= 0 || knownValue / total < minCoverage) return null
 
   const amount = known.reduce((sum, p) => sum + p.quantity * (p.price - p.previousClose!), 0)
-  const before = netWorth - amount
+  // The move as a share of what the covered holdings were worth at the previous close: with plan
+  // funds and cash left out, the whole net worth would understate it.
+  const before = known.reduce((sum, p) => sum + p.quantity * p.previousClose!, 0)
   const dates = known.map((p) => p.priceAsOf).filter((d): d is string => !!d)
   return {
     amount,
     percent: before > 0 ? (amount / before) * 100 : 0,
+    /** Share of holdings by value the move covers; plan funds with no price history are left out. */
+    coverage: knownValue / total,
     asOf: dates.length > 0 ? dates.reduce((a, b) => (a > b ? a : b)).slice(0, 10) : null,
   }
 }

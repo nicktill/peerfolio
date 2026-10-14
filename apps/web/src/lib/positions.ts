@@ -845,7 +845,8 @@ async function executeRevaluation(query: SQL, store: MutationStore) {
 }
 
 /**
- * Recomputes holding values and manual account balances from stored closes.
+ * Recomputes holding values and account balances from stored closes. Manual accounts are the
+ * sum of their positions; linked accounts move by what their positions' prices moved.
  * With an account id, only that account — including one whose last position
  * was just removed, which drops to zero.
  */
@@ -859,7 +860,32 @@ export async function revalue(accountId?: string, securityIds?: string[], store:
     SET institution_value = h.quantity * s.close_price, updated_at = now()
     FROM securities s
     WHERE s.id = h.security_id AND s.market_ticker IS NOT NULL
-      AND EXISTS (SELECT 1 FROM accounts a WHERE a.id = h.account_id AND a.is_active) ${onlyAccount} ${onlySecurities}
+      AND EXISTS (SELECT 1 FROM accounts a WHERE a.id = h.account_id AND a.is_active AND a.source = 'manual') ${onlyAccount} ${onlySecurities}
+  `, store)
+
+  // Linked accounts: the institution's value and balance are the starting point at each sync;
+  // as our prices move, each holding takes the new value and its account's balance moves by the
+  // same difference. A sync starts again from the institution's numbers.
+  await executeRevaluation(sql`
+    WITH changed AS (
+      SELECT h.id, round(h.quantity * s.close_price, 4) AS new_value,
+        COALESCE(h.institution_value, round(h.quantity * s.close_price, 4)) AS old_value
+      FROM holdings h
+      JOIN securities s ON s.id = h.security_id
+      JOIN accounts a ON a.id = h.account_id
+      WHERE s.market_ticker IS NOT NULL AND s.close_price IS NOT NULL AND h.quantity IS NOT NULL
+        AND a.is_active AND a.source <> 'manual' ${onlyAccount} ${onlySecurities}
+      -- Locked before the old value is read, so two overlapping revaluations can't both count the same move.
+      ORDER BY h.id FOR UPDATE OF h
+    ), moved AS (
+      UPDATE holdings h SET institution_value = c.new_value, updated_at = now()
+      FROM changed c
+      WHERE h.id = c.id AND h.institution_value IS DISTINCT FROM c.new_value
+      RETURNING h.account_id, c.new_value - c.old_value AS delta
+    )
+    UPDATE accounts a SET current_balance = a.current_balance + d.delta, updated_at = now()
+    FROM (SELECT account_id, sum(delta) AS delta FROM moved GROUP BY account_id) d
+    WHERE a.id = d.account_id
   `, store)
 
   // With a list of securities, only the accounts that hold them need a new balance.
