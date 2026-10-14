@@ -32,7 +32,7 @@ export function HeroProductPreview() {
   const [page, setPage] = useState<Page>("Leagues")
   return (
     <ScrollTilt>
-      <TiltCard max={0.6} glare={false} className="pf-window">
+      <TiltCard max={0.8} glare={false} className="pf-window">
         <div className="pf-window-bar" aria-hidden>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.png" alt="" className="pf-logo !size-5" />
