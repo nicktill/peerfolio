@@ -26,5 +26,5 @@ describe("brokerage admin and lifetime production budget settings", () => {
 it("caps Trial at ten without weakening smaller configured budgets", () => {
   assert.equal(productionBudgetSettings({ PLAID_ENV: "production", PLAID_PRODUCTION_ITEM_LIMIT: "100" }).limit, 10)
   assert.equal(productionBudgetSettings({ PLAID_ENV: "production", PLAID_CONNECTION_PROFILE: "trial", PLAID_PRODUCTION_ITEM_LIMIT: "3" }).limit, 3)
-  assert.equal(productionBudgetSettings({ PLAID_ENV: "production", PLAID_CONNECTION_PROFILE: "paid", PLAID_PRODUCTION_ITEM_LIMIT: "100" }).limit, 100)
+  assert.equal(productionBudgetSettings({ PLAID_ENV: "production", PLAID_CONNECTION_PROFILE: "paid", PLAID_PRODUCTION_ITEM_LIMIT: "100" }).limit, 10)
 })

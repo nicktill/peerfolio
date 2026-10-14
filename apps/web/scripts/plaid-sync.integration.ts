@@ -279,9 +279,10 @@ try {
   const repairsBeforePaidBlock = linkRequests
   await assert.rejects(createLinkToken(new Request('http://localhost/api/plaid/link-token', { method: 'POST', body: JSON.stringify({ itemId: item!.id }) }), {}), /Paid Plaid credentials are disabled/)
   assert.equal(linkRequests, repairsBeforePaidBlock)
-  // Explicit paid mode restores legacy repair even when capacity is exhausted.
+  // Setting the profile to paid must not re-enable the paid team; only a code change can.
   process.env.PLAID_CONNECTION_PROFILE = 'paid'
-  assert.equal((await createLinkToken(new Request('http://localhost/api/plaid/link-token', { method: 'POST', body: JSON.stringify({ itemId: item!.id }) }), {})).status, 200)
+  await assert.rejects(createLinkToken(new Request('http://localhost/api/plaid/link-token', { method: 'POST', body: JSON.stringify({ itemId: item!.id }) }), {}), /Paid Plaid credentials are disabled/)
+  assert.equal(linkRequests, repairsBeforePaidBlock)
   process.env.PLAID_ENV = 'sandbox'
   delete process.env.PLAID_CONNECTION_PROFILE
   // Closed/revoked accounts stop contributing and lose their holdings.

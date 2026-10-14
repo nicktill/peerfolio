@@ -14,7 +14,8 @@ function nonnegativeInteger(value: string | undefined, fallback: number, name: s
 
 export function productionBudgetSettings(env: Record<string, string | undefined>) {
   const configuredLimit = nonnegativeInteger(env.PLAID_PRODUCTION_ITEM_LIMIT, 10, "PLAID_PRODUCTION_ITEM_LIMIT")
-  const trial = env.PLAID_ENV === "production" && env.PLAID_CONNECTION_PROFILE !== "paid"
+  // Production is Trial-only (the paid profile is disabled in code), so the 10 Item cap always applies.
+  const trial = env.PLAID_ENV === "production"
   return {
     limit: trial ? Math.min(10, configuredLimit) : configuredLimit,
     previouslyUsed: nonnegativeInteger(env.PLAID_PRODUCTION_ITEMS_PREVIOUSLY_USED, 0, "PLAID_PRODUCTION_ITEMS_PREVIOUSLY_USED"),
