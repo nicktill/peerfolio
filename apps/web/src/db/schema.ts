@@ -8,6 +8,7 @@ import {
   numeric,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -229,6 +230,25 @@ export const providerBudgets = pgTable("provider_budgets", {
   /** Whether the latest request for a token got one (an UPDATE can't return the row it replaced). */
   lastGranted: boolean("last_granted").notNull().default(true),
 })
+
+/**
+ * Provider request counters, one row per provider per minute (see lib/provider-stats.ts).
+ * `requests` are those sent; `denied` are those our budget refused; `rateLimited`
+ * and `failed` are sent requests the provider answered with 429 or an error.
+ */
+export const providerRequestStats = pgTable(
+  "provider_request_stats",
+  {
+    provider: text("provider").notNull(),
+    minute: timestamp("minute", { withTimezone: true }).notNull(),
+    requests: integer("requests").notNull().default(0),
+    symbols: integer("symbols").notNull().default(0),
+    denied: integer("denied").notNull().default(0),
+    rateLimited: integer("rate_limited").notNull().default(0),
+    failed: integer("failed").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.provider, t.minute] }), index("provider_request_stats_minute_idx").on(t.minute)],
+)
 
 export const holdings = pgTable(
   "holdings",

@@ -19,6 +19,7 @@
  */
 
 import { AsyncLocalStorage } from "node:async_hooks"
+import { symbolCount } from "./provider-stats-core.ts"
 
 export type ProviderName = "finnhub" | "alpaca" | "massive" | "tiingo"
 
@@ -78,6 +79,15 @@ const loadGate = () =>
   ))
 
 /**
+ * Counts a request in the per-minute usage stats. Loaded on first use, fire and
+ * forget, and silent on any failure: metrics never hold up or break a fetch.
+ */
+type Outcome = { requests?: number; symbols?: number; denied?: number; rateLimited?: number; failed?: number }
+function record(provider: ProviderName, outcome: Outcome) {
+  import("./provider-stats.ts").then((m) => m.recordProviderRequest(provider, outcome)).catch(() => {})
+}
+
+/**
  * A request's options, plus `timeoutMs`: a timeout that starts when the request is
  * sent, not when it was queued, so time spent waiting for budget doesn't use it up.
  */
@@ -117,7 +127,10 @@ export function providerFetch(provider: ProviderName): ProviderFetch {
       if (take.granted) break
       const deadline = patience.getStore() ?? 0
       const wait = take.waitSeconds * 1000 + 50
-      if (Date.now() + wait > deadline) return refuse(take.waitSeconds, take.unavailable ? "request budget unavailable" : "request budget spent")
+      if (Date.now() + wait > deadline) {
+        record(provider, { denied: 1 })
+        return refuse(take.waitSeconds, take.unavailable ? "request budget unavailable" : "request budget spent")
+      }
       await sleep(wait)
     }
 
@@ -125,7 +138,20 @@ export function providerFetch(provider: ProviderName): ProviderFetch {
     const { timeoutMs, ...options } = init ?? {}
     const signal = timeoutMs ? AbortSignal.timeout(timeoutMs) : options.signal
     // Looked up at call time, so a stub installed after this module loaded is used.
-    const response = await globalThis.fetch(input, { ...options, signal })
+    const symbols = symbolCount(input)
+    let response: Response
+    try {
+      response = await globalThis.fetch(input, { ...options, signal })
+    } catch (error) {
+      record(provider, { requests: 1, symbols, failed: 1 })
+      throw error
+    }
+    record(provider, {
+      requests: 1,
+      symbols,
+      rateLimited: response.status === 429 ? 1 : 0,
+      failed: response.status >= 400 && response.status !== 429 ? 1 : 0,
+    })
     if (response.status === 429) {
       const seconds = retryAfterSeconds(response.headers.get("retry-after"))
       console.warn(`[budget] ${provider} rate limited us; every server waits ${seconds}s`)
