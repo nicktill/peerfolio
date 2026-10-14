@@ -1,3 +1,4 @@
+import { manualMutation } from "@web/lib/manual-mutation"
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { investableTotal, writeDailySnapshot } from "@web/lib/plaid-sync"
@@ -17,24 +18,26 @@ const Position = z.object({
 
 /** Adds a position to a manual account, or changes how much of it is held. */
 export const POST = withUser<Ctx>(async (userId, request, { params }) => {
-  const { id } = await params
-  const account = await requireManualAccount(userId, id)
-  if (account.category !== "investment") throw new ApiError("Positions can only be added to investment accounts")
+  return manualMutation(userId, async (store) => {
+    const { id } = await params
+    const account = await requireManualAccount(userId, id, store)
+    if (account.category !== "investment") throw new ApiError("Positions can only be added to investment accounts")
 
-  const parsed = Position.safeParse(await readJson(request))
-  if (!parsed.success) throw new ApiError(parsed.error.issues[0]?.message ?? "Invalid position")
+    const parsed = Position.safeParse(await readJson(request))
+    if (!parsed.success) throw new ApiError(parsed.error.issues[0]?.message ?? "Invalid position")
 
-  // The position's value arrives as a flow, exactly like a deposit: buying in
-  // at today's price is not a gain.
-  const before = await investableTotal(userId)
-  await setPosition(id, userId, parsed.data)
-  await writeDailySnapshot(userId, (await investableTotal(userId)) - before)
-  await recordAccountEvent(userId, before, {
-    action: "position_set",
-    accountId: id,
-    accountName: account.name,
-    detail: { symbol: parsed.data.symbol.trim().toUpperCase(), quantity: parsed.data.quantity, avgCost: parsed.data.avgCost },
+    // The position's value arrives as a flow, exactly like a deposit: buying in
+    // at today's price is not a gain.
+    const before = await investableTotal(userId, store)
+    await setPosition(id, userId, parsed.data, store)
+    await writeDailySnapshot(userId, (await investableTotal(userId, store)) - before, undefined, store)
+    await recordAccountEvent(userId, before, {
+      action: "position_set",
+      accountId: id,
+      accountName: account.name,
+      detail: { symbol: parsed.data.symbol.trim().toUpperCase(), quantity: parsed.data.quantity, avgCost: parsed.data.avgCost },
+    }, store)
+
+    return NextResponse.json({ ok: true }, { status: 201 })
   })
-
-  return NextResponse.json({ ok: true }, { status: 201 })
 })

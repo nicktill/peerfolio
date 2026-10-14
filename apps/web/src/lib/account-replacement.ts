@@ -1,6 +1,8 @@
 import "server-only"
 import { and, eq, inArray, sql } from "drizzle-orm"
-import { accountEvents, accounts, db, plaidItems } from "@web/db"
+import { accountEvents, accounts, db, holdings, plaidItems, securities } from "@web/db"
+import { latestCompletedSession } from "@web/lib/market-hours"
+import { refreshStalePrices, revalue } from "@web/lib/positions"
 import { ApiError } from "@web/lib/api"
 import { buildAccountEvent } from "@web/lib/account-events-core"
 import { investableTotal, writeDailySnapshot } from "@web/lib/plaid-sync"
@@ -40,6 +42,7 @@ export async function replaceManualAccount(userId: string, manualId: string, lin
 
 /** Restore the frozen backup only after its linked counterpart has been removed. */
 export async function restoreManualAccount(userId: string, manualId: string) {
+  await refreshStalePrices()
   return db.transaction(async (store) => {
     await store.execute(sql`set local lock_timeout = '10s'`)
     await store.execute(sql`select pg_advisory_xact_lock(hashtext(${userId}))`)
@@ -54,8 +57,14 @@ export async function restoreManualAccount(userId: string, manualId: string) {
       // Even an inactive revoked account may reappear on the next sync.
       if (linked) throw new ApiError("Remove the linked brokerage connection before restoring this backup, so its balance cannot be counted twice", 409)
     }
+    const overlap = await store.query.accounts.findFirst({ where: and(eq(accounts.userId, userId), eq(accounts.source, "plaid"), eq(accounts.category, "investment"), eq(accounts.isActive, true)) })
+    if (overlap) throw new ApiError("Remove linked investment connections before restoring this backup; a newly linked account may contain the same holdings", 409)
+    const prices = await store.select({ ticker: securities.marketTicker, price: securities.closePrice, date: securities.closePriceAsOf }).from(holdings).innerJoin(securities, eq(holdings.securityId, securities.id)).where(eq(holdings.accountId, manualId))
+    const session = latestCompletedSession(new Date())
+    if (prices.some((p) => p.ticker && (!p.price || !p.date || p.date < session))) throw new ApiError("Current prices are not available for this backup yet. Refresh prices and try again", 409)
     const before = await investableTotal(userId, store)
     await store.update(accounts).set({ isActive: true, updatedAt: new Date() }).where(eq(accounts.id, manualId))
+    if (prices.length) await revalue(manualId, undefined, store)
     const after = await investableTotal(userId, store)
     await writeDailySnapshot(userId, after - before, undefined, store)
     await store.insert(accountEvents).values(buildAccountEvent(userId, before, after, { action: "account_restored", accountId: manualId, accountName: manual.name, detail: { restoredBackup: true } }))

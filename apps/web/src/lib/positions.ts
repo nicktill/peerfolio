@@ -1,6 +1,7 @@
 import { after } from "next/server"
 import { and, eq, inArray, isNotNull, isNull, lt, sql } from "drizzle-orm"
 import { accounts, db, holdings, securities } from "@web/db"
+import type { MutationStore } from "@web/lib/manual-mutation"
 import { ApiError } from "@web/lib/api"
 import { isUsMarketOpen, latestCompletedSession } from "@web/lib/market-hours"
 import { previousCloseOnUpdate } from "@web/lib/price-write"
@@ -35,12 +36,12 @@ import {
  */
 
 /** Only manual accounts are editable — Plaid balances come from the institution. */
-export async function requireManualAccount(userId: string, id: string) {
-  const account = await db.query.accounts.findFirst({
+export async function requireManualAccount(userId: string, id: string, store: MutationStore = db, allowArchived = false) {
+  const account = await store.query.accounts.findFirst({
     where: and(eq(accounts.id, id), eq(accounts.userId, userId)),
   })
   if (!account) throw new ApiError("Account not found", 404)
-  if (!account.isActive) throw new ApiError("This manual account has been archived", 409)
+  if (!allowArchived && !account.isActive) throw new ApiError("This manual account has been archived", 409)
   if (account.source !== "manual") throw new ApiError("Connected accounts are updated from your institution", 409)
   return account
 }
@@ -202,20 +203,20 @@ export function scheduleMetadataRefresh(minIntervalSeconds = 120) {
 type PositionInput = { symbol: string; kind: AssetKind; quantity: number; avgCost?: number | null }
 
 /** The write behind `setPosition`, without revaluing, so a bulk import can revalue once at the end. */
-async function upsertPosition(accountId: string, userId: string, input: PositionInput) {
+async function upsertPosition(accountId: string, userId: string, input: PositionInput, store: MutationStore = db) {
   const marketTicker = toMarketTicker(input.symbol, input.kind)
   if (!marketTicker) throw new ApiError(`${input.symbol} doesn't look like a ${input.kind === "crypto" ? "coin" : "ticker"}`)
 
   const { securityId } = await ensurePriced(marketTicker, input.kind)
-  await writeHolding(accountId, userId, securityId, input)
+  await writeHolding(accountId, userId, securityId, input, store)
   return { securityId, marketTicker }
 }
 
 /** Saves the holding for a security that already exists, priced or not. */
-async function writeHolding(accountId: string, userId: string, securityId: string, input: PositionInput) {
+async function writeHolding(accountId: string, userId: string, securityId: string, input: PositionInput, store: MutationStore = db) {
   // An average cost sets the basis; leaving it out keeps the existing average
   // per share, so changing the share count doesn't invent a gain.
-  const existing = await db.query.holdings.findFirst({
+  const existing = await store.query.holdings.findFirst({
     where: and(eq(holdings.accountId, accountId), eq(holdings.securityId, securityId)),
   })
   let costBasis: string | null
@@ -227,7 +228,7 @@ async function writeHolding(accountId: string, userId: string, securityId: strin
     costBasis = null
   }
 
-  await db
+  await store
     .insert(holdings)
     .values({ accountId, userId, securityId, quantity: input.quantity.toString(), costBasis })
     .onConflictDoUpdate({
@@ -237,19 +238,19 @@ async function writeHolding(accountId: string, userId: string, securityId: strin
 }
 
 /** Adds a position, or replaces the quantity if the account already holds it. */
-export async function setPosition(accountId: string, userId: string, input: PositionInput) {
+export async function setPosition(accountId: string, userId: string, input: PositionInput, store: MutationStore = db) {
   const symbol = input.symbol.trim().toUpperCase()
   if (input.kind === "stock" && isPlanIdentifier(symbol)) {
     const id = `file:${accountId}:${symbol}`
-    const security = await db.query.securities.findFirst({ where: eq(securities.id, id) })
+    const security = await store.query.securities.findFirst({ where: eq(securities.id, id) })
     if (!security?.closePrice) throw new ApiError("Import this plan holding with its price from your brokerage first", 404)
-    await writeHolding(accountId, userId, id, input)
-    await db.update(holdings).set({ institutionValue: (input.quantity * Number(security.closePrice)).toFixed(4) })
+    await writeHolding(accountId, userId, id, input, store)
+    await store.update(holdings).set({ institutionValue: (input.quantity * Number(security.closePrice)).toFixed(4) })
       .where(and(eq(holdings.accountId, accountId), eq(holdings.securityId, id)))
   } else {
-    await upsertPosition(accountId, userId, input)
+    await upsertPosition(accountId, userId, input, store)
   }
-  await revalue(accountId)
+  await revalue(accountId, undefined, store)
 }
 
 export type ImportRowInput = PositionInput & { name?: string | null; price?: number | null }
@@ -386,7 +387,7 @@ async function ensureUnpriced(marketTicker: string, kind: AssetKind, name: strin
  * mention are removed afterwards, but only when every row went in, so a bad
  * ticker can never leave an account half-emptied.
  */
-export async function importPositions(accountId: string, userId: string, rows: ImportRowInput[], { replace }: { replace: boolean }): Promise<ImportResult> {
+export async function importPositions(accountId: string, userId: string, rows: ImportRowInput[], { replace }: { replace: boolean }, store: MutationStore = db): Promise<ImportResult> {
   const result: ImportResult = { imported: 0, removed: 0, fromFile: [], failed: [], pending: [] }
 
   const keptSecurityIds = new Set<string>()
@@ -402,15 +403,15 @@ export async function importPositions(accountId: string, userId: string, rows: I
       }
       try {
         const id = `file:${accountId}:${symbol}`
-        await db.insert(securities).values({
+        await store.insert(securities).values({
           id, tickerSymbol: symbol, name: row.name ?? null, type: "fund",
           closePrice: row.price.toString(),
           // No market ticker/date: only a new statement can update this valuation.
         }).onConflictDoUpdate({ target: securities.id, set: {
           name: row.name ?? sql`${securities.name}`, closePrice: row.price.toString(), updatedAt: new Date(),
         } })
-        await writeHolding(accountId, userId, id, row)
-        await db.update(holdings).set({ institutionValue: (row.quantity * row.price).toFixed(4) })
+        await writeHolding(accountId, userId, id, row, store)
+        await store.update(holdings).set({ institutionValue: (row.quantity * row.price).toFixed(4) })
           .where(and(eq(holdings.accountId, accountId), eq(holdings.securityId, id)))
         keptSecurityIds.add(id)
         result.imported++
@@ -446,13 +447,13 @@ export async function importPositions(accountId: string, userId: string, rows: I
     const securityId = `mkt:${row.marketTicker}`
     try {
       if (priced.has(securityId)) {
-        await writeHolding(accountId, userId, securityId, input)
+        await writeHolding(accountId, userId, securityId, input, store)
       } else if (singleLookups < MAX_SINGLE_LOOKUPS) {
         singleLookups++
-        await upsertPosition(accountId, userId, input)
+        await upsertPosition(accountId, userId, input, store)
       } else {
         await ensureUnpriced(row.marketTicker, row.kind, row.name)
-        await writeHolding(accountId, userId, securityId, input)
+        await writeHolding(accountId, userId, securityId, input, store)
         result.pending.push(row.symbol)
       }
       keptSecurityIds.add(securityId)
@@ -466,7 +467,7 @@ export async function importPositions(accountId: string, userId: string, rows: I
         // ticker's: save the holding and price it shortly.
         try {
           await ensureUnpriced(row.marketTicker, row.kind, row.name)
-          await writeHolding(accountId, userId, securityId, input)
+          await writeHolding(accountId, userId, securityId, input, store)
           keptSecurityIds.add(securityId)
           result.imported++
           result.pending.push(row.symbol)
@@ -478,30 +479,30 @@ export async function importPositions(accountId: string, userId: string, rows: I
   }
 
   if (replace && result.failed.length === 0) {
-    const current = await db.select({ id: holdings.id, securityId: holdings.securityId }).from(holdings).where(eq(holdings.accountId, accountId))
+    const current = await store.select({ id: holdings.id, securityId: holdings.securityId }).from(holdings).where(eq(holdings.accountId, accountId))
     const stale = current.filter((h) => !keptSecurityIds.has(h.securityId)).map((h) => h.id)
     if (stale.length > 0) {
-      await db.delete(holdings).where(and(eq(holdings.accountId, accountId), inArray(holdings.id, stale)))
+      await store.delete(holdings).where(and(eq(holdings.accountId, accountId), inArray(holdings.id, stale)))
       result.removed = stale.length
     }
   }
 
-  await revalue(accountId)
+  await revalue(accountId, undefined, store)
   return result
 }
 
-export async function removePosition(accountId: string, holdingId: string) {
-  const deleted = await db
+export async function removePosition(accountId: string, holdingId: string, store: MutationStore = db) {
+  const deleted = await store
     .delete(holdings)
     .where(and(eq(holdings.id, holdingId), eq(holdings.accountId, accountId)))
     .returning({ id: holdings.id })
   if (deleted.length === 0) throw new ApiError("Position not found", 404)
 
-  await revalue(accountId)
+  await revalue(accountId, undefined, store)
 }
 
-export async function accountHasPositions(accountId: string): Promise<boolean> {
-  const row = await db.query.holdings.findFirst({ where: eq(holdings.accountId, accountId), columns: { id: true } })
+export async function accountHasPositions(accountId: string, store: MutationStore = db): Promise<boolean> {
+  const row = await store.query.holdings.findFirst({ where: eq(holdings.accountId, accountId), columns: { id: true } })
   return !!row
 }
 
@@ -801,12 +802,12 @@ export async function refreshStalePrices({
  * With an account id, only that account — including one whose last position
  * was just removed, which drops to zero.
  */
-async function revalue(accountId?: string, securityIds?: string[]) {
+export async function revalue(accountId?: string, securityIds?: string[], store: MutationStore = db) {
   const onlyAccount = accountId ? sql`AND h.account_id = ${accountId}` : sql``
   const idList = securityIds && securityIds.length > 0 ? sql.join(securityIds.map((id) => sql`${id}`), sql`, `) : null
   const onlySecurities = idList ? sql`AND h.security_id IN (${idList})` : sql``
 
-  await db.execute(sql`
+  await store.execute(sql`
     UPDATE holdings h
     SET institution_value = h.quantity * s.close_price, updated_at = now()
     FROM securities s
@@ -821,7 +822,7 @@ async function revalue(accountId?: string, securityIds?: string[]) {
       ? sql`a.id IN (SELECT account_id FROM holdings WHERE security_id IN (${idList}))`
       : sql`EXISTS (SELECT 1 FROM holdings WHERE account_id = a.id)`
 
-  await db.execute(sql`
+  await store.execute(sql`
     UPDATE accounts a
     SET current_balance = COALESCE((SELECT sum(institution_value) FROM holdings WHERE account_id = a.id), 0),
         updated_at = now()

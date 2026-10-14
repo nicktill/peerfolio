@@ -1,3 +1,4 @@
+import { manualMutation } from "@web/lib/manual-mutation"
 import { NextResponse } from "next/server"
 import { and, eq } from "drizzle-orm"
 import { z } from "zod"
@@ -41,33 +42,35 @@ export const GET = withUser<unknown>(async (userId) => {
 })
 
 export const POST = withUser<unknown>(async (userId, request) => {
-  const parsed = ManualAccount.safeParse(await readJson(request))
-  if (!parsed.success) throw new ApiError(parsed.error.issues[0]?.message ?? "Invalid account")
+  return manualMutation(userId, async (store) => {
+    const parsed = ManualAccount.safeParse(await readJson(request))
+    if (!parsed.success) throw new ApiError(parsed.error.issues[0]?.message ?? "Invalid account")
 
-  const { balance, ...rest } = parsed.data
+    const { balance, ...rest } = parsed.data
 
-  const before = await investableTotal(userId)
+    const before = await investableTotal(userId, store)
 
-  const [account] = await db
-    .insert(accounts)
-    .values({
-      userId,
-      source: "manual",
-      itemId: null,
-      plaidAccountId: null,
-      type: rest.category,
-      currentBalance: balance.toFixed(4),
-      ...rest,
-    })
-    .returning()
+    const [account] = await store
+      .insert(accounts)
+      .values({
+        userId,
+        source: "manual",
+        itemId: null,
+        plaidAccountId: null,
+        type: rest.category,
+        currentBalance: balance.toFixed(4),
+        ...rest,
+      })
+      .returning()
 
-  await writeDailySnapshot(userId, (await investableTotal(userId)) - before)
-  await recordAccountEvent(userId, before, {
-    action: "account_created",
-    accountId: account!.id,
-    accountName: account!.name,
-    detail: { category: rest.category, balance },
+    await writeDailySnapshot(userId, (await investableTotal(userId, store)) - before, undefined, store)
+    await recordAccountEvent(userId, before, {
+      action: "account_created",
+      accountId: account!.id,
+      accountName: account!.name,
+      detail: { category: rest.category, balance },
+    }, store)
+
+    return NextResponse.json({ account: { id: account!.id } }, { status: 201 })
   })
-
-  return NextResponse.json({ account: { id: account!.id } }, { status: 201 })
 })
