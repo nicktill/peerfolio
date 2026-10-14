@@ -77,7 +77,7 @@ export function EditAccountButton({
   onSaved,
   className,
 }: {
-  account: { id: string; name: string; institution: string }
+  account: { id: string; name: string; institution: string; cashBalance?: number }
   onSaved: () => void
   className?: string
 }) {
@@ -104,20 +104,27 @@ export function EditAccountButton({
   )
 }
 
-function EditAccountForm({ account, onCancel, onSaved }: { account: { id: string; name: string; institution: string }; onCancel: () => void; onSaved: () => void }) {
+function EditAccountForm({ account, onCancel, onSaved }: { account: { id: string; name: string; institution: string; cashBalance?: number }; onCancel: () => void; onSaved: () => void }) {
   const { toast } = useToast()
   const [saving, setSaving] = useState(false)
   const [name, setName] = useState(account.name)
   const [institution, setInstitution] = useState(account.institution)
+  const [balance, setBalance] = useState(account.cashBalance?.toString() ?? "")
+  const [balanceError, setBalanceError] = useState<string | undefined>()
   const [error, setError] = useState<string | undefined>()
 
   async function submit(event: React.FormEvent) {
     event.preventDefault()
     if (!name.trim()) return setError("Give the account a name.")
+    const amount = Number(balance.replace(/[$,\s]/g, ""))
+    if (account.cashBalance !== undefined && (!balance.trim() || !Number.isFinite(amount) || amount < 0)) {
+      return setBalanceError("Enter a balance of zero or more.")
+    }
+    setBalanceError(undefined)
     setError(undefined)
     setSaving(true)
     try {
-      await mutate(`/api/accounts/${account.id}`, { method: "PATCH", body: { name: name.trim(), institutionLabel: institution.trim() || null } })
+      await mutate(`/api/accounts/${account.id}`, { method: "PATCH", body: { name: name.trim(), institutionLabel: institution.trim() || null, ...(account.cashBalance !== undefined && amount !== account.cashBalance ? { balance: amount } : {}) } })
       toast("Account updated.", "success")
       onSaved()
     } catch (err) {
@@ -136,6 +143,11 @@ function EditAccountForm({ account, onCancel, onSaved }: { account: { id: string
           <input value={institution} onChange={(e) => setInstitution(e.target.value)} placeholder="Fidelity" maxLength={60} className={inputClass} />
         </Field>
       </div>
+      {account.cashBalance !== undefined ? (
+        <Field label="Current cash balance" error={balanceError}>
+          <input value={balance} onChange={(e) => setBalance(e.target.value)} inputMode="decimal" aria-invalid={!!balanceError} className={inputClass} />
+        </Field>
+      ) : null}
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <Button type="button" variant="ghost" onClick={onCancel} className="h-11 sm:h-10">
           Cancel
