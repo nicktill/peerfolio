@@ -60,7 +60,7 @@ function ReplacementForm({ accounts, hidden, onCancel, onSaved }: { accounts: Ac
           <p className="text-xs text-muted-foreground">{title}</p><p className="mt-1 font-medium">{a.name}</p>
           <p className="text-sm text-muted-foreground">{a.institutionName}{a.mask ? ` ···· ${a.mask}` : ""}</p>
           <p className="mt-2 numeric">{formatCurrency(a.balance, { hidden })}</p>
-          <p className="text-xs text-muted-foreground">{a.positions.length} holdings{a.positions.length ? ` · ${a.positions.slice(0, 4).map((h) => h.ticker ?? h.name ?? "Holding").join(", ")}` : ""}</p>
+          <p className="text-xs text-muted-foreground">{a.holdingCount ?? a.positions.length} holdings{(a.holdingPreview?.length ?? a.positions.length) ? ` · ${(a.holdingPreview ?? a.positions.slice(0, 4).map((h) => h.ticker ?? h.name ?? "Holding")).join(", ")}` : ""}</p>
         </div>)}
       </div>
       <p className="text-sm text-muted-foreground">The linked balance and holdings will be used. The manual entry is archived, with its holdings saved as a backup below Holdings. You can restore it after removing linked investment connections. Existing portfolio history stays intact; removing the duplicate value is treated as a correction, not an investment loss.</p>

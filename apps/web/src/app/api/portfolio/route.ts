@@ -120,6 +120,8 @@ export const GET = withUser<unknown>(async (userId, request) => {
       institutionName: item?.institutionName ?? account.institutionLabel ?? "Manual account",
       institutionLogo: item?.institutionLogo ?? null,
       itemId: account.itemId,
+      holdingCount: holdingRows.filter((h) => h.accountId === account.id).length,
+      holdingPreview: holdingRows.filter((h) => h.accountId === account.id).slice(0, 4).map((h) => h.ticker ?? h.securityName ?? "Holding"),
       positions:
         account.source === "manual"
           ? holdingRows

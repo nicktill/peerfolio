@@ -46,6 +46,8 @@ export type AccountRow = {
   institutionLogo: string | null
   itemId: string | null
   positions: PositionRow[]
+  holdingCount?: number
+  holdingPreview?: string[]
 }
 
 export type ItemRow = {
