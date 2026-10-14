@@ -237,9 +237,9 @@ export function AccountsCard({
               <Button size="sm" variant="outline" disabled={busyId === item.id} onClick={() => void disconnect(item.id, item.institutionName)}>
                 Remove connection
               </Button>
-            ) : item.errorCode === "PRODUCT_NOT_READY" ? (
+            ) : item.status === "error" ? (
               <Button size="sm" variant="outline" disabled={busyId === item.id} onClick={() => void refreshItem(item.id)}>
-                Check now
+                {item.errorCode === "PRODUCT_NOT_READY" ? "Check now" : "Retry sync"}
               </Button>
             ) : (
               <ConnectButton itemId={item.id} onConnected={onChange} size="sm" variant="outline">
