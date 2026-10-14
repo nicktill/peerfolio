@@ -1,7 +1,8 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
+import { latestTradingSession, isUsMarketOpen } from "./market-hours.ts"
 import { PgDialect } from "drizzle-orm/pg-core"
-import { claimBudget, claimLiveQuotesSql, recentClaimsSql, releaseClaimsSql, staleHeldSecurities } from "./stale-prices.ts"
+import { canSkipCloseCheck, unsettledHeldSql, claimBudget, claimLiveQuotesSql, recentClaimsSql, releaseClaimsSql, staleHeldSecurities } from "./stale-prices.ts"
 
 describe("staleHeldSecurities", () => {
   const cutoff = new Date("2026-09-29T11:16:38.000Z")
@@ -110,5 +111,36 @@ describe("recentClaimsSql and releaseClaimsSql", () => {
     // updated_at is set to (period - retry) seconds ago, so it is `retry` seconds from being older than the period.
     const { params } = new PgDialect().sqlToQuery(releaseClaimsSql(["x"], 120, 900))
     assert.equal(params[0], 900 - 120)
+  })
+})
+
+describe("canSkipCloseCheck", () => {
+  const decide = (iso: string, unsettled: number) => canSkipCloseCheck({ marketOpen: isUsMarketOpen(new Date(iso)), unsettled })
+
+  it("skips on a weeknight when everything is settled", () => assert.equal(decide("2026-10-14T02:00:00Z", 0), true))
+  it("skips all weekend", () => {
+    assert.equal(decide("2026-10-17T15:00:00Z", 0), true)
+    assert.equal(decide("2026-10-18T03:00:00Z", 0), true)
+  })
+  it("skips on a holiday", () => assert.equal(decide("2026-12-25T16:00:00Z", 0), true))
+  it("skips after an early close", () => assert.equal(decide("2026-11-27T19:30:00Z", 0), true))
+  it("does not skip while the market is open", () => assert.equal(decide("2026-10-14T15:00:00Z", 0), false))
+  it("does not skip when a close is missing", () => assert.equal(decide("2026-10-14T02:00:00Z", 1), false))
+  it("does not skip for a brand-new ticker without any price", () => assert.equal(decide("2026-10-17T15:00:00Z", 1), false))
+})
+
+describe("latestTradingSession", () => {
+  it("steps back over weekends", () => assert.equal(latestTradingSession(new Date("2026-10-18T15:00:00Z")), "2026-10-16"))
+  it("steps back over a Monday holiday", () => assert.equal(latestTradingSession(new Date("2026-09-07T23:00:00Z")), "2026-09-04"))
+  it("uses today after the close", () => assert.equal(latestTradingSession(new Date("2026-10-14T21:00:00Z")), "2026-10-14"))
+  it("uses the previous day before the close is published", () => assert.equal(latestTradingSession(new Date("2026-10-14T15:00:00Z")), "2026-10-13"))
+})
+
+describe("unsettledHeldSql", () => {
+  it("counts only held, tickered securities and sends the date as a string", () => {
+    const { sql, params } = new PgDialect().sqlToQuery(unsettledHeldSql("2026-10-13"))
+    assert.match(sql, /close_price_as_of is null/i)
+    assert.match(sql, /fantasy_positions/)
+    assert.ok(params.every((p) => !(p instanceof Date)))
   })
 })

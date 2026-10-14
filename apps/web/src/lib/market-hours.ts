@@ -125,3 +125,17 @@ export function latestCompletedSession(now: Date): string {
   while (isWeekend()) day.setUTCDate(day.getUTCDate() - 1)
   return day.toISOString().slice(0, 10)
 }
+
+/**
+ * Like `latestCompletedSession`, but also steps back over exchange holidays, so it
+ * names a day the market actually traded. Used to decide that nothing newer can exist.
+ */
+export function latestTradingSession(now: Date): string {
+  const day = new Date(`${latestCompletedSession(now)}T00:00:00Z`)
+  for (;;) {
+    const iso = day.toISOString().slice(0, 10)
+    const weekend = day.getUTCDay() === 0 || day.getUTCDay() === 6
+    if (!weekend && !HOLIDAYS.has(iso)) return iso
+    day.setUTCDate(day.getUTCDate() - 1)
+  }
+}

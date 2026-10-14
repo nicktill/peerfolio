@@ -98,3 +98,26 @@ export function releaseClaimsSql(ids: string[], retrySeconds: number, periodSeco
     SET updated_at = now() - make_interval(secs => ${Math.max(0, periodSeconds - retrySeconds)}::double precision)
     WHERE id IN (${sql.join(ids.map((id) => sql`${id}`), sql`, `)})`
 }
+
+/**
+ * Whether the official-close catch-up has nothing to do and may skip every provider
+ * call and the stale-row query. True only when the market is closed and no held
+ * security is missing the last completed session's close: `unsettled` counts those
+ * with no price, a price dated before that session, or a live price from it that no
+ * official close has replaced. A new ticker has no price, so it always counts.
+ */
+export function canSkipCloseCheck({ marketOpen, unsettled }: { marketOpen: boolean; unsettled: number }): boolean {
+  return !marketOpen && unsettled === 0
+}
+
+/** Held securities still lacking the official close of `expectedDate`; one indexed-ish count. */
+export function unsettledHeldSql(expectedDate: string) {
+  return sql`
+    SELECT count(*)::int AS n FROM securities s
+    WHERE s.market_ticker IS NOT NULL
+      AND (s.close_price_as_of IS NULL
+        OR s.close_price_as_of < ${expectedDate}::date
+        OR (s.close_price_as_of = ${expectedDate}::date AND NOT s.close_price_final))
+      AND (EXISTS (SELECT 1 FROM holdings h WHERE h.security_id = s.id)
+        OR EXISTS (SELECT 1 FROM fantasy_positions f WHERE f.security_id = s.id))`
+}
