@@ -201,6 +201,8 @@ try {
   assert.equal((await loadLivePoints([user!.id])).get(user!.id)!.isVerified, false)
   await db.delete(accounts).where(eq(accounts.id, staleAccount!.id))
   await db.delete(plaidItems).where(eq(plaidItems.id, staleItem!.id))
+  // Resume the ordinary-day flow scenario after recovery-day neutralization.
+  await db.update(accounts).set({ plaidBaselineDate: '2000-01-01' }).where(eq(accounts.itemId, item!.id))
   // A transaction removed from the complete window reverses its recorded cash flow.
   const flowsBeforeCancel = Number((await db.select().from(portfolioSnapshots))[0]!.netFlows)
   transactionList = [{ investment_transaction_id: 'canceled-deposit', account_id: 'a', type: 'cash', subtype: 'deposit', amount: -100, date: new Date().toISOString().slice(0, 10) }]

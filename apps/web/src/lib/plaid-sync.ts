@@ -335,7 +335,11 @@ export async function writeDailySnapshot(userId: string, externalFlow = 0, when:
   // The first day's row is the entry value, the baseline for every return. A
   // pure market write must not overwrite it with the close (see keepsEntryValue).
   const [first] = await store.select({ date: min(portfolioSnapshots.date) }).from(portfolioSnapshots).where(eq(portfolioSnapshots.userId, userId))
-  if (keepsEntryValue(first?.date ?? null, when, externalFlow)) return totals
+  if (keepsEntryValue(first?.date ?? null, when, externalFlow)) {
+    // Preserve the entry value, but a stale contributing Item must revoke verification.
+    await store.update(portfolioSnapshots).set({ isVerified: sql`${portfolioSnapshots.isVerified} AND ${isVerified}` }).where(and(eq(portfolioSnapshots.userId, userId), eq(portfolioSnapshots.date, when)))
+    return totals
+  }
 
   await store
     .insert(portfolioSnapshots)
