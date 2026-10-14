@@ -11,6 +11,8 @@ import { LeaguePreview } from "@web/components/landing/league-preview"
 import { PortfolioView, FantasyView } from "@web/components/landing/product-tour"
 import { CastAvatar } from "@web/components/landing/cast-avatar"
 import { CAST } from "@web/components/landing/demo"
+import { ScrollTilt } from "@web/components/landing/scroll-tilt"
+import { TiltCard } from "@web/components/ui/tilt-card"
 import { Sparkline } from "@web/components/ui/sparkline"
 import { TickerLogo } from "@web/components/ui/ticker-logo"
 import { MarketStrip } from "@web/components/news/market-strip"
@@ -29,7 +31,8 @@ type Page = (typeof PAGES)[number]["label"]
 export function HeroProductPreview() {
   const [page, setPage] = useState<Page>("Leagues")
   return (
-    <div className="pf-window">
+    <ScrollTilt>
+      <TiltCard max={0.6} glare={false} className="pf-window">
         <div className="pf-window-bar" aria-hidden>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.png" alt="" className="pf-logo !size-5" />
@@ -60,7 +63,8 @@ export function HeroProductPreview() {
             <div hidden={page !== "News"} className={page === "News" ? "swap-in" : undefined}><NewsPreview /></div>
           </div>
         </div>
-    </div>
+      </TiltCard>
+    </ScrollTilt>
   )
 }
 
