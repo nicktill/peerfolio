@@ -96,7 +96,7 @@ export const MAX_QUOTE_AGE_MS = 30 * 60_000
  * has left. A source whose last trade is older is skipped (the next source is asked),
  * and with no qualifying price the order waits for one.
  */
-export const FILL_QUOTE_MAX_AGE_MS = (Number(process.env.FILL_QUOTE_MAX_AGE_SECONDS) || 120) * 1000
+export const FILL_QUOTE_MAX_AGE_MS = (Number(process.env.FILL_QUOTE_MAX_AGE_SECONDS) || 180) * 1000
 
 /**
  * Whether a quote is fit to store as the current price: a real positive number
