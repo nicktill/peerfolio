@@ -1,5 +1,5 @@
 import { after } from "next/server"
-import { and, eq, inArray, isNotNull, isNull, lt, sql } from "drizzle-orm"
+import { and, eq, inArray, isNotNull, isNull, lt, sql, type SQL } from "drizzle-orm"
 import { accounts, db, holdings, securities } from "@web/db"
 import type { MutationStore } from "@web/lib/manual-mutation"
 import { ApiError } from "@web/lib/api"
@@ -790,10 +790,26 @@ export async function refreshStalePrices({
     if (freshness.unconfirmed > 0) console.warn(`[positions] ${freshness.unconfirmed} live price(s) up to ${catchUp.expectedDate} still lack the official close`)
     return { refreshed, awaitingClose: wantsClose.filter(stillWanted).length, ...freshness }
   } catch (error) {
-    console.error("[positions] price refresh failed:", error instanceof Error ? error.message : error)
+    console.error("[positions] price refresh failed:", (error as { cause?: { code?: string }; code?: string })?.cause?.code ?? (error as { code?: string })?.code ?? "unknown", error instanceof Error ? error.message : error)
     // A failure shouldn't lock refreshing out for the whole interval: retry in a minute.
     lastRefreshAttempt = now - (minIntervalMinutes - 1) * 60_000
     return { refreshed: 0, failed: true }
+  }
+}
+
+/** Standalone revaluations can lock overlapping holdings in different query-plan orders.
+ * PostgreSQL rolls back a deadlocked statement completely, so repeating it is safe.
+ * Inside a caller transaction the error must propagate and roll back the whole mutation.
+ */
+async function executeRevaluation(query: SQL, store: MutationStore) {
+  for (let attempt = 0; ; attempt++) {
+    try { await store.execute(query); return }
+    catch (error) {
+      const failure = error as { code?: string; cause?: { code?: string } }
+      const code = failure.cause?.code ?? failure.code
+      if (store !== db || code !== "40P01" || attempt >= 2) throw error
+      await new Promise((resolve) => setTimeout(resolve, 50 * (attempt + 1)))
+    }
   }
 }
 
@@ -807,13 +823,13 @@ export async function revalue(accountId?: string, securityIds?: string[], store:
   const idList = securityIds && securityIds.length > 0 ? sql.join(securityIds.map((id) => sql`${id}`), sql`, `) : null
   const onlySecurities = idList ? sql`AND h.security_id IN (${idList})` : sql``
 
-  await store.execute(sql`
+  await executeRevaluation(sql`
     UPDATE holdings h
     SET institution_value = h.quantity * s.close_price, updated_at = now()
     FROM securities s
     WHERE s.id = h.security_id AND s.market_ticker IS NOT NULL
       AND EXISTS (SELECT 1 FROM accounts a WHERE a.id = h.account_id AND a.is_active) ${onlyAccount} ${onlySecurities}
-  `)
+  `, store)
 
   // With a list of securities, only the accounts that hold them need a new balance.
   const affected = accountId
@@ -822,12 +838,12 @@ export async function revalue(accountId?: string, securityIds?: string[], store:
       ? sql`a.id IN (SELECT account_id FROM holdings WHERE security_id IN (${idList}))`
       : sql`EXISTS (SELECT 1 FROM holdings WHERE account_id = a.id)`
 
-  await store.execute(sql`
+  await executeRevaluation(sql`
     UPDATE accounts a
     SET current_balance = COALESCE((SELECT sum(institution_value) FROM holdings WHERE account_id = a.id), 0),
         updated_at = now()
     WHERE a.source = 'manual' AND a.is_active AND ${affected}
-  `)
+  `, store)
 }
 
 /** Revalues only the holdings and manual accounts that depend on these securities. */
