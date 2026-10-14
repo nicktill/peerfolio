@@ -40,7 +40,7 @@ type Lookup =
   | { state: "found"; quote: Quote }
   | { state: "missing"; symbol: string; message: string; suggestions: { symbol: string; name: string }[] }
 
-const formatQuantity = (q: number) => new Intl.NumberFormat("en-US", { maximumFractionDigits: 8 }).format(q)
+const formatQuantity = (q: number, kind: Kind) => new Intl.NumberFormat("en-US", { maximumFractionDigits: kind === "crypto" ? 8 : 2 }).format(q)
 const asOfLabel = (d: string) => formatDate(`${d}T12:00:00`, "short")
 
 /**
@@ -94,21 +94,20 @@ export function PositionsEditor({
             return (
               <li key={p.id} className="group flex items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-secondary/60">
                 <TickerLogo symbol={p.ticker ?? "?"} kind={p.kind} />
-                <button type="button" disabled={readOnly} onClick={() => setEditing(p)} className="min-w-0 flex-1 text-left disabled:cursor-default">
+                <button type="button" disabled={readOnly} onClick={() => setEditing(p)} className="min-w-0 flex-1 text-left disabled:cursor-default" title={p.name ?? p.ticker ?? "Holding"}>
                   <p className="flex items-baseline gap-2">
-                    <span className="font-mono text-sm font-semibold">{p.ticker}</span>
-                    <span className="truncate text-xs text-muted-foreground">{p.name}</span>
+                    <span className={cn("text-sm font-semibold", p.ticker ? "shrink-0" : "truncate")}>{p.ticker ?? p.name ?? "Holding"}</span>
+                    {p.ticker ? <span className="truncate text-xs text-muted-foreground">{p.name}</span> : null}
                   </p>
                   <p className="numeric truncate text-xs text-muted-foreground">
-                    {hidden ? "••" : formatQuantity(p.quantity)} {p.kind === "crypto" ? "" : "sh"} · {p.price > 0 ? formatCurrency(p.price) : "getting a price…"}
-                    {p.costBasis && !hidden ? ` · avg ${formatCurrency(p.costBasis / p.quantity)}` : ""}
+                    {hidden ? "••" : formatQuantity(p.quantity, p.kind)} {p.kind === "crypto" ? "units" : "shares"}
                   </p>
                 </button>
                 <div className="shrink-0 text-right">
                   <p className="numeric text-sm font-semibold">{readOnly || p.price > 0 ? formatCurrency(p.value, { hidden }) : "—"}</p>
                   {gain !== null ? (
                     <Delta value={(gain / p.costBasis!) * 100} size="sm" variant="plain" className="justify-end" />
-                  ) : readOnly ? <span className="text-[11px] text-muted-foreground">Cost basis unavailable</span> : (
+                  ) : readOnly ? <span className="text-[11px] text-muted-foreground">No cost basis</span> : (
                     <button type="button" onClick={() => setEditing(p)} className="text-[11px] text-muted-foreground underline-offset-2 hover:underline">
                       + add avg cost
                     </button>
@@ -177,7 +176,7 @@ export function PositionsEditor({
         </div>
       ) : null}
 
-      {readOnly ? <p className="text-xs text-muted-foreground">Synced from your brokerage. Update holdings at your institution.</p> : asOf ? <p className="text-xs text-muted-foreground">Prices as of the {asOfLabel(asOf)} close. Updated nightly.</p> : null}
+      {!readOnly && asOf ? <p className="text-xs text-muted-foreground">Prices as of the {asOfLabel(asOf)} close. Updated nightly.</p> : null}
 
       <Dialog
         open={editing !== null}
@@ -283,7 +282,7 @@ function PositionForm({
       await mutate(`/api/accounts/${accountId}/positions`, {
         body: { symbol: quote.symbol, kind: quote.kind, quantity: qty, avgCost: averageCostUpdate(avg, existing ? initialAvg : undefined) },
       })
-      onSaved(existing ? `Updated ${quote.symbol}.` : `Added ${formatQuantity(qty)} ${quote.symbol}.`)
+      onSaved(existing ? `Updated ${quote.symbol}.` : `Added ${formatQuantity(qty, kind)} ${quote.symbol}.`)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't save that position.")
       setSaving(false)
