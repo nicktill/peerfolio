@@ -4,7 +4,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { signOut, useSession } from "next-auth/react"
-import { Activity, Gamepad2, LayoutDashboard, LogOut, Newspaper, Settings, ShieldCheck, Trophy, Users } from "lucide-react"
+import { Activity, Gamepad2, Repeat, LayoutDashboard, LogOut, Newspaper, Settings, ShieldCheck, Trophy, Users } from "lucide-react"
 import { cn } from "@web/lib/utils"
 import { useApi } from "@web/lib/use-api"
 import { cacheClear } from "@web/lib/api-cache"
@@ -72,6 +72,11 @@ export function AppNav() {
               <Activity size={16} strokeWidth={1.5} aria-hidden />Provider usage
             </Link>
           ) : null}
+          {admin ? (
+            <Link href="/admin/syncs" className="peerfolio-nav-link" aria-current={pathname === "/admin/syncs" ? "page" : undefined}>
+              <Repeat size={16} strokeWidth={1.5} aria-hidden />Brokerage syncs
+            </Link>
+          ) : null}
           <Link href="/settings" className="peerfolio-nav-link" aria-current={pathname === "/settings" ? "page" : undefined}>
             <Settings size={16} strokeWidth={1.5} aria-hidden />Settings
           </Link>
@@ -89,6 +94,7 @@ export function AppNav() {
           <ThemeToggle />
           {admin ? <Link href="/admin/brokerages" className="peerfolio-mobile-control" aria-label="Manage brokerage access"><ShieldCheck size={17} aria-hidden /></Link> : null}
           {admin ? <Link href="/admin/providers" className="peerfolio-mobile-control" aria-label="Provider usage"><Activity size={17} aria-hidden /></Link> : null}
+          {admin ? <Link href="/admin/syncs" className="peerfolio-mobile-control" aria-label="Brokerage syncs"><Repeat size={17} aria-hidden /></Link> : null}
           <Link href="/settings" className="peerfolio-mobile-control" aria-label="Settings"><Settings size={17} aria-hidden /></Link>
           {avatar}
         </div>

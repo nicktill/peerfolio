@@ -136,7 +136,7 @@ export const POST = withUser<unknown>(async (userId, request) => {
     throw error
   }
 
-  const result = await syncItem(row!.id)
+  const result = await syncItem(row!.id, undefined, "link")
 
   return NextResponse.json({
     item: {

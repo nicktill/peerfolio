@@ -41,6 +41,7 @@ export type PortfolioResponse = {
   items: ItemRow[]
   allocation: AllocationSlice[]
   holdings: HoldingRow[]
+  holdingsPending?: boolean
   today: { amount: number; percent: number; asOf: string | null } | null
   allTime: { amount: number; percent: number; cost: number; coverage: number } | null
   leagues: { id: string; name: string; emoji: string; rank: number | null; members: number }[]
@@ -461,6 +462,7 @@ export function PortfolioScreen({
           <HoldingsTable
             variant="section"
             holdings={data.holdings}
+            pending={data.holdingsPending}
             allocation={data.allocation}
             hidden={hidden}
             todayLabel={data.today?.asOf && !isToday ? formatDate(`${data.today.asOf}T12:00:00`, "short") : "Today"}

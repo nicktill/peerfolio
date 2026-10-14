@@ -127,6 +127,13 @@
       "when": 1791948369579,
       "tag": "0017_provider_request_stats",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1791954090215,
+      "tag": "0018_plaid_sync_runs",
+      "breakpoints": true
     }
   ]
 }

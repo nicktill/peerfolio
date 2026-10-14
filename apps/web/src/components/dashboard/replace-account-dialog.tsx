@@ -24,17 +24,20 @@ function ReplacementForm({ accounts, hidden, onCancel, onSaved }: { accounts: Ac
   const [manualId, setManualId] = useState("")
   const [linkedId, setLinkedId] = useState("")
   const [confirmed, setConfirmed] = useState(false)
+  const [acknowledgedEmpty, setAcknowledgedEmpty] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
   const manual = accounts.find((a) => a.id === manualId)
   const linked = accounts.find((a) => a.id === linkedId)
+  // A linked account with a balance but no positions is usually still loading; replacing now would hide the manual holdings.
+  const linkedEmpty = !!linked && linked.balance > 0 && (linked.holdingCount ?? linked.positions.length) === 0
   const label = (a: AccountRow) => `${a.name} · ${a.institutionName}${a.mask ? ` ···· ${a.mask}` : ""}`
   async function submit(event: React.FormEvent) {
     event.preventDefault()
-    if (!manual || !linked || !confirmed || saving) return
+    if (!manual || !linked || !confirmed || (linkedEmpty && !acknowledgedEmpty) || saving) return
     setSaving(true); setError("")
     try {
-      await mutate("/api/accounts/replace", { method: "POST", body: { manualAccountId: manual.id, linkedAccountId: linked.id, confirmed: true } })
+      await mutate("/api/accounts/replace", { method: "POST", body: { manualAccountId: manual.id, linkedAccountId: linked.id, confirmed: true, acknowledgeNoHoldings: acknowledgedEmpty || undefined } })
       toast("Manual entry replaced. Your linked account is now counted once.", "success")
       onSaved()
     } catch (err) { setError(err instanceof Error ? err.message : "Could not replace that account."); setSaving(false) }
@@ -48,7 +51,7 @@ function ReplacementForm({ accounts, hidden, onCancel, onSaved }: { accounts: Ac
         </select>
       </label>
       <label htmlFor={`${id}-linked`} className="space-y-2 text-sm">Linked account to keep
-        <select id={`${id}-linked`} className="block h-11 w-full rounded-lg border bg-background px-3" value={linkedId} disabled={saving} onChange={(e) => { setLinkedId(e.target.value); setConfirmed(false) }}>
+        <select id={`${id}-linked`} className="block h-11 w-full rounded-lg border bg-background px-3" value={linkedId} disabled={saving} onChange={(e) => { setLinkedId(e.target.value); setConfirmed(false); setAcknowledgedEmpty(false) }}>
           <option value="">Select linked account</option>
           {accounts.filter((a) => a.source === "plaid" && a.category === "investment").map((a) => <option key={a.id} value={a.id}>{label(a)}</option>)}
         </select>
@@ -65,9 +68,14 @@ function ReplacementForm({ accounts, hidden, onCancel, onSaved }: { accounts: Ac
       </div>
       <p className="text-sm text-muted-foreground">The linked balance and holdings will be used. The manual entry is archived, with its holdings saved as a backup below Holdings. You can restore it after removing linked investment connections. Existing portfolio history stays intact; removing the duplicate value is treated as a correction, not an investment loss.</p>
       {manual.balance !== linked.balance ? <p className="text-sm text-muted-foreground">These balances differ. Compare the account details with your brokerage before confirming.</p> : null}
+      {linkedEmpty ? <div role="alert" className="space-y-2 rounded-xl border border-loss/40 bg-loss/10 p-3 text-sm">
+        <p className="font-medium text-loss-ink">This linked account has no holdings yet.</p>
+        <p className="text-muted-foreground">Its balance is counted, but your broker hasn’t sent the positions. If you replace your manual entry now, its holdings are archived and your Holdings view will be empty until they arrive. Refresh the connection and try again once holdings appear.</p>
+        <label className="flex items-start gap-3"><input type="checkbox" className="mt-1 size-4" checked={acknowledgedEmpty} disabled={saving} onChange={(e) => setAcknowledgedEmpty(e.target.checked)} /><span>Replace anyway, even though there are no linked holdings yet.</span></label>
+      </div> : null}
       <label className="flex items-start gap-3 text-sm"><input type="checkbox" className="mt-1 size-4" checked={confirmed} disabled={saving} onChange={(e) => setConfirmed(e.target.checked)} /><span>I confirm these are the same investment account.</span></label>
     </> : null}
     {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
-    <div className="flex justify-end gap-2"><Button type="button" variant="ghost" disabled={saving} onClick={onCancel}>Cancel</Button><Button type="submit" disabled={!manual || !linked || !confirmed} loading={saving}>Replace manual entry</Button></div>
+    <div className="flex justify-end gap-2"><Button type="button" variant="ghost" disabled={saving} onClick={onCancel}>Cancel</Button><Button type="submit" disabled={!manual || !linked || !confirmed || (linkedEmpty && !acknowledgedEmpty)} loading={saving}>Replace manual entry</Button></div>
   </form>
 }

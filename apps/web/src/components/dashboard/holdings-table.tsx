@@ -73,6 +73,7 @@ export function HoldingsTable({
   hidden,
   todayLabel,
   variant = "card",
+  pending = false,
 }: {
   holdings: HoldingRow[]
   allocation: AllocationSlice[]
@@ -81,6 +82,8 @@ export function HoldingsTable({
   todayLabel: string
   /** "section": a portfolio panel with search and the same remembered collapse state. */
   variant?: "card" | "section"
+  /** A linked account has a balance but its positions haven't arrived from the broker yet. */
+  pending?: boolean
 }) {
   const [sort, setSort] = useState<Sort>("value")
   const [query, setQuery] = useState("")
@@ -123,7 +126,11 @@ export function HoldingsTable({
           <SectionLabel>Holdings</SectionLabel>
         </div>
         <CardContent className="pt-5">
-          <EmptyState icon={PieChart} title="No holdings yet" description="Add positions to an account and they’ll show up here." />
+          {pending ? (
+            <EmptyState icon={PieChart} title="Still loading your holdings" description="Your broker is still sending the positions in your linked account. Your balance is already counted; check back in a few minutes." />
+          ) : (
+            <EmptyState icon={PieChart} title="No holdings yet" description="Add positions to an account and they’ll show up here." />
+          )}
         </CardContent>
       </Card>
     )
@@ -138,6 +145,7 @@ export function HoldingsTable({
   // The allocation bar and rows, shared by both layouts.
   const content = (
     <>
+        {pending ? <p className="mb-3 text-xs text-muted-foreground">Some linked accounts are still loading their positions. They’ll appear here once your broker sends them.</p> : null}
         {slices.length > 0 ? (
           <div className="mb-2">
             <div className="flex h-1.5 w-full gap-0.5 overflow-hidden rounded-full" role="img" aria-label={slices.map((s, i) => `${s.name} ${shownSlices[i]} percent`).join(", ")}>

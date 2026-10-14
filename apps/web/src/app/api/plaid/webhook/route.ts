@@ -65,7 +65,7 @@ export async function POST(request: Request) {
     (type === "HOLDINGS" && code === "DEFAULT_UPDATE") ||
     (type === "INVESTMENTS_TRANSACTIONS" && (code === "DEFAULT_UPDATE" || code === "HISTORICAL_UPDATE"))
   ) {
-    const result = await syncItem(item.id)
+    const result = await syncItem(item.id, undefined, "webhook")
     if (result.status !== "active") return NextResponse.json({ error: "Sync not ready" }, { status: 503 })
   }
 

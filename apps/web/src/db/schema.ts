@@ -250,6 +250,37 @@ export const providerRequestStats = pgTable(
   (t) => [primaryKey({ columns: [t.provider, t.minute] }), index("provider_request_stats_minute_idx").on(t.minute)],
 )
 
+/**
+ * One row per sync attempt, kept 30 days so a bad link can be diagnosed after the runtime
+ * logs are gone. Counts and codes only: never tokens, balances, tickers or holding contents.
+ */
+export const plaidSyncRuns = pgTable(
+  "plaid_sync_runs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    itemId: uuid("item_id").notNull(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    /** cron, webhook, manual (refresh button) or link (first sync after linking). */
+    trigger: text("trigger").notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    durationMs: integer("duration_ms").notNull(),
+    /** ok, partial (saved, but positions missing or still loading) or failed. */
+    status: text("status").notNull(),
+    errorCode: text("error_code"),
+    requestId: text("request_id"),
+    accountsReceived: integer("accounts_received").notNull().default(0),
+    holdingsReceived: integer("holdings_received").notNull().default(0),
+    holdingsKept: integer("holdings_kept").notNull().default(0),
+    holdingsSkipped: jsonb("holdings_skipped").notNull().default({}),
+    /** Lines whose own currency was missing and taken from the (USD) account. */
+    currencyAssumed: integer("currency_assumed").notNull().default(0),
+    securitiesMissingTicker: integer("securities_missing_ticker").notNull().default(0),
+    /** An investment account had a balance but no position lines at all. */
+    balanceWithoutHoldings: boolean("balance_without_holdings").notNull().default(false),
+  },
+  (t) => [index("plaid_sync_runs_started_idx").on(t.startedAt), index("plaid_sync_runs_item_idx").on(t.itemId, t.startedAt)],
+)
+
 export const holdings = pgTable(
   "holdings",
   {
