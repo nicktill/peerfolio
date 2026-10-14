@@ -324,7 +324,10 @@ try {
   await store.execute(sql`create function fail_replacement_event() returns trigger language plpgsql as $$ begin if NEW.action = 'account_replaced' then raise exception 'replacement audit unavailable'; end if; return NEW; end $$`)
   await store.execute(sql`create trigger fail_replacement before insert on account_events for each row execute function fail_replacement_event()`)
   try {
-    await assert.rejects(replaceManualAccount(replacementUser!.id, manualReplacement!.id, linkedReplacement!.id), /audit unavailable/)
+    await assert.rejects(replaceManualAccount(replacementUser!.id, manualReplacement!.id, linkedReplacement!.id), (error: unknown) => {
+      const failure = error as { message?: string; cause?: { message?: string } }
+      return String(failure.cause?.message ?? failure.message).includes('replacement audit unavailable')
+    })
     assert.equal((await db.query.accounts.findFirst({ where: eq(accounts.id, manualReplacement!.id) }))!.isActive, true)
     assert.equal(await investableTotal(replacementUser!.id), 2100)
     assert.deepEqual(await db.select().from(portfolioSnapshots).where(eq(portfolioSnapshots.userId, replacementUser!.id)), originalHistory)
