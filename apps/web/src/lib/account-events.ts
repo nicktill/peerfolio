@@ -19,6 +19,8 @@ export async function recordAccountEvent(userId: string, investableBefore: numbe
     const after = await investableTotal(userId, store)
     await store.insert(accountEvents).values(buildAccountEvent(userId, investableBefore, after, input))
   } catch (error) {
+    // An audit failure inside a transaction must propagate so the mutation rolls back.
+    if (store !== db) throw error
     console.error("[account-events] could not record", input.action, error)
   }
 }
