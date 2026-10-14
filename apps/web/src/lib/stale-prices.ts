@@ -58,6 +58,7 @@ export function claimLiveQuotesSql(maxAgeSeconds: number, limit: number) {
       SELECT s.id FROM securities s
       WHERE s.market_ticker IS NOT NULL
         AND s.market_ticker NOT LIKE 'X:%'
+        AND s.type IS DISTINCT FROM 'mutual_fund'
         AND s.updated_at < now() - make_interval(secs => ${maxAgeSeconds}::double precision)
         AND (EXISTS (SELECT 1 FROM holdings h WHERE h.security_id = s.id)
           OR EXISTS (SELECT 1 FROM fantasy_positions f WHERE f.security_id = s.id))

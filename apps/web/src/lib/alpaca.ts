@@ -65,6 +65,12 @@ export function createAlpacaProvider({
             result.rateLimited = true
             break
           }
+          if (response.status === 401 || response.status === 403) {
+            // A bad or unauthorized key fails every call; stop and let Finnhub cover this run.
+            console.error(`[alpaca] ${response.status}: check ALPACA_API_KEY / ALPACA_API_SECRET`)
+            result.failed++
+            break
+          }
           if (!response.ok) {
             result.failed++
             continue

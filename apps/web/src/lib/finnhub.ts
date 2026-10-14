@@ -31,7 +31,7 @@ export function createFinnhubProvider({
   timeoutMs?: number
   baseUrl?: string
 }): QuoteProvider {
-  async function quoteOne(symbol: string): Promise<{ quote?: Quote; rateLimited?: boolean; failed?: boolean }> {
+  async function quoteOne(symbol: string): Promise<{ quote?: Quote; rateLimited?: boolean; failed?: boolean; unsupported?: boolean }> {
     try {
       const response = await fetchImpl(`${baseUrl}/quote?symbol=${encodeURIComponent(symbol)}`, {
         // In a header, not the URL, so the key doesn't end up in request logs.
@@ -41,6 +41,8 @@ export function createFinnhubProvider({
         timeoutMs,
       })
       if (response.status === 429) return { rateLimited: true }
+      // 403 is "your plan doesn't cover this symbol" (mutual funds), permanent, not an outage.
+      if (response.status === 403) return { unsupported: true }
       if (!response.ok) return { failed: true }
 
       const body = (await response.json()) as { c?: unknown; t?: unknown }
@@ -66,6 +68,7 @@ export function createFinnhubProvider({
           if (!symbol) return
           const outcome = await quoteOne(symbol)
           if (outcome.rateLimited) result.rateLimited = true
+          else if (outcome.unsupported) (result.unsupported ??= new Set()).add(symbol)
           else if (outcome.failed) result.failed++
           else if (outcome.quote) result.quotes.set(symbol, outcome.quote)
         }
