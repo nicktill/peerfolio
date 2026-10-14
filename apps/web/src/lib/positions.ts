@@ -40,6 +40,7 @@ export async function requireManualAccount(userId: string, id: string) {
     where: and(eq(accounts.id, id), eq(accounts.userId, userId)),
   })
   if (!account) throw new ApiError("Account not found", 404)
+  if (!account.isActive) throw new ApiError("This manual account has been archived", 409)
   if (account.source !== "manual") throw new ApiError("Connected accounts are updated from your institution", 409)
   return account
 }

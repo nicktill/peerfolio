@@ -6,11 +6,12 @@ import { eq, sql } from 'drizzle-orm'
 import type { PlaidLinkOnSuccessMetadata } from 'react-plaid-link'
 import type { InvestmentFlow } from '../src/lib/plaid-sync-core'
 import * as schema from '../src/db/schema'
-import { db, users, plaidItems, accounts, holdings, portfolioSnapshots, plaidInvestmentFlows } from '../src/db'
+import { db, users, plaidItems, accounts, holdings, portfolioSnapshots, plaidInvestmentFlows, accountEvents, securities } from '../src/db'
 import { getBrokerageAccess, productionCapacity, reserveProductionLinkAttempt } from '../src/lib/plaid-access'
 import { loadLivePoints } from '../src/lib/returns'
 import { encrypt } from '../src/lib/crypto'
-import { syncItem } from '../src/lib/plaid-sync'
+import { syncItem, investableTotal, writeDailySnapshot } from '../src/lib/plaid-sync'
+import { replaceManualAccount } from '../src/lib/account-replacement'
 import { exchangePublicToken, pendingLinkToken } from '../src/lib/plaid-link'
 import { DELETE as deleteProfile } from '../src/app/api/me/route'
 import { DELETE as disconnect } from '../src/app/api/plaid/items/[id]/route'
@@ -303,5 +304,51 @@ try {
   await db.delete(users).where(eq(users.id, user!.id))
   assert.equal((await productionCapacity()).used, 1, 'Account deletion must not replenish lifetime capacity')
   await db.insert(users).values({ email: 'denied@test.peerfolio.invalid' })
+  // Explicit manual-to-linked replacement: no Plaid request or new Item is required.
+  const [replacementUser] = await db.insert(users).values({ email: 'replacement@test.peerfolio.invalid' }).returning()
+  const [replacementItem] = await db.insert(plaidItems).values({ userId: replacementUser!.id, plaidItemId: 'replacement-item', institutionName: 'Replacement brokerage', accessToken: encrypt('replacement-test-token'), lastSyncedAt: new Date() }).returning()
+  const [manualReplacement] = await db.insert(accounts).values({ userId: replacementUser!.id, name: 'Manual IRA', source: 'manual', category: 'investment', currentBalance: '1000' }).returning()
+  const [linkedReplacement] = await db.insert(accounts).values({ userId: replacementUser!.id, itemId: replacementItem!.id, plaidAccountId: 'replacement-account', name: 'Linked IRA', source: 'plaid', category: 'investment', currentBalance: '1100' }).returning()
+  await db.insert(securities).values({ id: 'replacement-stock', name: 'Demo stock' })
+  await db.insert(holdings).values({ userId: replacementUser!.id, accountId: manualReplacement!.id, securityId: 'replacement-stock', quantity: '10', institutionValue: '1000' })
+  await db.insert(portfolioSnapshots).values({ userId: replacementUser!.id, date: '2000-01-01', totalAssets: '1000', totalLiabilities: '0', netWorth: '1000', investableAssets: '1000', netFlows: '0', isVerified: false })
+  await writeDailySnapshot(replacementUser!.id, 1100)
+  const originalHistory = await db.select().from(portfolioSnapshots).where(eq(portfolioSnapshots.userId, replacementUser!.id))
+  const yesterday = originalHistory.find((r) => r.date === '2000-01-01')!
+  await assert.rejects(replaceManualAccount(adminUser!.id, manualReplacement!.id, linkedReplacement!.id), /not found/)
+  await assert.rejects(replaceManualAccount(replacementUser!.id, manualReplacement!.id, manualReplacement!.id), /different/)
+  await db.update(plaidItems).set({ status: 'needs_reauth' }).where(eq(plaidItems.id, replacementItem!.id))
+  await assert.rejects(replaceManualAccount(replacementUser!.id, manualReplacement!.id, linkedReplacement!.id), /Refresh/)
+  await db.update(plaidItems).set({ status: 'active' }).where(eq(plaidItems.id, replacementItem!.id))
+  // A failure after snapshot correction must roll back both correction and archive.
+  await store.execute(sql`create function fail_replacement_event() returns trigger language plpgsql as $$ begin if NEW.action = 'account_replaced' then raise exception 'replacement audit unavailable'; end if; return NEW; end $$`)
+  await store.execute(sql`create trigger fail_replacement before insert on account_events for each row execute function fail_replacement_event()`)
+  try {
+    await assert.rejects(replaceManualAccount(replacementUser!.id, manualReplacement!.id, linkedReplacement!.id), /audit unavailable/)
+    assert.equal((await db.query.accounts.findFirst({ where: eq(accounts.id, manualReplacement!.id) }))!.isActive, true)
+    assert.equal(await investableTotal(replacementUser!.id), 2100)
+    assert.deepEqual(await db.select().from(portfolioSnapshots).where(eq(portfolioSnapshots.userId, replacementUser!.id)), originalHistory)
+  } finally {
+    await store.execute(sql`drop trigger fail_replacement on account_events`)
+    await store.execute(sql`drop function fail_replacement_event()`)
+  }
+  const exchangesBeforeReplacement = exchangeRequests
+  await replaceManualAccount(replacementUser!.id, manualReplacement!.id, linkedReplacement!.id)
+  assert.equal(exchangeRequests, exchangesBeforeReplacement)
+  assert.equal(await investableTotal(replacementUser!.id), 1100)
+  assert.equal((await db.query.accounts.findFirst({ where: eq(accounts.id, manualReplacement!.id) }))!.isActive, false)
+  assert.equal((await db.select().from(holdings).where(eq(holdings.accountId, manualReplacement!.id))).length, 1, 'Archived manual holdings are retained')
+  const historyAfter = await db.select().from(portfolioSnapshots).where(eq(portfolioSnapshots.userId, replacementUser!.id))
+  assert.deepEqual(historyAfter.find((r) => r.date === '2000-01-01'), yesterday)
+  const correctedToday = historyAfter.find((r) => r.date !== '2000-01-01')!
+  assert.equal(Number(correctedToday.investableAssets), 1100)
+  assert.equal(Number(correctedToday.netFlows), 100, 'Removing duplicate capital is neutralized as a correction')
+  const audit = await db.query.accountEvents.findFirst({ where: eq(accountEvents.userId, replacementUser!.id) })
+  assert.equal(audit!.action, 'account_replaced')
+  assert.equal(audit!.detail.linkedAccountId, linkedReplacement!.id)
+  await assert.rejects(replaceManualAccount(replacementUser!.id, manualReplacement!.id, linkedReplacement!.id), /active manual/)
+  const [secondManual] = await db.insert(accounts).values({ userId: replacementUser!.id, name: 'Other IRA', source: 'manual', category: 'investment', currentBalance: '500' }).returning()
+  await assert.rejects(replaceManualAccount(replacementUser!.id, secondManual!.id, linkedReplacement!.id), /already replaced/)
+  assert.equal((await db.query.accounts.findFirst({ where: eq(accounts.id, secondManual!.id) }))!.isActive, true)
   console.log('Plaid integration regressions passed: migration, sold/empty holdings, rollback/timestamps, transaction pagination failure, baseline-day neutralization, flow corrections/withdrawals/dividends/cancellations, concurrent deduplication, complete Holdings coverage, authoritative balances, null balance rejection, signed investment equity, stale verification, duplicate/ownership/metadata cleanup, OAuth state, closed accounts, disconnect/profile-delete retry and cascades, denied server access, admin authorization/toggles, revoked-during-link cleanup, sandbox quota exemption, concurrent permanent production cap, repairs at capacity.')
 } finally { await connection.end() }

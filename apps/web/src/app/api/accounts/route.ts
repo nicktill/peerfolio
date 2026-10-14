@@ -26,7 +26,7 @@ export const GET = withUser<unknown>(async (userId) => {
   const rows = await db
     .select()
     .from(accounts)
-    .where(and(eq(accounts.userId, userId), eq(accounts.source, "manual")))
+    .where(and(eq(accounts.userId, userId), eq(accounts.source, "manual"), eq(accounts.isActive, true)))
 
   return NextResponse.json({
     accounts: rows.map((a) => ({

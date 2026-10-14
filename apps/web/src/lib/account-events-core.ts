@@ -3,6 +3,7 @@
 export type AccountEventAction =
   | "account_created"
   | "account_updated"
+  | "account_replaced"
   | "account_deleted"
   | "position_set"
   | "positions_imported"

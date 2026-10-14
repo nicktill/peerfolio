@@ -30,6 +30,7 @@ import { formatCurrency, formatRelativeTime } from "@web/lib/format"
 import { plural } from "@web/lib/plural"
 import { mutate } from "@web/lib/use-api"
 import { cn } from "@web/lib/utils"
+import { ReplaceAccountButton } from "@web/components/dashboard/replace-account-dialog"
 import { reconcileAccountExpansion } from "@web/lib/account-expansion"
 import { brandFor, type Brand } from "@web/lib/brokerages"
 
@@ -121,7 +122,7 @@ export function AccountsCard({
 
   const needsAttention = items.filter((i) => i.status !== "active")
 
-  // Linking a brokerage never replaces a hand-entered account, so the same money
+  // Linking never automatically replaces a manual entry, so the same money
   // can be counted twice. Offer the choice instead of guessing which ones match.
   // Read after mount so the server render and first client render agree.
   const [overlapDismissed, setOverlapDismissed] = useState(true)
@@ -273,6 +274,10 @@ export function AccountsCard({
               </Button>
             </div>
           </div>
+        ) : null}
+
+        {hasLinkedInvestment && manualInvestments.length > 0 ? (
+          <div className="pb-2"><ReplaceAccountButton accounts={accounts} hidden={hidden} disabled={isDemo} onSaved={onChange} /></div>
         ) : null}
 
         {grouped.map((group) => (
