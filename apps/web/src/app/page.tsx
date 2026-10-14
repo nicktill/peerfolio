@@ -69,7 +69,7 @@ export default async function HomePage() {
           <div className="pf-hero-preview relative mx-auto max-w-[1280px] px-6 pb-16 sm:px-5 sm:pb-24 xl:pt-9">
             <ChatBubble
               side="left"
-              className="pf-mobile-bubble -top-[4px] left-[2%] -rotate-3"
+              className="pf-mobile-bubble -top-[12px] left-[2%] -rotate-3"
               delay={0}
               lines={[
                 { memberId: "theo", text: "NVDA carrying me rn 🚀" },
