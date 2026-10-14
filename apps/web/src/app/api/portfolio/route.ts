@@ -6,7 +6,8 @@ import { and, asc, eq, gte, min } from "drizzle-orm"
 import { db, holdings, accounts, plaidItems, portfolioSnapshots, securities } from "@web/db"
 import { withUser } from "@web/lib/api"
 import { scheduleLiveRefresh } from "@web/lib/live-quotes"
-import { allTimeGain, summarizeHoldings, todayChange, type PositionInput } from "@web/lib/dashboard-math"
+import { allTimeGain, institutionToday, summarizeHoldings, todayChange, type PositionInput } from "@web/lib/dashboard-math"
+import { latestStartedSession } from "@web/lib/market-hours"
 import { refreshStalePrices, scheduleMetadataRefresh } from "@web/lib/positions"
 import { buildLeagueStandings, listLeaguesForUser } from "@web/lib/social"
 import { isRange, rangeStart, timeWeightedReturn, withLivePoint, type Range } from "@web/lib/returns"
@@ -170,18 +171,27 @@ export const GET = withUser<unknown>(async (userId, request) => {
     .map(([name, value]) => ({ name, value, percent: allocationTotal > 0 ? (value / allocationTotal) * 100 : 0 }))
     .sort((a, b) => b.value - a.value)
 
-  const positionInputs: PositionInput[] = holdingRows.map((h) => ({
-    securityId: h.securityId,
-    ticker: h.ticker,
-    name: h.securityName,
-    type: typeOf(h),
-    quantity: n(h.quantity),
-    value: n(h.institutionValue) || n(h.quantity) * n(h.closePrice),
-    costBasis: h.costBasis == null ? null : n(h.costBasis),
-    price: n(h.closePrice),
-    previousClose: h.previousClose == null ? null : n(h.previousClose),
-    priceAsOf: h.closePriceAsOf,
-  }))
+  const session = latestStartedSession(new Date())
+  const institutionAccountIds = new Set(accountRows.filter((a) => a.source !== "manual").map((a) => a.id))
+  const positionInputs: PositionInput[] = holdingRows.map((h) => {
+    const value = n(h.institutionValue) || n(h.quantity) * n(h.closePrice)
+    const basis = institutionAccountIds.has(h.accountId)
+      ? institutionToday(
+          { quantity: n(h.quantity), value, closePrice: n(h.closePrice), closePriceAsOf: h.closePriceAsOf, previousClose: h.previousClose == null ? null : n(h.previousClose) },
+          session,
+        )
+      : { price: n(h.closePrice), previousClose: h.previousClose == null ? null : n(h.previousClose), priceAsOf: h.closePriceAsOf }
+    return {
+      securityId: h.securityId,
+      ticker: h.ticker,
+      name: h.securityName,
+      type: typeOf(h),
+      quantity: n(h.quantity),
+      value,
+      costBasis: h.costBasis == null ? null : n(h.costBasis),
+      ...basis,
+    }
+  })
   // One row per security however many accounts hold it, so the same fund in two
   // accounts is one line.
   const holdingSummaries = summarizeHoldings(positionInputs)

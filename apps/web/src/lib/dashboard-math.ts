@@ -20,6 +20,24 @@ export type PositionInput = {
   priceAsOf: string | null
 }
 
+/**
+ * What "today" is measured against for a position an institution reports (Plaid). The
+ * institution's own price is current, and the close Plaid sends is the previous session's,
+ * so while that close predates the latest session the move since it is today's. Once Plaid
+ * has rolled its close forward to the latest session, the close we kept before it is the
+ * baseline. Positions we price ourselves don't need this.
+ */
+export function institutionToday(
+  p: { quantity: number; value: number; closePrice: number; closePriceAsOf: string | null; previousClose: number | null },
+  session: string,
+): { price: number; previousClose: number | null; priceAsOf: string | null } {
+  const closeDate = p.closePriceAsOf?.slice(0, 10) ?? null
+  if (p.quantity > 0 && p.value > 0 && p.closePrice > 0 && closeDate && closeDate < session) {
+    return { price: p.value / p.quantity, previousClose: p.closePrice, priceAsOf: session }
+  }
+  return { price: p.closePrice, previousClose: p.previousClose, priceAsOf: p.closePriceAsOf }
+}
+
 export type HoldingSummary = {
   securityId: string
   ticker: string | null
@@ -89,7 +107,7 @@ export function summarizeHoldings(positions: PositionInput[]): HoldingSummary[] 
  * has a previous close to say anything honest. `asOf` is the newest price date,
  * so the page can call it "today" only when it is.
  */
-export function todayChange(positions: PositionInput[], netWorth: number, minCoverage = 0.9) {
+export function todayChange(positions: PositionInput[], netWorth: number, minCoverage = 0.5) {
   const priced = positions.filter((p) => p.value > 0)
   const total = priced.reduce((sum, p) => sum + p.value, 0)
   const known = priced.filter((p) => p.previousClose != null && p.previousClose > 0)
@@ -102,6 +120,8 @@ export function todayChange(positions: PositionInput[], netWorth: number, minCov
   return {
     amount,
     percent: before > 0 ? (amount / before) * 100 : 0,
+    /** Share of holdings by value the move covers; plan-only funds with no price history are left out. */
+    coverage: knownValue / total,
     asOf: dates.length > 0 ? dates.reduce((a, b) => (a > b ? a : b)).slice(0, 10) : null,
   }
 }

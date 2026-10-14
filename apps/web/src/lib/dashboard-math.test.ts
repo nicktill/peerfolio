@@ -1,6 +1,6 @@
 import { describe, it } from "node:test"
 import assert from "node:assert/strict"
-import { allTimeGain, summarizeHoldings, todayChange, type PositionInput } from "./dashboard-math.ts"
+import { allTimeGain, institutionToday, summarizeHoldings, todayChange, type PositionInput } from "./dashboard-math.ts"
 
 const pos = (over: Partial<PositionInput>): PositionInput => ({
   securityId: "mkt:AAA", ticker: "AAA", name: "Aaa", type: "equity",
@@ -60,5 +60,27 @@ describe("allTimeGain", () => {
 
   it("is null with no cost basis at all", () => {
     assert.equal(allTimeGain([pos({ costBasis: null })]), null)
+  })
+})
+
+describe("institutionToday", () => {
+  const base = { quantity: 10, value: 990, closePrice: 100, closePriceAsOf: "2026-10-13", previousClose: null }
+
+  it("measures the institution's current price against the previous session's close", () => {
+    const t = institutionToday(base, "2026-10-14")
+    assert.equal(t.price, 99)
+    assert.equal(t.previousClose, 100)
+    assert.equal(t.priceAsOf, "2026-10-14")
+  })
+
+  it("uses the close we kept once Plaid's close has rolled to the latest session", () => {
+    const t = institutionToday({ ...base, closePriceAsOf: "2026-10-14", previousClose: 98 }, "2026-10-14")
+    assert.equal(t.price, 100)
+    assert.equal(t.previousClose, 98)
+  })
+
+  it("says nothing without a usable close or quantity", () => {
+    assert.equal(institutionToday({ ...base, closePriceAsOf: null }, "2026-10-14").previousClose, null)
+    assert.equal(institutionToday({ ...base, quantity: 0 }, "2026-10-14").previousClose, null)
   })
 })

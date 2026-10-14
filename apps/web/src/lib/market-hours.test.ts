@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { isSessionPrint, isTradingSession, isUsMarketOpen, regularSession } from "./market-hours.ts"
+import { isSessionPrint, isTradingSession, latestStartedSession, isUsMarketOpen, regularSession } from "./market-hours.ts"
 
 describe("isTradingSession", () => {
   it("is open 9:30am to 4pm New York time, to the minute", () => {
@@ -72,5 +72,19 @@ describe("regularSession", () => {
     assert.equal(regularSession(new Date("2026-11-26T16:00:00Z")), null)
     // 11pm EDT Monday is still Monday in New York, though Tuesday in UTC.
     assert.equal(regularSession(new Date("2026-09-29T03:00:00Z"))?.date, "2026-09-28")
+  })
+})
+
+describe("latestStartedSession", () => {
+  it("is today once the bell has rung, and the previous trading day before it", () => {
+    assert.equal(latestStartedSession(new Date("2026-10-14T15:00:00Z")), "2026-10-14") // 11am Wed
+    assert.equal(latestStartedSession(new Date("2026-10-14T20:00:00Z")), "2026-10-14") // 4pm Wed, after the close too
+    assert.equal(latestStartedSession(new Date("2026-10-14T12:00:00Z")), "2026-10-13") // 8am Wed, before the open
+  })
+
+  it("skips weekends and holidays", () => {
+    assert.equal(latestStartedSession(new Date("2026-10-17T16:00:00Z")), "2026-10-16") // Saturday
+    assert.equal(latestStartedSession(new Date("2026-10-19T12:00:00Z")), "2026-10-16") // Monday pre-market
+    assert.equal(latestStartedSession(new Date("2026-11-26T16:00:00Z")), "2026-11-25") // Thanksgiving
   })
 })
