@@ -1,7 +1,7 @@
 /** Pure parts of the persistent sync log, so recording and highlighting can be tested without a database. */
 export const SYNC_RUN_RETENTION_DAYS = 30
 
-export type SyncTrigger = "cron" | "webhook" | "manual" | "link"
+export type SyncTrigger = "cron" | "webhook" | "manual" | "link" | "admin-refresh"
 export type SyncRunStatus = "ok" | "partial" | "failed"
 
 export type SyncRunMetrics = {
@@ -67,4 +67,48 @@ export function plaidRequestId(source: unknown): string | null {
   const s = source as { data?: { request_id?: unknown }; response?: { data?: { request_id?: unknown } } } | null
   const id = s?.data?.request_id ?? s?.response?.data?.request_id
   return typeof id === "string" ? id : null
+}
+
+/** One on-demand run per connection per minute, so the page can't hammer Plaid. */
+export const MANUAL_RUN_COOLDOWN_MS = 60_000
+
+/**
+ * Asking Plaid to re-extract from the institution (/investments/refresh) is far rarer: once per connection per 10 minutes.
+ * Plaid may rate-limit it, and it is billed per call outside the Trial plan.
+ */
+export const REFRESH_COOLDOWN_MS = 10 * 60_000
+
+export type ManualRunGate = { ok: true } | { ok: false; reason: "in_flight" | "cooldown"; retryAfterSec: number }
+
+/** Decides whether an admin-triggered run may start. `lastFinishedAt` is when the connection's latest run of any kind ended. */
+export function manualRunGate(input: { lastFinishedAt: Date | null; now: Date; inFlight: boolean; cooldownMs?: number }): ManualRunGate {
+  const cooldownMs = input.cooldownMs ?? MANUAL_RUN_COOLDOWN_MS
+  if (input.inFlight) return { ok: false, reason: "in_flight", retryAfterSec: Math.ceil(cooldownMs / 1000) }
+  if (!input.lastFinishedAt) return { ok: true }
+  const waitMs = input.lastFinishedAt.getTime() + cooldownMs - input.now.getTime()
+  return waitMs > 0 ? { ok: false, reason: "cooldown", retryAfterSec: Math.ceil(waitMs / 1000) } : { ok: true }
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+export const isItemRowId = (value: unknown): value is string => typeof value === "string" && UUID.test(value)
+
+type RunLike = Omit<SyncRunRow, "itemId" | "userId" | "trigger" | "status" | "holdingsSkipped"> & { trigger: string; status: string; holdingsSkipped: unknown }
+
+/** What the admin API and page show for one run: counts and codes, never ids of other tables, tokens or balances. */
+export function summarizeRun(run: RunLike) {
+  const skipped = run.holdingsSkipped as Record<string, number>
+  return {
+    trigger: run.trigger,
+    startedAt: run.startedAt,
+    durationMs: run.durationMs,
+    status: run.status,
+    errorCode: run.errorCode,
+    requestId: run.requestId,
+    accounts: run.accountsReceived,
+    received: run.holdingsReceived,
+    kept: run.holdingsKept,
+    skipped,
+    awaiting: run.balanceWithoutHoldings,
+    concern: runConcern({ ...run, holdingsSkipped: skipped }),
+  }
 }
