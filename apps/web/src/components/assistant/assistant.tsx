@@ -7,6 +7,8 @@ import { AppWindow, ArrowUp, ArrowUpRight, Check, FileText, Maximize2, MessageSq
 import { Orb } from "@web/components/assistant/orb"
 import { PAGE_LABEL, copyFor, useAssistant, type Msg, type Phase } from "@web/components/assistant/use-assistant"
 import { XRayReport } from "@web/components/assistant/xray-report"
+import { formatCurrency } from "@web/lib/format"
+import type { XRay } from "@web/lib/ai/portfolio-xray"
 import { isWealthHref } from "@web/lib/wealth/link"
 import { useApi } from "@web/lib/use-api"
 import "@web/components/assistant/assistant.css"
@@ -380,7 +382,7 @@ function Panel({ onClose }: { onClose: () => void }) {
         ) : (
           <div className="pf-ai-thread">
             {messages.map((m, i) => (
-              <Message key={m.id} m={m} last={i === messages.length - 1} phase={phase} busy={busy} onAsk={ask} onRetry={retry} />
+              <Message key={m.id} m={m} last={i === messages.length - 1} phase={phase} busy={busy} onAsk={ask} onRetry={retry} repeatReport={!!m.xray && messages.slice(0, i).some((x) => !!x.xray)} />
             ))}
           </div>
         )}
@@ -510,7 +512,20 @@ function ReportSkeleton() {
   )
 }
 
-function Message({ m, last, phase, busy, onAsk, onRetry }: { m: Msg; last: boolean; phase: Phase; busy: boolean; onAsk: (q: string) => void; onRetry: () => void }) {
+/** A report that already appeared earlier in this chat: one quiet line, with the full report a click away. */
+function CollapsedReport({ xray, onAsk, onSave }: { xray: XRay; onAsk: (q: string) => void; onSave: () => void }) {
+  const [open, setOpen] = useState(false)
+  if (open) return <XRayReport xray={xray} onAsk={onAsk} onSave={onSave} />
+  return (
+    <button type="button" className="pf-xr-collapsed" onClick={() => setOpen(true)} aria-expanded={false}>
+      <span className="pf-xr-label">Portfolio X-Ray</span>
+      <span className="pf-xr-collapsed-v">{formatCurrency(xray.overview.totalValue)}</span>
+      <span className="pf-xr-collapsed-a">Show full report</span>
+    </button>
+  )
+}
+
+function Message({ m, last, phase, busy, onAsk, onRetry, repeatReport = false }: { m: Msg; last: boolean; phase: Phase; busy: boolean; onAsk: (q: string) => void; onRetry: () => void; repeatReport?: boolean }) {
   const { saveReport } = useAssistant()
   if (m.role === "user") {
     return (
@@ -535,7 +550,7 @@ function Message({ m, last, phase, busy, onAsk, onRetry }: { m: Msg; last: boole
           <span className="pf-ai-shimmer">Thinking</span>
         </div>
       ) : null}
-      {m.xray ? <XRayReport xray={m.xray} onAsk={onAsk} onSave={() => saveReport(m.xray!)} /> : null}
+      {m.xray ? repeatReport ? <CollapsedReport xray={m.xray} onAsk={onAsk} onSave={() => saveReport(m.xray!)} /> : <XRayReport xray={m.xray} onAsk={onAsk} onSave={() => saveReport(m.xray!)} /> : null}
       {m.text ? (
         <p className="pf-ai-text">
           {m.text}

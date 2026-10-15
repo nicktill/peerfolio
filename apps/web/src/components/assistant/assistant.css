@@ -172,6 +172,13 @@
 .is-docked .pf-xr-nm { display: none; }
 .is-docked .pf-xr { padding: 16px 14px; }
 
+/* A report already shown earlier in the chat: a single quiet row instead of the whole thing again. */
+.pf-xr-collapsed { display: flex; align-items: center; gap: 12px; width: 100%; padding: 11px 14px; border-radius: 12px; border: 1px solid var(--hair); background: color-mix(in srgb, var(--panel) 70%, transparent); cursor: pointer; text-align: left; color: var(--fg); transition: border-color 0.15s, background 0.15s; }
+.pf-xr-collapsed:hover { border-color: var(--line); background: var(--raise); }
+.pf-xr-collapsed:focus-visible { outline: none; box-shadow: var(--pf-ring); }
+.pf-xr-collapsed-v { font: 400 18px/1 var(--serif); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.pf-xr-collapsed-a { margin-left: auto; font: 450 12px/1 var(--sans); color: var(--pf-accent); }
+
 /* ---------- Recent (saved in this browser) ---------- */
 .pf-ai-recent { width: 100%; max-width: 380px; margin-top: 14px; display: flex; flex-direction: column; gap: 2px; text-align: left; }
 .pf-ai-recent-h { font: 500 10px/1 var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg3); padding: 0 4px 6px; }
