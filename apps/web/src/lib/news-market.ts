@@ -115,7 +115,7 @@ async function finnhubQuote(symbol: string, key: string, fetchImpl: Fetch) {
   }
 }
 
-async function alpacaBars(symbols: string[], timeframe: "1Day" | "15Min", start: Date, auth: { keyId: string; secret: string }, fetchImpl: Fetch) {
+async function alpacaBars(symbols: string[], timeframe: "1Day" | "15Min" | "5Min", start: Date, auth: { keyId: string; secret: string }, fetchImpl: Fetch) {
   const out = new Map<string, Bar[]>()
   let pageToken: string | null = null
   // Paged: one page usually covers everything, but never more than a few.
@@ -204,6 +204,15 @@ export async function fetchQuotes({
   }
   for (const [s, q] of quotes) if (now.getTime() - q.t * 1000 > 4 * DAY) quotes.delete(s)
   return quotes
+}
+
+/** 5-minute bars since `start` for any handful of symbols, a hundred per request. Empty for symbols Alpaca doesn't answer. */
+export async function fetchIntradayBars(symbols: string[], start: Date, alpaca: { keyId: string; secret: string }, fetchImpl: Fetch): Promise<Map<string, Bar[]>> {
+  const out = new Map<string, Bar[]>()
+  for (let i = 0; i < symbols.length; i += 100) {
+    for (const [symbol, bars] of await alpacaBars(symbols.slice(i, i + 100), "5Min", start, alpaca, fetchImpl)) out.set(symbol, bars)
+  }
+  return out
 }
 
 export type Mover = { symbol: string; price: number; changePercent: number }

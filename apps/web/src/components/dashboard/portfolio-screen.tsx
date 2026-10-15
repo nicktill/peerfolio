@@ -73,6 +73,8 @@ const signedUsd = (v: number) => {
   return `${v > 0 ? "+" : v < 0 ? "−" : ""}$${new Intl.NumberFormat("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(abs)}`
 }
 /** Today's date in New York, the market's calendar. */
+/** A moment as a clock time in New York, the market's own hours: "9:35 AM". */
+const clock = (iso: string) => new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" }).format(new Date(iso))
 const marketToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date())
 
 /**
@@ -128,6 +130,8 @@ export function PortfolioScreen({
   }
   const benchUrl = !demo && bench !== "OFF" ? `/api/portfolio/benchmark?symbol=${bench}&range=${range}` : null
   const cmp = useApi<BenchmarkResponse>(benchUrl, [bench, range])
+  // Today's path, five minutes at a time, for the 1D view (it falls back to a straight line when there are no bars).
+  const intraday = useApi<{ session: string; points: { t: string; delta: number }[] }>(!demo && oneDay ? "/api/portfolio/intraday" : null, [oneDay], { refreshMs: 120_000 })
 
   useEffect(() => {
     if (!data || pickedRange.current) return
@@ -210,8 +214,16 @@ export function PortfolioScreen({
   const dayStartMs = Date.parse(`${dayEnd}T12:00:00Z`) - 86_400_000 * ([1, 0].includes(new Date(`${dayEnd}T12:00:00Z`).getUTCDay()) ? new Date(`${dayEnd}T12:00:00Z`).getUTCDay() + 2 : 1)
   const dayStart = new Date(dayStartMs).toISOString().slice(0, 10)
   const dayStartValue = data.summary.netWorth - (data.today?.amount ?? 0)
+  // The day's real path when we have it: the previous close plus what each five-minute step added, ending on the live value.
+  const dayPath = dayView && intraday.data && intraday.data.points.length >= 6 ? intraday.data.points : null
   const dollarSeries = dayView
-    ? [{ date: dayStart, value: dayStartValue }, { date: dayEnd, value: data.summary.netWorth }]
+    ? dayPath
+      ? [
+          { date: dayPath[0]!.t, value: dayStartValue },
+          ...dayPath.slice(0, -1).map((p) => ({ date: p.t, value: dayStartValue + p.delta })),
+          { date: dayPath[dayPath.length - 1]!.t, value: data.summary.netWorth },
+        ]
+      : [{ date: dayStart, value: dayStartValue }, { date: dayEnd, value: data.summary.netWorth }]
     : data.history.map((p) => ({ date: p.date, value: p.netWorth }))
   const returnOn = new Map(data.performance.series.map((p) => [p.date, p.indexed - 100]))
   // With a benchmark on, the chart switches from dollars (moved by deposits) to returns (deposits removed),
@@ -221,7 +233,7 @@ export function PortfolioScreen({
   const benchReturnOn = comparison ? new Map(comparison.series.map((p) => [p.date, p.indexed - 100])) : null
   const canChart = (dayView || data.hasHistory) && series.length >= 2
   const shown = canChart ? (hoverIndex != null ? series[hoverIndex] : series[series.length - 1]) : undefined
-  const shownReturn = shown ? (dayView ? (hoverIndex === 0 ? 0 : (data.today?.percent ?? null)) : hoverIndex == null ? data.performance.percent : returnOn.get(shown.date)) : undefined
+  const shownReturn = shown ? (dayView ? (hoverIndex == null ? (data.today?.percent ?? null) : ((shown.value - dayStartValue) / dayStartValue) * 100) : hoverIndex == null ? data.performance.percent : returnOn.get(shown.date)) : undefined
   const replayAt = replayDate == null ? -1 : series.findIndex((p) => p.date === replayDate)
   const replayIndex = replayAt >= 0 ? replayAt : null
   const windowLabel = windowCoversAll && data.firstDate ? `since ${formatDate(data.firstDate)}` : `last ${RANGE_NAMES[range]}`
@@ -426,7 +438,7 @@ export function PortfolioScreen({
                   ) : null}
                   <span className="min-w-0 truncate text-xs text-muted-foreground">
                     {hoverIndex != null
-                      ? formatDate(shown.date)
+                      ? dayView && dayPath ? clock(shown.date) : formatDate(shown.date)
                       : dayView
                         ? "today"
                         : `${windowLabel}${windowCoversAll ? ` · ${plural(data.performance.days, "day")} tracked` : ""}`}
@@ -442,7 +454,8 @@ export function PortfolioScreen({
                     reveal={replayIndex}
                     markerIndex={replayIndex}
                     indexed={!!comparison}
-                    baseline={comparison ? 100 : undefined}
+                    baseline={comparison ? 100 : dayView ? dayStartValue : undefined}
+                    formatLabel={dayView && dayPath ? clock : undefined}
                     compare={comparison ? comparison.series.map((p) => ({ date: p.date, value: p.indexed })) : undefined}
                     compareStyle={comparison && bench !== "OFF" ? BENCHMARK_STYLE[bench] : undefined}
                     ariaLabel={
