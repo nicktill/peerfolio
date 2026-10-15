@@ -330,7 +330,10 @@ function Panel({ onClose }: { onClose: () => void }) {
 
   useLayoutEffect(() => {
     const el = scroller.current
-    if (el && stick.current) el.scrollTop = el.scrollHeight
+    if (!el) return
+    // The opening card always starts at its top; only a conversation follows its newest line.
+    if (messages.length === 0) el.scrollTop = 0
+    else if (stick.current) el.scrollTop = el.scrollHeight
   }, [messages, phase])
 
   const begin = (kind: "move" | Edge) => (e: React.PointerEvent<HTMLElement>) => {
@@ -744,12 +747,15 @@ function Message({ m, last, phase, activity, busy, onAsk, onRetry, repeatReport 
   const showProgress = working && !m.xray && phase === "analyzing" && activity === XRAY_LABEL
   return (
     <div className="pf-ai-bot">
-      {showProgress ? (
-        <>
-          <Progress phase={phase} />
-          <ReportSkeleton />
-        </>
-      ) : null}
+      {/* The progress card folds away as the report arrives, so one replaces the other instead of popping in. */}
+      <AnimatePresence initial={false}>
+        {showProgress ? (
+          <motion.div key="progress" style={{ overflow: "hidden" }} initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0, transition: { duration: 0.3, ease: [0.22, 1, 0.36, 1] } }} transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}>
+            <Progress phase={phase} />
+            <ReportSkeleton />
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
       <AnimatePresence initial={false}>{working && !showProgress && !m.text && !m.xray ? <Thinking key="think" phase={phase} activity={activity} /> : null}</AnimatePresence>
       {m.xray ? repeatReport ? <CollapsedReport xray={m.xray} onAsk={onAsk} onSave={() => saveReport(m.xray!)} /> : <XRayReport xray={m.xray} onAsk={onAsk} onSave={() => saveReport(m.xray!)} /> : null}
       {m.text ? (

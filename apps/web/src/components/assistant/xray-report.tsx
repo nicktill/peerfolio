@@ -178,7 +178,7 @@ export function XRayReport({ xray, onAsk, onSave }: { xray: XRay; onAsk: (questi
   const leadSector = sectors.largest
 
   return (
-    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 380, damping: 34 }}>
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 300, damping: 32, delay: 0.14 }}>
       <div className="pf-art pf-art-ai pf-x2" role="region" aria-label="Portfolio X-Ray report">
         <div className="pf-art-h">
           <span className="pf-art-l">Portfolio X-Ray</span>
