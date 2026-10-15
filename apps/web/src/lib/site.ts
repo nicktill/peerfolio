@@ -10,6 +10,8 @@
 export const SITE = {
   name: "Peerfolio",
   title: "Peerfolio",
+  /** Link previews and social cards: the site name is shown separately, so no prefix or dash. */
+  shareTitle: "Track your portfolio. Invest with friends.",
   description:
     "Track your portfolio, compare returns in private leagues, and play fantasy investing with friends. Your account balances stay private.",
   baseUrl: process.env.NEXTAUTH_URL ?? "https://www.peerfolio.org",

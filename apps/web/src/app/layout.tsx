@@ -29,12 +29,12 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_US",
     url: "/",
-    title: SITE.title,
+    title: SITE.shareTitle,
     description: SITE.description,
     siteName: SITE.name,
     images: [
       {
-        url: "/preview.png",
+        url: "/share-preview",
         width: 1200,
         height: 630,
         alt: SITE.name,
@@ -43,9 +43,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: SITE.title,
+    title: SITE.shareTitle,
     description: SITE.description,
-    images: ["/preview.png"],
+    images: ["/share-preview"],
   },
   icons: {
     icon: "/favicon.png",
