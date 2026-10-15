@@ -91,6 +91,56 @@ export const TOOL_DEFS: ToolDef[] = [
   },
   {
     type: "function",
+    name: "get_market_snapshot",
+    description:
+      "How the US market is doing right now: today's and this week's move for the S&P 500, Nasdaq 100, Dow and Russell 2000 (read from the funds that track them: SPY, QQQ, DIA, IWM), the eleven sectors ranked by today's move, and CNN's Fear & Greed reading. Includes the session date and as-of time; say if the data is from a previous session. Returns a reason instead of numbers when quotes are unavailable.",
+    parameters: { type: "object", properties: {}, required: [], additionalProperties: false },
+    strict: true,
+  },
+  {
+    type: "function",
+    name: "get_quotes",
+    description:
+      "Current price and today's change for up to 8 tickers (stocks or ETFs, e.g. NVDA, SPY). Use it when the user asks how a specific stock or fund is doing, including ones they don't own. Tickers that can't be priced are listed as unavailable.",
+    parameters: {
+      type: "object",
+      properties: { symbols: { type: "array", items: { type: "string" }, description: "Ticker symbols, 1-8, e.g. [\"NVDA\", \"MU\"]." } },
+      required: ["symbols"],
+      additionalProperties: false,
+    },
+    strict: true,
+  },
+  {
+    type: "function",
+    name: "get_top_movers",
+    description:
+      "Today's biggest gainers and losers among about 200 of the largest US stocks (a fixed Peerfolio list, not the whole market and not an official index), flagging which ones the user holds. Use it for 'what's moving today' and 'biggest drops'. For the user's own holdings use get_holdings (it has today's move).",
+    parameters: {
+      type: "object",
+      properties: {
+        direction: { type: "string", enum: ["gainers", "losers", "both"] },
+        limit: { type: "integer", description: "How many of each, 1-10." },
+      },
+      required: ["direction", "limit"],
+      additionalProperties: false,
+    },
+    strict: true,
+  },
+  {
+    type: "function",
+    name: "get_earnings_calendar",
+    description:
+      "Companies reporting earnings: today, this week, or only this week's reports from stocks the user holds. Largest companies first, with before-open / after-close timing and EPS estimate. Each row says whether the user holds it.",
+    parameters: {
+      type: "object",
+      properties: { scope: { type: "string", enum: ["today", "week", "my_holdings_week"] } },
+      required: ["scope"],
+      additionalProperties: false,
+    },
+    strict: true,
+  },
+  {
+    type: "function",
     name: "project_wealth",
     description:
       "Projects the user's wealth with Peerfolio's deterministic Wealth Lab engine, and (with a target) the monthly saving needed. Use it for what-if and how-much-to-save questions; never do compound-interest math yourself. Pass only numbers; pass null for anything the user didn't specify and the default is used (starting value null = the user's real investable assets, which the result flags as imported). The interface shows the user an 'Open in Wealth Lab' button.",

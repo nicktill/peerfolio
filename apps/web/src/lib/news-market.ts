@@ -17,7 +17,10 @@
 
 import type { EarningsDay, EarningsReport, IndexQuote, SectorMove } from "./news-sample.ts"
 
-type Fetch = (input: string, init?: RequestInit & { timeoutMs?: number }) => Promise<Response>
+export type Fetch = (input: string, init?: RequestInit & { timeoutMs?: number }) => Promise<Response>
+
+/** Routes each request to its provider's budgeted fetch, by host. */
+export const marketFetch = (pick: (provider: "finnhub" | "alpaca") => Fetch): Fetch => (url, init) => pick(url.includes("finnhub.io") ? "finnhub" : "alpaca")(url, init)
 
 export const INDEX_FUNDS = [
   { key: "spx", name: "S&P 500", symbol: "SPY" },
@@ -172,6 +175,68 @@ async function alpacaSnapshots(symbols: string[], auth: { keyId: string; secret:
     // Finnhub's quotes stand alone.
   }
   return out
+}
+
+/**
+ * Current quotes for any handful of tickers: Alpaca's snapshots first (one request),
+ * Finnhub for whatever it left out. A symbol neither knows is simply absent.
+ */
+export async function fetchQuotes({
+  symbols,
+  finnhubKey,
+  alpaca,
+  fetchImpl,
+  now = new Date(),
+}: {
+  symbols: string[]
+  finnhubKey: string | undefined
+  alpaca: { keyId: string; secret: string } | null
+  fetchImpl: Fetch
+  now?: Date
+}): Promise<Map<string, FinnhubQuote>> {
+  const quotes = new Map<string, FinnhubQuote>()
+  if (alpaca) for (const [sym, q] of await alpacaSnapshots(symbols, alpaca, fetchImpl)) quotes.set(sym, q)
+  const missing = symbols.filter((sym) => !quotes.has(sym))
+  for (let i = 0; i < missing.length && finnhubKey; i += 4) {
+    const batch = missing.slice(i, i + 4)
+    const got = await Promise.all(batch.map((s) => finnhubQuote(s, finnhubKey, fetchImpl)))
+    batch.forEach((s, j) => got[j] && quotes.set(s, got[j]!))
+  }
+  for (const [s, q] of quotes) if (now.getTime() - q.t * 1000 > 4 * DAY) quotes.delete(s)
+  return quotes
+}
+
+export type Mover = { symbol: string; price: number; changePercent: number }
+
+/**
+ * Every symbol's move today from Alpaca's batch snapshots, a hundred at a time (the URL's limit).
+ * Alpaca only: a symbol it doesn't answer is left out, because a per-symbol fallback would cost
+ * hundreds of calls. Sorted biggest gain first.
+ */
+export async function fetchMovers({
+  symbols,
+  alpaca,
+  fetchImpl,
+  now = new Date(),
+}: {
+  symbols: readonly string[]
+  alpaca: { keyId: string; secret: string } | null
+  fetchImpl: Fetch
+  now?: Date
+}): Promise<{ movers: Mover[]; asOf: string } | null> {
+  if (!alpaca) return null
+  const out: Mover[] = []
+  let newest = 0
+  for (let i = 0; i < symbols.length; i += 100) {
+    const batch = await alpacaSnapshots(symbols.slice(i, i + 100), alpaca, fetchImpl)
+    for (const [symbol, q] of batch) {
+      if (now.getTime() - q.t * 1000 > 4 * DAY) continue
+      newest = Math.max(newest, q.t)
+      out.push({ symbol, price: q.c, changePercent: q.dp })
+    }
+  }
+  if (out.length < 20) return null
+  return { movers: out.sort((a, b) => b.changePercent - a.changePercent), asOf: new Date(newest * 1000).toISOString() }
 }
 
 /**
