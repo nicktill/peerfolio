@@ -106,8 +106,12 @@ against expected traffic.
 
 **Product gaps**
 - No saved conversations or analyses, no docked mode, no assistant access to the public board.
-- Wealth Lab has no saved named scenarios, withdrawals or Monte Carlo; the assistant link to Wealth Lab may be
-  mid-flight (see the roadmap file).
+- Wealth Lab has no saved named scenarios, withdrawals or Monte Carlo. The assistant can compute a projection with
+  the `project_wealth` tool and offers an "Open in Wealth Lab" link that prefills the page (tagged "from
+  assistant"); it never overwrites saved inputs. That link flow was exercised in a browser against a fake model
+  only.
+- Each extra tool definition is resent on every model round (about 4 KB of definitions today), so adding many more
+  tools raises the fixed per-question cost.
 - Replay is value-only: historical holdings are not stored.
 - Accessibility: keyboard move/resize, focus return and reduced motion are implemented; no screen-reader test pass
   and no automated accessibility check.
