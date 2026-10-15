@@ -158,7 +158,7 @@ function Panel({ onClose }: { onClose: () => void }) {
   }, [messages, phase])
 
   const begin = (kind: "move" | "size") => (e: React.PointerEvent<HTMLElement>) => {
-    if (narrow || e.button !== 0 || (e.target as HTMLElement).closest("button")) return
+    if (narrow || expanded || e.button !== 0 || (e.target as HTMLElement).closest("button")) return
     e.currentTarget.setPointerCapture(e.pointerId)
     gesture.current = { kind, x: e.clientX, y: e.clientY, g: geo }
     setInteracting(true)
@@ -177,6 +177,45 @@ function Panel({ onClose }: { onClose: () => void }) {
     e.currentTarget.releasePointerCapture(e.pointerId)
     setInteracting(false)
   }
+
+  // Keyboard equivalent of dragging: Alt+arrows move the window, Alt+Shift+arrows resize it.
+  const nudge = (e: React.KeyboardEvent<HTMLElement>) => {
+    if (narrow || expanded || !e.altKey || !e.key.startsWith("Arrow")) return
+    e.preventDefault()
+    const step = 24
+    const dx = e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0
+    const dy = e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0
+    // Right/bottom anchor the window, so moving right *decreases* `right`; growing up/left grows w/h.
+    setGeo((g) => (e.shiftKey ? fit({ ...g, w: g.w - dx, h: g.h - dy }) : fit({ ...g, right: g.right - dx, bottom: g.bottom - dy })))
+  }
+
+  const announce = !busy ? (messages.at(-1)?.error ? "The assistant hit an error." : messages.at(-1)?.role === "assistant" && messages.at(-1)?.text ? "Response ready." : "") : phase === "reading" ? "Thinking" : phase === "analyzing" ? "Running the analysis" : "Writing the response"
+
+  // The phone keyboard doesn't resize the layout viewport on iOS, so follow the visual one to keep the composer in view.
+  useEffect(() => {
+    const vv = window.visualViewport
+    const el = panelRef.current
+    if (!narrow || !vv || !el) return
+    const sync = () => {
+      el.style.setProperty("--pf-vvh", `${vv.height}px`)
+      el.style.setProperty("--pf-vvb", `${Math.max(0, window.innerHeight - vv.height - vv.offsetTop)}px`)
+    }
+    sync()
+    vv.addEventListener("resize", sync)
+    vv.addEventListener("scroll", sync)
+    return () => {
+      vv.removeEventListener("resize", sync)
+      vv.removeEventListener("scroll", sync)
+    }
+  }, [narrow])
+
+  // Closing returns focus to where the person started.
+  useEffect(
+    () => () => {
+      window.setTimeout(() => document.querySelector<HTMLElement>(".pf-ai-launch")?.focus({ preventScroll: true }), 60)
+    },
+    [],
+  )
 
   const onScroll = () => {
     const el = scroller.current
@@ -219,6 +258,9 @@ function Panel({ onClose }: { onClose: () => void }) {
         onPointerMove={track}
         onPointerUp={end}
         onPointerCancel={end}
+        onKeyDown={nudge}
+        tabIndex={narrow || expanded ? -1 : 0}
+        aria-label="Assistant window. Alt and arrow keys move it; Alt, Shift and arrow keys resize it."
         onDoubleClick={(e) => {
           if (!narrow && !(e.target as HTMLElement).closest("button")) setExpanded(!expanded)
         }}
@@ -244,7 +286,10 @@ function Panel({ onClose }: { onClose: () => void }) {
         </div>
       </header>
 
-      <div className="pf-ai-body" ref={scroller} onScroll={onScroll} role="log" aria-live="polite" aria-relevant="additions text">
+      <div className="pf-ai-sr" role="status" aria-live="polite">
+        {announce}
+      </div>
+      <div className="pf-ai-body" ref={scroller} onScroll={onScroll} role="region" aria-label="Conversation" tabIndex={-1}>
         {messages.length === 0 ? (
           <EmptyState onPick={ask} />
         ) : (
@@ -358,7 +403,9 @@ function Composer({ busy, onSend, onStop, page }: { busy: boolean; onSend: (q: s
   const ref = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
-    ref.current?.focus({ preventScroll: true })
+    // After the first paint: focusing during the enter transition can be dropped.
+    const frame = requestAnimationFrame(() => ref.current?.focus({ preventScroll: true }))
+    return () => cancelAnimationFrame(frame)
   }, [])
 
   useLayoutEffect(() => {
