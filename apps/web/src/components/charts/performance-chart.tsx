@@ -33,6 +33,8 @@ export function PerformanceChart({
   baseline,
   indexed = false,
   compare,
+  reveal = null,
+  markerIndex = null,
 }: {
   points: PerformancePoint[]
   height?: number
@@ -56,10 +58,18 @@ export function PerformanceChart({
    * `points` by date; a date it has no value for is skipped, never filled. Only with `indexed`.
    */
   compare?: PerformancePoint[]
+  /**
+   * Replay: only the part of the chart up to this index is drawn, and the end-of-line dots are hidden.
+   * Omit it (the default) and the chart is drawn whole, as always.
+   */
+  reveal?: number | null
+  /** Replay: where to draw the vertical marker and dots (usually the same index as `reveal`). */
+  markerIndex?: number | null
 }) {
   const { ref, width } = useMeasure<HTMLDivElement>()
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
   const fillId = useId()
+  const clipId = useId()
   const reduceMotion = useReducedMotion()
   // The line draws itself when the series changes (a new range), not on every live refresh of the last point.
   const drawKey = `${points.length}:${points[0]?.date ?? ""}`
@@ -111,6 +121,10 @@ export function PerformanceChart({
   const rising = points.length >= 2 && points[points.length - 1]!.value >= points[0]!.value
   const stroke = rising ? "var(--gain)" : "var(--loss)"
   const active = hoverIndex != null ? points[hoverIndex] : null
+  const replaying = reveal != null || markerIndex != null
+  const revealX = reveal != null && geometry?.coords[Math.max(0, Math.min(points.length - 1, Math.round(reveal)))] ? geometry.coords[Math.max(0, Math.min(points.length - 1, Math.round(reveal)))]![0] : null
+  const marker = markerIndex != null && geometry ? geometry.coords[Math.max(0, Math.min(points.length - 1, Math.round(markerIndex)))] ?? null : null
+  const markerCompare = markerIndex != null && geometry?.compareCoords ? geometry.compareCoords[Math.max(0, Math.min(points.length - 1, Math.round(markerIndex)))] ?? null : null
 
   function handlePointer(event: React.PointerEvent<SVGSVGElement>) {
     if (!geometry || points.length < 2) return
@@ -145,6 +159,11 @@ export function PerformanceChart({
             <stop offset="0%" stopColor={stroke} stopOpacity={indexed && !rising ? 0 : 0.18} />
             <stop offset="100%" stopColor={stroke} stopOpacity={indexed && !rising ? 0.18 : 0} />
           </linearGradient>
+          {revealX != null ? (
+            <clipPath id={clipId}>
+              <rect x={0} y={0} width={Math.max(0, revealX + 1)} height={height} />
+            </clipPath>
+          ) : null}
         </defs>
 
         {geometry ? (
@@ -191,6 +210,7 @@ export function PerformanceChart({
               </>
             )}
 
+            <g clipPath={revealX != null ? `url(#${clipId})` : undefined}>
             {geometry.compareLine ? (
               // The benchmark sits behind your line: quieter colour and weight, same scale, drawn in a beat later.
               <motion.path
@@ -233,8 +253,9 @@ export function PerformanceChart({
               animate={{ pathLength: 1 }}
               transition={{ duration: 1.15, ease: [0.22, 1, 0.36, 1] }}
             />
+            </g>
 
-            {indexed
+            {indexed && !replaying
               ? geometry.coords.map(([cx, cy], i) => {
                   const last = i === geometry.coords.length - 1
                   if (!last && geometry.coords.length >= MARK_EACH_UNDER) return null
@@ -255,7 +276,7 @@ export function PerformanceChart({
                 })
               : null}
 
-            {!indexed ? (
+            {!indexed && !replaying ? (
               <motion.g
                 key={`end-${drawKey}`}
                 initial={reduceMotion ? false : { opacity: 0 }}
@@ -272,6 +293,15 @@ export function PerformanceChart({
                   strokeWidth={2}
                 />
               </motion.g>
+            ) : null}
+
+            {marker ? (
+              <g aria-hidden pointerEvents="none">
+                {/* The replay marker follows the playhead directly: it is moved every frame, so no spring. */}
+                <line x1={marker[0]} x2={marker[0]} y1={pad.top} y2={height - pad.bottom} className="stroke-border" strokeWidth={1} />
+                {markerCompare ? <circle cx={markerCompare[0]} cy={markerCompare[1]} r={4} fill="hsl(var(--muted-foreground))" stroke="hsl(var(--card))" strokeWidth={2} /> : null}
+                <circle cx={marker[0]} cy={marker[1]} r={5} fill={stroke} stroke="hsl(var(--card))" strokeWidth={2} />
+              </g>
             ) : null}
 
             {hoverIndex != null && geometry.coords[hoverIndex] ? (
