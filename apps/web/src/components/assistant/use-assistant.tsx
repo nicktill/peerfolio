@@ -2,7 +2,8 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
 import { usePathname } from "next/navigation"
-import type { XRay } from "@web/lib/ai/portfolio-xray"
+import { parseStreamChunk } from "@web/lib/ai/stream-parse"
+import { applyEvent, historyForRetry, patchLastMessage, requestMessages, withoutErrors, type ChatEvent as Event, type Msg } from "@web/lib/ai/chat-state"
 
 /**
  * The assistant's conversation, kept above the pages so it survives navigation.
@@ -13,20 +14,7 @@ import type { XRay } from "@web/lib/ai/portfolio-xray"
 export type Page = "portfolio" | "leagues" | "fantasy" | "news" | "board" | "other"
 export type Phase = "idle" | "reading" | "analyzing" | "writing"
 
-export type Msg = {
-  id: string
-  role: "user" | "assistant"
-  text: string
-  xray?: XRay
-  error?: string
-}
-
-type Event =
-  | { type: "status"; stage: "reading" | "analyzing" | "writing" }
-  | { type: "text"; delta: string }
-  | { type: "xray"; data: XRay }
-  | { type: "error"; message: string }
-  | { type: "done" }
+export type { Msg }
 
 type Assistant = {
   messages: Msg[]
@@ -92,7 +80,7 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
   }, [messages, phase])
 
   const patchLast = useCallback((fn: (m: Msg) => Msg) => {
-    setMessages((all) => (all.length === 0 ? all : [...all.slice(0, -1), fn(all[all.length - 1]!)]))
+    setMessages((all) => patchLastMessage(all, fn))
   }, [])
 
   const run = useCallback(
@@ -111,7 +99,7 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
           headers: { "Content-Type": "application/json" },
           signal: controller.signal,
           body: JSON.stringify({
-            messages: history.filter((m) => m.text && !m.error).map((m) => ({ role: m.role, content: m.text })),
+            messages: requestMessages(history),
             context: { page: live.current.page, entityId: live.current.entityId },
           }),
         })
@@ -127,23 +115,12 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
         for (;;) {
           const { value, done } = await reader.read()
           if (done) break
-          buffer += decoder.decode(value, { stream: true })
-          const lines = buffer.split("\n")
-          buffer = lines.pop() ?? ""
-          for (const line of lines) {
-            if (!line.trim()) continue
-            let event: Event
-            try {
-              event = JSON.parse(line) as Event
-            } catch {
-              continue
-            }
+          const parsed = parseStreamChunk<Event>(buffer, decoder.decode(value, { stream: true }))
+          buffer = parsed.rest
+          for (const event of parsed.events) {
             if (event.type === "status") setPhase(event.stage)
-            else if (event.type === "text") patchLast((m) => ({ ...m, text: m.text + event.delta }))
-            else if (event.type === "xray") {
-              patchLast((m) => ({ ...m, xray: event.data }))
-              setReportSeq((n) => n + 1)
-            } else if (event.type === "error") patchLast((m) => ({ ...m, error: event.message }))
+            else patchLast((m) => applyEvent(m, event))
+            if (event.type === "xray") setReportSeq((n) => n + 1)
           }
         }
       } catch (error) {
@@ -160,7 +137,7 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
     (raw: string) => {
       const text = raw.trim()
       if (!text || abort.current) return
-      const history = [...live.current.messages.filter((m) => !m.error), { id: uid(), role: "user" as const, text }]
+      const history = [...withoutErrors(live.current.messages), { id: uid(), role: "user" as const, text }]
       setMessages([...history, { id: uid(), role: "assistant", text: "" }])
       void run(history)
     },
@@ -172,9 +149,8 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
   const retry = useCallback(() => {
     if (abort.current) return
     const all = live.current.messages
-    const lastUser = [...all].reverse().find((m) => m.role === "user")
-    if (!lastUser) return
-    const history = all.slice(0, all.lastIndexOf(lastUser) + 1)
+    const history = historyForRetry(all)
+    if (!history) return
     setMessages([...history, { id: uid(), role: "assistant", text: "" }])
     void run(history)
   }, [run])
