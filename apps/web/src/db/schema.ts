@@ -219,6 +219,12 @@ export const securities = pgTable("securities", {
   unsupportedBy: text("unsupported_by").array(),
   /** Metadata retries are independent of price freshness. */
   metadataCheckedAt: timestamp("metadata_checked_at", { withTimezone: true }),
+  /** Display sector (see lib/ai/sectors.ts) from the provider's company profile; null until known, and for funds, crypto and cash. */
+  sector: text("sector"),
+  /** The provider's own industry string, kept so the sector mapping can be improved without refetching. */
+  industry: text("industry"),
+  /** When a sector lookup last ran, hit or miss, so a ticker with no profile isn't retried on every request. */
+  sectorCheckedAt: timestamp("sector_checked_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 })
 
@@ -788,6 +794,53 @@ export const newsAiSpend = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("news_ai_spend_created_idx").on(t.createdAt)],
+)
+
+/* ------------------------------------------------------------------ *
+ * Assistant
+ * ------------------------------------------------------------------ */
+
+/**
+ * Every assistant request, append-only: the worst case is reserved before the
+ * model is called and `costUsd` filled in after, as with `news_ai_spend`. The
+ * per-user limits and the monthly cap both read this table. No message text is
+ * stored here, only counts and cost.
+ */
+export const aiUsage = pgTable(
+  "ai_usage",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    model: text("model").notNull(),
+    reservedUsd: numeric("reserved_usd", { precision: 10, scale: 6 }).notNull(),
+    /** Null until the request settles; until then the reservation counts. */
+    costUsd: numeric("cost_usd", { precision: 10, scale: 6 }),
+    inputTokens: integer("input_tokens"),
+    outputTokens: integer("output_tokens"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("ai_usage_user_created_idx").on(t.userId, t.createdAt), index("ai_usage_created_idx").on(t.createdAt)],
+)
+
+/* ------------------------------------------------------------------ *
+ * Benchmarks
+ * ------------------------------------------------------------------ */
+
+/**
+ * Daily split-adjusted closes for the comparison ETFs (SPY, QQQ, VTI). A handful of
+ * symbols, one row per trading day, fetched once and then read from here, so charting
+ * a benchmark never costs a provider call per viewer. Price returns: dividends aren't added back.
+ */
+export const benchmarkPrices = pgTable(
+  "benchmark_prices",
+  {
+    symbol: text("symbol").notNull(),
+    date: date("date").notNull(),
+    close: numeric("close", { precision: 20, scale: 6 }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.symbol, t.date] })],
 )
 
 export type NewsItem = typeof newsItems.$inferSelect

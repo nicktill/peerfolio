@@ -1,0 +1,14 @@
+/* Scrubber for the portfolio replay: a hairline track and a small thumb, focus ring like every other control. */
+.pf-replay-range {
+  -webkit-appearance: none; appearance: none; width: 100%; min-width: 0; height: 20px; margin: 0; background: transparent; cursor: pointer;
+}
+.pf-replay-range::-webkit-slider-runnable-track { height: 2px; border-radius: 1px; background: hsl(var(--border)); }
+.pf-replay-range::-moz-range-track { height: 2px; border-radius: 1px; background: hsl(var(--border)); }
+.pf-replay-range::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 12px; height: 12px; margin-top: -5px; border-radius: 999px;
+  background: hsl(var(--foreground)); border: 2px solid hsl(var(--card));
+}
+.pf-replay-range::-moz-range-thumb { width: 10px; height: 10px; border-radius: 999px; background: hsl(var(--foreground)); border: 2px solid hsl(var(--card)); }
+.pf-replay-range:focus-visible { outline: none; }
+.pf-replay-range:focus-visible::-webkit-slider-thumb { box-shadow: var(--pf-ring); }
+.pf-replay-range:focus-visible::-moz-range-thumb { box-shadow: var(--pf-ring); }

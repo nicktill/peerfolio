@@ -561,11 +561,12 @@ export type FantasyStanding = {
 }
 
 /** Everything the league page needs in one go: standings, your book, the feed. */
-export async function loadFantasyLeague(userId: string, leagueId: string) {
+export async function loadFantasyLeague(userId: string, leagueId: string, { refresh = true }: { refresh?: boolean } = {}) {
   const { league, member: me } = await requireFantasyMember(userId, leagueId)
   const startingCash = n(league.startingCash)
   // A finished league is frozen at its last snapshot, so only live ones need fresh prices.
-  if (!isClosed(league.endsAt)) {
+  // `refresh: false` is for read-only callers (the assistant): stored prices, and no price requests or order fills.
+  if (refresh && !isClosed(league.endsAt)) {
     await refreshStalePrices()
     scheduleLiveRefresh()
     scheduleOrderFills()

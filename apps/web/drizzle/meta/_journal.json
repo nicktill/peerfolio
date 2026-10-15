@@ -155,6 +155,27 @@
       "when": 1792020254838,
       "tag": "0021_close_attempts_unsupported_by",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1792035339315,
+      "tag": "0022_ai_usage",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792037101752,
+      "tag": "0023_benchmark_prices",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792037718107,
+      "tag": "0024_security_sectors",
+      "breakpoints": true
     }
   ]
 }

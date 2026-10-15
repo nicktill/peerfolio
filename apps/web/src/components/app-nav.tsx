@@ -4,7 +4,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { signOut, useSession } from "next-auth/react"
-import { Activity, Gamepad2, Repeat, LayoutDashboard, LogOut, Newspaper, Settings, ShieldCheck, Trophy, Users } from "lucide-react"
+import { Activity, Gamepad2, LineChart, Repeat, LayoutDashboard, LogOut, Newspaper, Settings, ShieldCheck, Trophy, Users } from "lucide-react"
 import { cn } from "@web/lib/utils"
 import { useApi } from "@web/lib/use-api"
 import { cacheClear } from "@web/lib/api-cache"
@@ -19,7 +19,10 @@ const LINKS = [
   { href: "/fantasy", label: "Fantasy", icon: Gamepad2 },
   { href: "/board", label: "Board", icon: Trophy },
   { href: "/news", label: "News", icon: Newspaper },
+  // Sidebar only: the mobile tab bar is a fixed five-column grid, so Wealth is reached from the mobile header instead.
+  { href: "/wealth", label: "Wealth", icon: LineChart, sidebarOnly: true },
 ]
+const TAB_LINKS = LINKS.filter((link) => !("sidebarOnly" in link))
 
 function Brand() {
   return (
@@ -95,12 +98,13 @@ export function AppNav() {
           {admin ? <Link href="/admin/brokerages" className="peerfolio-mobile-control" aria-label="Manage brokerage access"><ShieldCheck size={17} aria-hidden /></Link> : null}
           {admin ? <Link href="/admin/providers" className="peerfolio-mobile-control" aria-label="Provider usage"><Activity size={17} aria-hidden /></Link> : null}
           {admin ? <Link href="/admin/syncs" className="peerfolio-mobile-control" aria-label="Brokerage syncs"><Repeat size={17} aria-hidden /></Link> : null}
+          <Link href="/wealth" className="peerfolio-mobile-control" aria-label="Wealth Lab"><LineChart size={17} aria-hidden /></Link>
           <Link href="/settings" className="peerfolio-mobile-control" aria-label="Settings"><Settings size={17} aria-hidden /></Link>
           {avatar}
         </div>
       </header>
       <nav className="peerfolio-tabbar" aria-label="Mobile primary navigation">
-        {LINKS.map(({ href, label, icon: Icon }) => (
+        {TAB_LINKS.map(({ href, label, icon: Icon }) => (
           <Link key={href} href={href} aria-current={activeHref === href ? "page" : undefined} className={cn("peerfolio-tab", activeHref === href && "peerfolio-tab-active")}>
             <Icon size={19} strokeWidth={1.5} aria-hidden />{label}
           </Link>

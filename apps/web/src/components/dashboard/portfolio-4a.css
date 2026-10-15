@@ -129,6 +129,8 @@
  .pf-account-row .pf-account-remove { position:absolute; top:50%; transform:translateY(-50%); width:36px; min-width:36px; height:40px; }
  .pf-account-row .pf-account-edit { right:64px; }
  .pf-account-row .pf-account-remove { right:28px; }
+ /* Room for the chevron on every expandable row; manual accounts, which also carry edit and remove, get more below. */
+ .pf-account-toggle:has(> svg) { padding-right:28px; }
  .pf-account-row:has(.pf-account-edit) .pf-account-toggle { padding-right:104px; }
  .pf-account-toggle > svg { position:absolute; right:0; top:50%; transform:translateY(-50%); }
 }
