@@ -16,7 +16,7 @@ import { useApi } from "@web/lib/use-api"
 import "@web/components/assistant/assistant.css"
 
 // v2: the window now opens centred and is resizable from its first card; older saved positions are dropped.
-const GEO_KEY = "pf-assistant-geo-v2"
+const GEO_KEY = "pf-assistant-geo-v3"
 const DOCK_KEY = "pf-assistant-dock-v1"
 const TUCK_KEY = "pf-assistant-tucked-v1"
 /** Docking squeezes the page, so it needs room: below this width the window floats instead. */
@@ -26,7 +26,7 @@ const DOCK_WIDE = 680
 const DOCK_MIN = 340
 const DOCK_WIDTH_KEY = "pf-assistant-dockw-v1"
 const MIN = { w: 340, h: 400 }
-const COMPACT = { w: 480, h: 640 }
+const COMPACT = { w: 600, h: 540 }
 const EDGE = 12
 
 type Edge = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw"

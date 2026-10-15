@@ -546,12 +546,3 @@ a.pf-row:active, .pf-row.hov:active { background: var(--hair2); }
 
 .peerfolio-app:not(.pf-landing) { overflow:clip; }
 
-/* "Ask anything": the assistant's entry in the sidebar, under the pages. Violet, like the assistant itself. */
-.pf-nav-ask { width: 100%; margin-top: 6px; cursor: pointer; background: color-mix(in srgb, rgba(var(--ai-violet), 1) 8%, transparent); color: rgb(var(--ai-violet)); }
-.pf-nav-ask > svg { color: rgb(var(--ai-violet)); fill: color-mix(in srgb, rgb(var(--ai-violet)) 35%, transparent); }
-.pf-nav-ask:hover { color: rgb(var(--ai-violet)); background: color-mix(in srgb, rgba(var(--ai-violet), 1) 16%, transparent); }
-.pf-nav-ask:hover > svg { color: rgb(var(--ai-violet)); }
-.pf-nav-ask kbd { margin-left: auto; font: 500 11px/1 var(--mono); color: var(--fg3); }
-.pf-nav-ask:focus-visible { outline: 2px solid color-mix(in srgb, rgb(var(--ai-violet)) 60%, transparent); outline-offset: 1px; }
-/* With the sidebar showing, the floating pill steps aside. */
-@media (min-width: 861px) { .pf-ai-launch { display: none; } }
