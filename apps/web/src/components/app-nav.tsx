@@ -5,8 +5,9 @@ import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { signOut, useSession } from "next-auth/react"
-import { Activity, Gamepad2, LineChart, Repeat, LayoutDashboard, LogOut, Newspaper, Sparkle, Settings, ShieldCheck, Trophy, Users } from "lucide-react"
+import { Activity, Gamepad2, LineChart, Repeat, LayoutDashboard, ChevronDown, LogOut, Newspaper, Settings, ShieldCheck, Trophy, Users } from "lucide-react"
 import { OPEN_EVENT } from "@web/components/assistant/open-event"
+import { Orb } from "@web/components/assistant/orb"
 import { cn } from "@web/lib/utils"
 import { useApi } from "@web/lib/use-api"
 import { cacheClear } from "@web/lib/api-cache"
@@ -43,6 +44,25 @@ export function AppNav() {
   const admin = brokerageAccess?.admin && !accessError
   const assistant = useApi<{ available: boolean }>(status === "authenticated" ? "/api/assistant/status" : null)
   const assistantReady = !!assistant.data?.available
+  const onAdmin = pathname.startsWith("/admin")
+  // The admin pages share one folded entry; it opens on its own when you're on one of them, and remembers your choice.
+  const [adminOpen, setAdminOpen] = useState(false)
+  useEffect(() => {
+    try {
+      setAdminOpen(onAdmin || localStorage.getItem("pf-nav-admin") === "1")
+    } catch {
+      setAdminOpen(onAdmin)
+    }
+  }, [onAdmin])
+  const toggleAdmin = () => {
+    const next = !adminOpen
+    setAdminOpen(next)
+    try {
+      localStorage.setItem("pf-nav-admin", next ? "1" : "0")
+    } catch {
+      // Not remembered; it still works for this visit.
+    }
+  }
   const [hint, setHint] = useState("")
   useEffect(() => setHint(/mac|iphone|ipad/i.test(navigator.platform || navigator.userAgent) ? "⌘/" : "Ctrl /"), [])
 
@@ -69,29 +89,41 @@ export function AppNav() {
               <span>{label}</span>
             </Link>
           ))}
-          {assistantReady ? (
-            <button type="button" className="peerfolio-nav-link pf-nav-ask" onClick={() => window.dispatchEvent(new Event(OPEN_EVENT))} aria-keyshortcuts="Control+Slash Meta+Slash">
-              <Sparkle size={16} strokeWidth={1.75} aria-hidden />
-              <span>Ask anything</span>
-              <kbd>{hint}</kbd>
-            </button>
+          {admin ? (
+            <div className={cn("pf-nav-group", adminOpen && "is-open")}>
+              <button type="button" className="peerfolio-nav-link pf-nav-group-b" aria-expanded={adminOpen} aria-controls="pf-nav-admin" onClick={toggleAdmin}>
+                <ShieldCheck size={16} strokeWidth={1.5} aria-hidden />
+                <span>Admin</span>
+                <ChevronDown size={14} aria-hidden className="pf-nav-chev" />
+              </button>
+              <div className="pf-nav-reveal" id="pf-nav-admin" role="group" aria-label="Admin pages">
+                <div inert={!adminOpen}>
+                  <div className="pf-nav-sub">
+                    <Link href="/admin/brokerages" className="peerfolio-nav-link" aria-current={pathname.startsWith("/admin/brokerages") ? "page" : undefined}>
+                      <span>Manage brokerages</span>
+                    </Link>
+                    <Link href="/admin/providers" className="peerfolio-nav-link" aria-current={pathname === "/admin/providers" ? "page" : undefined}>
+                      <span>Provider usage</span>
+                    </Link>
+                    <Link href="/admin/syncs" className="peerfolio-nav-link" aria-current={pathname === "/admin/syncs" ? "page" : undefined}>
+                      <span>Brokerage syncs</span>
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </div>
           ) : null}
         </nav>
         <div className="peerfolio-sidebar-footer">
-          {admin ? (
-            <Link href="/admin/brokerages" className="peerfolio-nav-link" aria-current={pathname.startsWith("/admin/brokerages") ? "page" : undefined}>
-              <ShieldCheck size={16} strokeWidth={1.5} aria-hidden />Manage brokerages
-            </Link>
-          ) : null}
-          {admin ? (
-            <Link href="/admin/providers" className="peerfolio-nav-link" aria-current={pathname === "/admin/providers" ? "page" : undefined}>
-              <Activity size={16} strokeWidth={1.5} aria-hidden />Provider usage
-            </Link>
-          ) : null}
-          {admin ? (
-            <Link href="/admin/syncs" className="peerfolio-nav-link" aria-current={pathname === "/admin/syncs" ? "page" : undefined}>
-              <Repeat size={16} strokeWidth={1.5} aria-hidden />Brokerage syncs
-            </Link>
+          {assistantReady ? (
+            <button type="button" className="pf-nav-ask" onClick={() => window.dispatchEvent(new Event(OPEN_EVENT))} aria-keyshortcuts="Control+Slash Meta+Slash">
+              <Orb size={26} />
+              <span className="pf-nav-ask-t">
+                <b>Ask anything</b>
+                <small>Knows your holdings</small>
+              </span>
+              <kbd>{hint}</kbd>
+            </button>
           ) : null}
           <Link href="/settings" className="peerfolio-nav-link" aria-current={pathname === "/settings" ? "page" : undefined}>
             <Settings size={16} strokeWidth={1.5} aria-hidden />Settings

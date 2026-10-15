@@ -526,3 +526,36 @@
 .pf-x2-chip:hover { color: var(--fg); border-color: var(--line); background: var(--raise); }
 .pf-x2-chip:active { transform: scale(0.97); }
 @media (prefers-reduced-motion: reduce) { .pf-x2-reveal, .pf-x2-reveal > div, .pf-x2-chev, .pf-x2-meter-t i { transition: none; } }
+
+/* ---------- Sidebar: "Ask anything" card and the Admin group ---------- */
+.pf-nav-ask {
+  position: relative; display: flex; align-items: center; gap: 12px; width: 100%; margin: 10px 0 2px; padding: 11px 12px 11px 11px; border-radius: 14px; cursor: pointer; text-align: left; color: var(--fg); overflow: hidden; isolation: isolate;
+  border: 1px solid color-mix(in srgb, rgb(var(--ai-violet)) 38%, var(--hair));
+  background: linear-gradient(135deg, rgba(var(--ai-violet), 0.16), rgba(var(--accent-a), 0.07) 62%, transparent), color-mix(in srgb, var(--panel) 80%, transparent);
+  box-shadow: 0 0 0 0 rgba(var(--ai-violet), 0), inset 0 1px 0 rgb(255 255 255 / 0.06);
+  transition: border-color 0.2s, box-shadow 0.25s, transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+/* A slow sheen passes over it on hover, like light crossing glass. */
+.pf-nav-ask::after { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / 0.1) 50%, transparent 65%); transform: translateX(-120%); }
+.pf-nav-ask:hover { border-color: color-mix(in srgb, rgb(var(--ai-violet)) 65%, var(--hair)); box-shadow: 0 6px 22px -8px rgba(var(--ai-violet), 0.55), inset 0 1px 0 rgb(255 255 255 / 0.1); }
+.pf-nav-ask:hover::after { transform: translateX(120%); transition: transform 0.9s cubic-bezier(0.22, 1, 0.36, 1); }
+.pf-nav-ask:active { transform: scale(0.985); }
+.pf-nav-ask:focus-visible { outline: none; box-shadow: var(--pf-ring); }
+.pf-nav-ask .pf-orb { flex: none; }
+.pf-nav-ask-t { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.pf-nav-ask-t b { font: 500 14px/16px var(--sans); letter-spacing: -0.005em; }
+.pf-nav-ask-t small { font: 400 11px/14px var(--sans); color: var(--fg3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pf-nav-ask kbd { align-self: flex-start; font: 500 10.5px/1 var(--mono); color: var(--fg3); padding: 4px 6px; border: 1px solid var(--hair); border-radius: 6px; background: color-mix(in srgb, var(--raise) 70%, transparent); }
+@media (prefers-reduced-motion: reduce) { .pf-nav-ask, .pf-nav-ask::after { transition: none; } }
+
+.pf-nav-group { display: flex; flex-direction: column; }
+.pf-nav-group-b { width: 100%; background: none; cursor: pointer; text-align: left; }
+.pf-nav-group-b > span { flex: 1; }
+.pf-nav-chev { color: var(--fg3); transition: transform 0.26s cubic-bezier(0.22, 1, 0.36, 1); }
+.pf-nav-group:not(.is-open) .pf-nav-chev { transform: rotate(-90deg); }
+.pf-nav-reveal { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.26s cubic-bezier(0.22, 1, 0.36, 1); }
+.pf-nav-group.is-open .pf-nav-reveal { grid-template-rows: 1fr; }
+.pf-nav-reveal > div { overflow: hidden; min-height: 0; }
+.pf-nav-sub { display: flex; flex-direction: column; gap: 1px; margin: 2px 0 4px 15px; padding-left: 14px; border-left: 1px solid var(--hair); }
+.pf-nav-sub .peerfolio-nav-link { height: 34px; font-size: 13.5px; }
+@media (prefers-reduced-motion: reduce) { .pf-nav-reveal, .pf-nav-chev { transition: none; } }
