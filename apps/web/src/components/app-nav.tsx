@@ -115,9 +115,6 @@ export function AppNav() {
           ) : null}
         </nav>
         <div className="peerfolio-sidebar-footer">
-          <Link href="/settings" className="peerfolio-nav-link" aria-current={pathname === "/settings" ? "page" : undefined}>
-            <Settings size={16} strokeWidth={1.5} aria-hidden />Settings
-          </Link>
           {assistantReady ? (
             <button type="button" className="pf-nav-ask" onClick={() => window.dispatchEvent(new Event(OPEN_EVENT))} aria-keyshortcuts="Control+Slash Meta+Slash">
               <Orb size={26} />
@@ -128,6 +125,9 @@ export function AppNav() {
               <kbd>{hint}</kbd>
             </button>
           ) : null}
+          <Link href="/settings" className="peerfolio-nav-link" aria-current={pathname === "/settings" ? "page" : undefined}>
+            <Settings size={16} strokeWidth={1.5} aria-hidden />Settings
+          </Link>
           <ThemeToggle variant="segmented" />
           <div className="peerfolio-account">
             {avatar}
