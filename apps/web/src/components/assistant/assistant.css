@@ -190,8 +190,10 @@
   background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.1), rgba(var(--ai-violet), 0.12), transparent);
   transform: translateX(-120%) skewX(-18deg);
 }
-.pf-ai-sug:hover::after { opacity: 1; animation: pf-sweep 0.9s ease-out 1; }
-.pf-ai-sug.is-featured::after { opacity: 1; animation: pf-sweep 3.6s ease-in-out 1.2s infinite; }
+/* On open the glint runs once down the list, row by row; after that it only answers a hover. */
+@keyframes pf-sweep-hover { 0% { transform: translateX(-120%) skewX(-18deg); } 100% { transform: translateX(260%) skewX(-18deg); } }
+.pf-ai-sug::after { opacity: 1; animation: pf-sweep 1.2s ease-out calc(0.7s + var(--i, 0) * 1.15s) 1 both; }
+.pf-ai-sug:hover::after { animation: pf-sweep-hover 0.9s ease-out 0s 1 both; }
 
 /* What the assistant can see: a quiet status pill. */
 .pf-ai-scope { display: inline-flex; align-items: center; gap: 8px; align-self: center; padding: 7px 12px; border-radius: 999px; font: 450 12px/1 var(--sans); color: var(--fg2); border: 1px solid var(--hair); background: color-mix(in srgb, var(--raise) 55%, transparent); }

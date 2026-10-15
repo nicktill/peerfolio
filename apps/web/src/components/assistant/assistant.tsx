@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExter
 import { AnimatePresence, MotionConfig, motion } from "motion/react"
 import { ArrowUp, Check, Maximize2, Minimize2, Minus, RotateCcw, Square, SquarePen } from "lucide-react"
 import { Orb } from "@web/components/assistant/orb"
-import { PAGE_COPY, PAGE_LABEL, useAssistant, type Msg, type Phase } from "@web/components/assistant/use-assistant"
+import { PAGE_LABEL, copyFor, useAssistant, type Msg, type Phase } from "@web/components/assistant/use-assistant"
 import { XRayReport } from "@web/components/assistant/xray-report"
 import { useApi } from "@web/lib/use-api"
 import "@web/components/assistant/assistant.css"
@@ -323,11 +323,11 @@ function ScopePill() {
 }
 
 function EmptyState({ onPick }: { onPick: (q: string) => void }) {
-  const { page } = useAssistant()
-  const copy = PAGE_COPY[page]
+  const { page, detail } = useAssistant()
+  const copy = copyFor(page, detail)
   const items = copy.suggestions
   return (
-    <motion.div key={page} className="pf-ai-empty" initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.05, delayChildren: 0.08 } } }}>
+    <motion.div key={`${page}:${detail}`} className="pf-ai-empty" initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.05, delayChildren: 0.08 } } }}>
       <motion.div variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}>
         <Orb size={44} />
       </motion.div>
@@ -342,10 +342,11 @@ function EmptyState({ onPick }: { onPick: (q: string) => void }) {
         </motion.div>
       ) : null}
       <div className="pf-ai-sugs" style={page === "portfolio" || copy.note ? { marginTop: 14 } : undefined}>
-        {items.map((s) => (
+        {items.map((s, i) => (
           <motion.button
             key={s.label}
             type="button"
+            style={{ "--i": i } as React.CSSProperties}
             className={`pf-ai-sug ${s.featured ? "is-featured" : ""}`}
             variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}
             onClick={() => onPick(s.label)}

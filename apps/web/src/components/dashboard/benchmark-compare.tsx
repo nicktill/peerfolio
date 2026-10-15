@@ -25,10 +25,10 @@ export type BenchmarkResponse = {
 }
 
 export const BENCHMARK_OPTIONS = [
-  { value: "OFF", label: "Off" },
-  { value: "SPY", label: "S&P 500" },
-  { value: "QQQ", label: "Nasdaq 100" },
-  { value: "VTI", label: "US market" },
+  { value: "OFF", label: "Off", short: "Off" },
+  { value: "SPY", label: "S&P 500", short: "S&P" },
+  { value: "QQQ", label: "Nasdaq 100", short: "Nasdaq" },
+  { value: "VTI", label: "US market", short: "US" },
 ] as const
 
 export type BenchmarkChoice = (typeof BENCHMARK_OPTIONS)[number]["value"]
@@ -115,7 +115,8 @@ export function BenchmarkCompare({
                 style={on && s ? ({ "--bm": s.color } as React.CSSProperties) : undefined}
               >
                 {s ? <TickerLogo symbol={o.value} size="xs" className="!size-[14px]" /> : null}
-                {o.label}
+                <span className="pf-bm-long">{o.label}</span>
+                <span className="pf-bm-short" aria-hidden>{o.short}</span>
               </button>
             )
           })}

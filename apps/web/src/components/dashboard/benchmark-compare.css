@@ -4,7 +4,7 @@
 .pf-bm-chips { display: flex; flex-wrap: wrap; gap: 4px; }
 .pf-bm-chip {
   --bm: var(--fg2);
-  display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px 0 8px; border-radius: 999px;
+  position: relative; display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px 0 8px; border-radius: 999px;
   border: 1px solid transparent; background: transparent; color: var(--fg3); cursor: pointer;
   font: 500 11.5px/1 var(--sans); letter-spacing: -0.003em; transition: color 0.15s, background 0.15s, border-color 0.15s;
 }
@@ -13,6 +13,15 @@
 .pf-bm-chip.is-on { color: var(--fg); background: var(--raise); border-color: color-mix(in srgb, var(--bm) 55%, var(--hair)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--bm) 12%, transparent); }
 .pf-bm-chip:focus-visible { outline: none; box-shadow: var(--pf-ring); }
 .pf-bm-chip img, .pf-bm-chip span[class*="rounded"] { flex: none; }
+
+/* On a phone the chips need the whole row; the group is already labelled for screen readers. */
+.pf-bm-short { display: none; }
+@media (max-width: 480px) {
+  .pf-bm-row > .pf-eyebrow { display: none; }
+  .pf-bm-chip { padding-right: 8px; letter-spacing: 0; }
+  .pf-bm-long { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .pf-bm-short { display: inline; }
+}
 
 .pf-bm-detail { min-height: 18px; font: 400 12px/1.4 var(--sans); color: var(--fg3); }
 .pf-bm-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; }

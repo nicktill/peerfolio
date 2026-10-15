@@ -121,6 +121,9 @@ export const TOOL_DEFS: ToolDef[] = [
   },
 ]
 
+/** Most leagues summarised in one answer, to bound the work and the size of what the model reads. */
+const MAX_LEAGUE_OVERVIEW = 5
+
 const round = (v: number | null, places = 2) => (v == null ? null : Math.round(v * 10 ** places) / 10 ** places)
 
 /** A person's X-Ray barely changes in minutes; follow-up questions reuse it instead of recomputing. */
@@ -181,7 +184,17 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
       let leagueId = typeof args.leagueId === "string" && args.leagueId ? args.leagueId : ctx.pageLeagueId
       if (!leagueId) {
         const mine = await listLeaguesForUser(ctx.userId)
-        if (mine.length !== 1) return { reason: mine.length === 0 ? "The user isn't in any league." : "Ask which league, then call get_my_leagues and pass its id." }
+        if (mine.length === 0) return { reason: "The user isn't in any league." }
+        if (mine.length > 1) {
+          // No league open and several to choose from: a one-line standing in each (database reads only).
+          const overview = await Promise.all(
+            mine.slice(0, MAX_LEAGUE_OVERVIEW).map(async (l) => {
+              const view = shapeStandings(await buildLeagueStandings(l.id, ctx.userId, range))
+              return { id: l.id, league: l.name, members: view.members, ranked: view.ranked, you: view.you }
+            }),
+          )
+          return { range, overview, truncated: mine.length > MAX_LEAGUE_OVERVIEW, note: "Pass a league id for full standings." }
+        }
         leagueId = mine[0]!.id
       }
       // Throws unless the user is a member, whatever id the model passed.
@@ -204,7 +217,17 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
           .from(fantasyMembers)
           .innerJoin(fantasyLeagues, eq(fantasyMembers.leagueId, fantasyLeagues.id))
           .where(eq(fantasyMembers.userId, ctx.userId))
-        if (mine.length !== 1) return mine.length === 0 ? { reason: "The user isn't in any fantasy league." } : { reason: "Several leagues; ask which one.", leagues: mine }
+        if (mine.length === 0) return { reason: "The user isn't in any fantasy league." }
+        if (mine.length > 1) {
+          // Several leagues and none open: the user's own line in each, from stored prices.
+          const overview = await Promise.all(
+            mine.slice(0, MAX_LEAGUE_OVERVIEW).map(async (l) => {
+              const view = shapeFantasy((await loadFantasyLeague(ctx.userId, l.id, { refresh: false })) as unknown as FantasyLeagueLike)
+              return { id: l.id, league: l.name, members: view.standings.length, closed: view.league.closed, you: { rank: view.you.rank, returnPercent: view.you.returnPercent, gapToLeaderPoints: view.you.gapToLeaderPoints } }
+            }),
+          )
+          return { overview, truncated: mine.length > MAX_LEAGUE_OVERVIEW, pricesNote: "Based on stored prices, not live quotes.", note: "Pass a league id for full detail." }
+        }
         leagueId = mine[0]!.id
       }
       // Membership is checked inside; refresh:false means no price requests and no order fills.

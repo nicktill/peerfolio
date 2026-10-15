@@ -33,6 +33,8 @@ type Assistant = {
   phase: Phase
   busy: boolean
   page: Page
+  /** A specific league (or similar) is open, rather than the section's list page. */
+  detail: boolean
   send: (text: string) => void
   cancel: () => void
   retry: () => void
@@ -59,6 +61,8 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const page = pageOf(pathname)
   const entityId = pathname.split("/")[2]
+  // /leagues/<id> and /fantasy/<id> are a specific league; /fantasy/join/<code> and the section roots are not.
+  const detail = !!entityId && entityId !== "join" && (page === "leagues" || page === "fantasy")
 
   const [messages, setMessages] = useState<Msg[]>([])
   const [phase, setPhase] = useState<Phase>("idle")
@@ -186,8 +190,8 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const value = useMemo<Assistant>(
-    () => ({ messages, phase, busy: phase !== "idle", page, send, cancel, retry, reset, reportSeq }),
-    [messages, phase, page, send, cancel, retry, reset, reportSeq],
+    () => ({ messages, phase, busy: phase !== "idle", page, detail, send, cancel, retry, reset, reportSeq }),
+    [messages, phase, page, detail, send, cancel, retry, reset, reportSeq],
   )
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }
@@ -268,6 +272,35 @@ export const PAGE_COPY: Record<Page, PageCopy> = {
     subtitle: "I can read your holdings and explain what they show.",
     suggestions: PORTFOLIO_PROMPTS,
   },
+}
+
+/** The section's list page, where no single league is open: questions here span all of the person's leagues. */
+const LIST_COPY: Partial<Record<Page, PageCopy>> = {
+  leagues: {
+    title: "How are your leagues going?",
+    subtitle: "I can read the standings of every league you're in.",
+    suggestions: [
+      { label: "Which of my leagues am I leading?", featured: true },
+      { label: "Where am I furthest behind?" },
+      { label: "Summarize my standing in each league" },
+      { label: "Analyze my portfolio" },
+    ],
+  },
+  fantasy: {
+    title: "How are your fantasy leagues going?",
+    subtitle: "I can read your fantasy leagues, picks and standings.",
+    suggestions: [
+      { label: "Which fantasy league am I winning?", featured: true },
+      { label: "Summarize my fantasy leagues" },
+      { label: "Where could I improve?" },
+      { label: "Analyze my portfolio" },
+    ],
+  },
+}
+
+/** What the empty state says for this page, including whether a specific league is open. */
+export function copyFor(page: Page, detail: boolean): PageCopy {
+  return (!detail && LIST_COPY[page]) || PAGE_COPY[page]
 }
 
 export const PAGE_LABEL: Record<Page, string> = {
