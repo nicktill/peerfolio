@@ -1,4 +1,27 @@
-/* Loading text for the benchmark comparison: one light sweep, still under reduced motion. */
+/* The benchmark control under the portfolio chart: one quiet band, hairline above, chips and a single legend line. */
+.pf-bm { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--hair2); }
+.pf-bm-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.pf-bm-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.pf-bm-chip {
+  --bm: var(--fg2);
+  display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px 0 8px; border-radius: 999px;
+  border: 1px solid transparent; background: transparent; color: var(--fg3); cursor: pointer;
+  font: 500 11.5px/1 var(--sans); letter-spacing: -0.003em; transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+.pf-bm-chip:first-child { padding: 0 10px; }
+.pf-bm-chip:hover { color: var(--fg); background: color-mix(in srgb, var(--raise) 70%, transparent); }
+.pf-bm-chip.is-on { color: var(--fg); background: var(--raise); border-color: color-mix(in srgb, var(--bm) 55%, var(--hair)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--bm) 12%, transparent); }
+.pf-bm-chip:focus-visible { outline: none; box-shadow: var(--pf-ring); }
+.pf-bm-chip img, .pf-bm-chip span[class*="rounded"] { flex: none; }
+
+.pf-bm-detail { min-height: 18px; font: 400 12px/1.4 var(--sans); color: var(--fg3); }
+.pf-bm-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; }
+.pf-bm-key { display: inline-flex; align-items: center; gap: 7px; color: var(--fg2); }
+.pf-bm-key b { font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; }
+.pf-bm-gap { font-weight: 600; font-variant-numeric: tabular-nums; }
+.pf-bm-note { flex-basis: 100%; font: 400 11px/1.4 var(--mono); color: var(--fg3); letter-spacing: 0.01em; }
+
+/* Loading text: one light sweep, still under reduced motion. */
 @keyframes pf-bm-sheen { from { background-position: 220% 0; } to { background-position: -120% 0; } }
 .pf-bm-shimmer {
   background: linear-gradient(100deg, var(--fg3) 35%, var(--fg) 50%, var(--fg3) 65%) 220% 0 / 250% 100% no-repeat;

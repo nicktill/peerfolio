@@ -19,7 +19,7 @@ import { plural } from "@web/lib/plural"
 import { useToast } from "@web/components/ui/toast"
 import { type AllocationSlice } from "@web/components/charts/allocation-bar"
 import { PerformanceChart } from "@web/components/charts/performance-chart"
-import { BENCHMARK_OPTIONS, BenchmarkCompare, type BenchmarkChoice, type BenchmarkResponse } from "@web/components/dashboard/benchmark-compare"
+import { BENCHMARK_OPTIONS, BENCHMARK_STYLE, BenchmarkCompare, type BenchmarkChoice, type BenchmarkResponse } from "@web/components/dashboard/benchmark-compare"
 import { AccountsCard, type AccountRow, type ItemRow } from "@web/components/dashboard/accounts-card"
 import { ConnectButton } from "@web/components/dashboard/connect-button"
 import { HoldingsTable, type HoldingRow } from "@web/components/dashboard/holdings-table"
@@ -385,6 +385,7 @@ export function PortfolioScreen({
                     indexed={!!comparison}
                     baseline={comparison ? 100 : undefined}
                     compare={comparison ? comparison.series.map((p) => ({ date: p.date, value: p.indexed })) : undefined}
+                    compareStyle={comparison && bench !== "OFF" ? BENCHMARK_STYLE[bench] : undefined}
                     ariaLabel={
                       comparison
                         ? `Your return compared with the ${cmp.data?.label} over the last ${range}: you ${formatPercent(comparison.portfolioPercent)}, the index ${formatPercent(comparison.benchmarkPercent)}`

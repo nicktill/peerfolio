@@ -33,6 +33,7 @@ export function PerformanceChart({
   baseline,
   indexed = false,
   compare,
+  compareStyle,
 }: {
   points: PerformancePoint[]
   height?: number
@@ -56,6 +57,8 @@ export function PerformanceChart({
    * `points` by date; a date it has no value for is skipped, never filled. Only with `indexed`.
    */
   compare?: PerformancePoint[]
+  /** How the comparison line is drawn, so each benchmark reads as its own series. */
+  compareStyle?: { color: string; dash?: string }
 }) {
   const { ref, width } = useMeasure<HTMLDivElement>()
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
@@ -192,21 +195,21 @@ export function PerformanceChart({
             )}
 
             {geometry.compareLine ? (
-              // The benchmark sits behind your line: quieter colour and weight, same scale, drawn in a beat later.
+              // The benchmark sits behind your line: its own colour and dash, same scale, faded in a beat later.
+              // A dashed stroke can't be drawn in with pathLength, so it fades instead.
               <motion.path
-                key={`compare-${drawKey}-${compare?.length ?? 0}-${compare?.[compare.length - 1]?.value ?? 0}`}
+                key={`compare-${drawKey}-${compare?.length ?? 0}-${compare?.[compare.length - 1]?.value ?? 0}-${compareStyle?.color ?? ""}`}
                 d={geometry.compareLine}
-                pathLength={1}
                 fill="none"
-                stroke="hsl(var(--muted-foreground))"
-                strokeOpacity={0.85}
-                strokeWidth={1.75}
+                stroke={compareStyle?.color ?? "hsl(var(--muted-foreground))"}
+                strokeOpacity={0.95}
+                strokeWidth={2}
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                strokeDasharray="1"
-                initial={reduceMotion ? false : { pathLength: 0, opacity: 0 }}
-                animate={{ pathLength: 1, opacity: 1 }}
-                transition={{ duration: 1.1, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                strokeDasharray={compareStyle?.dash}
+                initial={reduceMotion ? false : { opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.8, delay: 0.25, ease: [0.22, 1, 0.36, 1] }}
               />
             ) : null}
             <motion.path
@@ -292,7 +295,7 @@ export function PerformanceChart({
                     animate={{ cx: geometry.compareCoords[hoverIndex]![0], cy: geometry.compareCoords[hoverIndex]![1] }}
                     transition={{ type: "spring", stiffness: 700, damping: 46 }}
                     r={4}
-                    fill="hsl(var(--muted-foreground))"
+                    fill={compareStyle?.color ?? "hsl(var(--muted-foreground))"}
                     stroke="hsl(var(--card))"
                     strokeWidth={2}
                   />
