@@ -1,7 +1,8 @@
 "use client"
 
 import { motion, type Variants } from "motion/react"
-import { AlertTriangle, ArrowUpRight, Eye, Info } from "lucide-react"
+import { useState } from "react"
+import { AlertTriangle, ArrowUpRight, Bookmark, BookmarkCheck, Eye, Info } from "lucide-react"
 import { formatCurrency, formatDate, formatPercent } from "@web/lib/format"
 import type { Insight, XRay } from "@web/lib/ai/portfolio-xray"
 
@@ -71,7 +72,8 @@ function InsightCard({ insight, onAsk }: { insight: Insight; onAsk: (q: string) 
  * The X-Ray as a report, not a wall of text. Every figure comes straight from
  * the server's result; nothing is derived here beyond formatting.
  */
-export function XRayReport({ xray, onAsk }: { xray: XRay; onAsk: (question: string) => void }) {
+export function XRayReport({ xray, onAsk, onSave }: { xray: XRay; onAsk: (question: string) => void; onSave?: () => void }) {
+  const [saved, setSaved] = useState(false)
   const { overview, allocation, sectors, concentration: c, performance: p } = xray
   // The five largest sectors get a series colour; smaller ones share a neutral, and non-sector buckets a muted tint.
   let sectorRank = 0
@@ -100,7 +102,24 @@ export function XRayReport({ xray, onAsk }: { xray: XRay; onAsk: (question: stri
     <motion.div className="pf-xr" initial="hidden" animate="show" variants={stagger} aria-label="Portfolio X-Ray report" role="region">
       <motion.div variants={rise} className="pf-xr-top">
         <span className="pf-xr-label">Portfolio X-Ray</span>
-        {xray.asOf ? <span className="pf-xr-asof">Prices as of {formatDate(xray.asOf)}</span> : null}
+        <span className="pf-xr-top-end">
+          {xray.asOf ? <span className="pf-xr-asof">Prices as of {formatDate(xray.asOf)}</span> : null}
+          {onSave ? (
+            <button
+              type="button"
+              className="pf-xr-save"
+              disabled={saved}
+              onClick={() => {
+                onSave()
+                setSaved(true)
+              }}
+              title="Keep this report in this browser"
+            >
+              {saved ? <BookmarkCheck size={12} aria-hidden /> : <Bookmark size={12} aria-hidden />}
+              {saved ? "Saved" : "Save"}
+            </button>
+          ) : null}
+        </span>
       </motion.div>
 
       <motion.div variants={rise} className="pf-xr-hero">

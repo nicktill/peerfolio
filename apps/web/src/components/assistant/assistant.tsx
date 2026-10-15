@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react"
 import Link from "next/link"
 import { AnimatePresence, MotionConfig, motion } from "motion/react"
-import { ArrowUp, ArrowUpRight, Check, Maximize2, Minimize2, Minus, RotateCcw, Square, SquarePen } from "lucide-react"
+import { AppWindow, ArrowUp, ArrowUpRight, Check, FileText, Maximize2, MessageSquare, Minimize2, Minus, PanelRight, RotateCcw, Square, SquarePen, X } from "lucide-react"
 import { Orb } from "@web/components/assistant/orb"
 import { PAGE_LABEL, copyFor, useAssistant, type Msg, type Phase } from "@web/components/assistant/use-assistant"
 import { XRayReport } from "@web/components/assistant/xray-report"
@@ -12,6 +12,10 @@ import { useApi } from "@web/lib/use-api"
 import "@web/components/assistant/assistant.css"
 
 const GEO_KEY = "pf-assistant-geo-v1"
+const DOCK_KEY = "pf-assistant-dock-v1"
+/** Docking squeezes the page, so it needs room: below this width the window floats instead. */
+const DOCK_MIN_VIEWPORT = 1100
+const DOCK_WIDTH = 400
 const MIN = { w: 340, h: 400 }
 const COMPACT = { w: 400, h: 600 }
 /** The opening card: orb, prompts and composer. It grows into the conversation on the first message. */
@@ -60,6 +64,13 @@ const subscribeNarrow = (cb: () => void) => {
   return () => mq.removeEventListener("change", cb)
 }
 const useNarrow = () => useSyncExternalStore(subscribeNarrow, () => window.matchMedia("(max-width: 720px)").matches, () => false)
+
+const subscribeWide = (cb: () => void) => {
+  const mq = window.matchMedia(`(min-width: ${DOCK_MIN_VIEWPORT}px)`)
+  mq.addEventListener("change", cb)
+  return () => mq.removeEventListener("change", cb)
+}
+const useWide = () => useSyncExternalStore(subscribeWide, () => window.matchMedia(`(min-width: ${DOCK_MIN_VIEWPORT}px)`).matches, () => false)
 
 const isMac = () => typeof navigator !== "undefined" && /mac|iphone|ipad/i.test(navigator.platform || navigator.userAgent)
 
@@ -117,8 +128,40 @@ function Launcher({ onOpen }: { onOpen: () => void }) {
 
 function Panel({ onClose }: { onClose: () => void }) {
   const narrow = useNarrow()
-  const { messages, phase, busy, page, send, cancel, retry, reset, reportSeq } = useAssistant()
+  const wide = useWide()
+  const { messages, phase, busy, page, send, cancel, retry, reset, reportSeq, recent } = useAssistant()
   const [geo, setGeo] = useState<Geo>(() => loadGeo())
+  const [dockPref, setDockPref] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(DOCK_KEY) === "1"
+    } catch {
+      return false
+    }
+  })
+  const canDock = !narrow && wide
+  const docked = dockPref && canDock
+  const toggleDock = () => {
+    const next = !dockPref
+    setDockPref(next)
+    try {
+      localStorage.setItem(DOCK_KEY, next ? "1" : "0")
+    } catch {
+      // Not remembered; it still works for this visit.
+    }
+  }
+
+  // Docked, the page makes room instead of being covered.
+  useEffect(() => {
+    if (!docked) return
+    const app = document.querySelector<HTMLElement>(".peerfolio-app")
+    if (!app) return
+    app.style.setProperty("--pf-dock-w", `${DOCK_WIDTH}px`)
+    app.classList.add("has-dock")
+    return () => {
+      app.classList.remove("has-dock")
+      app.style.removeProperty("--pf-dock-w")
+    }
+  }, [docked])
   const [morph, setMorph] = useState(false)
   const [interacting, setInteracting] = useState(false)
   const scroller = useRef<HTMLDivElement>(null)
@@ -129,7 +172,7 @@ function Panel({ onClose }: { onClose: () => void }) {
 
   // The phone sheet has its own state: a saved desktop "expanded" must not make it open full screen.
   const [sheetUp, setSheetUp] = useState(false)
-  const expanded = narrow ? sheetUp : geo.expanded
+  const expanded = (narrow ? sheetUp : geo.expanded) && !docked
 
   const setExpanded = useCallback(
     (next: boolean) => {
@@ -145,9 +188,10 @@ function Panel({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     if (reportSeq !== seenReport.current) {
       seenReport.current = reportSeq
-      if (!expanded) setExpanded(true)
+      // A docked panel is already tall: the report just scrolls in it.
+      if (!expanded && !docked) setExpanded(true)
     }
-  }, [reportSeq, expanded, setExpanded])
+  }, [reportSeq, expanded, docked, setExpanded])
 
   useEffect(() => {
     const onResize = () => setGeo((g) => fit(g))
@@ -170,7 +214,7 @@ function Panel({ onClose }: { onClose: () => void }) {
   }, [messages, phase])
 
   const begin = (kind: "move" | "size") => (e: React.PointerEvent<HTMLElement>) => {
-    if (narrow || expanded || e.button !== 0 || (e.target as HTMLElement).closest("button")) return
+    if (narrow || docked || expanded || e.button !== 0 || (e.target as HTMLElement).closest("button")) return
     e.currentTarget.setPointerCapture(e.pointerId)
     gesture.current = { kind, x: e.clientX, y: e.clientY, g: geo }
     setInteracting(true)
@@ -192,7 +236,7 @@ function Panel({ onClose }: { onClose: () => void }) {
 
   // Keyboard equivalent of dragging: Alt+arrows move the window, Alt+Shift+arrows resize it.
   const nudge = (e: React.KeyboardEvent<HTMLElement>) => {
-    if (narrow || expanded || !e.altKey || !e.key.startsWith("Arrow")) return
+    if (narrow || docked || expanded || !e.altKey || !e.key.startsWith("Arrow")) return
     e.preventDefault()
     const step = 24
     const dx = e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0
@@ -235,7 +279,7 @@ function Panel({ onClose }: { onClose: () => void }) {
   }
 
   // Nothing said yet: a small card, not an empty window. It grows (with the same morph) once there's a conversation.
-  const launch = messages.length === 0 && !expanded
+  const launch = messages.length === 0 && !expanded && !docked
   const wasLaunch = useRef(launch)
   useEffect(() => {
     if (wasLaunch.current !== launch) {
@@ -250,7 +294,7 @@ function Panel({ onClose }: { onClose: () => void }) {
   const size = expanded
     ? expandedSize()
     : launch
-      ? { w: Math.min(LAUNCH.w, viewport().vw - EDGE * 2), h: Math.min(LAUNCH.h, viewport().vh - EDGE * 2) }
+      ? { w: Math.min(LAUNCH.w, viewport().vw - EDGE * 2), h: Math.min(LAUNCH.h + (recent.length > 0 ? 30 + recent.length * 34 : 0), viewport().vh - EDGE * 2) }
       : { w: geo.w, h: geo.h }
   const ask = useCallback(
     (q: string) => {
@@ -260,7 +304,7 @@ function Panel({ onClose }: { onClose: () => void }) {
     [send],
   )
 
-  const style = narrow
+  const style = narrow || docked
     ? undefined
     : { width: size.w, height: size.h, right: expanded ? Math.max(EDGE, (viewport().vw - size.w) / 2) : geo.right, bottom: expanded ? Math.max(EDGE, (viewport().vh - size.h) / 2) : geo.bottom }
 
@@ -269,17 +313,17 @@ function Panel({ onClose }: { onClose: () => void }) {
       ref={panelRef}
       role="dialog"
       aria-label="Peerfolio Intelligence"
-      className={`pf-ai-win ${narrow ? "is-sheet" : ""} ${expanded ? "is-expanded" : ""} ${launch ? "is-launch" : ""} ${morph ? "is-morph" : ""} ${busy ? "is-busy" : ""} ${interacting ? "is-live" : ""}`}
+      className={`pf-ai-win ${narrow ? "is-sheet" : ""} ${docked ? "is-docked" : ""} ${expanded ? "is-expanded" : ""} ${launch ? "is-launch" : ""} ${morph ? "is-morph" : ""} ${busy ? "is-busy" : ""} ${interacting ? "is-live" : ""}`}
       style={style}
-      initial={narrow ? { y: "100%" } : { opacity: 0, y: 16, scale: 0.96 }}
-      animate={narrow ? { y: 0 } : { opacity: 1, y: 0, scale: 1 }}
-      exit={narrow ? { y: "100%" } : { opacity: 0, y: 10, scale: 0.97 }}
+      initial={narrow ? { y: "100%" } : docked ? { x: "100%" } : { opacity: 0, y: 16, scale: 0.96 }}
+      animate={narrow ? { y: 0 } : docked ? { x: 0, y: 0, opacity: 1, scale: 1 } : { opacity: 1, y: 0, scale: 1, x: 0 }}
+      exit={narrow ? { y: "100%" } : docked ? { x: "100%" } : { opacity: 0, y: 10, scale: 0.97 }}
       transition={{ type: "spring", stiffness: 380, damping: 36, mass: 0.9 }}
       onKeyDown={(e) => {
         if (e.key === "Escape") onClose()
       }}
     >
-      {!narrow && !expanded && !launch ? <div className="pf-ai-grip" onPointerDown={begin("size")} onPointerMove={track} onPointerUp={end} onPointerCancel={end} aria-hidden title="Resize" /> : null}
+      {!narrow && !docked && !expanded && !launch ? <div className="pf-ai-grip" onPointerDown={begin("size")} onPointerMove={track} onPointerUp={end} onPointerCancel={end} aria-hidden title="Resize" /> : null}
 
       <header
         className="pf-ai-head"
@@ -288,10 +332,10 @@ function Panel({ onClose }: { onClose: () => void }) {
         onPointerUp={end}
         onPointerCancel={end}
         onKeyDown={nudge}
-        tabIndex={narrow || expanded ? -1 : 0}
-        aria-label="Assistant window. Alt and arrow keys move it; Alt, Shift and arrow keys resize it."
+        tabIndex={narrow || docked || expanded ? -1 : 0}
+        aria-label={docked ? "Assistant panel" : "Assistant window. Alt and arrow keys move it; Alt, Shift and arrow keys resize it."}
         onDoubleClick={(e) => {
-          if (!narrow && !(e.target as HTMLElement).closest("button")) setExpanded(!expanded)
+          if (!narrow && !docked && !(e.target as HTMLElement).closest("button")) setExpanded(!expanded)
         }}
       >
         {narrow ? <span className="pf-ai-handle" aria-hidden /> : null}
@@ -302,13 +346,25 @@ function Panel({ onClose }: { onClose: () => void }) {
         </div>
         <div className="pf-ai-actions">
           {messages.length > 0 ? (
-            <button type="button" className="pf-ai-ib" onClick={reset} aria-label="New conversation" title="New conversation">
+            <button type="button" className="pf-ai-ib" onClick={() => {
+                reset()
+                // Back to the small card the assistant opens as.
+                if (expanded) setExpanded(false)
+              }}
+              aria-label="New conversation" title="New conversation">
               <SquarePen size={15} />
             </button>
           ) : null}
-          <button type="button" className="pf-ai-ib" onClick={() => setExpanded(!expanded)} aria-label={expanded ? "Restore size" : "Expand"} title={expanded ? "Restore size" : "Expand"}>
-            {expanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-          </button>
+          {canDock ? (
+            <button type="button" className="pf-ai-ib" onClick={toggleDock} aria-label={docked ? "Float the window" : "Dock to the side"} aria-pressed={docked} title={docked ? "Float the window" : "Dock to the side"}>
+              {docked ? <AppWindow size={15} /> : <PanelRight size={15} />}
+            </button>
+          ) : null}
+          {docked ? null : (
+            <button type="button" className="pf-ai-ib" onClick={() => setExpanded(!expanded)} aria-label={expanded ? "Restore size" : "Expand"} title={expanded ? "Restore size" : "Expand"}>
+              {expanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+            </button>
+          )}
           <button type="button" className="pf-ai-ib" onClick={onClose} aria-label="Minimize" title="Minimize (Esc)">
             <Minus size={16} />
           </button>
@@ -351,7 +407,7 @@ function ScopePill() {
 }
 
 function EmptyState({ onPick }: { onPick: (q: string) => void }) {
-  const { page, detail } = useAssistant()
+  const { page, detail, recent, openRecent, removeRecent } = useAssistant()
   const copy = copyFor(page, detail)
   const items = copy.suggestions
   return (
@@ -384,8 +440,33 @@ function EmptyState({ onPick }: { onPick: (q: string) => void }) {
           </motion.button>
         ))}
       </div>
+      {recent.length > 0 ? (
+        <motion.div className="pf-ai-recent" variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }} aria-label="Recent">
+          <span className="pf-ai-recent-h">Recent</span>
+          {recent.map((r) => (
+            <div key={`${r.kind}:${r.id}`} className="pf-ai-recent-row">
+              <button type="button" className="pf-ai-recent-open" onClick={() => openRecent(r.kind, r.id)}>
+                {r.kind === "report" ? <FileText size={13} aria-hidden /> : <MessageSquare size={13} aria-hidden />}
+                <span className="pf-ai-recent-t">{r.label}</span>
+                <span className="pf-ai-recent-d">{relativeDay(r.at)}</span>
+              </button>
+              <button type="button" className="pf-ai-recent-x" onClick={() => removeRecent(r.kind, r.id)} aria-label={`Delete ${r.label}`} title="Delete">
+                <X size={12} />
+              </button>
+            </div>
+          ))}
+        </motion.div>
+      ) : null}
     </motion.div>
   )
+}
+
+/** "Today", "Yesterday", or a short date: the quiet timestamp on a saved item. */
+function relativeDay(at: number): string {
+  const days = Math.floor((Date.now() - at) / 86_400_000)
+  if (days <= 0) return "Today"
+  if (days === 1) return "Yesterday"
+  return new Date(at).toLocaleDateString("en-US", { month: "short", day: "numeric" })
 }
 
 const STAGES = [
@@ -430,6 +511,7 @@ function ReportSkeleton() {
 }
 
 function Message({ m, last, phase, busy, onAsk, onRetry }: { m: Msg; last: boolean; phase: Phase; busy: boolean; onAsk: (q: string) => void; onRetry: () => void }) {
+  const { saveReport } = useAssistant()
   if (m.role === "user") {
     return (
       <motion.div className="pf-ai-user" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 420, damping: 34 }}>
@@ -453,7 +535,7 @@ function Message({ m, last, phase, busy, onAsk, onRetry }: { m: Msg; last: boole
           <span className="pf-ai-shimmer">Thinking</span>
         </div>
       ) : null}
-      {m.xray ? <XRayReport xray={m.xray} onAsk={onAsk} /> : null}
+      {m.xray ? <XRayReport xray={m.xray} onAsk={onAsk} onSave={() => saveReport(m.xray!)} /> : null}
       {m.text ? (
         <p className="pf-ai-text">
           {m.text}

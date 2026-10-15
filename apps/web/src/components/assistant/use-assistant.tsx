@@ -4,11 +4,14 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { usePathname } from "next/navigation"
 import { parseStreamChunk } from "@web/lib/ai/stream-parse"
 import { applyEvent, historyForRetry, patchLastMessage, requestMessages, withoutErrors, type ChatEvent as Event, type Msg } from "@web/lib/ai/chat-state"
+import type { XRay } from "@web/lib/ai/portfolio-xray"
+import { addReport, parseConversations, parseReports, recentItems, removeById, titleFor, toSaved, upsertConversation, type RecentItem, type SavedConversation, type SavedReport } from "@web/lib/ai/saved"
 
 /**
  * The assistant's conversation, kept above the pages so it survives navigation.
- * It lives in memory and in this tab's sessionStorage only: financial answers
- * aren't written to the server, and they're gone when the tab closes.
+ * The live conversation is in memory and this tab's sessionStorage. Saved conversations (text only) and saved
+ * reports are kept in this browser's localStorage: nothing is written to the server, and clearing site data
+ * removes them. See lib/ai/saved.ts for the limits.
  */
 
 export type Page = "portfolio" | "leagues" | "fantasy" | "news" | "board" | "wealth" | "other"
@@ -27,6 +30,11 @@ type Assistant = {
   cancel: () => void
   retry: () => void
   reset: () => void
+  /** The newest few saved conversations and reports, for the launch card. */
+  recent: RecentItem[]
+  saveReport: (xray: XRay) => void
+  openRecent: (kind: RecentItem["kind"], id: string) => void
+  removeRecent: (kind: RecentItem["kind"], id: string) => void
   /** Bumped whenever a report arrives, so the window can open its workspace. */
   reportSeq: number
 }
@@ -34,6 +42,23 @@ type Assistant = {
 const Ctx = createContext<Assistant | null>(null)
 
 const STORE = "pf-assistant-chat-v1"
+const CHATS = "pf-assistant-saved-chats-v1"
+const REPORTS = "pf-assistant-saved-reports-v1"
+
+function readJson(key: string): unknown {
+  try {
+    return JSON.parse(localStorage.getItem(key) ?? "null")
+  } catch {
+    return null
+  }
+}
+function writeJson(key: string, value: unknown) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value))
+  } catch {
+    // Storage full or blocked: saving is a convenience, so the live conversation carries on.
+  }
+}
 const uid = () => Math.random().toString(36).slice(2, 10)
 
 export function pageOf(pathname: string): Page {
@@ -58,6 +83,11 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
   const [reportSeq, setReportSeq] = useState(0)
   const abort = useRef<AbortController | null>(null)
   const hydrated = useRef(false)
+  const [chats, setChats] = useState<SavedConversation[]>([])
+  const [reports, setReports] = useState<SavedReport[]>([])
+  const convoId = useRef<string | null>(null)
+  /** Viewing a saved report is not a conversation: it isn't saved again as one until the person says something. */
+  const viewingReport = useRef(false)
   const live = useRef({ messages, page, entityId })
   live.current = { messages, page, entityId }
 
@@ -68,8 +98,24 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // Storage can be blocked; the conversation just won't survive a reload.
     }
+    setChats(parseConversations(readJson(CHATS)))
+    setReports(parseReports(readJson(REPORTS)))
     hydrated.current = true
   }, [])
+
+  // Keep the saved copy of the current conversation up to date once an answer has settled.
+  useEffect(() => {
+    if (!hydrated.current || phase !== "idle" || viewingReport.current) return
+    const saved = toSaved(messages)
+    if (saved.length === 0) return
+    if (!convoId.current) convoId.current = uid()
+    const entry: SavedConversation = { id: convoId.current, title: titleFor(saved), updatedAt: Date.now(), messages: saved }
+    setChats((all) => {
+      const next = upsertConversation(all, entry, Date.now())
+      writeJson(CHATS, next)
+      return next
+    })
+  }, [messages, phase])
 
   useEffect(() => {
     if (!hydrated.current || phase !== "idle") return
@@ -138,6 +184,7 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
     (raw: string) => {
       const text = raw.trim()
       if (!text || abort.current) return
+      viewingReport.current = false
       const history = [...withoutErrors(live.current.messages), { id: uid(), role: "user" as const, text }]
       setMessages([...history, { id: uid(), role: "assistant", text: "" }])
       void run(history)
@@ -158,6 +205,9 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
 
   const reset = useCallback(() => {
     abort.current?.abort()
+    // The finished conversation stays in the saved list; the next one starts fresh.
+    convoId.current = null
+    viewingReport.current = false
     setMessages([])
     try {
       sessionStorage.removeItem(STORE)
@@ -166,9 +216,57 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
+  const saveReport = useCallback((xray: XRay) => {
+    const now = Date.now()
+    setReports((all) => {
+      const next = addReport(all, { id: uid(), savedAt: now, xray }, now)
+      writeJson(REPORTS, next)
+      return next
+    })
+  }, [])
+
+  const openRecent = useCallback(
+    (kind: RecentItem["kind"], id: string) => {
+      if (abort.current) return
+      if (kind === "chat") {
+        const chat = chats.find((c) => c.id === id)
+        if (!chat) return
+        viewingReport.current = false
+        convoId.current = chat.id
+        setMessages(chat.messages.map((m) => ({ id: uid(), role: m.role, text: m.text, ...(m.link ? { link: m.link } : {}) })))
+      } else {
+        const report = reports.find((r) => r.id === id)
+        if (!report) return
+        viewingReport.current = true
+        convoId.current = null
+        const when = new Date(report.savedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+        setMessages([{ id: uid(), role: "assistant", text: `Saved report from ${when}. Figures are as of then; ask me to run it again for today.`, xray: report.xray }])
+      }
+    },
+    [chats, reports],
+  )
+
+  const removeRecent = useCallback((kind: RecentItem["kind"], id: string) => {
+    if (kind === "chat") {
+      setChats((all) => {
+        const next = removeById(all, id)
+        writeJson(CHATS, next)
+        return next
+      })
+    } else {
+      setReports((all) => {
+        const next = removeById(all, id)
+        writeJson(REPORTS, next)
+        return next
+      })
+    }
+  }, [])
+
+  const recent = useMemo(() => recentItems(chats, reports, 3), [chats, reports])
+
   const value = useMemo<Assistant>(
-    () => ({ messages, phase, busy: phase !== "idle", page, detail, send, cancel, retry, reset, reportSeq }),
-    [messages, phase, page, detail, send, cancel, retry, reset, reportSeq],
+    () => ({ messages, phase, busy: phase !== "idle", page, detail, send, cancel, retry, reset, recent, saveReport, openRecent, removeRecent, reportSeq }),
+    [messages, phase, page, detail, send, cancel, retry, reset, recent, saveReport, openRecent, removeRecent, reportSeq],
   )
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }
