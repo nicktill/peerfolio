@@ -155,6 +155,13 @@
       "when": 1792020254838,
       "tag": "0021_close_attempts_unsupported_by",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1792035339315,
+      "tag": "0022_ai_usage",
+      "breakpoints": true
     }
   ]
 }

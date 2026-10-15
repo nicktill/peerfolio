@@ -790,5 +790,33 @@ export const newsAiSpend = pgTable(
   (t) => [index("news_ai_spend_created_idx").on(t.createdAt)],
 )
 
+/* ------------------------------------------------------------------ *
+ * Assistant
+ * ------------------------------------------------------------------ */
+
+/**
+ * Every assistant request, append-only: the worst case is reserved before the
+ * model is called and `costUsd` filled in after, as with `news_ai_spend`. The
+ * per-user limits and the monthly cap both read this table. No message text is
+ * stored here, only counts and cost.
+ */
+export const aiUsage = pgTable(
+  "ai_usage",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    model: text("model").notNull(),
+    reservedUsd: numeric("reserved_usd", { precision: 10, scale: 6 }).notNull(),
+    /** Null until the request settles; until then the reservation counts. */
+    costUsd: numeric("cost_usd", { precision: 10, scale: 6 }),
+    inputTokens: integer("input_tokens"),
+    outputTokens: integer("output_tokens"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("ai_usage_user_created_idx").on(t.userId, t.createdAt), index("ai_usage_created_idx").on(t.createdAt)],
+)
+
 export type NewsItem = typeof newsItems.$inferSelect
 export type NewsBrief = typeof newsBriefs.$inferSelect

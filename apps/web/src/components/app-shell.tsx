@@ -5,6 +5,11 @@ import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { AppNav } from "@web/components/app-nav"
 import { RouteProgress } from "@web/components/ui/route-progress"
+import { AssistantProvider } from "@web/components/assistant/use-assistant"
+import { AssistantRoot } from "@web/components/assistant/assistant"
+
+/** Off until the migration, API key and spend cap are in place on the target environment. */
+const ASSISTANT_ENABLED = process.env.NEXT_PUBLIC_ASSISTANT_ENABLED === "1"
 
 const PreviewDemoContext = createContext(false)
 export const usePreviewDemo = () => useContext(PreviewDemoContext)
@@ -35,6 +40,11 @@ export function AppShell({ children, previewDemo = false }: { children: React.Re
       {/* Wide enough for a dashboard on a laptop; text-heavy pages set their own reading width. Bottom padding clears the mobile tab bar. */}
       {previewDemo && session?.user?.email?.endsWith("@example.com") ? <div className="pf-demo-pill" role="status">Demo data</div> : null}
       <main className="peerfolio-main">{children}</main>
+      {ASSISTANT_ENABLED && status === "authenticated" ? (
+        <AssistantProvider>
+          <AssistantRoot />
+        </AssistantProvider>
+      ) : null}
     </div>
     </PreviewDemoContext.Provider>
   )
