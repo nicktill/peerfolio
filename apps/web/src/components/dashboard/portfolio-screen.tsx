@@ -97,6 +97,8 @@ export function PortfolioScreen({
   // Portfolio replay: the date the playhead is on, or null when no replay is running.
   const [replayDate, setReplayDate] = useState<string | null>(null)
   const [range, setRange] = useState<Range>("1M")
+  // "1D" is the day's move, which the stored snapshots (one a day) can't draw as a window of their own.
+  const [oneDay, setOneDay] = useState(false)
   // Until someone picks a range themselves, show the longest one their history can fill.
   const pickedRange = useRef(false)
   const [hidden, setHidden] = useState(false)
@@ -191,25 +193,38 @@ export function PortfolioScreen({
 
   const available = rangeAvailability(data.firstDate, marketToday())
   // Only ranges the history can fill are offered.
-  const rangeOptions = RANGES.filter((r) => available[r]).map((r) => ({ value: r, label: r }))
+  const hasDay = !!data.today && data.summary.netWorth - data.today.amount > 0
+  const rangeOptions: { value: Range | "1D"; label: string }[] = [
+    ...(hasDay ? [{ value: "1D" as const, label: "1D" }] : []),
+    ...RANGES.filter((r) => available[r]).map((r) => ({ value: r, label: r })),
+  ]
+  const dayView = oneDay && hasDay
   const windowCoversAll = range === "ALL" || !available[range]
 
   // One chart for both questions: the line is what it's worth (dollars, moved by
   // deposits); the readout beside it is how the investments did on that date
   // (time-weighted, deposits taken out), so neither number hides behind a toggle.
-  const dollarSeries = data.history.map((p) => ({ date: p.date, value: p.netWorth }))
+  // 1D: from the previous close to now, on the day the move is for.
+  const dayEnd = data.today?.asOf ?? marketToday()
+  // The previous weekday (holidays aside), so a Monday's move starts from Friday.
+  const dayStartMs = Date.parse(`${dayEnd}T12:00:00Z`) - 86_400_000 * ([1, 0].includes(new Date(`${dayEnd}T12:00:00Z`).getUTCDay()) ? new Date(`${dayEnd}T12:00:00Z`).getUTCDay() + 2 : 1)
+  const dayStart = new Date(dayStartMs).toISOString().slice(0, 10)
+  const dayStartValue = data.summary.netWorth - (data.today?.amount ?? 0)
+  const dollarSeries = dayView
+    ? [{ date: dayStart, value: dayStartValue }, { date: dayEnd, value: data.summary.netWorth }]
+    : data.history.map((p) => ({ date: p.date, value: p.netWorth }))
   const returnOn = new Map(data.performance.series.map((p) => [p.date, p.indexed - 100]))
   // With a benchmark on, the chart switches from dollars (moved by deposits) to returns (deposits removed),
   // the only footing on which the two lines can be compared.
-  const comparison = bench !== "OFF" && cmp.data?.comparison && data.performance.series.length >= 2 ? cmp.data.comparison : null
+  const comparison = !dayView && bench !== "OFF" && cmp.data?.comparison && data.performance.series.length >= 2 ? cmp.data.comparison : null
   const series = comparison ? data.performance.series.map((p) => ({ date: p.date, value: p.indexed })) : dollarSeries
   const benchReturnOn = comparison ? new Map(comparison.series.map((p) => [p.date, p.indexed - 100])) : null
-  const canChart = data.hasHistory && series.length >= 2
+  const canChart = (dayView || data.hasHistory) && series.length >= 2
   const shown = canChart ? (hoverIndex != null ? series[hoverIndex] : series[series.length - 1]) : undefined
-  const shownReturn = shown ? (hoverIndex == null ? data.performance.percent : returnOn.get(shown.date)) : undefined
+  const shownReturn = shown ? (dayView ? (hoverIndex === 0 ? 0 : (data.today?.percent ?? null)) : hoverIndex == null ? data.performance.percent : returnOn.get(shown.date)) : undefined
   const replayAt = replayDate == null ? -1 : series.findIndex((p) => p.date === replayDate)
   const replayIndex = replayAt >= 0 ? replayAt : null
-  const windowLabel = windowCoversAll && data.firstDate ? `since ${formatDate(data.firstDate)}` : `last ${RANGE_NAMES[range]}`
+  const windowLabel = dayView ? "today" : windowCoversAll && data.firstDate ? `since ${formatDate(data.firstDate)}` : `last ${RANGE_NAMES[range]}`
 
   const netWorthWhole = Math.floor(data.summary.netWorth)
   const cents = Math.round((data.summary.netWorth - netWorthWhole) * 100)
@@ -282,13 +297,15 @@ export function PortfolioScreen({
               ) : null}
             {rangeOptions.length > 1 ? (
               <div className="ml-auto flex justify-end">
-                <Segmented<Range>
+                <Segmented<Range | "1D">
                   options={rangeOptions}
-                  value={range}
+                  value={dayView ? "1D" : range}
                   onChange={(r) => {
                     pickedRange.current = true
                     setHoverIndex(null)
-                    setRange(r)
+                    setOneDay(r === "1D")
+                    setReplayDate(null)
+                    if (r !== "1D") setRange(r)
                   }}
                   size="sm"
                   label="Time range"
@@ -378,7 +395,7 @@ export function PortfolioScreen({
                   </span>
                 </div>
                 {/* Keyed so a range switch fades the new line in instead of morphing between unrelated shapes. */}
-                <div key={`${range}:${comparison ? "returns" : "dollars"}`} className="swap-in -mx-1 mt-3">
+                <div key={`${dayView ? "1D" : range}:${comparison ? "returns" : "dollars"}`} className="swap-in -mx-1 mt-3">
                   <PerformanceChart
                     points={series}
                     height={250}
@@ -393,24 +410,26 @@ export function PortfolioScreen({
                     ariaLabel={
                       comparison
                         ? `Your return compared with the ${cmp.data?.label} over the last ${range}: you ${formatPercent(comparison.portfolioPercent)}, the index ${formatPercent(comparison.benchmarkPercent)}`
-                        : `Portfolio value in dollars over the last ${range}`
+                        : dayView ? `Portfolio value today: ${formatPercent(data.today!.percent)}` : `Portfolio value in dollars over the last ${range}`
                     }
                     valueFormatter={(v) => (hidden ? "Hidden" : formatCurrency(v))}
                   />
                 </div>
-                {!demo ? (
+                {!demo && !dayView ? (
                   <BenchmarkCompare choice={bench} onChoose={chooseBench} loading={cmp.loading} error={cmp.error} result={bench === "OFF" ? null : cmp.data} />
                 ) : null}
                 {/* Keyed so a new range or a benchmark switch starts a fresh replay on the right frames. */}
+                {dayView ? null : (
                 <ReplayControl
-                  key={`${range}:${comparison ? cmp.data?.symbol : "off"}`}
-                  history={data.history}
-                  performance={data.performance.series}
-                  benchmark={comparison?.series ?? null}
-                  benchmarkLabel={comparison ? (cmp.data?.label ?? null) : null}
-                  hidden={hidden}
-                  onDate={setReplayDate}
-                />
+                    key={`${range}:${comparison ? cmp.data?.symbol : "off"}`}
+                    history={data.history}
+                    performance={data.performance.series}
+                    benchmark={comparison?.series ?? null}
+                    benchmarkLabel={comparison ? (cmp.data?.label ?? null) : null}
+                    hidden={hidden}
+                    onDate={setReplayDate}
+                  />
+                )}
               </>
             ) : (
               /* Being honest beats drawing a line through invented data. */

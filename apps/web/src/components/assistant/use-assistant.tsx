@@ -22,6 +22,8 @@ export type { Msg }
 type Assistant = {
   messages: Msg[]
   phase: Phase
+  /** What the running tool is doing, in words ("Checking the market"), or null. */
+  activity: string | null
   busy: boolean
   page: Page
   /** A specific league (or similar) is open, rather than the section's list page. */
@@ -80,6 +82,7 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
 
   const [messages, setMessages] = useState<Msg[]>([])
   const [phase, setPhase] = useState<Phase>("idle")
+  const [activity, setActivity] = useState<string | null>(null)
   const [reportSeq, setReportSeq] = useState(0)
   const abort = useRef<AbortController | null>(null)
   const hydrated = useRef(false)
@@ -138,6 +141,7 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
       const finish = () => {
         if (abort.current === controller) abort.current = null
         setPhase("idle")
+        setActivity(null)
       }
 
       try {
@@ -164,11 +168,27 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
           if (done) break
           const parsed = parseStreamChunk<Event>(buffer, decoder.decode(value, { stream: true }))
           buffer = parsed.rest
+          // Text that arrives together is applied together: one render per network chunk, not one per token.
+          let pending = ""
+          const flush = () => {
+            if (!pending) return
+            const delta = pending
+            pending = ""
+            patchLast((m) => applyEvent(m, { type: "text", delta }))
+          }
           for (const event of parsed.events) {
-            if (event.type === "status") setPhase(event.stage)
-            else patchLast((m) => applyEvent(m, event))
+            if (event.type === "text") {
+              pending += event.delta
+              continue
+            }
+            flush()
+            if (event.type === "status") {
+              setPhase(event.stage)
+              setActivity(event.stage === "analyzing" ? (event.label ?? null) : null)
+            } else patchLast((m) => applyEvent(m, event))
             if (event.type === "xray") setReportSeq((n) => n + 1)
           }
+          flush()
         }
       } catch (error) {
         if (!(error instanceof DOMException && error.name === "AbortError")) {
@@ -265,8 +285,8 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
   const recent = useMemo(() => recentItems(chats, reports, 3), [chats, reports])
 
   const value = useMemo<Assistant>(
-    () => ({ messages, phase, busy: phase !== "idle", page, detail, send, cancel, retry, reset, recent, saveReport, openRecent, removeRecent, reportSeq }),
-    [messages, phase, page, detail, send, cancel, retry, reset, recent, saveReport, openRecent, removeRecent, reportSeq],
+    () => ({ messages, phase, activity, busy: phase !== "idle", page, detail, send, cancel, retry, reset, recent, saveReport, openRecent, removeRecent, reportSeq }),
+    [messages, phase, activity, page, detail, send, cancel, retry, reset, recent, saveReport, openRecent, removeRecent, reportSeq],
   )
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

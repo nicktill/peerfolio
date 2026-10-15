@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react"
 import Link from "next/link"
-import { AnimatePresence, MotionConfig, motion } from "motion/react"
+import { AnimatePresence, MotionConfig, animate, motion, useDragControls, useMotionValue } from "motion/react"
 import { AppWindow, ArrowUp, ArrowUpRight, Check, FileText, Maximize2, MessageSquare, Minimize2, Minus, PanelRight, RotateCcw, Square, SquarePen, X } from "lucide-react"
 import { Orb } from "@web/components/assistant/orb"
 import { PAGE_LABEL, copyFor, useAssistant, type Msg, type Phase } from "@web/components/assistant/use-assistant"
@@ -25,6 +25,9 @@ const COMPACT = { w: 400, h: 600 }
 /** The opening card: orb, prompts and composer. It grows into the conversation on the first message. */
 const LAUNCH = { w: 440, h: 522 }
 const EDGE = 12
+
+type Edge = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw"
+const EDGES: Edge[] = ["n", "s", "e", "w", "ne", "nw", "se", "sw"]
 
 type Geo = { w: number; h: number; right: number; bottom: number; expanded: boolean }
 
@@ -109,15 +112,26 @@ function AssistantInner() {
 function Launcher({ onOpen }: { onOpen: () => void }) {
   const { busy, phase } = useAssistant()
   const [hint, setHint] = useState("")
-  useEffect(() => setHint(isMac() ? "⌘/" : "Ctrl /"), [])
+  const [tab, setTab] = useState(false)
+  const wide = useWide()
+  useEffect(() => {
+    setHint(isMac() ? "⌘/" : "Ctrl /")
+    // Someone who docks the assistant gets a slim tab on the page's edge instead of a floating pill.
+    try {
+      setTab(localStorage.getItem(DOCK_KEY) === "1")
+    } catch {
+      // Default pill.
+    }
+  }, [])
+  const asTab = tab && wide
   return (
     <motion.button
       type="button"
-      className="pf-ai-launch"
+      className={`pf-ai-launch ${asTab ? "is-tab" : ""}`}
       onClick={onOpen}
-      initial={{ opacity: 0, y: 12, scale: 0.94 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: 8, scale: 0.96 }}
+      initial={asTab ? { opacity: 0, x: 24 } : { opacity: 0, y: 12, scale: 0.94 }}
+      animate={asTab ? { opacity: 1, x: 0 } : { opacity: 1, y: 0, scale: 1 }}
+      exit={asTab ? { opacity: 0, x: 24 } : { opacity: 0, y: 8, scale: 0.96 }}
       transition={{ type: "spring", stiffness: 420, damping: 34 }}
       whileTap={{ scale: 0.97 }}
       aria-label="Open Peerfolio Intelligence"
@@ -125,7 +139,7 @@ function Launcher({ onOpen }: { onOpen: () => void }) {
     >
       <Orb size={20} phase={phase} />
       <span className="pf-ai-launch-t">{busy ? "Working…" : "Ask Peerfolio"}</span>
-      {hint ? <kbd className="pf-ai-kbd">{hint}</kbd> : null}
+      {hint && !asTab ? <kbd className="pf-ai-kbd">{hint}</kbd> : null}
     </motion.button>
   )
 }
@@ -133,7 +147,7 @@ function Launcher({ onOpen }: { onOpen: () => void }) {
 function Panel({ onClose }: { onClose: () => void }) {
   const narrow = useNarrow()
   const wide = useWide()
-  const { messages, phase, busy, page, send, cancel, retry, reset, reportSeq, recent } = useAssistant()
+  const { messages, phase, activity, busy, page, send, cancel, retry, reset, reportSeq, recent } = useAssistant()
   const [geo, setGeo] = useState<Geo>(() => loadGeo())
   const [dockPref, setDockPref] = useState<boolean>(() => {
     try {
@@ -196,7 +210,9 @@ function Panel({ onClose }: { onClose: () => void }) {
   const scroller = useRef<HTMLDivElement>(null)
   const stick = useRef(true)
   const panelRef = useRef<HTMLElement>(null)
-  const gesture = useRef<{ kind: "move" | "size"; x: number; y: number; g: Geo } | null>(null)
+  const sheetDrag = useDragControls()
+  const sheetY = useMotionValue(0)
+  const gesture = useRef<{ kind: "move" | Edge; x: number; y: number; g: Geo } | null>(null)
   const seenReport = useRef(reportSeq)
 
   // The phone sheet has its own state: a saved desktop "expanded" must not make it open full screen.
@@ -242,7 +258,7 @@ function Panel({ onClose }: { onClose: () => void }) {
     if (el && stick.current) el.scrollTop = el.scrollHeight
   }, [messages, phase])
 
-  const begin = (kind: "move" | "size") => (e: React.PointerEvent<HTMLElement>) => {
+  const begin = (kind: "move" | Edge) => (e: React.PointerEvent<HTMLElement>) => {
     if (narrow || docked || expanded || e.button !== 0 || (e.target as HTMLElement).closest("button")) return
     e.currentTarget.setPointerCapture(e.pointerId)
     gesture.current = { kind, x: e.clientX, y: e.clientY, g: geo }
@@ -254,7 +270,21 @@ function Panel({ onClose }: { onClose: () => void }) {
     const dx = e.clientX - s.x
     const dy = e.clientY - s.y
     if (s.kind === "move") setGeo(fit({ ...s.g, right: s.g.right - dx, bottom: s.g.bottom - dy }))
-    else setGeo(fit({ ...s.g, w: s.g.w - dx, h: s.g.h - dy }))
+    else {
+      // The window is anchored by its right/bottom, so a west/north drag only changes the size and an east/south drag also moves the anchor.
+      let { w, h, right, bottom } = s.g
+      if (s.kind.includes("w")) w = Math.max(MIN.w, s.g.w - dx)
+      if (s.kind.includes("e")) {
+        w = Math.max(MIN.w, s.g.w + dx)
+        right = s.g.right - (w - s.g.w)
+      }
+      if (s.kind.includes("n")) h = Math.max(MIN.h, s.g.h - dy)
+      if (s.kind.includes("s")) {
+        h = Math.max(MIN.h, s.g.h + dy)
+        bottom = s.g.bottom - (h - s.g.h)
+      }
+      setGeo(fit({ ...s.g, w, h, right, bottom }))
+    }
   }
   const end = (e: React.PointerEvent<HTMLElement>) => {
     if (!gesture.current) return
@@ -338,12 +368,30 @@ function Panel({ onClose }: { onClose: () => void }) {
     : { width: size.w, height: size.h, right: expanded ? Math.max(EDGE, (viewport().vw - size.w) / 2) : geo.right, bottom: expanded ? Math.max(EDGE, (viewport().vh - size.h) / 2) : geo.bottom }
 
   return (
+    <>
+    {narrow ? <motion.div className="pf-ai-scrim" onClick={onClose} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.28 }} aria-hidden /> : null}
     <motion.section
       ref={panelRef}
       role="dialog"
       aria-label="Peerfolio Intelligence"
       className={`pf-ai-win ${narrow ? "is-sheet" : ""} ${docked ? "is-docked" : ""} ${expanded ? "is-expanded" : ""} ${launch ? "is-launch" : ""} ${morph ? "is-morph" : ""} ${busy ? "is-busy" : ""} ${interacting ? "is-live" : ""}`}
-      style={style}
+      style={narrow ? { y: sheetY } : style}
+      drag={narrow ? "y" : false}
+      dragControls={sheetDrag}
+      dragListener={false}
+      dragConstraints={{ top: 0, bottom: 0 }}
+      dragElastic={{ top: 0, bottom: 0.6 }}
+      dragMomentum={false}
+      onDragEnd={(_, info) => {
+        const dismiss = info.offset.y > 110 || info.velocity.y > 650
+        // Settle back unless this is a dismissal: snapping and exiting at once would flicker.
+        if (!dismiss || expanded) animate(sheetY, 0, { type: "spring", stiffness: 420, damping: 38 })
+        if (dismiss) {
+          // A full-screen sheet steps down to the half sheet first, then closes.
+          if (expanded) setExpanded(false)
+          else onClose()
+        }
+      }}
       initial={narrow ? { y: "100%" } : docked ? { x: "100%" } : { opacity: 0, y: 16, scale: 0.96 }}
       animate={narrow ? { y: 0 } : docked ? { x: 0, y: 0, opacity: 1, scale: 1 } : { opacity: 1, y: 0, scale: 1, x: 0 }}
       exit={narrow ? { y: "100%" } : docked ? { x: "100%" } : { opacity: 0, y: 10, scale: 0.97 }}
@@ -352,11 +400,17 @@ function Panel({ onClose }: { onClose: () => void }) {
         if (e.key === "Escape") onClose()
       }}
     >
-      {!narrow && !docked && !expanded && !launch ? <div className="pf-ai-grip" onPointerDown={begin("size")} onPointerMove={track} onPointerUp={end} onPointerCancel={end} aria-hidden title="Resize" /> : null}
+      {!narrow && !docked && !expanded && !launch
+        ? EDGES.map((edge) => <div key={edge} className={`pf-ai-edge is-${edge}`} onPointerDown={begin(edge)} onPointerMove={track} onPointerUp={end} onPointerCancel={end} aria-hidden />)
+        : null}
 
       <header
         className="pf-ai-head"
-        onPointerDown={begin("move")}
+        onPointerDown={(e) => {
+          // On a phone the header is the grab area: pulling the sheet down dismisses it, like a native sheet.
+          if (narrow && !(e.target as HTMLElement).closest("button")) sheetDrag.start(e)
+          else begin("move")(e)
+        }}
         onPointerMove={track}
         onPointerUp={end}
         onPointerCancel={end}
@@ -413,7 +467,7 @@ function Panel({ onClose }: { onClose: () => void }) {
         ) : (
           <div className="pf-ai-thread">
             {messages.map((m, i) => (
-              <Message key={m.id} m={m} last={i === messages.length - 1} phase={phase} busy={busy} onAsk={ask} onRetry={retry} repeatReport={!!m.xray && messages.slice(0, i).some((x) => !!x.xray)} />
+              <Message key={m.id} m={m} last={i === messages.length - 1} phase={phase} activity={activity} busy={busy} onAsk={ask} onRetry={retry} repeatReport={!!m.xray && messages.slice(0, i).some((x) => !!x.xray)} />
             ))}
           </div>
         )}
@@ -421,6 +475,7 @@ function Panel({ onClose }: { onClose: () => void }) {
 
       <Composer busy={busy} onSend={ask} onStop={cancel} page={PAGE_LABEL[page]} />
     </motion.section>
+    </>
   )
 }
 
@@ -526,6 +581,39 @@ function Progress({ phase }: { phase: Phase }) {
   )
 }
 
+const XRAY_LABEL = "Running the portfolio X-Ray"
+
+/** Before the first word: what the assistant is doing, in plain language, easing between steps instead of blinking. */
+function Thinking({ phase, activity }: { phase: Phase; activity: string | null }) {
+  const [slow, setSlow] = useState(0)
+  useEffect(() => {
+    const a = window.setTimeout(() => setSlow(1), 2800)
+    const b = window.setTimeout(() => setSlow(2), 7000)
+    return () => {
+      window.clearTimeout(a)
+      window.clearTimeout(b)
+    }
+  }, [])
+  const text = activity ?? (phase === "writing" ? "Writing" : slow === 0 ? "Thinking" : slow === 1 ? "Thinking it through" : "Still working on this")
+  return (
+    <motion.div className="pf-ai-think" role="status" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -2, transition: { duration: 0.15 } }} transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}>
+      <Orb size={18} phase={phase} />
+      <span className="pf-ai-think-t">
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.span key={text} className="pf-ai-shimmer" initial={{ opacity: 0, y: 5, filter: "blur(3px)" }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} exit={{ opacity: 0, y: -5, filter: "blur(3px)" }} transition={{ duration: 0.22 }}>
+            {text}
+          </motion.span>
+        </AnimatePresence>
+        <span className="pf-ai-dots" aria-hidden>
+          <i />
+          <i />
+          <i />
+        </span>
+      </span>
+    </motion.div>
+  )
+}
+
 /** The report's outline while its numbers are computed, so the real report replaces it in place. */
 function ReportSkeleton() {
   return (
@@ -556,7 +644,7 @@ function CollapsedReport({ xray, onAsk, onSave }: { xray: XRay; onAsk: (q: strin
   )
 }
 
-function Message({ m, last, phase, busy, onAsk, onRetry, repeatReport = false }: { m: Msg; last: boolean; phase: Phase; busy: boolean; onAsk: (q: string) => void; onRetry: () => void; repeatReport?: boolean }) {
+function Message({ m, last, phase, activity, busy, onAsk, onRetry, repeatReport = false }: { m: Msg; last: boolean; phase: Phase; activity: string | null; busy: boolean; onAsk: (q: string) => void; onRetry: () => void; repeatReport?: boolean }) {
   const { saveReport } = useAssistant()
   if (m.role === "user") {
     return (
@@ -566,21 +654,16 @@ function Message({ m, last, phase, busy, onAsk, onRetry, repeatReport = false }:
     )
   }
   const working = last && busy
-  const showProgress = working && (phase === "analyzing" || (phase === "writing" && !!m.xray))
+  const showProgress = working && !m.xray && phase === "analyzing" && activity === XRAY_LABEL
   return (
     <div className="pf-ai-bot">
-      {showProgress && !m.xray ? (
+      {showProgress ? (
         <>
           <Progress phase={phase} />
           <ReportSkeleton />
         </>
       ) : null}
-      {working && !showProgress && !m.text && !m.xray ? (
-        <div className="pf-ai-think" role="status">
-          <Orb size={16} phase={phase} />
-          <span className="pf-ai-shimmer">Thinking</span>
-        </div>
-      ) : null}
+      <AnimatePresence initial={false}>{working && !showProgress && !m.text && !m.xray ? <Thinking key="think" phase={phase} activity={activity} /> : null}</AnimatePresence>
       {m.xray ? repeatReport ? <CollapsedReport xray={m.xray} onAsk={onAsk} onSave={() => saveReport(m.xray!)} /> : <XRayReport xray={m.xray} onAsk={onAsk} onSave={() => saveReport(m.xray!)} /> : null}
       {m.text ? (
         <p className="pf-ai-text">

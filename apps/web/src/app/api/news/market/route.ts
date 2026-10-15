@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server"
-import { unstable_cache } from "next/cache"
-import { and, inArray, isNotNull } from "drizzle-orm"
-import { db, securities } from "@web/db"
 import { withPublic } from "@web/lib/api"
-import { providerFetch, withProviderPatience } from "@web/lib/provider-fetch"
-import { earningsWeekDates, fetchEarningsWeek, fetchFearGreed, fetchMarketBoard, nyDate } from "@web/lib/news-market"
+import { earningsWeekDates, nyDate } from "@web/lib/news-market"
+import { alpacaAuth, board, earnings, fearGreed } from "@web/lib/news-market-cache"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 120
@@ -16,51 +13,6 @@ export const maxDuration = 120
  * failed fetch is cached as "nothing to show" for the same window, so an
  * outage hides the card instead of hammering the source.
  */
-const alpacaAuth = () =>
-  process.env.ALPACA_API_KEY && process.env.ALPACA_API_SECRET ? { keyId: process.env.ALPACA_API_KEY, secret: process.env.ALPACA_API_SECRET } : null
-
-const board = unstable_cache(
-  async () =>
-    // Fifteen quotes is more than Finnhub's burst, so this waits its turn for tokens rather than come back half empty.
-    withProviderPatience(50_000, () => fetchMarketBoard({
-      finnhubKey: process.env.FINNHUB_API_KEY,
-      alpaca: alpacaAuth(),
-      fetchImpl: (url, init) => (url.includes("finnhub.io") ? providerFetch("finnhub") : providerFetch("alpaca"))(url, init),
-    })).catch((error) => {
-      console.error("[news] market board failed:", error instanceof Error ? error.message : error)
-      return null
-    }),
-  ["news-market-board-v2"],
-  { revalidate: 300 },
-)
-
-const earnings = unstable_cache(
-  // The week's Monday is only the cache key, so a new week starts a new entry.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async (_week: string) =>
-    withProviderPatience(50_000, () => fetchEarningsWeek({
-      finnhubKey: process.env.FINNHUB_API_KEY,
-      fetchImpl: providerFetch("finnhub"),
-      knownNames: async (symbols) => {
-        if (symbols.length === 0) return new Map()
-        const rows = await db
-          .select({ symbol: securities.tickerSymbol, name: securities.name })
-          .from(securities)
-          .where(and(inArray(securities.tickerSymbol, symbols), isNotNull(securities.name)))
-        return new Map(rows.flatMap((r) => (r.symbol && r.name ? [[r.symbol, r.name] as const] : [])))
-      },
-    })).catch((error) => {
-      console.error("[news] earnings failed:", error instanceof Error ? error.message : error)
-      return null
-    }),
-  ["news-earnings-v2"],
-  { revalidate: 6 * 3600 },
-)
-
-// The New York date is only the cache key, so each day starts a new entry.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const fearGreed = unstable_cache(async (_day: string) => fetchFearGreed(fetch), ["news-fear-greed-v1"], { revalidate: 3600 })
-
 /**
  * Indexes and sectors, the earnings week and Fear & Greed. Public market data,
  * no user data. `?part=board|earnings|fear-greed` returns one of them, so the

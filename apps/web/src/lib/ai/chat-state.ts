@@ -14,7 +14,7 @@ export type Msg = {
 }
 
 export type ChatEvent =
-  | { type: "status"; stage: "reading" | "analyzing" | "writing" }
+  | { type: "status"; stage: "reading" | "analyzing" | "writing"; label?: string }
   | { type: "text"; delta: string }
   | { type: "xray"; data: XRay }
   | { type: "link"; label: string; href: string }

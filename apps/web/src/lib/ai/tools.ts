@@ -14,6 +14,7 @@ import { MAX_LEAGUE_OVERVIEW, parseArgs, parseBenchmark, parseLimit, parseRange,
 import { loadPositions, loadXRay, trackedWindow } from "@web/lib/ai/portfolio-data"
 import type { XRay } from "@web/lib/ai/portfolio-xray"
 import { runProjectWealth } from "@web/lib/ai/tools-wealth"
+import { runEarnings, runGetQuotes, runMarketSnapshot, runTopMovers } from "@web/lib/ai/tools-market"
 
 /**
  * The assistant's tools: read-only, and bound to the signed-in user when they
@@ -32,6 +33,12 @@ export type ToolContext = {
 }
 
 export { TOOL_DEFS, type ToolDef } from "@web/lib/ai/tool-defs"
+
+const withoutFollowUp = <T extends { followUp: string }>(insight: T): Omit<T, "followUp"> => {
+  const copy: Partial<T> = { ...insight }
+  delete copy.followUp
+  return copy as Omit<T, "followUp">
+}
 
 const round = (v: number | null, places = 2) => (v == null ? null : Math.round(v * 10 ** places) / 10 ** places)
 
@@ -53,7 +60,13 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
     case "get_portfolio_xray": {
       const xray = await cachedXRay(ctx.userId)
       ctx.emit({ type: "xray", data: xray })
-      return xray
+      // The screen shows the whole report; the model gets it without the follow-up prompts and long tails, which only cost tokens.
+      return {
+        ...xray,
+        sectors: { ...xray.sectors, slices: xray.sectors.slices.slice(0, 8) },
+        risks: xray.risks.map(withoutFollowUp),
+        nextSteps: xray.nextSteps.map(withoutFollowUp),
+      }
     }
     case "get_holdings": {
       const limit = parseLimit(parseArgs(rawArgs))
@@ -161,7 +174,7 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
         recap: recap
           ? { headline: recap.headline, summary: recap.body.slice(0, 1500), asOf: recap.periodEnd, takeaways: recap.takeaways.slice(0, 5).map((t) => ({ title: t.title, body: t.body.slice(0, 400) })) }
           : null,
-        headlines: news.headlines.map((h) => ({
+        headlines: news.headlines.slice(0, 10).map((h) => ({
           title: h.title.slice(0, 200),
           source: h.source,
           publishedAt: h.publishedAt,
@@ -169,6 +182,14 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
         })),
       }
     }
+    case "get_market_snapshot":
+      return runMarketSnapshot()
+    case "get_top_movers":
+      return runTopMovers(rawArgs, ctx.userId)
+    case "get_earnings_calendar":
+      return runEarnings(rawArgs, ctx.userId)
+    case "get_quotes":
+      return runGetQuotes(rawArgs)
     case "project_wealth":
       return runProjectWealth(rawArgs, ctx)
     default:

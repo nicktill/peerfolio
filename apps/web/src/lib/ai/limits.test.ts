@@ -137,3 +137,18 @@ describe("cleanContext: hostile input", () => {
     for (const page of ["Portfolio", "admin", "__proto__", "constructor", "", null]) assert.equal(cleanContext({ page }).page, "other")
   })
 })
+
+import { needsDepth, needsWeb } from "./limits.ts"
+
+describe("question routing", () => {
+  it("sends news-style questions to the web and keeps data questions off it", () => {
+    assert.equal(needsWeb("why is NVDA down today"), true)
+    assert.equal(needsWeb("any news on Micron?"), true)
+    assert.equal(needsWeb("what are my largest holdings"), false)
+    assert.equal(needsWeb("how is the market this morning"), false)
+  })
+  it("saves reasoning effort for analysis", () => {
+    assert.equal(needsDepth("how is NVDA doing"), false)
+    assert.equal(needsDepth("analyze my portfolio risk"), true)
+  })
+})
