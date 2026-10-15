@@ -1,7 +1,8 @@
 "use client"
 
 import "./wealth.css"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { AnimatedNumber } from "@web/components/ui/animated-number"
 import { useApi } from "@web/lib/use-api"
 import {
@@ -70,6 +71,14 @@ function load(): State | null {
 type PortfolioSummary = { summary?: { investableAssets?: number } }
 
 export function WealthLab() {
+  return (
+    <Suspense>
+      <WealthLabInner />
+    </Suspense>
+  )
+}
+
+function WealthLabInner() {
   const [s, setS] = useState<State>(DEFAULTS)
   const [ready, setReady] = useState(false)
   const [kind, setKind] = useState<SeriesKind>("nominal")
@@ -77,33 +86,38 @@ export function WealthLab() {
   const [wantImport, setWantImport] = useState(false)
   // Fields prefilled by an assistant link. They clear when the person edits that field.
   const [fromAssistant, setFromAssistant] = useState<ReadonlySet<string>>(new Set())
-  const linked = useRef<State | null>(null)
+  // True from the moment a link is applied until the person edits something: nothing is saved in between.
+  const holdSave = useRef(false)
   const booted = useRef(false)
   const set = useCallback(<K extends keyof State>(key: K, value: State[K]) => {
+    holdSave.current = false
     setS((p) => ({ ...p, [key]: value }))
     setFromAssistant((f) => (f.has(key) ? new Set([...f].filter((k) => k !== key)) : f))
   }, [])
 
   useEffect(() => {
-    // Strict mode runs this twice; the link is consumed (and the URL cleaned) the first time.
     if (booted.current) return
     booted.current = true
     const saved = load()
     // Restoring last-used inputs after mount keeps the server render and first client render identical.
-    const fromLink = decodeWealthParams(window.location.search)
-    if (fromLink) {
-      // The link wins for this visit only: it isn't saved until the person edits something.
-      const fields = fromLink
-      const next: State = { ...(saved ?? DEFAULTS), ...fields, importedStart: false }
-      linked.current = next
-      setS(next)
-      setFromAssistant(new Set(Object.keys(fields).filter((k) => k !== "spread")))
-      window.history.replaceState(null, "", window.location.pathname)
-    } else if (saved) setS(saved)
+    if (saved) setS(saved)
     setReady(true)
   }, [])
+
+  // An assistant link: its values win for this visit and aren't saved until the person edits something.
+  // Keyed on the query so a link followed while already on this page applies too.
+  const search = useSearchParams()
+  const query = search.toString()
   useEffect(() => {
-    if (!ready || s === linked.current) return
+    const fields = decodeWealthParams(query)
+    if (!fields) return
+    holdSave.current = true
+    setS((p) => ({ ...p, ...fields, importedStart: false }))
+    setFromAssistant(new Set(Object.keys(fields).filter((k) => k !== "spread")))
+    window.history.replaceState(null, "", window.location.pathname)
+  }, [query])
+  useEffect(() => {
+    if (!ready || holdSave.current) return
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)) } catch { /* private mode, quota: inputs just won't persist */ }
   }, [s, ready])
 
@@ -114,6 +128,7 @@ export function WealthLab() {
   useEffect(() => {
     if (!wantImport || applied.current || imported == null) return
     applied.current = true
+    holdSave.current = false
     setS((p) => ({ ...p, startingValue: Math.max(0, Math.round(imported)), importedStart: true }))
     setFromAssistant((f) => { const n = new Set(f); n.delete("startingValue"); return n })
     setWantImport(false)
@@ -179,7 +194,7 @@ export function WealthLab() {
           </div>
           <div className="pf-pb divide-y divide-[var(--hair2)]">
             <SliderField label="Starting value" prefix="$" value={s.startingValue} min={0} max={1_000_000} step={1_000} tag={fromAssistant.has("startingValue") ? "from assistant" : s.importedStart ? "imported" : undefined}
-              onChange={(v) => { setS((p) => ({ ...p, startingValue: v, importedStart: false })); setFromAssistant((f) => { const n = new Set(f); n.delete("startingValue"); return n }) }}
+              onChange={(v) => { holdSave.current = false; setS((p) => ({ ...p, startingValue: v, importedStart: false })); setFromAssistant((f) => { const n = new Set(f); n.delete("startingValue"); return n }) }}
               hint={portfolio.error && wantImport ? "Couldn't load your portfolio. Enter a value instead." : undefined} />
             <SliderField label="Monthly contribution" tag={fromAssistant.has("monthlyContribution") ? "from assistant" : undefined} prefix="$" value={s.monthlyContribution} min={0} max={10_000} step={50} onChange={(v) => set("monthlyContribution", v)} />
             <SliderField label="Contribution growth" tag={fromAssistant.has("annualContributionGrowthPct") ? "from assistant" : undefined} suffix="%/yr" decimals={1} value={s.annualContributionGrowthPct} min={0} max={10} step={0.5} onChange={(v) => set("annualContributionGrowthPct", v)} hint="Raise your contribution by this much each year." />

@@ -46,11 +46,11 @@ export function SliderField({
   return (
     <div className="py-3 first:pt-0 last:pb-0">
       <div className="mb-1.5 flex items-center justify-between gap-3">
-        <label htmlFor={fieldId} className="pf-eyebrow flex items-center gap-2">
+        <label htmlFor={fieldId} className="pf-eyebrow flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
           {label}
           {tag ? <span className="wl-tag">{tag}</span> : null}
         </label>
-        <div className="wl-input w-[8.5rem]">
+        <div className="wl-input w-[8.5rem] shrink-0">
           {prefix ? <span aria-hidden>{prefix}</span> : null}
           <input
             id={fieldId}
