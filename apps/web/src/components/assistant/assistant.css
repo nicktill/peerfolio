@@ -40,29 +40,33 @@
   opacity: 0.5; animation: pf-orb-breathe 6s ease-in-out infinite;
 }
 /* The body is a blob, not a disc: its outline drifts, and its pace follows the work. */
-.pf-orb-core { animation: pf-blob 9s ease-in-out infinite; overflow: hidden; }
-.pf-orb-core::after {
-  content: ""; position: absolute; inset: -25%; border-radius: 50%;
-  background: radial-gradient(circle at 30% 30%, rgb(255 255 255 / 0.55), transparent 32%), radial-gradient(circle at 72% 74%, rgba(var(--ai-violet), 0.7), transparent 45%);
-  animation: pf-blob-light 11s ease-in-out infinite;
+/* Always a clean circle; the life is in how it moves. The body floats and breathes, light swirls inside it like a lava lamp,
+   and when working it bounces like jelly (squash and stretch, with overshoot). */
+.pf-orb-core { overflow: hidden; transform-origin: 50% 70%; animation: pf-float 4.2s ease-in-out infinite; }
+.pf-orb-core::before, .pf-orb-core::after { content: ""; position: absolute; border-radius: 50%; filter: blur(3px); }
+.pf-orb-core::before { width: 70%; height: 70%; left: -8%; top: -6%; background: radial-gradient(circle, rgb(255 255 255 / 0.8), transparent 68%); animation: pf-swirl-a 6s ease-in-out infinite; }
+.pf-orb-core::after { width: 80%; height: 80%; right: -22%; bottom: -24%; background: radial-gradient(circle, rgba(var(--ai-violet), 0.95), transparent 66%); animation: pf-swirl-b 7.5s ease-in-out infinite; }
+.pf-orb.is-busy .pf-orb-core { animation: pf-jelly 1.5s cubic-bezier(0.36, 0, 0.3, 1) infinite; }
+.pf-orb.is-busy .pf-orb-core::before { animation-duration: 2.2s; }
+.pf-orb.is-busy .pf-orb-core::after { animation-duration: 2.8s; }
+.pf-orb.is-writing .pf-orb-core { animation: pf-type 0.7s ease-in-out infinite; }
+.pf-orb.is-writing .pf-orb-core::before { animation-duration: 1.6s; }
+.pf-orb.is-writing .pf-orb-core::after { animation-duration: 1.9s; }
+@keyframes pf-float {
+  0%, 100% { transform: translateY(0) scale(1, 1); }
+  35% { transform: translateY(-6%) scale(0.97, 1.04); }
+  70% { transform: translateY(1%) scale(1.04, 0.96); }
 }
-.pf-orb.is-busy .pf-orb-core { animation: pf-blob 2.8s ease-in-out infinite, pf-squish 1.7s ease-in-out infinite; }
-.pf-orb.is-busy .pf-orb-core::after { animation-duration: 3.2s; }
-.pf-orb.is-writing .pf-orb-core { animation: pf-blob 2.2s ease-in-out infinite, pf-type 0.8s ease-in-out infinite; }
-.pf-orb.is-writing .pf-orb-core::after { animation-duration: 2.4s; }
-@keyframes pf-blob {
-  0%, 100% { border-radius: 50% 50% 50% 50% / 50% 50% 50% 50%; }
-  25% { border-radius: 58% 42% 54% 46% / 46% 58% 42% 54%; }
-  50% { border-radius: 44% 56% 46% 54% / 56% 44% 58% 42%; }
-  75% { border-radius: 54% 46% 40% 60% / 42% 54% 46% 58%; }
+@keyframes pf-jelly {
+  0%, 100% { transform: translateY(0) scale(1, 1); }
+  18% { transform: translateY(-12%) scale(0.9, 1.14); }
+  36% { transform: translateY(0) scale(1.14, 0.88); }
+  52% { transform: translateY(-3%) scale(0.97, 1.05); }
+  68% { transform: translateY(0) scale(1.03, 0.98); }
 }
-@keyframes pf-blob-light {
-  0%, 100% { transform: translate(0, 0) rotate(0deg); }
-  33% { transform: translate(10%, 8%) rotate(120deg); }
-  66% { transform: translate(-8%, 10%) rotate(240deg); }
-}
-@keyframes pf-squish { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.07, 0.94); } }
-@keyframes pf-type { 0%, 100% { transform: scale(0.95); } 40% { transform: scale(1.1); } 70% { transform: scale(1.0); } }
+@keyframes pf-type { 0%, 100% { transform: scale(0.94); } 30% { transform: scale(1.1, 1.06); } 60% { transform: scale(1.02, 0.98); } }
+@keyframes pf-swirl-a { 0%, 100% { transform: translate(0, 0); } 33% { transform: translate(38%, 24%); } 66% { transform: translate(8%, 44%); } }
+@keyframes pf-swirl-b { 0%, 100% { transform: translate(0, 0); } 33% { transform: translate(-42%, -20%); } 66% { transform: translate(-14%, -46%); } }
 .pf-orb.is-busy .pf-orb-spin { animation-duration: 2.6s; opacity: 0.9; }
 .pf-orb.is-busy .pf-orb-glow { animation-duration: 2.2s; opacity: 0.8; }
 .pf-orb.is-writing .pf-orb-spin { animation-duration: 4.5s; }
@@ -287,7 +291,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pf-orb-core, .pf-orb-core::after, .pf-orb.is-busy .pf-orb-core, .pf-orb.is-writing .pf-orb-core, .pf-orb-spin, .pf-orb-glow, .pf-ai-win.is-busy::before, .is-now .pf-ai-pn, .pf-ai-caret, .pf-ai-think span:last-child::after { animation: none; }
+  .pf-orb-core, .pf-orb-core::before, .pf-orb-core::after, .pf-orb.is-busy .pf-orb-core, .pf-orb.is-busy .pf-orb-core::before, .pf-orb.is-busy .pf-orb-core::after, .pf-orb.is-writing .pf-orb-core::before, .pf-orb.is-writing .pf-orb-core::after, .pf-orb.is-writing .pf-orb-core, .pf-orb-spin, .pf-orb-glow, .pf-ai-win.is-busy::before, .is-now .pf-ai-pn, .pf-ai-caret, .pf-ai-think span:last-child::after { animation: none; }
   .pf-ai-win.is-morph { transition: none; }
   .pf-ai-win.is-busy::before { opacity: 0.6; }
 }

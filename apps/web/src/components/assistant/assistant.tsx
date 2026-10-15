@@ -62,7 +62,7 @@ export function AssistantRoot() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "j") {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key === "/") {
         e.preventDefault()
         setOpen((v) => !v)
       }
@@ -82,7 +82,7 @@ export function AssistantRoot() {
 function Launcher({ onOpen }: { onOpen: () => void }) {
   const { busy, phase } = useAssistant()
   const [hint, setHint] = useState("")
-  useEffect(() => setHint(isMac() ? "⌘J" : "Ctrl J"), [])
+  useEffect(() => setHint(isMac() ? "⌘/" : "Ctrl /"), [])
   return (
     <motion.button
       type="button"
@@ -94,7 +94,7 @@ function Launcher({ onOpen }: { onOpen: () => void }) {
       transition={{ type: "spring", stiffness: 420, damping: 34 }}
       whileTap={{ scale: 0.97 }}
       aria-label="Open Peerfolio Intelligence"
-      aria-keyshortcuts="Control+J Meta+J"
+      aria-keyshortcuts="Control+Slash Meta+Slash"
     >
       <Orb size={20} phase={phase} />
       <span className="pf-ai-launch-t">{busy ? "Working…" : "Ask Peerfolio"}</span>
