@@ -300,18 +300,38 @@ export function checkBrief(brief: Brief, items: BriefItem[], sessionDate: string
   return problems
 }
 
-/** A plain recap from the headlines themselves, for when the model's draft can't be used. */
+/** Sentences of a feed summary, trimmed; feeds often end a summary mid-thought, so only whole sentences are kept. */
+const sentencesOf = (text: string | null | undefined) =>
+  (text ?? "").replace(/\s+/g, " ").trim().match(/[^.!?]+[.!?]+(?=\s|$)/g)?.map((s) => s.trim()) ?? []
+
+/**
+ * A plain recap from the headlines themselves, for when the model's draft can't be used.
+ * Written as two honest paragraphs: the lead story in its own words, then the other
+ * top stories as headlines. It claims no link between them.
+ */
 export function fallbackBrief(items: BriefItem[]): Brief {
   const [lead, ...rest] = items
   if (!lead) return { headline: "No market news collected yet", body: "Check back after the close.", takeaways: [], sourceIds: [] }
-  const follow = rest.slice(0, 2)
+  const follow = rest.slice(0, 3)
   const sentence = (t: string) => (/[.!?]$/.test(t) ? t : `${t}.`)
+  const leadSentences = sentencesOf(lead.summary).slice(0, 2)
+  const first = (leadSentences.length ? leadSentences : [lead.title]).map(sentence).join(" ")
+  const also = follow.map((i) => sentence(i.title)).join(" ")
+  const body = [first, also ? `Also in the news: ${also}` : ""].filter(Boolean).join("\n\n")
   return {
     headline: lead.title.length > 110 ? `${lead.title.slice(0, 107)}…` : lead.title,
-    body: [lead.summary ?? lead.title, ...follow.map((i) => i.title)].map(sentence).join(" ").slice(0, 700),
-    takeaways: rest.slice(2, 5).map((i) => ({ title: i.source, body: sentence(i.title).slice(0, 220), sourceIds: [i.id] })),
+    body: clipSentences(body, 900),
+    takeaways: rest.slice(3, 6).map((i) => ({ title: i.title.length > 110 ? `${i.title.slice(0, 107)}…` : i.title, body: sentencesOf(i.summary)[0]?.slice(0, 200) ?? "", sourceIds: [i.id] })),
     sourceIds: [lead.id, ...follow.map((i) => i.id)],
   }
+}
+
+/** Cuts text to at most `max` characters at the last sentence end, so a long recap never stops mid-sentence. */
+export function clipSentences(text: string, max: number) {
+  if (text.length <= max) return text
+  const cut = text.slice(0, max)
+  const end = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("! "), cut.lastIndexOf("? "), cut.lastIndexOf(".\n"))
+  return end > 0 ? cut.slice(0, end + 1) : `${cut.slice(0, max - 1)}…`
 }
 
 /**

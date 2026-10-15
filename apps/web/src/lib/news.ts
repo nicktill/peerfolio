@@ -70,7 +70,7 @@ async function publish(period: BriefPeriod, periodEnd: string, now: Date) {
 
   // Keep only the items the recap cites, so links survive pruning.
   const cited = new Set([...result.brief.sourceIds, ...result.brief.takeaways.flatMap((t) => t.sourceIds)])
-  const sources = items.filter((i) => cited.has(i.id)).map((i) => ({ id: i.id, source: i.source, title: i.title, url: i.url }))
+  const sources = items.filter((i) => cited.has(i.id)).map((i) => ({ id: i.id, source: i.source, title: i.title, url: i.url, publishedAt: i.publishedAt.toISOString() }))
 
   const values = {
     period,
@@ -188,7 +188,7 @@ export type PublishedBrief = {
   headline: string
   body: string
   takeaways: { title: string; body: string; sourceIds: string[] }[]
-  sources: { id: string; source: string; title: string; url: string }[]
+  sources: { id: string; source: string; title: string; url: string; publishedAt?: string }[]
   fallback: boolean
   createdAt: string
 }

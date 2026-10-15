@@ -3,8 +3,9 @@ import { ArrowUpRight, Sparkles } from "lucide-react"
 import { Delta } from "@web/components/ui/delta"
 import { TickerLogo } from "@web/components/ui/ticker-logo"
 import { SectionCard } from "@web/components/ui/section-card"
+import { etTime, sourceInitials, sourceLogo } from "@web/lib/source-logos"
 
-export type RecapSource = { id: string; source: string; title: string; url: string }
+export type RecapSource = { id: string; source: string; title: string; url: string; publishedAt?: string }
 
 export type RecapView = {
   title: string
@@ -16,6 +17,17 @@ export type RecapView = {
   sources?: RecapSource[]
   /** "sample" for placeholder copy, "fallback" for a headline-only recap written without AI. */
   kind: "ai" | "fallback" | "sample"
+}
+
+/** A publisher's own mark when we have it, otherwise its initials. */
+function SourceMark({ source }: { source: string }) {
+  const logo = sourceLogo(source)
+  return logo ? (
+    // eslint-disable-next-line @next/next/no-img-element -- tiny static marks in /public
+    <img src={logo} alt="" width={20} height={20} className="nw-mark" />
+  ) : (
+    <span className="nw-mark nw-mono" aria-hidden>{sourceInitials(source)}</span>
+  )
 }
 
 /** A short read, three takeaways with their sources, then how the day touched your holdings. The headline lives in the page head. */
@@ -50,26 +62,36 @@ export function MarketRecap({
         </div>
         {recap.takeaways.length > 0 ? (
           <ol className="nw-takes">
-            {recap.takeaways.map((t, i) => (
-              <li key={`${t.title}-${i}`} className="swap-in nw-take" style={{ animationDelay: `${80 + i * 60}ms` }}>
-                <span className="nw-take-t">
-                  <i className="numeric" aria-hidden>
-                    {i + 1}
-                  </i>
+            {recap.takeaways.map((t, i) => {
+              const src = t.sources?.[0]
+              const more = (t.sources?.length ?? 0) - 1
+              const time = etTime(src?.publishedAt)
+              const inner = (
+                <>
+                  {src ? (
+                    <span className="nw-take-src">
+                      <SourceMark source={src.source} />
+                      <span>{src.source}{more > 0 ? ` +${more}` : ""}</span>
+                      {time ? <span className="nw-take-time">{time}</span> : null}
+                      <ArrowUpRight className="nw-take-go" aria-hidden />
+                    </span>
+                  ) : null}
                   <b>{t.title}</b>
-                </span>
-                <p>{t.body}</p>
-                {t.sources?.length ? (
-                  <span className="nw-take-src">
-                    {t.sources.map((s) => (
-                      <a key={s.id} href={s.url} target="_blank" rel="noopener noreferrer" title={s.title}>
-                        {s.source}
-                      </a>
-                    ))}
-                  </span>
-                ) : null}
-              </li>
-            ))}
+                  {t.body ? <p>{t.body}</p> : null}
+                </>
+              )
+              return (
+                <li key={`${t.title}-${i}`} className="swap-in" style={{ animationDelay: `${80 + i * 60}ms` }}>
+                  {src ? (
+                    <a className="nw-take" href={src.url} target="_blank" rel="noopener noreferrer" title={src.title}>
+                      {inner}
+                    </a>
+                  ) : (
+                    <div className="nw-take">{inner}</div>
+                  )}
+                </li>
+              )
+            })}
           </ol>
         ) : null}
       </div>
