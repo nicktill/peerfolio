@@ -235,13 +235,13 @@ export const PAGE_COPY: Record<Page, PageCopy> = {
   },
   leagues: {
     title: "Make sense of your league",
-    subtitle: "League standings aren't readable yet. Meanwhile I can look at the portfolio behind your rank.",
+    subtitle: "I can read the standings you can see and explain where you stand.",
     suggestions: [
-      { label: "Analyze my portfolio", featured: true },
-      { label: "Am I overly concentrated?" },
-      { label: "What are my biggest risks?" },
+      { label: "Why am I ranked here?", featured: true },
+      { label: "How far am I from the leader?" },
+      { label: "Who's ahead of me, and by how much?" },
+      { label: "Analyze my portfolio" },
     ],
-    note: "League data is coming soon.",
   },
   fantasy: {
     title: "Sharpen your fantasy strategy",
