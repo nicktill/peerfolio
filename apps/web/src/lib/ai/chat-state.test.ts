@@ -1,0 +1,77 @@
+import { describe, it } from "node:test"
+import assert from "node:assert/strict"
+import { applyEvent, historyForRetry, patchLastMessage, requestMessages, withoutErrors, type Msg } from "./chat-state.ts"
+import type { XRay } from "./portfolio-xray.ts"
+
+const m = (role: Msg["role"], text: string, extra: Partial<Msg> = {}): Msg => ({ id: `${role}-${text}`, role, text, ...extra })
+const blank = m("assistant", "")
+
+describe("applyEvent", () => {
+  it("appends text deltas in order", () => {
+    let msg = blank
+    for (const d of ["Hel", "lo", " ", "🚀"]) msg = applyEvent(msg, { type: "text", delta: d })
+    assert.equal(msg.text, "Hello 🚀")
+  })
+
+  it("attaches the xray without touching the text", () => {
+    const xray = { marker: 1 } as unknown as XRay
+    const msg = applyEvent(m("assistant", "so far"), { type: "xray", data: xray })
+    assert.equal(msg.xray, xray)
+    assert.equal(msg.text, "so far")
+  })
+
+  it("sets the error and keeps partial text", () => {
+    const msg = applyEvent(m("assistant", "partial"), { type: "error", message: "boom" })
+    assert.equal(msg.error, "boom")
+    assert.equal(msg.text, "partial")
+  })
+
+  it("leaves the message alone for status and done, and never mutates its input", () => {
+    assert.equal(applyEvent(blank, { type: "status", stage: "writing" }), blank)
+    assert.equal(applyEvent(blank, { type: "done" }), blank)
+    const frozen = Object.freeze({ ...blank })
+    assert.doesNotThrow(() => applyEvent(frozen, { type: "text", delta: "x" }))
+    assert.equal(frozen.text, "")
+  })
+})
+
+describe("requestMessages", () => {
+  it("drops errored and empty messages and sends only role and content", () => {
+    const out = requestMessages([
+      m("user", "q1"),
+      m("assistant", "partial", { error: "boom" }),
+      m("assistant", ""),
+      m("user", "q2", { xray: {} as XRay }),
+    ])
+    assert.deepEqual(out, [{ role: "user", content: "q1" }, { role: "user", content: "q2" }])
+  })
+
+  it("does not leak ids, reports or error text to the server", () => {
+    const out = requestMessages([m("user", "hi"), m("assistant", "yo", { xray: { secret: 1 } as unknown as XRay })])
+    for (const o of out) assert.deepEqual(Object.keys(o).sort(), ["content", "role"])
+  })
+})
+
+describe("withoutErrors / historyForRetry / patchLastMessage", () => {
+  it("withoutErrors removes failed turns", () => {
+    assert.deepEqual(withoutErrors([m("user", "a"), m("assistant", "b", { error: "e" })]).map((x) => x.text), ["a"])
+  })
+
+  it("retry history ends at the last user message", () => {
+    const all = [m("user", "a"), m("assistant", "b"), m("user", "c"), m("assistant", "", { error: "e" })]
+    assert.deepEqual(historyForRetry(all)!.map((x) => x.text), ["a", "b", "c"])
+  })
+
+  it("retry has nothing to do without a user message", () => {
+    assert.equal(historyForRetry([]), null)
+    assert.equal(historyForRetry([m("assistant", "x")]), null)
+  })
+
+  it("patchLastMessage changes only the last message, and ignores an empty list", () => {
+    const all = [m("user", "a"), m("assistant", "b")]
+    const out = patchLastMessage(all, (x) => ({ ...x, text: "B" }))
+    assert.deepEqual(out.map((x) => x.text), ["a", "B"])
+    assert.equal(all[1]!.text, "b")
+    assert.deepEqual(patchLastMessage([], (x) => x), [])
+  })
+})
