@@ -169,6 +169,13 @@
       "when": 1792037101752,
       "tag": "0023_benchmark_prices",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792037718107,
+      "tag": "0024_security_sectors",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { createFinnhubProvider } from "./finnhub.ts"
+import { createFinnhubProvider, fetchCompanyProfile } from "./finnhub.ts"
 
 type Reply = { status?: number; body?: unknown } | "throw"
 
@@ -93,5 +93,33 @@ describe("finnhub provider", () => {
     const result = await createFinnhubProvider({ apiKey: "k", fetchImpl }).getQuotes([])
     assert.equal(requests.length, 0)
     assert.equal(result.quotes.size, 0)
+  })
+})
+
+describe("finnhub company profile", () => {
+  const profile = (symbol: string, replies: Record<string, Reply>) => {
+    const { fetchImpl, requests } = stub(replies)
+    return fetchCompanyProfile(symbol, { apiKey: "k", fetchImpl }).then((result) => ({ result, requests }))
+  }
+
+  it("reads finnhubIndustry from /stock/profile2, sending the key in a header", async () => {
+    const { result, requests } = await profile("NVDA", { NVDA: { body: { finnhubIndustry: "Semiconductors" } } })
+    assert.deepEqual(result, { status: "ok", industry: "Semiconductors" })
+    assert.match(requests[0]!.url, /\/stock\/profile2\?symbol=NVDA$/)
+    assert.equal(requests[0]!.headers.get("x-finnhub-token"), "k")
+  })
+
+  it("treats an empty profile as a definitive miss, not a failure", async () => {
+    assert.deepEqual((await profile("ZZZZ", { ZZZZ: { body: {} } })).result, { status: "ok", industry: null })
+    assert.deepEqual((await profile("ZZZZ", { ZZZZ: { status: 403 } })).result, { status: "ok", industry: null })
+  })
+
+  it("reports 429, errors and network failures as retryable, and never requests a malformed symbol", async () => {
+    assert.deepEqual((await profile("AAPL", { AAPL: { status: 429 } })).result, { status: "rate_limited" })
+    assert.deepEqual((await profile("AAPL", { AAPL: { status: 500 } })).result, { status: "failed" })
+    assert.deepEqual((await profile("AAPL", { AAPL: "throw" })).result, { status: "failed" })
+    const crypto = await profile("X:BTCUSD", {})
+    assert.deepEqual(crypto.result, { status: "ok", industry: null })
+    assert.equal(crypto.requests.length, 0)
   })
 })

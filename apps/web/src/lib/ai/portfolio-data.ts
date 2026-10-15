@@ -1,10 +1,11 @@
 import "server-only"
 import { and, eq } from "drizzle-orm"
 import { accounts, db, holdings, securities } from "@web/db"
-import type { PositionInput } from "@web/lib/dashboard-math"
 import { effectiveSecurityType } from "@web/lib/known-etfs"
 import { loadLivePoints, loadSnapshots, timeWeightedReturn, withLivePoint, type Range } from "@web/lib/returns"
-import { buildXRay, type XRay } from "@web/lib/ai/portfolio-xray"
+import { scheduleSectorRefresh } from "@web/lib/positions"
+import { mapIndustryToSector } from "@web/lib/ai/sectors"
+import { buildXRay, type XRay, type XRayPosition } from "@web/lib/ai/portfolio-xray"
 
 const n = (v: string | null) => (v == null ? 0 : Number(v))
 
@@ -13,7 +14,7 @@ const n = (v: string | null) => (v == null ? 0 : Number(v))
  * Scoped by `userId` in the query itself, and limited to active accounts as the
  * portfolio page is, so a removed account never reaches an analysis.
  */
-export async function loadPositions(userId: string): Promise<PositionInput[]> {
+export async function loadPositions(userId: string): Promise<XRayPosition[]> {
   const rows = await db
     .select({
       quantity: holdings.quantity,
@@ -24,6 +25,8 @@ export async function loadPositions(userId: string): Promise<PositionInput[]> {
       name: securities.name,
       type: securities.type,
       metadataCheckedAt: securities.metadataCheckedAt,
+      sector: securities.sector,
+      industry: securities.industry,
       closePrice: securities.closePrice,
       closePriceAsOf: securities.closePriceAsOf,
       previousClose: securities.previousClose,
@@ -44,6 +47,8 @@ export async function loadPositions(userId: string): Promise<PositionInput[]> {
     price: n(h.closePrice),
     previousClose: h.previousClose == null ? null : n(h.previousClose),
     priceAsOf: h.closePriceAsOf,
+    // Mapped from the stored industry when there is one, so a better mapping applies without refetching.
+    sector: mapIndustryToSector(h.industry) ?? h.sector,
   }))
 }
 
@@ -60,5 +65,7 @@ export async function trackedWindow(userId: string, range: Range = "3M") {
 
 export async function loadXRay(userId: string): Promise<XRay> {
   const [positions, window] = await Promise.all([loadPositions(userId), trackedWindow(userId)])
+  // Fills missing sectors for the next X-Ray, after the response; users who never open it cost no provider calls.
+  scheduleSectorRefresh(positions.filter((p) => p.type === "equity" && !p.sector).map((p) => p.securityId))
   return buildXRay({ positions, period: window?.period ?? null, series: window?.series })
 }

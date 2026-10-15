@@ -7,7 +7,8 @@ import { ApiError } from "@web/lib/api"
 import { captureSession, isUsMarketOpen, latestCompletedSession } from "@web/lib/market-hours"
 import { previousCloseOnUpdate } from "@web/lib/price-write"
 import { acceptSessionClose, createQuoteProvider, quoteDate } from "@web/lib/quote-provider"
-import { createFinnhubProvider } from "@web/lib/finnhub"
+import { createFinnhubProvider, fetchCompanyProfile } from "@web/lib/finnhub"
+import { mapIndustryToSector } from "@web/lib/ai/sectors"
 import { isPlanIdentifier } from "@web/lib/import-parse"
 import { tiingoApiKey, tiingoFundCloses } from "@web/lib/tiingo"
 import { canSkipCloseCheck, closeClaimDue, closeRecheckMinutes, fundNavMayBePublished, staleHeldSecurities, unsettledHeldSql } from "@web/lib/stale-prices"
@@ -252,6 +253,63 @@ export function scheduleMetadataRefresh(minIntervalSeconds = 120) {
     })
   } catch {
     // Outside a request there's nothing to attach to; the next request will do it.
+  }
+}
+
+/** Profile lookups per run; the budget gate and the 30-day retry mean a backlog clears over several X-Ray opens. */
+const SECTORS_PER_RUN = 5
+const SECTOR_RETRY_DAYS = 30
+
+/**
+ * Fills the sector of held stocks that have none, from the provider's company profile. A definitive
+ * answer (including "no profile") stamps `sector_checked_at` so the ticker waits ~30 days; a rate limit or
+ * outage stamps nothing and stops the run. Never throws.
+ */
+export async function refreshSecuritySectors(securityIds: string[]) {
+  const apiKey = process.env.FINNHUB_API_KEY
+  if (!apiKey || securityIds.length === 0) return { updated: 0, attempted: 0 }
+  const candidates = await db.select({ id: securities.id, marketTicker: securities.marketTicker }).from(securities)
+    .where(and(
+      inArray(securities.id, securityIds),
+      eq(securities.type, "equity"),
+      isNotNull(securities.marketTicker),
+      isNull(securities.sector),
+      sql`(${securities.sectorCheckedAt} IS NULL OR ${securities.sectorCheckedAt} < now() - make_interval(days => ${SECTOR_RETRY_DAYS}))`,
+    ))
+    .orderBy(sql`${securities.sectorCheckedAt} ASC NULLS FIRST`, securities.id).limit(SECTORS_PER_RUN)
+  let updated = 0
+  let attempted = 0
+  for (const security of candidates) {
+    attempted++
+    const profile = await withProviderCaller("sectors", () => fetchCompanyProfile(security.marketTicker!, { apiKey }))
+    if (profile.status !== "ok") break
+    const sector = mapIndustryToSector(profile.industry)
+    await db.update(securities).set({ sector, industry: profile.industry, sectorCheckedAt: new Date() }).where(eq(securities.id, security.id))
+    if (sector) updated++
+  }
+  return { updated, attempted }
+}
+
+let lastSectorKick = 0
+
+/**
+ * Runs {@link refreshSecuritySectors} after the response, throttled per server. Called only when someone
+ * opens the X-Ray, so people who never do cost no provider requests.
+ */
+export function scheduleSectorRefresh(securityIds: string[], minIntervalSeconds = 60) {
+  const now = Date.now()
+  if (securityIds.length === 0 || now - lastSectorKick < minIntervalSeconds * 1000) return
+  lastSectorKick = now
+  try {
+    after(async () => {
+      try {
+        await refreshSecuritySectors(securityIds)
+      } catch (error) {
+        console.error("[positions] sector refresh failed:", error instanceof Error ? error.message : "unknown")
+      }
+    })
+  } catch {
+    // Outside a request there's nothing to attach to; the next X-Ray will do it.
   }
 }
 

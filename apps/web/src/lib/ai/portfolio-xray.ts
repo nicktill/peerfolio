@@ -1,4 +1,5 @@
 import { riskMetrics, type IndexedPoint, type RiskMetrics } from "./risk-metrics.ts"
+import { classifyPosition, OTHER_SECTOR } from "./sectors.ts"
 import { allTimeGain, summarizeHoldings, todayChange, type HoldingSummary, type PositionInput } from "../dashboard-math.ts"
 
 /**
@@ -22,6 +23,15 @@ export type Insight = {
 
 export type AllocationSlice = { name: string; value: number; percent: number }
 
+export type SectorSlice = {
+  name: string
+  value: number
+  /** Share of the whole portfolio, 0-100. */
+  percent: number
+  /** A display sector, a fund/crypto/cash bucket (no single sector), or stocks whose sector isn't known. */
+  kind: "sector" | "bucket" | "unclassified"
+}
+
 export type XRay = {
   /** Newest price date across the holdings (YYYY-MM-DD), or null. */
   asOf: string | null
@@ -32,6 +42,18 @@ export type XRay = {
     largest: { ticker: string | null; name: string | null; value: number; weight: number }[]
   }
   allocation: AllocationSlice[]
+  /** Sector exposure of individual stocks; funds, crypto and cash sit in their own buckets (no look-through). */
+  sectors: {
+    slices: SectorSlice[]
+    /** Value of individual stocks, and the part of it with a mapped sector. */
+    stocks: { value: number; classifiedValue: number; holdings: number; classifiedHoldings: number }
+    /** Classified share of stock value, 0-100; null when there are no stocks. */
+    coverage: number | null
+    /** True when coverage is under {@link SECTOR_COVERAGE_MIN}. */
+    partial: boolean
+    /** Largest mapped sector with its share of classified stock value (0-100). */
+    largest: { name: string; percentOfClassified: number; percentOfPortfolio: number } | null
+  }
   concentration: {
     top1: number
     top3: number
@@ -60,8 +82,11 @@ export type XRay = {
   limitations: string[]
 }
 
+/** A position plus the display sector of its security, when known. */
+export type XRayPosition = PositionInput & { sector?: string | null }
+
 export type XRayInput = {
-  positions: PositionInput[]
+  positions: XRayPosition[]
   period?: { percent: number | null; days: number; range: string } | null
   /** The time-weighted series behind `period`, for volatility and drawdown. */
   series?: IndexedPoint[]
@@ -69,6 +94,13 @@ export type XRayInput = {
 
 /** Thresholds are heuristics for flagging, not rules; the summaries say so. */
 export const LIMITS = { notableHolding: 25, watchHolding: 15, notableTop5: 70, watchTop5: 55, notableStocks: 60, fewHoldings: 5 } as const
+
+/** A sector this large a share of classified stock value is worth naming; a heuristic, like the other thresholds. */
+export const SECTOR_WATCH = 40
+/** Below this share of stock value with a sector, exposure is called partial; a heuristic. */
+export const SECTOR_COVERAGE_MIN = 60
+/** Fewer classified holdings than this say little about sector tilt (one stock is its own sector). */
+export const SECTOR_MIN_HOLDINGS = 3
 
 /** A fall this deep over the window is worth naming; a heuristic, like the other thresholds. */
 export const DRAWDOWN_WATCH = 15
@@ -102,6 +134,43 @@ export function allocate(positions: PositionInput[]): AllocationSlice[] {
     .sort((a, b) => b.value - a.value)
 }
 
+export function analyzeSectors(positions: XRayPosition[]): XRay["sectors"] {
+  const bySlice = new Map<string, SectorSlice>()
+  const stockIds = new Set<string>()
+  const classifiedIds = new Set<string>()
+  let total = 0
+  let stockValue = 0
+  let classifiedValue = 0
+  for (const p of positions) {
+    if (!(p.value > 0)) continue
+    total += p.value
+    const bucket = classifyPosition(p.type, p.sector ?? null)
+    const slice = bySlice.get(bucket.name) ?? { name: bucket.name, value: 0, percent: 0, kind: bucket.kind === "sector" ? "sector" : bucket.kind }
+    slice.value += p.value
+    bySlice.set(bucket.name, slice)
+    if (p.type === "equity") {
+      stockValue += p.value
+      stockIds.add(p.securityId)
+      if (bucket.kind === "sector" && bucket.name !== OTHER_SECTOR) {
+        classifiedValue += p.value
+        classifiedIds.add(p.securityId)
+      }
+    }
+  }
+  const slices = [...bySlice.values()]
+    .map((sl) => ({ ...sl, percent: total > 0 ? (sl.value / total) * 100 : 0 }))
+    .sort((a, b) => b.value - a.value)
+  const coverage = stockValue > 0 ? (classifiedValue / stockValue) * 100 : null
+  const top = slices.find((sl) => sl.kind === "sector" && sl.name !== OTHER_SECTOR)
+  return {
+    slices,
+    stocks: { value: stockValue, classifiedValue, holdings: stockIds.size, classifiedHoldings: classifiedIds.size },
+    coverage,
+    partial: coverage != null && coverage < SECTOR_COVERAGE_MIN,
+    largest: top && classifiedValue > 0 ? { name: top.name, percentOfClassified: (top.value / classifiedValue) * 100, percentOfPortfolio: top.percent } : null,
+  }
+}
+
 function sumWeights(rows: HoldingSummary[], n: number) {
   return rows.slice(0, n).reduce((sum, r) => sum + r.weight, 0)
 }
@@ -120,11 +189,20 @@ export function analyzeConcentration(rows: HoldingSummary[]): XRay["concentratio
   }
 }
 
+function sectorLimitation({ coverage, partial, stocks }: XRay["sectors"]): string {
+  const funds = "Funds, crypto and cash are grouped in their own buckets; fund look-through into underlying sectors isn't available."
+  if (coverage == null) return `Sector exposure isn't shown: you hold no individual stocks, and ${funds.charAt(0).toLowerCase()}${funds.slice(1)}`
+  if (stocks.classifiedValue === 0) return `Sector exposure isn't shown yet: Peerfolio doesn't have sector data for your stocks so far. ${funds}`
+  if (partial) return `Sector exposure is partial: sector data covers ${pct(coverage)} of your stock value, so the shares shown are of that part only. ${funds}`
+  return `Sectors cover individual stocks only. ${funds}`
+}
+
 export function buildXRay({ positions, period = null, series = [] }: XRayInput): XRay {
   const rows = summarizeHoldings(positions)
   const totalValue = rows.reduce((sum, r) => sum + r.value, 0)
   const concentration = analyzeConcentration(rows)
   const allocation = allocate(positions)
+  const sectors = analyzeSectors(positions)
   const asOf = positions.map((p) => p.priceAsOf).filter((d): d is string => !!d).sort().at(-1) ?? null
 
   const today = todayChange(positions, totalValue)
@@ -236,8 +314,20 @@ export function buildXRay({ positions, period = null, series = [] }: XRayInput):
     })
   }
 
+  const { largest } = sectors
+  if (largest && largest.percentOfClassified >= SECTOR_WATCH && sectors.stocks.classifiedHoldings >= SECTOR_MIN_HOLDINGS) {
+    risks.push({
+      id: "sector-tilt",
+      severity: "watch",
+      title: `${largest.name} is the biggest sector in your stocks`,
+      summary: `${largest.name} is ${pct(largest.percentOfClassified)} of the stock value that has sector data${sectors.partial ? " (partial coverage, so the real share may differ)" : ""}. A heavy tilt means one part of the market drives much of your stock results; ${SECTOR_WATCH}% is a rule-of-thumb threshold, not a rule.`,
+      metric: `${pct(largest.percentOfClassified)} ${largest.name}`,
+      followUp: `How exposed am I to ${largest.name}?`,
+    })
+  }
+
   const limitations = [
-    "Sector exposure isn't shown: Peerfolio doesn't have reliable sector data for your holdings.",
+    sectorLimitation(sectors),
     "Fund overlap isn't shown: underlying fund constituents aren't available.",
     "Correlations between holdings aren't estimated.",
   ]
@@ -254,6 +344,7 @@ export function buildXRay({ positions, period = null, series = [] }: XRayInput):
       largest: rows.slice(0, 5).map((r) => ({ ticker: r.ticker, name: r.name, value: r.value, weight: r.weight })),
     },
     allocation,
+    sectors,
     concentration,
     performance: {
       today: today ? { amount: today.amount, percent: today.percent } : null,
