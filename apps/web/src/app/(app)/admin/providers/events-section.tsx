@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { ChevronRight, ListFilter } from "lucide-react"
-import { Card, CardContent } from "@web/components/ui/card"
+import { CollapsibleCard } from "@web/components/ui/collapsible-card"
 import { EmptyState } from "@web/components/ui/empty-state"
 import { Segmented } from "@web/components/ui/segmented"
 import { useApi } from "@web/lib/use-api"
@@ -100,11 +100,16 @@ export function EventsSection({ range, filter, onFilter }: { range: RangeKey; fi
   const filtered = filter.provider !== "all" || filter.kind !== "all"
 
   return (
-    <Card id="events" className="scroll-mt-20">
-      <CardContent className="space-y-4 pt-5">
+    <CollapsibleCard
+      id="events"
+      storageKey="providers-events"
+      defaultOpen={false}
+      revealKey={`${filter.provider}:${filter.kind}`}
+      title={<h2 className="flex items-center gap-2 font-medium"><ListFilter aria-hidden className="size-4" />Events</h2>}
+      summary={data ? `${EVENT_KINDS.reduce((n, k) => n + data.totals[k], 0).toLocaleString("en-US")} in last ${range}` : undefined}
+    >
         <div>
-          <h2 className="flex items-center gap-2 font-medium"><ListFilter aria-hidden className="size-4" />Events</h2>
-          <p className="mt-1 text-xs text-muted-foreground">Requests that didn&apos;t succeed in the last {range}, newest first. Kept 14 days; each server logs at most 20 a minute per provider, so a long outage is sampled. Counters above are exact.</p>
+          <p className="text-xs text-muted-foreground">Requests that didn&apos;t succeed in the last {range}, newest first. Kept 14 days; each server logs at most 20 a minute per provider, so a long outage is sampled. Counters above are exact.</p>
         </div>
 
         {data ? (
@@ -160,7 +165,6 @@ export function EventsSection({ range, filter, onFilter }: { range: RangeKey; fi
             {data?.more ? <p className="mt-2 text-xs text-muted-foreground">Showing the newest {events.length}. Narrow the filters or range to see older ones.</p> : null}
           </div>
         ) : null}
-      </CardContent>
-    </Card>
+    </CollapsibleCard>
   )
 }

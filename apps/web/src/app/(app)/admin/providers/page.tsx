@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react"
 import { Activity, AlertTriangle, CheckCircle2, RefreshCw } from "lucide-react"
 import { Button } from "@web/components/ui/button"
-import { Card, CardContent } from "@web/components/ui/card"
+import { Card } from "@web/components/ui/card"
+import { CollapsibleCard } from "@web/components/ui/collapsible-card"
 import { EmptyState } from "@web/components/ui/empty-state"
 import { Segmented } from "@web/components/ui/segmented"
 import { StatTile } from "@web/components/ui/stat-tile"
@@ -109,18 +110,16 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 function ProviderCard({ p, range }: { p: ProviderDashboard; range: RangeKey }) {
   const unit = p.limit.per === "hour" ? "hr" : "min"
   return (
-    <Card>
-      <CardContent className="space-y-4 pt-5">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="flex items-center gap-2 font-medium capitalize">
-            <span aria-hidden className="inline-block size-2.5 rounded-sm" style={{ background: colorOf(p.provider) }} />{p.provider}
-          </h2>
-          {p.warn ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-loss/10 px-2 py-0.5 text-xs font-medium text-loss-ink"><AlertTriangle aria-hidden className="size-3" />Near limit</span>
-          ) : (
-            <span className="text-xs text-muted-foreground">{p.totals.requests === 0 ? "No requests in range" : "Within limit"}</span>
-          )}
-        </div>
+    <CollapsibleCard
+      storageKey={`providers-card-${p.provider}`}
+      title={
+        <h2 className="flex items-center gap-2 font-medium capitalize">
+          <span aria-hidden className="inline-block size-2.5 rounded-sm" style={{ background: colorOf(p.provider) }} />{p.provider}
+          {p.warn ? <span className="inline-flex items-center gap-1 rounded-full bg-loss/10 px-2 py-0.5 text-xs font-medium normal-case text-loss-ink"><AlertTriangle aria-hidden className="size-3" />Near limit</span> : null}
+        </h2>
+      }
+      summary={p.totals.requests === 0 ? "No requests" : `${num(p.totals.requests)} requests · ${rate(p.successRate)}`}
+    >
         <p className="flex items-start gap-1.5 text-sm"><CheckCircle2 aria-hidden className={cn("mt-0.5 size-4 shrink-0", p.totals.requests > 0 && (p.successRate ?? 0) >= 0.98 ? "text-gain-ink" : "text-muted-foreground")} />{reading(p)}</p>
         <div className="grid grid-cols-3 gap-2">
           <Metric label="Succeeded" value={num(p.succeeded)} hint={`of ${num(p.totals.requests)} sent`} />
@@ -148,8 +147,7 @@ function ProviderCard({ p, range }: { p: ProviderDashboard; range: RangeKey }) {
           {p.peak.at ? `Peak ${num(p.peak.value)}/${unit} at ${new Date(p.peak.at).toLocaleString()}. ` : ""}
           Rate limited means the provider said 429; denied means our own budget refused before sending.
         </p>
-      </CardContent>
-    </Card>
+    </CollapsibleCard>
   )
 }
 
@@ -255,10 +253,8 @@ export default function ProviderUsagePage() {
 
           {providers.map((p) => <ProviderCard key={p.provider} p={p} range={range} />)}
 
-          <Card>
-            <CardContent className="space-y-5 pt-5">
+          <CollapsibleCard storageKey="providers-daily" title={<h2 className="font-medium">Daily totals</h2>}>
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="font-medium">Daily totals</h2>
                 <ul className="flex flex-wrap gap-3 text-xs text-muted-foreground">
                   {providers.map((p) => <li key={p.provider} className="flex items-center gap-1.5 capitalize"><span aria-hidden className="inline-block size-2.5 rounded-sm" style={{ background: colorOf(p.provider) }} />{p.provider}</li>)}
                 </ul>
@@ -271,8 +267,7 @@ export default function ProviderUsagePage() {
                 <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">Tickers per day</p>
                 <GroupedBarChart labels={dayLabels} series={seriesFor((d) => d.symbols)} ariaLabel="Tickers per day by provider" />
               </div>
-            </CardContent>
-          </Card>
+          </CollapsibleCard>
         </>
       ) : null}
 
