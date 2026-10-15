@@ -330,7 +330,10 @@ function Panel({ onClose }: { onClose: () => void }) {
 
   useLayoutEffect(() => {
     const el = scroller.current
-    if (el && stick.current) el.scrollTop = el.scrollHeight
+    if (!el) return
+    // The opening card always starts at its top; only a conversation follows its newest line.
+    if (messages.length === 0) el.scrollTop = 0
+    else if (stick.current) el.scrollTop = el.scrollHeight
   }, [messages, phase])
 
   const begin = (kind: "move" | Edge) => (e: React.PointerEvent<HTMLElement>) => {
