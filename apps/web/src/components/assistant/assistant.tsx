@@ -6,6 +6,7 @@ import { ArrowUp, Check, Maximize2, Minimize2, Minus, RotateCcw, Square, SquareP
 import { Orb } from "@web/components/assistant/orb"
 import { PAGE_LABEL, suggestionsFor, useAssistant, type Msg, type Phase } from "@web/components/assistant/use-assistant"
 import { XRayReport } from "@web/components/assistant/xray-report"
+import { useApi } from "@web/lib/use-api"
 import "@web/components/assistant/assistant.css"
 
 const GEO_KEY = "pf-assistant-geo-v1"
@@ -306,6 +307,21 @@ function Panel({ onClose }: { onClose: () => void }) {
   )
 }
 
+/** What the assistant can see on the portfolio page: linked accounts first, since those are the real ones. */
+function ScopePill() {
+  const { data } = useApi<{ linked: number; manual: number }>("/api/assistant/scope")
+  if (!data) return null
+  const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`
+  const [tone, text] =
+    data.linked > 0 ? ["", `${plural(data.linked, "account")} connected`] : data.manual > 0 ? ["is-manual", `${plural(data.manual, "manual account")}`] : ["is-none", "No accounts yet"]
+  return (
+    <motion.div className={`pf-ai-scope ${tone}`} role="status" variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}>
+      <i aria-hidden />
+      {text}
+    </motion.div>
+  )
+}
+
 function EmptyState({ onPick }: { onPick: (q: string) => void }) {
   const { page } = useAssistant()
   const items = suggestionsFor(page)
@@ -316,12 +332,12 @@ function EmptyState({ onPick }: { onPick: (q: string) => void }) {
       </motion.div>
       <motion.h3 variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}>What would you like to understand?</motion.h3>
       <motion.p variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}>I can read your holdings and explain what they show.</motion.p>
-      <div className="pf-ai-sugs">
-        {items.map((s, i) => (
+      {page === "portfolio" ? <ScopePill /> : null}
+      <div className="pf-ai-sugs" style={page === "portfolio" ? { marginTop: 14 } : undefined}>
+        {items.map((s) => (
           <motion.button
             key={s.label}
             type="button"
-            style={{ "--i": i } as React.CSSProperties}
             className={`pf-ai-sug ${s.featured ? "is-featured" : ""}`}
             variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}
             onClick={() => onPick(s.label)}
