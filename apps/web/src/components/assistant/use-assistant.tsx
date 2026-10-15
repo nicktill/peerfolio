@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
 import { usePathname } from "next/navigation"
+import { isWealthHref } from "@web/lib/wealth/link"
 import type { XRay } from "@web/lib/ai/portfolio-xray"
 
 /**
@@ -10,7 +11,7 @@ import type { XRay } from "@web/lib/ai/portfolio-xray"
  * aren't written to the server, and they're gone when the tab closes.
  */
 
-export type Page = "portfolio" | "leagues" | "fantasy" | "news" | "board" | "other"
+export type Page = "portfolio" | "leagues" | "fantasy" | "news" | "board" | "wealth" | "other"
 export type Phase = "idle" | "reading" | "analyzing" | "writing"
 
 export type Msg = {
@@ -18,6 +19,7 @@ export type Msg = {
   role: "user" | "assistant"
   text: string
   xray?: XRay
+  link?: { label: string; href: string }
   error?: string
 }
 
@@ -25,6 +27,7 @@ type Event =
   | { type: "status"; stage: "reading" | "analyzing" | "writing" }
   | { type: "text"; delta: string }
   | { type: "xray"; data: XRay }
+  | { type: "link"; label: string; href: string }
   | { type: "error"; message: string }
   | { type: "done" }
 
@@ -54,6 +57,7 @@ export function pageOf(pathname: string): Page {
   if (pathname.startsWith("/fantasy")) return "fantasy"
   if (pathname.startsWith("/news")) return "news"
   if (pathname.startsWith("/board")) return "board"
+  if (pathname.startsWith("/wealth")) return "wealth"
   return "other"
 }
 
@@ -143,6 +147,8 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
             else if (event.type === "xray") {
               patchLast((m) => ({ ...m, xray: event.data }))
               setReportSeq((n) => n + 1)
+            } else if (event.type === "link") {
+              if (isWealthHref(event.href) && typeof event.label === "string") patchLast((m) => ({ ...m, link: { label: event.label.slice(0, 60), href: event.href } }))
             } else if (event.type === "error") patchLast((m) => ({ ...m, error: event.message }))
           }
         }
@@ -267,6 +273,15 @@ export const PAGE_COPY: Record<Page, PageCopy> = {
     ],
     note: "Board data is coming soon.",
   },
+  wealth: {
+    title: "Plan your wealth",
+    subtitle: "I can run your what-ifs through Wealth Lab's engine, so the numbers are computed, not guessed.",
+    suggestions: [
+      { label: "What if I invest $500 more a month?", featured: true },
+      { label: "How much do I need to save to reach $1M?" },
+      { label: "Make a more conservative scenario" },
+    ],
+  },
   other: {
     title: "What would you like to understand?",
     subtitle: "I can read your holdings and explain what they show.",
@@ -309,5 +324,6 @@ export const PAGE_LABEL: Record<Page, string> = {
   fantasy: "Fantasy",
   news: "News",
   board: "Board",
+  wealth: "Wealth Lab",
   other: "Peerfolio",
 }

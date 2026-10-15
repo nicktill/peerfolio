@@ -13,6 +13,7 @@ import {
   yearsSaved,
   type WealthInputs,
 } from "@web/lib/wealth/engine"
+import { decodeWealthParams } from "@web/lib/wealth/link"
 import { MiniField, SliderField } from "./controls"
 import { duration, usd, usdCompact } from "./format"
 import { WealthChart, type SeriesKind } from "./wealth-chart"
@@ -74,16 +75,35 @@ export function WealthLab() {
   const [kind, setKind] = useState<SeriesKind>("nominal")
   const [hover, setHover] = useState<number | null>(null)
   const [wantImport, setWantImport] = useState(false)
-  const set = useCallback(<K extends keyof State>(key: K, value: State[K]) => setS((p) => ({ ...p, [key]: value })), [])
+  // Fields prefilled by an assistant link. They clear when the person edits that field.
+  const [fromAssistant, setFromAssistant] = useState<ReadonlySet<string>>(new Set())
+  const linked = useRef<State | null>(null)
+  const booted = useRef(false)
+  const set = useCallback(<K extends keyof State>(key: K, value: State[K]) => {
+    setS((p) => ({ ...p, [key]: value }))
+    setFromAssistant((f) => (f.has(key) ? new Set([...f].filter((k) => k !== key)) : f))
+  }, [])
 
   useEffect(() => {
+    // Strict mode runs this twice; the link is consumed (and the URL cleaned) the first time.
+    if (booted.current) return
+    booted.current = true
     const saved = load()
     // Restoring last-used inputs after mount keeps the server render and first client render identical.
-    if (saved) setS(saved)
+    const fromLink = decodeWealthParams(window.location.search)
+    if (fromLink) {
+      // The link wins for this visit only: it isn't saved until the person edits something.
+      const fields = fromLink
+      const next: State = { ...(saved ?? DEFAULTS), ...fields, importedStart: false }
+      linked.current = next
+      setS(next)
+      setFromAssistant(new Set(Object.keys(fields).filter((k) => k !== "spread")))
+      window.history.replaceState(null, "", window.location.pathname)
+    } else if (saved) setS(saved)
     setReady(true)
   }, [])
   useEffect(() => {
-    if (!ready) return
+    if (!ready || s === linked.current) return
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)) } catch { /* private mode, quota: inputs just won't persist */ }
   }, [s, ready])
 
@@ -95,6 +115,7 @@ export function WealthLab() {
     if (!wantImport || applied.current || imported == null) return
     applied.current = true
     setS((p) => ({ ...p, startingValue: Math.max(0, Math.round(imported)), importedStart: true }))
+    setFromAssistant((f) => { const n = new Set(f); n.delete("startingValue"); return n })
     setWantImport(false)
   }, [wantImport, imported])
   const importing = wantImport && portfolio.loading && imported == null
@@ -157,16 +178,16 @@ export function WealthLab() {
             </div>
           </div>
           <div className="pf-pb divide-y divide-[var(--hair2)]">
-            <SliderField label="Starting value" prefix="$" value={s.startingValue} min={0} max={1_000_000} step={1_000} tag={s.importedStart ? "imported" : undefined}
-              onChange={(v) => setS((p) => ({ ...p, startingValue: v, importedStart: false }))}
+            <SliderField label="Starting value" prefix="$" value={s.startingValue} min={0} max={1_000_000} step={1_000} tag={fromAssistant.has("startingValue") ? "from assistant" : s.importedStart ? "imported" : undefined}
+              onChange={(v) => { setS((p) => ({ ...p, startingValue: v, importedStart: false })); setFromAssistant((f) => { const n = new Set(f); n.delete("startingValue"); return n }) }}
               hint={portfolio.error && wantImport ? "Couldn't load your portfolio. Enter a value instead." : undefined} />
-            <SliderField label="Monthly contribution" prefix="$" value={s.monthlyContribution} min={0} max={10_000} step={50} onChange={(v) => set("monthlyContribution", v)} />
-            <SliderField label="Contribution growth" suffix="%/yr" decimals={1} value={s.annualContributionGrowthPct} min={0} max={10} step={0.5} onChange={(v) => set("annualContributionGrowthPct", v)} hint="Raise your contribution by this much each year." />
-            <SliderField label="Years" suffix="yrs" value={s.years} min={1} max={50} step={1} onChange={(v) => set("years", v)} />
-            <SliderField label="Expected return" suffix="%/yr" decimals={1} value={s.expectedAnnualReturnPct} min={0} max={15} step={0.1} onChange={(v) => set("expectedAnnualReturnPct", v)} hint="An assumption, not a forecast." />
-            <SliderField label="Inflation" suffix="%/yr" decimals={1} value={s.inflationPct} min={0} max={10} step={0.1} onChange={(v) => set("inflationPct", v)} />
+            <SliderField label="Monthly contribution" tag={fromAssistant.has("monthlyContribution") ? "from assistant" : undefined} prefix="$" value={s.monthlyContribution} min={0} max={10_000} step={50} onChange={(v) => set("monthlyContribution", v)} />
+            <SliderField label="Contribution growth" tag={fromAssistant.has("annualContributionGrowthPct") ? "from assistant" : undefined} suffix="%/yr" decimals={1} value={s.annualContributionGrowthPct} min={0} max={10} step={0.5} onChange={(v) => set("annualContributionGrowthPct", v)} hint="Raise your contribution by this much each year." />
+            <SliderField label="Years" tag={fromAssistant.has("years") ? "from assistant" : undefined} suffix="yrs" value={s.years} min={1} max={50} step={1} onChange={(v) => set("years", v)} />
+            <SliderField label="Expected return" tag={fromAssistant.has("expectedAnnualReturnPct") ? "from assistant" : undefined} suffix="%/yr" decimals={1} value={s.expectedAnnualReturnPct} min={0} max={15} step={0.1} onChange={(v) => set("expectedAnnualReturnPct", v)} hint="An assumption, not a forecast." />
+            <SliderField label="Inflation" tag={fromAssistant.has("inflationPct") ? "from assistant" : undefined} suffix="%/yr" decimals={1} value={s.inflationPct} min={0} max={10} step={0.1} onChange={(v) => set("inflationPct", v)} />
             <div className="py-3 last:pb-0">
-              <SliderField inputId="wl-target" label="Target" prefix="$" value={s.targetValue} min={0} max={5_000_000} step={25_000} onChange={(v) => set("targetValue", v)} />
+              <SliderField inputId="wl-target" label="Target" tag={fromAssistant.has("targetValue") ? "from assistant" : undefined} prefix="$" value={s.targetValue} min={0} max={5_000_000} step={25_000} onChange={(v) => set("targetValue", v)} />
               <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="Target presets">
                 {CHIPS.map((c) => (
                   <button key={c} type="button" className="wl-chip" aria-pressed={s.targetValue === c} onClick={() => set("targetValue", c)}>{usdCompact(c)}</button>

@@ -85,9 +85,9 @@ export function cleanHistory(raw: unknown): ChatMessage[] | null {
 }
 
 /** Where the person is in the app, as the client reports it. Informational only: tools re-check ownership. */
-export type PageContext = { page: "portfolio" | "leagues" | "fantasy" | "news" | "board" | "other"; entityId?: string }
+export type PageContext = { page: "portfolio" | "leagues" | "fantasy" | "news" | "board" | "wealth" | "other"; entityId?: string }
 
-const PAGES = new Set(["portfolio", "leagues", "fantasy", "news", "board", "other"])
+const PAGES = new Set(["portfolio", "leagues", "fantasy", "news", "board", "wealth", "other"])
 
 export function cleanContext(raw: unknown): PageContext {
   if (!raw || typeof raw !== "object") return { page: "other" }
