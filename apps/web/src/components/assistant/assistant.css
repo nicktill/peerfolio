@@ -103,15 +103,18 @@
 }
 .pf-ai-win.is-morph { transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1), height 0.4s cubic-bezier(0.22, 1, 0.36, 1), right 0.4s cubic-bezier(0.22, 1, 0.36, 1), bottom 0.4s cubic-bezier(0.22, 1, 0.36, 1); }
 .pf-ai-win.is-live { user-select: none; }
-/* A lit edge that wakes while the assistant works. */
+/* A lit edge that wakes while the assistant works. The light travels around the border by animating the
+   gradient's angle; rotating the overlay itself would swing a window-sized rectangle. */
+@property --pf-angle { syntax: "<angle>"; initial-value: 0deg; inherits: false; }
+@keyframes pf-edge { to { --pf-angle: 360deg; } }
 .pf-ai-win::before {
   content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none; opacity: 0;
-  background: conic-gradient(from 0deg, transparent, rgba(var(--accent-a), 0.8), rgba(var(--ai-violet), 0.7), transparent 60%);
+  background: conic-gradient(from var(--pf-angle), transparent 0 40%, rgba(var(--accent-a), 0.85), rgba(var(--ai-violet), 0.75) 70%, transparent 85%);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
   transition: opacity 0.4s;
 }
-.pf-ai-win.is-busy::before { opacity: 0.85; animation: pf-orb-turn 5s linear infinite; }
+.pf-ai-win.is-busy::before { opacity: 0.85; animation: pf-edge 4.5s linear infinite; }
 
 .pf-ai-win.is-sheet {
   left: 0; right: 0; bottom: var(--pf-vvb, 0px); width: auto; height: min(calc(var(--pf-vvh, 100dvh) * 0.88), 760px); border-radius: 20px 20px 0 0; border-bottom: 0;

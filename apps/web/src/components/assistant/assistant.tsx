@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExter
 import { AnimatePresence, MotionConfig, motion } from "motion/react"
 import { ArrowUp, Check, Maximize2, Minimize2, Minus, RotateCcw, Square, SquarePen } from "lucide-react"
 import { Orb } from "@web/components/assistant/orb"
-import { PAGE_LABEL, suggestionsFor, useAssistant, type Msg, type Phase } from "@web/components/assistant/use-assistant"
+import { PAGE_COPY, PAGE_LABEL, useAssistant, type Msg, type Phase } from "@web/components/assistant/use-assistant"
 import { XRayReport } from "@web/components/assistant/xray-report"
 import { useApi } from "@web/lib/use-api"
 import "@web/components/assistant/assistant.css"
@@ -324,16 +324,24 @@ function ScopePill() {
 
 function EmptyState({ onPick }: { onPick: (q: string) => void }) {
   const { page } = useAssistant()
-  const items = suggestionsFor(page)
+  const copy = PAGE_COPY[page]
+  const items = copy.suggestions
   return (
-    <motion.div className="pf-ai-empty" initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.05, delayChildren: 0.08 } } }}>
+    <motion.div key={page} className="pf-ai-empty" initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.05, delayChildren: 0.08 } } }}>
       <motion.div variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}>
         <Orb size={44} />
       </motion.div>
-      <motion.h3 variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}>What would you like to understand?</motion.h3>
-      <motion.p variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}>I can read your holdings and explain what they show.</motion.p>
-      {page === "portfolio" ? <ScopePill /> : null}
-      <div className="pf-ai-sugs" style={page === "portfolio" ? { marginTop: 14 } : undefined}>
+      <motion.h3 variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}>{copy.title}</motion.h3>
+      <motion.p variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}>{copy.subtitle}</motion.p>
+      {page === "portfolio" ? (
+        <ScopePill />
+      ) : copy.note ? (
+        <motion.div className="pf-ai-scope is-none" variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}>
+          <i aria-hidden />
+          {copy.note}
+        </motion.div>
+      ) : null}
+      <div className="pf-ai-sugs" style={page === "portfolio" || copy.note ? { marginTop: 14 } : undefined}>
         {items.map((s) => (
           <motion.button
             key={s.label}

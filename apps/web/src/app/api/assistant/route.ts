@@ -1,7 +1,7 @@
 import OpenAI from "openai"
 import { NextResponse } from "next/server"
 import { getCurrentUserId } from "@web/lib/auth"
-import { ASSISTANT_MODEL, LIMITS, cleanContext, cleanHistory, costOf, tokenBound, worstCaseUsd } from "@web/lib/ai/limits"
+import { ASSISTANT_MODEL, LIMITS, cleanContext, cleanHistory, costOf, tokenBound, worstCaseUsd, type PageContext } from "@web/lib/ai/limits"
 import { reserve, settle } from "@web/lib/ai/usage"
 import { TOOL_DEFS, runTool } from "@web/lib/ai/tools"
 import type { XRay } from "@web/lib/ai/portfolio-xray"
@@ -34,6 +34,16 @@ How to be useful:
 - You can't yet see leagues, fantasy portfolios or benchmark comparisons; say so if asked.
 - Be concise and direct. No emoji. Plain text, short paragraphs.`
 
+/** What "this page" implies for a question, so "why am I down?" means the right thing wherever it's asked. */
+const PAGE_GUIDANCE: Record<PageContext["page"], string> = {
+  portfolio: "Questions about \"my portfolio\", performance or holdings refer to their real accounts here.",
+  news: "Lean on get_market_news first, and tie stories to their holdings when a headline mentions them.",
+  leagues: "You can't read league standings or other members yet. If asked about rank or the leaderboard, say so, then offer to analyze their own portfolio instead. Never guess at other members' holdings.",
+  fantasy: "You can't read fantasy positions, trades or standings yet. If asked, say so, then offer to analyze their real portfolio instead.",
+  board: "You can't read the public board yet. If asked about rankings, say so, then offer to analyze their own portfolio instead.",
+  other: "",
+}
+
 const client = () => {
   const apiKey = process.env.OPENAI_API_KEY
   return apiKey ? new OpenAI({ apiKey, maxRetries: 0, timeout: 55_000 }) : null
@@ -53,7 +63,7 @@ export async function POST(request: Request) {
   const openai = client()
   if (!openai) return NextResponse.json({ error: "The assistant isn't set up on this server yet." }, { status: 503 })
 
-  const instructions = `${SYSTEM}\n\nThe person is currently on the ${context.page} page.`
+  const instructions = `${SYSTEM}\n\nThe person is currently on the ${context.page} page. ${PAGE_GUIDANCE[context.page]}`
   const input: Item[] = messages.map((m) => ({ role: m.role, content: m.content }))
 
   const inputBytes = tokenBound(instructions) + tokenBound(JSON.stringify(input)) + tokenBound(JSON.stringify(TOOL_DEFS))

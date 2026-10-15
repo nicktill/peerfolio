@@ -198,15 +198,76 @@ export function useAssistant() {
   return value
 }
 
-/** Prompts the assistant can answer today, by page. Page-specific sets arrive with the tools that back them. */
-export function suggestionsFor(page: Page): { label: string; featured?: boolean }[] {
-  const base = [
-    { label: "Analyze my portfolio", featured: true },
-    { label: "Am I overly concentrated?" },
-    { label: "What are my biggest risks?" },
-    { label: "What are my largest holdings?" },
-  ]
-  return page === "portfolio" || page === "other" ? base : base.slice(0, 3)
+export type PageCopy = {
+  title: string
+  subtitle: string
+  suggestions: { label: string; featured?: boolean }[]
+  /** Shown when the page's own data isn't something the assistant can read yet. */
+  note?: string
+}
+
+const PORTFOLIO_PROMPTS = [
+  { label: "Analyze my portfolio", featured: true },
+  { label: "Am I overly concentrated?" },
+  { label: "What are my biggest risks?" },
+  { label: "What are my largest holdings?" },
+]
+
+/**
+ * What the empty state says on each page. Only prompts the assistant can answer today
+ * appear: the portfolio and news have tools behind them, the social pages don't yet.
+ */
+export const PAGE_COPY: Record<Page, PageCopy> = {
+  portfolio: {
+    title: "What would you like to understand?",
+    subtitle: "I can read your holdings and explain what they show.",
+    suggestions: PORTFOLIO_PROMPTS,
+  },
+  news: {
+    title: "What's moving the market?",
+    subtitle: "I can read today's recap and headlines and tie them to what you own.",
+    suggestions: [
+      { label: "Summarize today's market", featured: true },
+      { label: "Which news matters to my holdings?" },
+      { label: "What might today's moves mean for my portfolio?" },
+      { label: "Analyze my portfolio" },
+    ],
+  },
+  leagues: {
+    title: "Make sense of your league",
+    subtitle: "League standings aren't readable yet. Meanwhile I can look at the portfolio behind your rank.",
+    suggestions: [
+      { label: "Analyze my portfolio", featured: true },
+      { label: "Am I overly concentrated?" },
+      { label: "What are my biggest risks?" },
+    ],
+    note: "League data is coming soon.",
+  },
+  fantasy: {
+    title: "Sharpen your fantasy strategy",
+    subtitle: "Fantasy positions aren't readable yet. For now I can analyze your real portfolio.",
+    suggestions: [
+      { label: "Analyze my portfolio", featured: true },
+      { label: "Am I overly concentrated?" },
+      { label: "What are my biggest risks?" },
+    ],
+    note: "Fantasy data is coming soon.",
+  },
+  board: {
+    title: "Understand the board",
+    subtitle: "Board rankings aren't readable yet. For now I can analyze your own portfolio.",
+    suggestions: [
+      { label: "Analyze my portfolio", featured: true },
+      { label: "What are my biggest risks?" },
+      { label: "What are my largest holdings?" },
+    ],
+    note: "Board data is coming soon.",
+  },
+  other: {
+    title: "What would you like to understand?",
+    subtitle: "I can read your holdings and explain what they show.",
+    suggestions: PORTFOLIO_PROMPTS,
+  },
 }
 
 export const PAGE_LABEL: Record<Page, string> = {
