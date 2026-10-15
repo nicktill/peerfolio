@@ -32,7 +32,7 @@ import { cn } from "@web/lib/utils"
 import "./portfolio-4a.css"
 import { mutate, useApi } from "@web/lib/use-api"
 import type { NewsResponse } from "@web/lib/news"
-import { defaultRange, rangeAvailability, rangeUnlockDays, RANGES, type Range } from "@web/lib/ranges"
+import { defaultRange, rangeAvailability, RANGES, type Range } from "@web/lib/ranges"
 
 export type ArchivedAccount = { id: string; name: string; institutionName: string; balance: number; positions: { id: string; ticker: string | null; name: string | null; quantity: number; value: number }[] }
 
@@ -190,11 +190,8 @@ export function PortfolioScreen({
   }
 
   const available = rangeAvailability(data.firstDate, marketToday())
-  const unlockIn = rangeUnlockDays(data.firstDate, marketToday())
-  // Only ranges the history can fill are offered; locked ones are described in the
-  // footnote under the chart instead of sitting there greyed out.
+  // Only ranges the history can fill are offered.
   const rangeOptions = RANGES.filter((r) => available[r]).map((r) => ({ value: r, label: r }))
-  const nextRange = RANGES.filter((r) => !available[r]).sort((a, b) => unlockIn[a] - unlockIn[b])[0]
   const windowCoversAll = range === "ALL" || !available[range]
 
   // One chart for both questions: the line is what it's worth (dollars, moved by
@@ -414,12 +411,6 @@ export function PortfolioScreen({
                   hidden={hidden}
                   onDate={setReplayDate}
                 />
-                <details className="pf-foot pf-chart-about">
-                  <summary>About this chart</summary>
-                  <p>Portfolio value includes deposits and withdrawals. Return measures investment performance without them.
-                    {nextRange ? ` ${nextRange} becomes available in ${plural(unlockIn[nextRange], "day")}.` : ""}
-                  </p>
-                </details>
               </>
             ) : (
               /* Being honest beats drawing a line through invented data. */

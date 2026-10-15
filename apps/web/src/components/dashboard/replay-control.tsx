@@ -175,7 +175,7 @@ export function ReplayControl({
   const atEnd = index >= last
 
   return (
-    <div className="mt-2 flex flex-col gap-1.5 pb-2" role="group" aria-label="Portfolio replay">
+    <div className="mt-4 flex flex-col gap-2.5 border-t border-border/60 pb-4 pt-4" role="group" aria-label="Portfolio replay">
       <div className="flex items-center gap-1.5">
         <span className="pf-eyebrow !text-[10px] max-[420px]:sr-only">Replay</span>
         {reduceMotion ? null : (
