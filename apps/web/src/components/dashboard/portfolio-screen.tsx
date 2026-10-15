@@ -20,6 +20,7 @@ import { useToast } from "@web/components/ui/toast"
 import { type AllocationSlice } from "@web/components/charts/allocation-bar"
 import { PerformanceChart } from "@web/components/charts/performance-chart"
 import { BENCHMARK_OPTIONS, BENCHMARK_STYLE, BenchmarkCompare, type BenchmarkChoice, type BenchmarkResponse } from "@web/components/dashboard/benchmark-compare"
+import { ReplayControl } from "@web/components/dashboard/replay-control"
 import { AccountsCard, type AccountRow, type ItemRow } from "@web/components/dashboard/accounts-card"
 import { ConnectButton } from "@web/components/dashboard/connect-button"
 import { HoldingsTable, type HoldingRow } from "@web/components/dashboard/holdings-table"
@@ -93,6 +94,8 @@ export function PortfolioScreen({
 }) {
   const { toast } = useToast()
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
+  // Portfolio replay: the date the playhead is on, or null when no replay is running.
+  const [replayDate, setReplayDate] = useState<string | null>(null)
   const [range, setRange] = useState<Range>("1M")
   // Until someone picks a range themselves, show the longest one their history can fill.
   const pickedRange = useRef(false)
@@ -207,6 +210,8 @@ export function PortfolioScreen({
   const canChart = data.hasHistory && series.length >= 2
   const shown = canChart ? (hoverIndex != null ? series[hoverIndex] : series[series.length - 1]) : undefined
   const shownReturn = shown ? (hoverIndex == null ? data.performance.percent : returnOn.get(shown.date)) : undefined
+  const replayAt = replayDate == null ? -1 : series.findIndex((p) => p.date === replayDate)
+  const replayIndex = replayAt >= 0 ? replayAt : null
   const windowLabel = windowCoversAll && data.firstDate ? `since ${formatDate(data.firstDate)}` : `last ${RANGE_NAMES[range]}`
 
   const netWorthWhole = Math.floor(data.summary.netWorth)
@@ -381,7 +386,9 @@ export function PortfolioScreen({
                     points={series}
                     height={250}
                     showTooltip={false}
-                    onHover={setHoverIndex}
+                    onHover={replayDate == null ? setHoverIndex : undefined}
+                    reveal={replayIndex}
+                    markerIndex={replayIndex}
                     indexed={!!comparison}
                     baseline={comparison ? 100 : undefined}
                     compare={comparison ? comparison.series.map((p) => ({ date: p.date, value: p.indexed })) : undefined}
@@ -397,6 +404,16 @@ export function PortfolioScreen({
                 {!demo ? (
                   <BenchmarkCompare choice={bench} onChoose={chooseBench} loading={cmp.loading} error={cmp.error} result={bench === "OFF" ? null : cmp.data} />
                 ) : null}
+                {/* Keyed so a new range or a benchmark switch starts a fresh replay on the right frames. */}
+                <ReplayControl
+                  key={`${range}:${comparison ? cmp.data?.symbol : "off"}`}
+                  history={data.history}
+                  performance={data.performance.series}
+                  benchmark={comparison?.series ?? null}
+                  benchmarkLabel={comparison ? (cmp.data?.label ?? null) : null}
+                  hidden={hidden}
+                  onDate={setReplayDate}
+                />
                 <details className="pf-foot pf-chart-about">
                   <summary>About this chart</summary>
                   <p>Portfolio value includes deposits and withdrawals. Return measures investment performance without them.
