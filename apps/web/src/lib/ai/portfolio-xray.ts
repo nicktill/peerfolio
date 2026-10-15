@@ -1,3 +1,4 @@
+import { riskMetrics, type IndexedPoint, type RiskMetrics } from "./risk-metrics.ts"
 import { allTimeGain, summarizeHoldings, todayChange, type HoldingSummary, type PositionInput } from "../dashboard-math.ts"
 
 /**
@@ -50,6 +51,8 @@ export type XRay = {
     /** Time-weighted return over the window, net of deposits, when history supports it. */
     period: { percent: number; days: number; range: string } | null
     movers: { ticker: string | null; name: string | null; todayAmount: number }[]
+    /** Volatility and drawdown of the time-weighted series over the same window; null without history. */
+    risk: RiskMetrics | null
   }
   risks: Insight[]
   nextSteps: Insight[]
@@ -60,10 +63,15 @@ export type XRay = {
 export type XRayInput = {
   positions: PositionInput[]
   period?: { percent: number | null; days: number; range: string } | null
+  /** The time-weighted series behind `period`, for volatility and drawdown. */
+  series?: IndexedPoint[]
 }
 
 /** Thresholds are heuristics for flagging, not rules; the summaries say so. */
 export const LIMITS = { notableHolding: 25, watchHolding: 15, notableTop5: 70, watchTop5: 55, notableStocks: 60, fewHoldings: 5 } as const
+
+/** A fall this deep over the window is worth naming; a heuristic, like the other thresholds. */
+export const DRAWDOWN_WATCH = 15
 
 const SECURITY_LABELS: Record<string, string> = {
   fund: "Plan funds",
@@ -112,7 +120,7 @@ export function analyzeConcentration(rows: HoldingSummary[]): XRay["concentratio
   }
 }
 
-export function buildXRay({ positions, period = null }: XRayInput): XRay {
+export function buildXRay({ positions, period = null, series = [] }: XRayInput): XRay {
   const rows = summarizeHoldings(positions)
   const totalValue = rows.reduce((sum, r) => sum + r.value, 0)
   const concentration = analyzeConcentration(rows)
@@ -216,11 +224,24 @@ export function buildXRay({ positions, period = null }: XRayInput): XRay {
     })
   }
 
+  const risk = riskMetrics(series)
+  if (risk?.maxDrawdown != null && risk.maxDrawdown >= DRAWDOWN_WATCH) {
+    risks.push({
+      id: "drawdown",
+      severity: "watch",
+      title: "A meaningful drop in this window",
+      summary: `Net of deposits, the portfolio fell ${pct(risk.maxDrawdown)} from its peak at the worst point.`,
+      metric: `Max drawdown ${pct(risk.maxDrawdown)}`,
+      followUp: "What drove my biggest drop?",
+    })
+  }
+
   const limitations = [
     "Sector exposure isn't shown: Peerfolio doesn't have reliable sector data for your holdings.",
     "Fund overlap isn't shown: underlying fund constituents aren't available.",
-    "Volatility and correlation aren't estimated from allocation alone.",
+    "Correlations between holdings aren't estimated.",
   ]
+  if (risk?.volatility == null) limitations.push("Volatility needs about a month of tracked daily history.")
   if (!period || period.percent == null) limitations.push("Period performance needs more tracked history than this portfolio has so far.")
   if (positions.some((p) => !(p.costBasis && p.costBasis > 0))) limitations.push("Gain figures only cover positions that have a cost basis.")
 
@@ -239,6 +260,7 @@ export function buildXRay({ positions, period = null }: XRayInput): XRay {
       allTime: gain ? { amount: gain.amount, percent: gain.percent, coverage: gain.coverage } : null,
       period: period && period.percent != null ? { percent: period.percent, days: period.days, range: period.range } : null,
       movers,
+      risk,
     },
     risks,
     nextSteps,

@@ -350,11 +350,28 @@ function Progress({ phase }: { phase: Phase }) {
         return (
           <motion.li key={s.key} className={`is-${state}`} initial={{ opacity: 0, x: -4 }} animate={{ opacity: state === "next" ? 0.4 : 1, x: 0 }} transition={{ delay: i * 0.06, duration: 0.25 }}>
             <span className="pf-ai-pn">{state === "done" ? <Check size={11} strokeWidth={2.5} /> : String(i + 1).padStart(2, "0")}</span>
-            <span>{s.label}</span>
+            <span className={state === "now" ? "pf-ai-shimmer" : undefined}>{s.label}</span>
           </motion.li>
         )
       })}
     </ol>
+  )
+}
+
+/** The report's outline while its numbers are computed, so the real report replaces it in place. */
+function ReportSkeleton() {
+  return (
+    <motion.div className="pf-sk-xr" aria-hidden initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15 }}>
+      <span className="pf-sk-b is-hero" />
+      <div className="pf-sk-row">
+        <span className="pf-sk-b" />
+        <span className="pf-sk-b" />
+        <span className="pf-sk-b" />
+      </div>
+      <span className="pf-sk-b is-bar" />
+      <span className="pf-sk-b" style={{ width: "72%" }} />
+      <span className="pf-sk-b" style={{ width: "58%" }} />
+    </motion.div>
   )
 }
 
@@ -370,11 +387,16 @@ function Message({ m, last, phase, busy, onAsk, onRetry }: { m: Msg; last: boole
   const showProgress = working && (phase === "analyzing" || (phase === "writing" && !!m.xray))
   return (
     <div className="pf-ai-bot">
-      {showProgress && !m.xray ? <Progress phase={phase} /> : null}
+      {showProgress && !m.xray ? (
+        <>
+          <Progress phase={phase} />
+          <ReportSkeleton />
+        </>
+      ) : null}
       {working && !showProgress && !m.text && !m.xray ? (
         <div className="pf-ai-think" role="status">
           <Orb size={16} phase={phase} />
-          <span>Thinking</span>
+          <span className="pf-ai-shimmer">Thinking</span>
         </div>
       ) : null}
       {m.xray ? <XRayReport xray={m.xray} onAsk={onAsk} /> : null}

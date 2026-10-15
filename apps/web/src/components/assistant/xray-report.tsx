@@ -108,9 +108,22 @@ export function XRayReport({ xray, onAsk }: { xray: XRay; onAsk: (question: stri
       <Section title="Performance">
         <div className="pf-xr-stats">
           <Move label="Today" percent={p.today?.percent ?? null} amount={p.today?.amount} note="Not enough price history" />
-          <Move label={p.period ? `Past ${p.period.range === "1M" ? "month" : p.period.range}` : "Period"} percent={p.period?.percent ?? null} note="Needs more tracked history" />
+          <Move label={p.period ? `Past ${p.period.range === "1M" ? "month" : p.period.range === "3M" ? "3 months" : p.period.range}` : "Period"} percent={p.period?.percent ?? null} note="Needs more tracked history" />
           <Move label="Since purchase" percent={p.allTime?.percent ?? null} amount={p.allTime?.amount} note="No cost basis" />
         </div>
+        {p.risk && (p.risk.volatility != null || p.risk.maxDrawdown != null) ? (
+          <div className="pf-xr-risk">
+            {p.risk.volatility != null ? (
+              <div><span className="pf-xr-k">Volatility</span><span className="pf-xr-rv">{pct(p.risk.volatility)}<em> a year</em></span></div>
+            ) : null}
+            {p.risk.maxDrawdown != null ? (
+              <div><span className="pf-xr-k">Largest drop</span><span className="pf-xr-rv">{pct(p.risk.maxDrawdown)}<em> peak to trough</em></span></div>
+            ) : null}
+            {p.risk.worst ? (
+              <div><span className="pf-xr-k">Worst day</span><span className="pf-xr-rv" style={{ color: tone(p.risk.worst.percent) }}>{formatPercent(p.risk.worst.percent)}<em> {formatDate(p.risk.worst.date, "short")}</em></span></div>
+            ) : null}
+          </div>
+        ) : null}
         {p.movers.length > 0 ? (
           <p className="pf-xr-note">
             Biggest movers today:{" "}

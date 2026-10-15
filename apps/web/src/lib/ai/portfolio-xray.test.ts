@@ -57,6 +57,27 @@ describe("buildXRay", () => {
   })
 })
 
+describe("buildXRay risk", () => {
+  const series = (values: number[]) => values.map((indexed, i) => ({ date: new Date(Date.UTC(2026, 8, 1 + i)).toISOString().slice(0, 10), indexed }))
+
+  it("flags a deep drawdown and drops the volatility limitation once there is history", () => {
+    const values = [100, 104, 96, 88, 90, 95, 99]
+    const x = buildXRay({ positions: [pos({})], period: { percent: -1, days: 7, range: "3M" }, series: series(values) })
+    assert.equal(x.risks.find((r) => r.id === "drawdown")?.severity, "watch")
+    assert.ok(x.performance.risk!.maxDrawdown! > 15)
+  })
+
+  it("says volatility needs history when the series is short", () => {
+    const x = buildXRay({ positions: [pos({})], series: series([100, 101, 102]) })
+    assert.equal(x.performance.risk?.volatility, null)
+    assert.ok(x.limitations.some((l) => l.includes("Volatility needs")))
+  })
+
+  it("has no risk block without a series", () => {
+    assert.equal(buildXRay({ positions: [pos({})] }).performance.risk, null)
+  })
+})
+
 describe("allocate", () => {
   it("groups by security type and sums to 100", () => {
     const a = allocate([pos({ type: "etf", value: 300 }), pos({ type: "equity", value: 100 }), pos({ type: "etf", value: 100 })])

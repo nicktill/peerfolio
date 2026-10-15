@@ -47,18 +47,18 @@ export async function loadPositions(userId: string): Promise<PositionInput[]> {
   }))
 }
 
-/** The user's one-month time-weighted return, or null when fewer than two tracked days back it. */
-async function monthlyPeriod(userId: string) {
-  const [snapshots, live] = await Promise.all([loadSnapshots([userId], "1M"), loadLivePoints([userId])])
+/** The user's three-month time-weighted return and series, or null when fewer than two tracked days back it. */
+async function trackedWindow(userId: string) {
+  const [snapshots, live] = await Promise.all([loadSnapshots([userId], "3M"), loadLivePoints([userId])])
   const stored = snapshots.get(userId) ?? []
   const liveNow = live.get(userId)
   const points = liveNow ? withLivePoint(stored, liveNow, new Date().toISOString().slice(0, 10)) : stored
   if (points.length < 2) return null
   const result = timeWeightedReturn(points, "investableAssets")
-  return { percent: result.percent, days: result.days, range: "1M" }
+  return { period: { percent: result.percent, days: result.days, range: "3M" }, series: result.series.map((p) => ({ date: p.date, indexed: p.indexed })) }
 }
 
 export async function loadXRay(userId: string): Promise<XRay> {
-  const [positions, period] = await Promise.all([loadPositions(userId), monthlyPeriod(userId)])
-  return buildXRay({ positions, period })
+  const [positions, window] = await Promise.all([loadPositions(userId), trackedWindow(userId)])
+  return buildXRay({ positions, period: window?.period ?? null, series: window?.series })
 }

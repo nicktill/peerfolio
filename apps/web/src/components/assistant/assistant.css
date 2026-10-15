@@ -168,6 +168,40 @@
 .pf-ai-sug-ic { color: var(--fg3); transform: rotate(45deg); transition: transform 0.2s, color 0.2s; flex: none; }
 .pf-ai-sug:hover .pf-ai-sug-ic { color: var(--pf-accent); transform: rotate(45deg) translate(1px, -1px); }
 
+/* ---------- Shimmer ---------- */
+/* One light sweep used everywhere something is loading or invites a click. */
+@keyframes pf-sheen { from { background-position: 220% 0; } to { background-position: -120% 0; } }
+@keyframes pf-sweep { 0% { transform: translateX(-120%) skewX(-18deg); } 60%, 100% { transform: translateX(260%) skewX(-18deg); } }
+
+/* Text that shimmers while the assistant works. */
+.pf-ai-shimmer {
+  background: linear-gradient(100deg, var(--fg3) 35%, var(--fg) 50%, var(--fg3) 65%) 220% 0 / 250% 100% no-repeat;
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
+  animation: pf-sheen 1.9s linear infinite;
+}
+
+/* A soft glint crosses the suggestions: constantly on the featured one, on hover for the rest. */
+.pf-ai-sug { position: relative; overflow: hidden; isolation: isolate; }
+.pf-ai-sug::after {
+  content: ""; position: absolute; inset: 0 auto 0 0; width: 38%; z-index: -1; pointer-events: none; opacity: 0;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.1), rgba(var(--ai-violet), 0.12), transparent);
+  transform: translateX(-120%) skewX(-18deg);
+}
+.pf-ai-sug:hover::after { opacity: 1; animation: pf-sweep 0.9s ease-out 1; }
+.pf-ai-sug.is-featured::after { opacity: 1; animation: pf-sweep 3.6s ease-in-out 1.2s infinite; }
+
+/* Skeleton of the report, shown while the analysis is actually running. */
+.pf-sk-xr { display: flex; flex-direction: column; gap: 16px; padding: 18px; border-radius: 14px; border: 1px solid var(--hair); background: color-mix(in srgb, var(--panel) 78%, transparent); }
+.pf-sk-b {
+  display: block; border-radius: 8px; height: 12px;
+  background: linear-gradient(100deg, var(--hair2) 35%, color-mix(in srgb, var(--fg) 14%, var(--hair2)) 50%, var(--hair2) 65%) 220% 0 / 250% 100% no-repeat;
+  animation: pf-sheen 1.7s linear infinite;
+}
+.pf-sk-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.pf-sk-row .pf-sk-b { height: 58px; border-radius: 10px; }
+.pf-sk-xr .is-hero { height: 38px; width: 46%; border-radius: 10px; }
+.pf-sk-xr .is-bar { height: 12px; border-radius: 6px; }
+
 /* ---------- Messages ---------- */
 .pf-ai-user {
   align-self: flex-end; max-width: 86%; padding: 9px 13px; border-radius: 14px 14px 4px 14px; white-space: pre-wrap; overflow-wrap: anywhere;
@@ -235,6 +269,10 @@
 .pf-xr-k { font: 400 11px/1 var(--sans); color: var(--fg3); }
 .pf-xr-v { font: 500 17px/1.1 var(--sans); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
 .pf-xr-s { font: 400 11px/1.3 var(--mono); color: var(--fg3); font-variant-numeric: tabular-nums; }
+.pf-xr-risk { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 14px; padding-top: 2px; }
+.pf-xr-risk > div { display: flex; flex-direction: column; gap: 5px; }
+.pf-xr-rv { font: 500 15px/1.1 var(--sans); font-variant-numeric: tabular-nums; }
+.pf-xr-rv em { font: 400 11px/1 var(--sans); font-style: normal; color: var(--fg3); }
 .pf-xr-note { font: 400 12.5px/1.55 var(--sans); color: var(--fg2); }
 .pf-xr-note b { color: var(--fg); font-weight: 500; }
 
@@ -291,6 +329,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .pf-ai-shimmer, .pf-sk-b, .pf-ai-sug::after, .pf-ai-sug:hover::after, .pf-ai-sug.is-featured::after { animation: none; }
+  .pf-ai-sug.is-featured::after, .pf-ai-sug:hover::after { opacity: 0; }
+  .pf-ai-shimmer { -webkit-text-fill-color: currentColor; color: var(--fg2); background: none; }
   .pf-orb-core, .pf-orb-core::before, .pf-orb-core::after, .pf-orb.is-busy .pf-orb-core, .pf-orb.is-busy .pf-orb-core::before, .pf-orb.is-busy .pf-orb-core::after, .pf-orb.is-writing .pf-orb-core::before, .pf-orb.is-writing .pf-orb-core::after, .pf-orb.is-writing .pf-orb-core, .pf-orb-spin, .pf-orb-glow, .pf-ai-win.is-busy::before, .is-now .pf-ai-pn, .pf-ai-caret, .pf-ai-think span:last-child::after { animation: none; }
   .pf-ai-win.is-morph { transition: none; }
   .pf-ai-win.is-busy::before { opacity: 0.6; }
