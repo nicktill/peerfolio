@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { briefTargets, briefWindow, briefingSlot, briefingNeedsRefresh, latestDailyBrief, promptInput, checkBrief, claims, clipBytes, closeUtc, costOf, fallbackBrief, feedbackText, figures, inputTokenBound, isLastSessionOfWeek, MAX_INPUT_TOKENS, MAX_OUTPUT_TOKENS, selectItems, worstCaseUsd, writeBrief, type Brief, type BriefItem, type SpendLedger } from "./news-brief.ts"
+import { clipSentences, briefTargets, briefWindow, briefingSlot, briefingNeedsRefresh, latestDailyBrief, promptInput, checkBrief, claims, clipBytes, closeUtc, costOf, fallbackBrief, feedbackText, figures, inputTokenBound, isLastSessionOfWeek, MAX_INPUT_TOKENS, MAX_OUTPUT_TOKENS, selectItems, worstCaseUsd, writeBrief, type Brief, type BriefItem, type SpendLedger } from "./news-brief.ts"
 
 const at = (iso: string) => new Date(iso)
 const raw = [
@@ -91,6 +91,21 @@ test("fallbackBrief cites what it uses", () => {
   const items: BriefItem[] = selectItems(raw, window)
   const brief = fallbackBrief(items)
   assert.equal(brief.sourceIds[0], "s1")
+})
+
+test("fallbackBrief writes a lead paragraph and an also-in-the-news paragraph, ending on whole sentences", () => {
+  const brief = fallbackBrief(selectItems(raw, window))
+  const [lead, also] = brief.body.split("\n\n")
+  assert.ok(lead && lead.length > 0)
+  if (also) assert.match(also, /^Also in the news: /)
+  assert.match(brief.body, /[.!?]$/)
+  assert.ok(brief.body.length <= 900)
+  for (const t of brief.takeaways) assert.ok(t.title.length > 0 && t.title.length <= 110)
+})
+
+test("clipSentences stops at a sentence end, not mid-word", () => {
+  assert.equal(clipSentences("One. Two. Three is long.", 12), "One. Two.")
+  assert.equal(clipSentences("Short.", 50), "Short.")
 })
 
 test("isLastSessionOfWeek handles Fridays and holiday Fridays", () => {
