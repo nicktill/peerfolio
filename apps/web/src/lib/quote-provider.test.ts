@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { acceptQuote, acceptSessionClose, createQuoteProvider, FILL_QUOTE_MAX_AGE_MS, isUsMarketOpen, priceLabel, quoteDate } from "./quote-provider.ts"
+import { acceptQuote, acceptSessionClose, createQuoteProvider, FILL_QUOTE_MAX_AGE_MS, isUsMarketOpen, quoteDate } from "./quote-provider.ts"
 import { latestCompletedSession } from "./market-hours.ts"
 
 describe("isUsMarketOpen", () => {
@@ -136,17 +136,9 @@ describe("createQuoteProvider", () => {
   })
 })
 
-describe("quoteDate and priceLabel", () => {
+describe("quoteDate", () => {
   it("takes the trading date from the last trade", () => {
     assert.equal(quoteDate({ price: 1, asOf: "2026-09-29T16:59:30.000Z" }), "2026-09-29")
-  })
-
-  it("says live only while the market is open and the price is from today", () => {
-    const open = new Date("2026-09-29T17:00:00Z")
-    assert.equal(priceLabel("2026-09-29", open), "live")
-    assert.equal(priceLabel("2026-09-28", open), "close")
-    assert.equal(priceLabel("2026-09-29", new Date("2026-09-29T22:30:00Z")), "close")
-    assert.equal(priceLabel(null, open), "close")
   })
 })
 

@@ -132,9 +132,3 @@ export function acceptSessionClose(quote: Quote | undefined, sessionDate: string
 export function quoteDate(quote: Quote): string {
   return quote.asOf.slice(0, 10)
 }
-
-/** "live" while the market is open and the price is from today, otherwise "close". */
-export function priceLabel(priceAsOf: string | null | undefined, now: Date): "live" | "close" {
-  if (!priceAsOf) return "close"
-  return priceAsOf.slice(0, 10) === now.toISOString().slice(0, 10) && isUsMarketOpen(now) ? "live" : "close"
-}

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { ACCENT_KEYS, ACCENTS, EMOJI_GROUPS, accentFor, isLeagueEmoji, randomLook } from "./league-look.ts"
+import { ACCENT_KEYS, ACCENTS, EMOJI_GROUPS, isLeagueEmoji, randomLook } from "./league-look.ts"
 
 describe("league look", () => {
   const all = EMOJI_GROUPS.flatMap((g) => [...g.emojis])
@@ -19,10 +19,8 @@ describe("league look", () => {
     for (const bad of ["", "A", "hello", "🏈🏀", "<script>", "🏈 "]) assert.equal(isLeagueEmoji(bad), false, JSON.stringify(bad))
   })
 
-  it("has a style for every accent, and falls back to emerald for an unknown one", () => {
+  it("has a style for every accent", () => {
     for (const key of ACCENT_KEYS) assert.ok(ACCENTS[key].gradient.startsWith("from-"))
-    assert.equal(accentFor("nope"), ACCENTS.emerald)
-    assert.equal(accentFor(undefined), ACCENTS.emerald)
   })
 
   it("Surprise me always lands on a valid logo and accent", () => {
