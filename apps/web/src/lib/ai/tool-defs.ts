@@ -89,4 +89,26 @@ export const TOOL_DEFS: ToolDef[] = [
     parameters: { type: "object", properties: {}, required: [], additionalProperties: false },
     strict: true,
   },
+  {
+    type: "function",
+    name: "project_wealth",
+    description:
+      "Projects the user's wealth with Peerfolio's deterministic Wealth Lab engine, and (with a target) the monthly saving needed. Use it for what-if and how-much-to-save questions; never do compound-interest math yourself. Pass only numbers; pass null for anything the user didn't specify and the default is used (starting value null = the user's real investable assets, which the result flags as imported). The interface shows the user an 'Open in Wealth Lab' button.",
+    parameters: {
+      type: "object",
+      properties: {
+        startingValue: { type: ["number", "null"], description: "Dollars invested today. null = the user's real investable assets (imported)." },
+        monthlyContribution: { type: ["number", "null"], description: "Dollars saved per month. null = 1000." },
+        annualContributionGrowthPct: { type: ["number", "null"], description: "Yearly percent increase of the monthly contribution. null = 3." },
+        years: { type: ["number", "null"], description: "Horizon in years, 1-100. null = 25." },
+        expectedAnnualReturnPct: { type: ["number", "null"], description: "Assumed average annual return in percent. null = 7. An assumption, not a forecast." },
+        inflationPct: { type: ["number", "null"], description: "Assumed annual inflation in percent. null = 2.5." },
+        targetValue: { type: ["number", "null"], description: "Goal in dollars, e.g. 1000000. null = no target." },
+        spread: { type: ["number", "null"], description: "Conservative/optimistic scenarios are the return minus/plus this many points. null = 2." },
+      },
+      required: ["startingValue", "monthlyContribution", "annualContributionGrowthPct", "years", "expectedAnnualReturnPct", "inflationPct", "targetValue", "spread"],
+      additionalProperties: false,
+    },
+    strict: true,
+  },
 ]

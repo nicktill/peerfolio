@@ -11,7 +11,7 @@ import { applyEvent, historyForRetry, patchLastMessage, requestMessages, without
  * aren't written to the server, and they're gone when the tab closes.
  */
 
-export type Page = "portfolio" | "leagues" | "fantasy" | "news" | "board" | "other"
+export type Page = "portfolio" | "leagues" | "fantasy" | "news" | "board" | "wealth" | "other"
 export type Phase = "idle" | "reading" | "analyzing" | "writing"
 
 export type { Msg }
@@ -42,6 +42,7 @@ export function pageOf(pathname: string): Page {
   if (pathname.startsWith("/fantasy")) return "fantasy"
   if (pathname.startsWith("/news")) return "news"
   if (pathname.startsWith("/board")) return "board"
+  if (pathname.startsWith("/wealth")) return "wealth"
   return "other"
 }
 
@@ -243,6 +244,15 @@ export const PAGE_COPY: Record<Page, PageCopy> = {
     ],
     note: "Board data is coming soon.",
   },
+  wealth: {
+    title: "Plan your wealth",
+    subtitle: "I can run your what-ifs through Wealth Lab's engine, so the numbers are computed, not guessed.",
+    suggestions: [
+      { label: "What if I invest $500 more a month?", featured: true },
+      { label: "How much do I need to save to reach $1M?" },
+      { label: "Make a more conservative scenario" },
+    ],
+  },
   other: {
     title: "What would you like to understand?",
     subtitle: "I can read your holdings and explain what they show.",
@@ -285,5 +295,6 @@ export const PAGE_LABEL: Record<Page, string> = {
   fantasy: "Fantasy",
   news: "News",
   board: "Board",
+  wealth: "Wealth Lab",
   other: "Peerfolio",
 }

@@ -14,6 +14,7 @@ export type AssistantEvent =
   | { type: "status"; stage: "reading" | "analyzing" | "writing" }
   | { type: "text"; delta: string }
   | { type: "xray"; data: XRay }
+  | { type: "link"; label: string; href: string }
   | { type: "error"; message: string }
   | { type: "done" }
 
@@ -34,6 +35,7 @@ How to be useful:
 - For "how do I compare with the market / S&P 500 / Nasdaq", use compare_to_benchmark (SPY, QQQ or VTI) over a sensible range. State the dates it covers, and that benchmark figures leave out dividends. If it returns a reason instead of numbers, say that plainly.
 - For league questions use get_my_leagues and get_league_standings. Never reveal anything about a member beyond what those tools return.
 - For fantasy league questions use get_fantasy_league. You can't yet see the public board; say so if asked.
+- For "what if I invest more", "how much do I need to save to reach X" or "when could I reach X", call project_wealth. Never compute projections or compound interest yourself: quote the tool's figures. State the assumptions you used plainly (return, inflation, years, contribution), say they are hypothetical and not predictions, and if the starting value was imported from their real assets, say so. The app shows an "Open in Wealth Lab" button; don't paste the link, and don't claim you changed anything saved: opening it only prefills the page.
 - Be concise and direct. No emoji. Plain text, short paragraphs.`
 
 /** What "this page" implies for a question, so "why am I down?" means the right thing wherever it's asked. */
@@ -42,6 +44,7 @@ const PAGE_GUIDANCE: Record<PageContext["page"], string> = {
   news: "Lean on get_market_news first, and tie stories to their holdings when a headline mentions them.",
   leagues: "Use get_league_standings for rank questions (it defaults to the league open on the page). Explain a rank by comparing returns over the same range; you only know other members' holdings when they chose to share them, so never guess at the rest. If the league has few ranked members or short history, say the ranking is early.",
   fantasy: "Use get_fantasy_league for rank, strategy and trade questions (it defaults to the league open on the page). Picks are public inside a fantasy league, so you may discuss other members' holdings from the tool. Its prices are stored ones, not live quotes: say so when exact figures matter. This is a game with virtual money, separate from their real portfolio.",
+  wealth: "They are in Wealth Lab, their own planning sandbox. Use project_wealth for every what-if or how-much-to-save question, and offer to try a more conservative case (lower return, longer horizon) when it helps. Assumptions here are theirs and hypothetical.",
   board: "You can't read the public board yet. If asked about rankings, say so, then offer to analyze their own portfolio instead.",
   other: "",
 }

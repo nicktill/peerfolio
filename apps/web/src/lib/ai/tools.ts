@@ -13,6 +13,7 @@ import { benchmarkCloses } from "@web/lib/benchmark-data"
 import { MAX_LEAGUE_OVERVIEW, parseArgs, parseBenchmark, parseLimit, parseRange, planLeagueLookup, readAfterMembership, requestedLeagueId } from "@web/lib/ai/tool-args"
 import { loadPositions, loadXRay, trackedWindow } from "@web/lib/ai/portfolio-data"
 import type { XRay } from "@web/lib/ai/portfolio-xray"
+import { runProjectWealth } from "@web/lib/ai/tools-wealth"
 
 /**
  * The assistant's tools: read-only, and bound to the signed-in user when they
@@ -27,7 +28,7 @@ export type ToolContext = {
   /** The fantasy league open on the page; same rule as `pageLeagueId`. */
   pageFantasyId?: string
   /** Called when a tool produces something the interface should render itself. */
-  emit: (event: { type: "xray"; data: XRay }) => void
+  emit: (event: { type: "xray"; data: XRay } | { type: "link"; label: string; href: string }) => void
 }
 
 export { TOOL_DEFS, type ToolDef } from "@web/lib/ai/tool-defs"
@@ -168,6 +169,8 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
         })),
       }
     }
+    case "project_wealth":
+      return runProjectWealth(rawArgs, ctx)
     default:
       return { error: `Unknown tool: ${name}` }
   }

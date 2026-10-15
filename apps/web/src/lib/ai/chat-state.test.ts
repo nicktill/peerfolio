@@ -35,6 +35,23 @@ describe("applyEvent", () => {
   })
 })
 
+describe("applyEvent: link", () => {
+  const msg: Msg = { id: "a", role: "assistant", text: "" }
+  it("attaches a same-origin Wealth Lab link", () => {
+    const out = applyEvent(msg, { type: "link", label: "Open in Wealth Lab", href: "/wealth?years=20" })
+    assert.deepEqual(out.link, { label: "Open in Wealth Lab", href: "/wealth?years=20" })
+  })
+  it("ignores external, protocol-relative and script links whatever the server sent", () => {
+    for (const href of ["https://evil.example/wealth", "//evil.example/wealth", "javascript:alert(1)", "/dashboard", "/wealthx", ""]) {
+      assert.equal(applyEvent(msg, { type: "link", label: "x", href }), msg, href)
+    }
+  })
+  it("caps the label length", () => {
+    const out = applyEvent(msg, { type: "link", label: "L".repeat(500), href: "/wealth" })
+    assert.equal(out.link?.label.length, 60)
+  })
+})
+
 describe("requestMessages", () => {
   it("drops errored and empty messages and sends only role and content", () => {
     const out = requestMessages([

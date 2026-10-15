@@ -1,11 +1,13 @@
 "use client"
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react"
+import Link from "next/link"
 import { AnimatePresence, MotionConfig, motion } from "motion/react"
-import { ArrowUp, Check, Maximize2, Minimize2, Minus, RotateCcw, Square, SquarePen } from "lucide-react"
+import { ArrowUp, ArrowUpRight, Check, Maximize2, Minimize2, Minus, RotateCcw, Square, SquarePen } from "lucide-react"
 import { Orb } from "@web/components/assistant/orb"
 import { PAGE_LABEL, copyFor, useAssistant, type Msg, type Phase } from "@web/components/assistant/use-assistant"
 import { XRayReport } from "@web/components/assistant/xray-report"
+import { isWealthHref } from "@web/lib/wealth/link"
 import { useApi } from "@web/lib/use-api"
 import "@web/components/assistant/assistant.css"
 
@@ -451,6 +453,11 @@ function Message({ m, last, phase, busy, onAsk, onRetry }: { m: Msg; last: boole
           {m.text}
           {working && phase === "writing" ? <span className="pf-ai-caret" aria-hidden /> : null}
         </p>
+      ) : null}
+      {m.link && isWealthHref(m.link.href) && !(working && phase === "writing") ? (
+        <Link href={m.link.href} className="pf-ai-link">
+          {m.link.label} <ArrowUpRight size={12} aria-hidden />
+        </Link>
       ) : null}
       {m.error ? (
         <div className="pf-ai-err" role="alert">
