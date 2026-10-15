@@ -79,3 +79,35 @@ export function createFinnhubProvider({
     },
   }
 }
+
+export type CompanyProfile =
+  | { status: "ok"; industry: string | null }
+  | { status: "rate_limited" }
+  | { status: "failed" }
+
+/**
+ * The provider's industry for a US-listed symbol (`/stock/profile2`, `finnhubIndustry`). An unknown
+ * symbol gets an empty object, which is a definitive "no profile" (`industry: null`), not a failure.
+ */
+export async function fetchCompanyProfile(
+  symbol: string,
+  { apiKey, fetchImpl = providerFetch("finnhub"), timeoutMs = 5_000, baseUrl = BASE_URL }: { apiKey: string; fetchImpl?: ProviderFetch; timeoutMs?: number; baseUrl?: string },
+): Promise<CompanyProfile> {
+  if (!SYMBOL.test(symbol)) return { status: "ok", industry: null }
+  try {
+    const response = await fetchImpl(`${baseUrl}/stock/profile2?symbol=${encodeURIComponent(symbol)}`, {
+      headers: { "X-Finnhub-Token": apiKey },
+      cache: "no-store",
+      timeoutMs,
+    })
+    if (response.status === 429) return { status: "rate_limited" }
+    // 403 means the plan doesn't cover the symbol; that won't change within the retry window.
+    if (response.status === 403) return { status: "ok", industry: null }
+    if (!response.ok) return { status: "failed" }
+    const body = (await response.json()) as { finnhubIndustry?: unknown }
+    const industry = typeof body.finnhubIndustry === "string" ? body.finnhubIndustry.trim() : ""
+    return { status: "ok", industry: industry || null }
+  } catch {
+    return { status: "failed" }
+  }
+}

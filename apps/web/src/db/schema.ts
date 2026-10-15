@@ -219,6 +219,12 @@ export const securities = pgTable("securities", {
   unsupportedBy: text("unsupported_by").array(),
   /** Metadata retries are independent of price freshness. */
   metadataCheckedAt: timestamp("metadata_checked_at", { withTimezone: true }),
+  /** Display sector (see lib/ai/sectors.ts) from the provider's company profile; null until known, and for funds, crypto and cash. */
+  sector: text("sector"),
+  /** The provider's own industry string, kept so the sector mapping can be improved without refetching. */
+  industry: text("industry"),
+  /** When a sector lookup last ran, hit or miss, so a ticker with no profile isn't retried on every request. */
+  sectorCheckedAt: timestamp("sector_checked_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 })
 
