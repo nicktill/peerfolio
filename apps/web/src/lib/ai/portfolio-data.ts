@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm"
 import { accounts, db, holdings, securities } from "@web/db"
 import type { PositionInput } from "@web/lib/dashboard-math"
 import { effectiveSecurityType } from "@web/lib/known-etfs"
-import { loadLivePoints, loadSnapshots, timeWeightedReturn, withLivePoint } from "@web/lib/returns"
+import { loadLivePoints, loadSnapshots, timeWeightedReturn, withLivePoint, type Range } from "@web/lib/returns"
 import { buildXRay, type XRay } from "@web/lib/ai/portfolio-xray"
 
 const n = (v: string | null) => (v == null ? 0 : Number(v))
@@ -48,14 +48,14 @@ export async function loadPositions(userId: string): Promise<PositionInput[]> {
 }
 
 /** The user's three-month time-weighted return and series, or null when fewer than two tracked days back it. */
-async function trackedWindow(userId: string) {
-  const [snapshots, live] = await Promise.all([loadSnapshots([userId], "3M"), loadLivePoints([userId])])
+export async function trackedWindow(userId: string, range: Range = "3M") {
+  const [snapshots, live] = await Promise.all([loadSnapshots([userId], range), loadLivePoints([userId])])
   const stored = snapshots.get(userId) ?? []
   const liveNow = live.get(userId)
   const points = liveNow ? withLivePoint(stored, liveNow, new Date().toISOString().slice(0, 10)) : stored
   if (points.length < 2) return null
   const result = timeWeightedReturn(points, "investableAssets")
-  return { period: { percent: result.percent, days: result.days, range: "3M" }, series: result.series.map((p) => ({ date: p.date, indexed: p.indexed })) }
+  return { period: { percent: result.percent, days: result.days, range }, series: result.series.map((p) => ({ date: p.date, indexed: p.indexed })) }
 }
 
 export async function loadXRay(userId: string): Promise<XRay> {

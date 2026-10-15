@@ -32,6 +32,7 @@ export function PerformanceChart({
   showTooltip = true,
   baseline,
   indexed = false,
+  compare,
 }: {
   points: PerformancePoint[]
   height?: number
@@ -50,6 +51,11 @@ export function PerformanceChart({
    * -0.18% day looks like what it is instead of a cliff.
    */
   indexed?: boolean
+  /**
+   * A second indexed series (a benchmark) drawn under the main line on the same scale. Matched to
+   * `points` by date; a date it has no value for is skipped, never filled. Only with `indexed`.
+   */
+  compare?: PerformancePoint[]
 }) {
   const { ref, width } = useMeasure<HTMLDivElement>()
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
@@ -66,10 +72,11 @@ export function PerformanceChart({
     const innerH = height - pad.top - pad.bottom
 
     const values = points.map((p) => p.value)
+    const compareByDate = indexed && compare && compare.length > 0 ? new Map(compare.map((p) => [p.date, p.value])) : null
     let lo: number
     let hi: number
     if (indexed) {
-      ;({ lo, hi } = indexedDomain(values))
+      ;({ lo, hi } = indexedDomain(compareByDate ? [...values, ...compareByDate.values()] : values))
     } else {
       const min = Math.min(...values, ...(baseline != null ? [baseline] : []))
       const max = Math.max(...values, ...(baseline != null ? [baseline] : []))
@@ -94,8 +101,12 @@ export function PerformanceChart({
 
     const ticks = indexed ? niceTicks(lo - 100, hi - 100, height < 260 ? 3 : 4) : []
 
-    return { coords, line, area, innerW, ticks, digits: tickDigits(ticks), y, baselineY: baseline != null ? y(baseline) : null }
-  }, [points, width, height, baseline, indexed, pad])
+    // The comparison line, by date. Dates it has nothing for stay null so the path breaks rather than invents.
+    const compareCoords = compareByDate ? points.map((p, i) => (compareByDate.has(p.date) ? ([x(i), y(compareByDate.get(p.date)!)] as const) : null)) : null
+    const compareLine = compareCoords ? monotonePath(compareCoords.filter((c): c is readonly [number, number] => c !== null)) : null
+
+    return { coords, line, area, innerW, ticks, digits: tickDigits(ticks), y, baselineY: baseline != null ? y(baseline) : null, compareCoords, compareLine }
+  }, [points, width, height, baseline, indexed, pad, compare])
 
   const rising = points.length >= 2 && points[points.length - 1]!.value >= points[0]!.value
   const stroke = rising ? "var(--gain)" : "var(--loss)"
@@ -180,6 +191,24 @@ export function PerformanceChart({
               </>
             )}
 
+            {geometry.compareLine ? (
+              // The benchmark sits behind your line: quieter colour and weight, same scale, drawn in a beat later.
+              <motion.path
+                key={`compare-${drawKey}-${compare?.length ?? 0}-${compare?.[compare.length - 1]?.value ?? 0}`}
+                d={geometry.compareLine}
+                pathLength={1}
+                fill="none"
+                stroke="hsl(var(--muted-foreground))"
+                strokeOpacity={0.85}
+                strokeWidth={1.75}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeDasharray="1"
+                initial={reduceMotion ? false : { pathLength: 0, opacity: 0 }}
+                animate={{ pathLength: 1, opacity: 1 }}
+                transition={{ duration: 1.1, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+              />
+            ) : null}
             <motion.path
               key={`area-${drawKey}`}
               d={geometry.area}
@@ -257,6 +286,17 @@ export function PerformanceChart({
                   className="stroke-border"
                   strokeWidth={1}
                 />
+                {geometry.compareCoords?.[hoverIndex] ? (
+                  <motion.circle
+                    initial={false}
+                    animate={{ cx: geometry.compareCoords[hoverIndex]![0], cy: geometry.compareCoords[hoverIndex]![1] }}
+                    transition={{ type: "spring", stiffness: 700, damping: 46 }}
+                    r={4}
+                    fill="hsl(var(--muted-foreground))"
+                    stroke="hsl(var(--card))"
+                    strokeWidth={2}
+                  />
+                ) : null}
                 {/* Surface ring keeps the marker legible over the filled area. */}
                 <motion.circle
                   initial={false}

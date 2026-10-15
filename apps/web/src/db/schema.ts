@@ -818,5 +818,24 @@ export const aiUsage = pgTable(
   (t) => [index("ai_usage_user_created_idx").on(t.userId, t.createdAt), index("ai_usage_created_idx").on(t.createdAt)],
 )
 
+/* ------------------------------------------------------------------ *
+ * Benchmarks
+ * ------------------------------------------------------------------ */
+
+/**
+ * Daily split-adjusted closes for the comparison ETFs (SPY, QQQ, VTI). A handful of
+ * symbols, one row per trading day, fetched once and then read from here, so charting
+ * a benchmark never costs a provider call per viewer. Price returns: dividends aren't added back.
+ */
+export const benchmarkPrices = pgTable(
+  "benchmark_prices",
+  {
+    symbol: text("symbol").notNull(),
+    date: date("date").notNull(),
+    close: numeric("close", { precision: 20, scale: 6 }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.symbol, t.date] })],
+)
+
 export type NewsItem = typeof newsItems.$inferSelect
 export type NewsBrief = typeof newsBriefs.$inferSelect

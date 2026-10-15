@@ -67,6 +67,7 @@ async function get(path: string, fetchImpl: typeof fetch): Promise<AggsResponse>
 /** What a Massive request is for, by its path, for the provider event log. */
 function callerOf(path: string): string {
   if (path.includes("/aggs/grouped/")) return "closes"
+  if (path.includes("/range/1/day/")) return "history"
   if (path.includes("/aggs/ticker/")) return "close"
   if (path.startsWith("/v3/reference/tickers?")) return "search"
   if (path.startsWith("/v3/reference/tickers/")) return "metadata"
@@ -96,6 +97,21 @@ export async function previousClose(marketTicker: string, fetchImpl: typeof fetc
   const bar = data.results?.[0]
   if (!bar || typeof bar.c !== "number" || typeof bar.t !== "number") return null
   return { price: bar.c, asOf: isoDate(bar.t) }
+}
+
+/**
+ * Daily closes for one ticker over `from`..`to` (YYYY-MM-DD, inclusive), oldest first. One request
+ * however long the span. `adjusted=true` is split-adjusted only: dividends are not added back, so
+ * these are price returns.
+ */
+export async function dailyCloses(marketTicker: string, from: string, to: string, fetchImpl: typeof fetch = massiveFetch): Promise<{ date: string; close: number }[]> {
+  const path = `/v2/aggs/ticker/${encodeURIComponent(marketTicker)}/range/1/day/${from}/${to}?adjusted=true&sort=asc&limit=5000`
+  const data = await get(path, fetchImpl)
+  const out: { date: string; close: number }[] = []
+  for (const bar of data.results ?? []) {
+    if (typeof bar.c === "number" && bar.c > 0 && typeof bar.t === "number") out.push({ date: isoDate(bar.t), close: bar.c })
+  }
+  return out
 }
 
 /**

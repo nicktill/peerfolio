@@ -19,6 +19,7 @@ import { plural } from "@web/lib/plural"
 import { useToast } from "@web/components/ui/toast"
 import { type AllocationSlice } from "@web/components/charts/allocation-bar"
 import { PerformanceChart } from "@web/components/charts/performance-chart"
+import { BENCHMARK_OPTIONS, BenchmarkCompare, type BenchmarkChoice, type BenchmarkResponse } from "@web/components/dashboard/benchmark-compare"
 import { AccountsCard, type AccountRow, type ItemRow } from "@web/components/dashboard/accounts-card"
 import { ConnectButton } from "@web/components/dashboard/connect-button"
 import { HoldingsTable, type HoldingRow } from "@web/components/dashboard/holdings-table"
@@ -101,6 +102,28 @@ export function PortfolioScreen({
   const { data, loading, error, refetch } = useSource(range)
   const fantasy = useFantasy()
 
+  // Benchmark comparison: off until chosen, remembered per browser, never loaded for the demo portfolio.
+  const [bench, setBench] = useState<BenchmarkChoice>("OFF")
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("pf-benchmark")
+      if (saved && BENCHMARK_OPTIONS.some((o) => o.value === saved)) setBench(saved as BenchmarkChoice)
+    } catch {
+      // Storage can be blocked; the choice just won't be remembered.
+    }
+  }, [])
+  const chooseBench = (next: BenchmarkChoice) => {
+    setBench(next)
+    setHoverIndex(null)
+    try {
+      localStorage.setItem("pf-benchmark", next)
+    } catch {
+      // See above.
+    }
+  }
+  const benchUrl = !demo && bench !== "OFF" ? `/api/portfolio/benchmark?symbol=${bench}&range=${range}` : null
+  const cmp = useApi<BenchmarkResponse>(benchUrl, [bench, range])
+
   useEffect(() => {
     if (!data || pickedRange.current) return
     const wanted = defaultRange(data.firstDate, marketToday())
@@ -174,8 +197,13 @@ export function PortfolioScreen({
   // One chart for both questions: the line is what it's worth (dollars, moved by
   // deposits); the readout beside it is how the investments did on that date
   // (time-weighted, deposits taken out), so neither number hides behind a toggle.
-  const series = data.history.map((p) => ({ date: p.date, value: p.netWorth }))
+  const dollarSeries = data.history.map((p) => ({ date: p.date, value: p.netWorth }))
   const returnOn = new Map(data.performance.series.map((p) => [p.date, p.indexed - 100]))
+  // With a benchmark on, the chart switches from dollars (moved by deposits) to returns (deposits removed),
+  // the only footing on which the two lines can be compared.
+  const comparison = bench !== "OFF" && cmp.data?.comparison && data.performance.series.length >= 2 ? cmp.data.comparison : null
+  const series = comparison ? data.performance.series.map((p) => ({ date: p.date, value: p.indexed })) : dollarSeries
+  const benchReturnOn = comparison ? new Map(comparison.series.map((p) => [p.date, p.indexed - 100])) : null
   const canChart = data.hasHistory && series.length >= 2
   const shown = canChart ? (hoverIndex != null ? series[hoverIndex] : series[series.length - 1]) : undefined
   const shownReturn = shown ? (hoverIndex == null ? data.performance.percent : returnOn.get(shown.date)) : undefined
@@ -330,10 +358,15 @@ export function PortfolioScreen({
               <>
                 {/* One fixed-height, non-wrapping line so the hover readout can never change the panel's height. */}
                 <div className={cn("mt-3 flex h-7 flex-nowrap items-baseline gap-x-3 overflow-hidden whitespace-nowrap tabular-nums", hoverIndex == null && "invisible")}>
-                  {hoverIndex != null ? <span className="numeric shrink-0 text-lg font-medium leading-7 tracking-tight">{hidden ? "••••••" : formatCurrency(shown.value)}</span> : null}
+                  {hoverIndex != null && !comparison ? <span className="numeric shrink-0 text-lg font-medium leading-7 tracking-tight">{hidden ? "••••••" : formatCurrency(shown.value)}</span> : null}
                   {shownReturn != null ? (
                     <span className={cn("numeric shrink-0 text-sm font-semibold", shownReturn >= 0 ? "text-gain-ink" : "text-loss-ink")}>
-                      {formatPercent(shownReturn)} return
+                      {comparison ? "You " : ""}{formatPercent(shownReturn)}{comparison ? "" : " return"}
+                    </span>
+                  ) : null}
+                  {comparison && benchReturnOn?.get(shown.date) != null ? (
+                    <span className="numeric shrink-0 text-sm font-semibold text-foreground">
+                      {cmp.data?.label} {formatPercent(benchReturnOn.get(shown.date)!)}
                     </span>
                   ) : null}
                   <span className="min-w-0 truncate text-xs text-muted-foreground">
@@ -343,16 +376,26 @@ export function PortfolioScreen({
                   </span>
                 </div>
                 {/* Keyed so a range switch fades the new line in instead of morphing between unrelated shapes. */}
-                <div key={range} className="swap-in -mx-1 mt-3">
+                <div key={`${range}:${comparison ? "returns" : "dollars"}`} className="swap-in -mx-1 mt-3">
                   <PerformanceChart
                     points={series}
                     height={250}
                     showTooltip={false}
                     onHover={setHoverIndex}
-                    ariaLabel={`Portfolio value in dollars over the last ${range}`}
+                    indexed={!!comparison}
+                    baseline={comparison ? 100 : undefined}
+                    compare={comparison ? comparison.series.map((p) => ({ date: p.date, value: p.indexed })) : undefined}
+                    ariaLabel={
+                      comparison
+                        ? `Your return compared with the ${cmp.data?.label} over the last ${range}: you ${formatPercent(comparison.portfolioPercent)}, the index ${formatPercent(comparison.benchmarkPercent)}`
+                        : `Portfolio value in dollars over the last ${range}`
+                    }
                     valueFormatter={(v) => (hidden ? "Hidden" : formatCurrency(v))}
                   />
                 </div>
+                {!demo ? (
+                  <BenchmarkCompare choice={bench} onChoose={chooseBench} loading={cmp.loading} error={cmp.error} result={bench === "OFF" ? null : cmp.data} />
+                ) : null}
                 <details className="pf-foot pf-chart-about">
                   <summary>About this chart</summary>
                   <p>Portfolio value includes deposits and withdrawals. Return measures investment performance without them.

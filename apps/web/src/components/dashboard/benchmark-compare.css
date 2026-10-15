@@ -1,0 +1,10 @@
+/* Loading text for the benchmark comparison: one light sweep, still under reduced motion. */
+@keyframes pf-bm-sheen { from { background-position: 220% 0; } to { background-position: -120% 0; } }
+.pf-bm-shimmer {
+  background: linear-gradient(100deg, var(--fg3) 35%, var(--fg) 50%, var(--fg3) 65%) 220% 0 / 250% 100% no-repeat;
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
+  animation: pf-bm-sheen 1.9s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pf-bm-shimmer { animation: none; background: none; -webkit-text-fill-color: currentColor; color: var(--fg2); }
+}

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { beforeEach, describe, it } from "node:test"
-import { displaySymbol, isNewerClose, latestCloses, MarketDataError, resetRefusedBars, previousClose, searchTickers, securityTypeFromTickerType, tickerDetails, toMarketTicker } from "./market-data.ts"
+import { dailyCloses, displaySymbol, isNewerClose, latestCloses, MarketDataError, resetRefusedBars, previousClose, searchTickers, securityTypeFromTickerType, tickerDetails, toMarketTicker } from "./market-data.ts"
 
 /** Stub fetch that answers from a path → body table and records every call. */
 function stubFetch(routes: Record<string, unknown>, status = 200) {
@@ -50,6 +50,32 @@ describe("displaySymbol", () => {
   it("shows crypto as the coin", () => {
     assert.equal(displaySymbol("X:BTCUSD"), "BTC")
     assert.equal(displaySymbol("BRK.B"), "BRK.B")
+  })
+})
+
+describe("dailyCloses", () => {
+  it("returns dated closes oldest first and skips malformed bars", async () => {
+    const day = (d: string) => Date.parse(`${d}T04:00:00Z`)
+    const { fetchImpl, calls } = stubFetch({
+      "/v2/aggs/ticker/SPY/range/1/day/2026-09-01/2026-09-04": {
+        results: [{ c: 500.25, t: day("2026-09-02") }, { c: 0, t: day("2026-09-03") }, { t: day("2026-09-03") }, { c: 503, t: day("2026-09-04") }],
+      },
+    })
+    assert.deepEqual(await dailyCloses("SPY", "2026-09-01", "2026-09-04", fetchImpl), [
+      { date: "2026-09-02", close: 500.25 },
+      { date: "2026-09-04", close: 503 },
+    ])
+    assert.equal(calls.length, 1)
+  })
+
+  it("returns an empty list when the provider has no bars", async () => {
+    const { fetchImpl } = stubFetch({})
+    assert.deepEqual(await dailyCloses("SPY", "2026-09-01", "2026-09-04", fetchImpl), [])
+  })
+
+  it("throws on a refused request", async () => {
+    const { fetchImpl } = stubFetch({}, 403)
+    await assert.rejects(() => dailyCloses("SPY", "2026-09-01", "2026-09-04", fetchImpl), MarketDataError)
   })
 })
 
