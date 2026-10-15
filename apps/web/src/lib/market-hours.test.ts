@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { isSessionPrint, isTradingSession, isUsMarketOpen, regularSession } from "./market-hours.ts"
+import { captureSession, isSessionPrint, isTradingSession, latestStartedSession, isUsMarketOpen, regularSession } from "./market-hours.ts"
 
 describe("isTradingSession", () => {
   it("is open 9:30am to 4pm New York time, to the minute", () => {
@@ -72,5 +72,46 @@ describe("regularSession", () => {
     assert.equal(regularSession(new Date("2026-11-26T16:00:00Z")), null)
     // 11pm EDT Monday is still Monday in New York, though Tuesday in UTC.
     assert.equal(regularSession(new Date("2026-09-29T03:00:00Z"))?.date, "2026-09-28")
+  })
+})
+
+describe("latestStartedSession", () => {
+  it("is today once the bell has rung, and the previous trading day before it", () => {
+    assert.equal(latestStartedSession(new Date("2026-10-14T15:00:00Z")), "2026-10-14")
+    assert.equal(latestStartedSession(new Date("2026-10-14T20:00:00Z")), "2026-10-14")
+    assert.equal(latestStartedSession(new Date("2026-10-14T12:00:00Z")), "2026-10-13")
+  })
+
+  it("skips weekends and holidays", () => {
+    assert.equal(latestStartedSession(new Date("2026-10-17T16:00:00Z")), "2026-10-16")
+    assert.equal(latestStartedSession(new Date("2026-10-19T12:00:00Z")), "2026-10-16")
+    assert.equal(latestStartedSession(new Date("2026-11-26T16:00:00Z")), "2026-11-25")
+  })
+})
+
+describe("captureSession", () => {
+  it("is the same day once 4:30pm ET has passed on a normal weekday, the day before until then", () => {
+    assert.equal(captureSession(new Date("2026-10-14T21:00:00Z")), "2026-10-14") // 17:00 EDT
+    assert.equal(captureSession(new Date("2026-10-14T20:29:00Z")), "2026-10-13") // 16:29 EDT
+    assert.equal(captureSession(new Date("2026-10-14T20:30:00Z")), "2026-10-14")
+  })
+  it("steps back over Thanksgiving: Friday before the early-close capture names Wednesday, not Thursday", () => {
+    assert.equal(captureSession(new Date("2026-11-27T17:00:00Z")), "2026-11-25") // Fri 12:00 EST
+    assert.equal(captureSession(new Date("2026-11-26T22:00:00Z")), "2026-11-25") // Thanksgiving itself
+  })
+  it("flips at 1:30pm ET on an early close", () => {
+    assert.equal(captureSession(new Date("2026-11-27T18:25:00Z")), "2026-11-25") // 13:25
+    assert.equal(captureSession(new Date("2026-11-27T18:35:00Z")), "2026-11-27") // 13:35
+  })
+  it("names Friday all weekend", () => {
+    assert.equal(captureSession(new Date("2026-10-17T15:00:00Z")), "2026-10-16")
+    assert.equal(captureSession(new Date("2026-10-18T23:00:00Z")), "2026-10-16")
+  })
+  it("handles the daylight saving weeks", () => {
+    assert.equal(captureSession(new Date("2026-03-09T12:00:00Z")), "2026-03-06") // Mon 08:00 EDT, after spring forward
+    assert.equal(captureSession(new Date("2026-03-06T21:29:00Z")), "2026-03-05") // Fri 16:29 EST (capture opens 21:30Z)
+    assert.equal(captureSession(new Date("2026-03-06T21:31:00Z")), "2026-03-06")
+    assert.equal(captureSession(new Date("2026-11-02T14:00:00Z")), "2026-10-30") // Mon 09:00 EST, after fall back
+    assert.equal(captureSession(new Date("2026-11-02T22:00:00Z")), "2026-11-02") // Mon 17:00 EST
   })
 })

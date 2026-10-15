@@ -4,7 +4,7 @@ import { and, inArray, isNotNull } from "drizzle-orm"
 import { db, securities } from "@web/db"
 import { withPublic } from "@web/lib/api"
 import { providerFetch, withProviderPatience } from "@web/lib/provider-fetch"
-import { alpacaCompanyNames, earningsWeekDates, fetchEarningsWeek, fetchFearGreed, fetchMarketBoard, nyDate } from "@web/lib/news-market"
+import { earningsWeekDates, fetchEarningsWeek, fetchFearGreed, fetchMarketBoard, nyDate } from "@web/lib/news-market"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 120
@@ -48,10 +48,6 @@ const earnings = unstable_cache(
           .from(securities)
           .where(and(inArray(securities.tickerSymbol, symbols), isNotNull(securities.name)))
         return new Map(rows.flatMap((r) => (r.symbol && r.name ? [[r.symbol, r.name] as const] : [])))
-      },
-      allNames: async () => {
-        const auth = alpacaAuth()
-        return auth ? alpacaCompanyNames(auth, providerFetch("alpaca")) : new Map()
       },
     })).catch((error) => {
       console.error("[news] earnings failed:", error instanceof Error ? error.message : error)

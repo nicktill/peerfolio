@@ -42,7 +42,7 @@ export type PortfolioResponse = {
   allocation: AllocationSlice[]
   holdings: HoldingRow[]
   holdingsPending?: boolean
-  today: { amount: number; percent: number; asOf: string | null } | null
+  today: { amount: number; percent: number; asOf: string | null; coverage?: number } | null
   allTime: { amount: number; percent: number; cost: number; coverage: number } | null
   leagues: { id: string; name: string; emoji: string; rank: number | null; members: number }[]
   history: { date: string; netWorth: number; investableAssets: number }[]
@@ -236,10 +236,11 @@ export function PortfolioScreen({
         </div>
       </Reveal>
 
-      {/* Three items, not two columns: phones stack overview, accounts, holdings; on
-          desktop the rail runs beside both, so an opened account never leaves a hole. */}
-      <div className="portfolio-layout app-page-grid pf-grid [&>*]:min-w-0 xl:grid-rows-[auto_auto]">
-        <Card className="portfolio-overview pf-panel reveal overflow-hidden shadow-none xl:col-start-1 xl:row-start-1" style={revealStyle(1)}>
+      {/* Independent desktop columns keep expanded accounts from changing the chart-to-holdings gap.
+          On phones, display:contents preserves the overview, accounts, holdings stack. */}
+      <div className="portfolio-layout app-page-grid pf-grid [&>*]:min-w-0">
+        <div className="contents xl:flex xl:flex-col xl:gap-4">
+        <Card className="portfolio-overview pf-panel reveal order-1 overflow-hidden shadow-none xl:order-none" style={revealStyle(1)}>
           <div className="pf-body">
             <div className="pf-ph">
               <span className="pf-lbl">Net worth</span>
@@ -289,6 +290,9 @@ export function PortfolioScreen({
                       {hidden ? formatPercent(data.today.percent) : signedUsd(data.today.amount)}
                     </span>
                     {hidden ? null : <span className={cn("numeric text-xs", data.today.amount >= 0 ? "text-gain-ink" : "text-loss-ink")}>{formatPercent(data.today.percent)}</span>}
+                    {data.today.coverage != null && data.today.coverage < 0.95 ? (
+                      <span className="text-xs text-muted-foreground">on {Math.round(data.today.coverage * 100)}% of holdings</span>
+                    ) : null}
                   </>
                 ) : (
                   <span className="text-sm text-muted-foreground">No change yet</span>
@@ -366,7 +370,20 @@ export function PortfolioScreen({
           </div>
         </Card>
 
-        <aside className="portfolio-rail reveal min-w-0 xl:col-start-2 xl:row-span-2 xl:row-start-1" style={revealStyle(2)}>
+        <Reveal index={3} className="order-3 xl:order-none">
+          <HoldingsTable
+            variant="section"
+            holdings={data.holdings}
+            pending={data.holdingsPending}
+            allocation={data.allocation}
+            hidden={hidden}
+            todayLabel={data.today?.asOf && !isToday ? formatDate(`${data.today.asOf}T12:00:00`, "short") : "Today"}
+          />
+          <ArchivedHoldings accounts={data.archivedAccounts ?? []} hidden={hidden} disabled={demo} onSaved={refetch} />
+        </Reveal>
+        </div>
+
+        <aside className="portfolio-rail reveal order-2 min-w-0 xl:order-none" style={revealStyle(2)}>
           <AccountsCard demo={demo} variant="rail" accounts={data.accounts} items={data.items} hidden={hidden} onChange={refetch} />
 
           <section aria-labelledby="rail-glance" className="pf-panel p-4 sm:p-5">
@@ -457,18 +474,6 @@ export function PortfolioScreen({
 
           <MarketsToday />
         </aside>
-
-        <Reveal index={3} className="xl:col-start-1 xl:row-start-2">
-          <HoldingsTable
-            variant="section"
-            holdings={data.holdings}
-            pending={data.holdingsPending}
-            allocation={data.allocation}
-            hidden={hidden}
-            todayLabel={data.today?.asOf && !isToday ? formatDate(`${data.today.asOf}T12:00:00`, "short") : "Today"}
-          />
-          <ArchivedHoldings accounts={data.archivedAccounts ?? []} hidden={hidden} disabled={demo} onSaved={refetch} />
-        </Reveal>
       </div>
     </div>
   )

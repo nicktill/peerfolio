@@ -99,6 +99,19 @@ export function isSessionPrint(at: Date): boolean {
 }
 
 /**
+ * The date of the latest regular session that has opened by `now`: today once the bell
+ * has rung on a trading day, otherwise the last trading day before it.
+ */
+export function latestStartedSession(now: Date): string {
+  const ny = newYork(now)
+  for (let back = 0; back < 8; back++) {
+    const session = regularSession(new Date(now.getTime() - back * 86_400_000))
+    if (session && (back > 0 || ny.minutes >= session.open)) return session.date
+  }
+  return ny.date
+}
+
+/**
  * The most recent US trading day whose closing bar should exist by `now`:
  * today once it is past 4:30pm New York time on a weekday, otherwise the
  * previous weekday. Holidays are deliberately ignored here, so on one this
@@ -124,4 +137,70 @@ export function latestCompletedSession(now: Date): string {
   if (isWeekend() || minutes < 16 * 60 + 30) day.setUTCDate(day.getUTCDate() - 1)
   while (isWeekend()) day.setUTCDate(day.getUTCDate() - 1)
   return day.toISOString().slice(0, 10)
+}
+
+/** The instant `minutes` after midnight on the New York calendar `date` (YYYY-MM-DD), daylight saving included. */
+export function newYorkInstant(date: string, minutes: number): Date {
+  const base = Date.parse(`${date}T00:00:00Z`)
+  for (const offsetHours of [4, 5]) {
+    const at = new Date(base + (minutes + offsetHours * 60) * 60_000)
+    const ny = newYork(at)
+    if (ny.date === date && Math.round(ny.minutes) === minutes) return at
+  }
+  // A wall-clock time that doesn't exist (the spring-forward gap): the later offset is the nearest instant.
+  return new Date(base + (minutes + 5 * 60) * 60_000)
+}
+
+/** When the regular session on `date` ends: 4pm New York time, 1pm on an early-close day. */
+export function sessionCloseAt(date: string): Date {
+  return newYorkInstant(date, EARLY_CLOSES.has(date) ? EARLY_CLOSE_MINUTE : CLOSE_MINUTE)
+}
+
+/** Minutes after the close before an official close is worth asking for. */
+export const CAPTURE_DELAY_MINUTES = 30
+
+/** The moment the official close of the session on `date` may first be asked for: the close plus 30 minutes. */
+export function captureOpensAt(date: string): Date {
+  return new Date(sessionCloseAt(date).getTime() + CAPTURE_DELAY_MINUTES * 60_000)
+}
+
+/**
+ * Like `latestCompletedSession`, but also steps back over exchange holidays, so it
+ * names a day the market actually traded. Used to decide that nothing newer can exist.
+ */
+export function latestTradingSession(now: Date): string {
+  const day = new Date(`${latestCompletedSession(now)}T00:00:00Z`)
+  for (;;) {
+    const iso = day.toISOString().slice(0, 10)
+    const weekend = day.getUTCDay() === 0 || day.getUTCDay() === 6
+    if (!weekend && !HOLIDAYS.has(iso)) return iso
+    day.setUTCDate(day.getUTCDate() - 1)
+  }
+}
+
+/**
+ * The session whose official close may be asked for by `now`: the latest regular session whose
+ * close plus 30 minutes has passed. Holiday-aware and early-close aware (a 1pm close opens the
+ * capture at 1:30pm). The one session date the close catch-up uses everywhere.
+ */
+export function captureSession(now: Date): string {
+  const start = newYork(now).date
+  const day = new Date(`${start}T00:00:00Z`)
+  for (let back = 0; back < 10; back++, day.setUTCDate(day.getUTCDate() - 1)) {
+    const iso = day.toISOString().slice(0, 10)
+    const weekend = day.getUTCDay() === 0 || day.getUTCDay() === 6
+    if (weekend || HOLIDAYS.has(iso)) continue
+    if (captureOpensAt(iso).getTime() <= now.getTime()) return iso
+  }
+  return start
+}
+
+/** The next instant after `now` that it is `minutes` after midnight in New York (daylight saving included). */
+export function nextNewYorkTime(now: Date, minutes: number): Date {
+  const day = new Date(`${newYork(now).date}T00:00:00Z`)
+  for (let i = 0; i < 2; i++, day.setUTCDate(day.getUTCDate() + 1)) {
+    const at = newYorkInstant(day.toISOString().slice(0, 10), minutes)
+    if (at.getTime() > now.getTime()) return at
+  }
+  return new Date(now.getTime() + 86_400_000)
 }

@@ -1,4 +1,5 @@
 import {
+  bigserial,
   boolean,
   date,
   doublePrecision,
@@ -9,6 +10,7 @@ import {
   pgEnum,
   pgTable,
   primaryKey,
+  smallint,
   text,
   timestamp,
   uniqueIndex,
@@ -204,6 +206,17 @@ export const securities = pgTable("securities", {
    * null because the institution already reports their value.
    */
   marketTicker: text("market_ticker"),
+  /**
+   * When a price was last written to this row, by any source (a trigger sets it
+   * on every write to `close_price` or `close_price_as_of`). Unlike `updated_at`,
+   * which is also bumped when a refresh is only attempted, this is the last time
+   * a price actually arrived. Null for rows priced before it existed.
+   */
+  pricedAt: timestamp("priced_at", { withTimezone: true }),
+  // Reserved for retry scheduling; currently unused (columns exist in production via migration 0021).
+  closeAttempts: smallint("close_attempts").notNull().default(0),
+  closeAttemptSession: date("close_attempt_session"),
+  unsupportedBy: text("unsupported_by").array(),
   /** Metadata retries are independent of price freshness. */
   metadataCheckedAt: timestamp("metadata_checked_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -248,6 +261,32 @@ export const providerRequestStats = pgTable(
     failed: integer("failed").notNull().default(0),
   },
   (t) => [primaryKey({ columns: [t.provider, t.minute] }), index("provider_request_stats_minute_idx").on(t.minute)],
+)
+
+/**
+ * One row per provider request that did not succeed, kept 14 days: the "why and when"
+ * behind the counters above. Public market data only (a path without its query, a few
+ * tickers, a short reason); never a key, header or token. Written best effort and capped
+ * per provider per minute, so an outage can't flood it.
+ */
+export const providerRequestEvents = pgTable(
+  "provider_request_events",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+    provider: text("provider").notNull(),
+    /** denied (our budget refused it), rate_limited (provider 429), failed (error answer or thrown), timeout. */
+    kind: text("kind").notNull(),
+    httpStatus: integer("http_status"),
+    endpoint: text("endpoint").notNull(),
+    symbolsCount: integer("symbols_count").notNull().default(0),
+    symbolsSample: text("symbols_sample").notNull().default(""),
+    reason: text("reason").notNull().default(""),
+    waitSeconds: integer("wait_seconds"),
+    caller: text("caller"),
+    suppressed: integer("suppressed").notNull().default(0),
+  },
+  (t) => [index("provider_request_events_at_idx").on(t.at), index("provider_request_events_provider_kind_at_idx").on(t.provider, t.kind, t.at)],
 )
 
 /**

@@ -9,7 +9,7 @@ export function reconcileAccountExpansion(
   for (const account of accounts) {
     if (Object.hasOwn(previous, account.id)) continue
     if (next === previous) next = { ...previous }
-    next[account.id] = account.positions.length > 0 && account.positions.length <= 5
+    next[account.id] = false
   }
   // Keep pending newly-created account IDs while the refresh is in flight.
   return next

@@ -1,15 +1,17 @@
+import { withProviderCaller } from "@web/lib/provider-fetch"
 import { after } from "next/server"
-import { and, eq, inArray, isNotNull, isNull, lt, sql, type SQL } from "drizzle-orm"
+import { and, eq, inArray, isNotNull, isNull, sql, type SQL } from "drizzle-orm"
 import { accounts, db, holdings, securities } from "@web/db"
 import type { MutationStore } from "@web/lib/manual-mutation"
 import { ApiError } from "@web/lib/api"
-import { isUsMarketOpen, latestCompletedSession } from "@web/lib/market-hours"
+import { captureSession, isUsMarketOpen, latestCompletedSession } from "@web/lib/market-hours"
 import { previousCloseOnUpdate } from "@web/lib/price-write"
 import { acceptSessionClose, createQuoteProvider, quoteDate } from "@web/lib/quote-provider"
 import { createFinnhubProvider } from "@web/lib/finnhub"
 import { isPlanIdentifier } from "@web/lib/import-parse"
 import { tiingoApiKey, tiingoFundCloses } from "@web/lib/tiingo"
-import { staleHeldSecurities } from "@web/lib/stale-prices"
+import { canSkipCloseCheck, closeClaimDue, closeRecheckMinutes, fundNavMayBePublished, staleHeldSecurities, unsettledHeldSql } from "@web/lib/stale-prices"
+import { failedMetadataUpdate, isFundTicker, isProviderChecked, unconfirmedFund } from "@web/lib/fund-ticker"
 import {
   displaySymbol,
   isNewerClose,
@@ -46,6 +48,20 @@ export async function requireManualAccount(userId: string, id: string, store: Mu
   return account
 }
 
+/** A fund's latest published price from Tiingo, or null. `failed` is true when Tiingo couldn't answer (so "not found" would be a lie). */
+async function fundPrice(marketTicker: string): Promise<{ close: Close | null; failed: boolean }> {
+  const apiKey = tiingoApiKey(process.env)
+  if (!apiKey) return { close: null, failed: true }
+  const answer = await tiingoFundCloses([marketTicker], { apiKey })
+  return { close: answer.closes.get(marketTicker) ?? null, failed: answer.rateLimited || answer.failed > 0 }
+}
+
+/** A last trade of any age from the live sources, for when Massive has no requests left. */
+async function liveFirstPrice(marketTicker: string) {
+  const quote = (await createQuoteProvider(process.env, undefined, undefined, { anyAge: true })?.getQuotes([marketTicker]).catch(() => null))?.quotes.get(marketTicker)
+  return { live: quote ?? null }
+}
+
 /**
  * Makes sure a `mkt:` security row exists with a close price, fetching one only
  * when there is none yet or (with `maxAgeHours`) the stored one is stale.
@@ -60,15 +76,48 @@ export async function ensurePriced(marketTicker: string, kind: AssetKind, { maxA
     (maxAgeHours === undefined || Date.now() - existing.updatedAt.getTime() < maxAgeHours * 3_600_000)
   if (fresh) return { securityId, price: Number(existing.closePrice), asOf: existing.closePriceAsOf!, name: existing.name }
 
+  // A mutual fund is decided up front: Tiingo prices it, and Massive's /prev and search (and
+  // Finnhub) can only fail for it.
+  if (kind === "stock" && isFundTicker({ marketTicker, type: existing?.type, providerChecked: isProviderChecked(existing) })) {
+    const { close: nav, failed } = await fundPrice(marketTicker)
+    if (nav && !(existing?.closePrice && existing.closePriceAsOf && !isNewerClose(nav.asOf, existing.closePriceAsOf))) {
+      await db
+        .insert(securities)
+        .values({ id: securityId, tickerSymbol: displaySymbol(marketTicker), type: "mutual_fund", marketTicker, closePrice: nav.price.toString(), closePriceAsOf: nav.asOf, closePriceFinal: true })
+        .onConflictDoUpdate({
+          target: securities.id,
+          set: { type: "mutual_fund", previousClose: previousCloseOnUpdate(nav.asOf), closePrice: nav.price.toString(), closePriceAsOf: nav.asOf, closePriceFinal: true, updatedAt: new Date() },
+        })
+      return { securityId, price: nav.price, asOf: nav.asOf, name: existing?.name ?? null }
+    }
+    if (existing?.closePrice && existing.closePriceAsOf) return { securityId, price: Number(existing.closePrice), asOf: existing.closePriceAsOf, name: existing.name }
+    if (failed) throw new ApiError("Prices are unavailable right now", 503)
+    throw new ApiError(`We couldn't find ${displaySymbol(marketTicker)}.`, 404, { suggestions: [] })
+  }
+
   const close = await previousClose(marketTicker).catch((error: unknown) => {
     if (!(error instanceof MarketDataError)) throw error
     // An unknown ticker is "not found", not an outage.
     if (error.status === 404) return null
     console.error("[positions] price lookup failed:", error.message)
+    // Only when Massive is out of requests: a last trade from the live sources proves the
+    // ticker exists, so a user isn't turned away (the nightly close replaces it).
+    if (error.status === 429 && kind === "stock") return liveFirstPrice(marketTicker)
     throw error.status === 429
       ? new ApiError("Too many price lookups right now. Try again in a minute.", 429)
       : new ApiError("Prices are unavailable right now", 503)
   })
+  if (close && "live" in close) {
+    if (close.live) {
+      const asOf = quoteDate(close.live)
+      await db
+        .insert(securities)
+        .values({ id: securityId, tickerSymbol: displaySymbol(marketTicker), type: "equity", marketTicker, closePrice: close.live.price.toString(), closePriceAsOf: asOf, closePriceFinal: false })
+        .onConflictDoNothing()
+      return { securityId, price: close.live.price, asOf, name: existing?.name ?? null }
+    }
+    throw new ApiError("Too many price lookups right now. Try again in a minute.", 429)
+  }
   if (!close) {
     // A stale price beats none when the provider has nothing newer.
     if (existing?.closePrice && existing.closePriceAsOf) {
@@ -127,6 +176,12 @@ async function enrichSecurityMetadata(securityId: string, marketTicker: string) 
   if (!current || current.type === "mutual_fund") return current?.name
   if (current.metadataCheckedAt && Date.now() - current.metadataCheckedAt.getTime() < 7 * 86_400_000) return current.name
   const details = await tickerDetails(marketTicker)
+  // A lookup that confirmed no type is no proof of a stock: a fund-shaped ticker becomes a fund (which
+  // skips this lookup from now on) and no confirmation time is recorded.
+  if (unconfirmedFund(marketTicker, current, details?.securityType)) {
+    await db.update(securities).set({ type: "mutual_fund", ...(details?.name && !current.name ? { name: details.name } : {}) }).where(eq(securities.id, securityId))
+    return details?.name ?? current.name
+  }
   await db.update(securities).set({
     metadataCheckedAt: new Date(),
     ...(details?.name && !current.name ? { name: details.name } : {}),
@@ -145,7 +200,7 @@ const METADATA_PER_RUN = 1
 
 export async function refreshSecurityMetadata() {
   if (!process.env.MASSIVE_API_KEY) return { checked: 0, attempted: 0, reason: "missing_key" as const }
-  const candidates = await db.select({ id: securities.id, marketTicker: securities.marketTicker }).from(securities)
+  const candidates = await db.select({ id: securities.id, marketTicker: securities.marketTicker, type: securities.type, name: securities.name, metadataCheckedAt: securities.metadataCheckedAt }).from(securities)
     .where(and(
       isNotNull(securities.marketTicker),
       inArray(securities.type, ["equity", "etf"]),
@@ -161,7 +216,7 @@ export async function refreshSecurityMetadata() {
       checked++
     } catch (error) {
       // Retry failures later without delaying prices or permanently starving other tickers.
-      await db.update(securities).set({ metadataCheckedAt: new Date(Date.now() - 6 * 86_400_000) }).where(eq(securities.id, security.id))
+      await db.update(securities).set(failedMetadataUpdate(security.marketTicker!, security, Date.now())).where(eq(securities.id, security.id))
       console.error("[positions] metadata refresh failed:", error instanceof Error ? error.message : "unknown")
       // A failure usually means a rate limit, so stop here and let the next run carry on.
       return {
@@ -275,10 +330,28 @@ async function primePrices(rows: { marketTicker: string; kind: AssetKind; name?:
   const priced = new Set<string>()
   try {
     const ids = rows.map((r) => `mkt:${r.marketTicker}`)
-    const known = await db.select({ id: securities.id, name: securities.name, price: securities.closePrice }).from(securities).where(inArray(securities.id, ids))
+    const known = await db.select({ id: securities.id, name: securities.name, price: securities.closePrice, type: securities.type, metadataCheckedAt: securities.metadataCheckedAt }).from(securities).where(inArray(securities.id, ids))
     for (const k of known) if (k.price != null) priced.add(k.id)
+    const knownById = new Map(known.map((k) => [k.id, k]))
 
-    const missing = rows.filter((r) => !priced.has(`mkt:${r.marketTicker}`))
+    const unpriced = rows.filter((r) => !priced.has(`mkt:${r.marketTicker}`))
+    // Funds go straight to Tiingo: no daily bar, quote or reference request can find them.
+    const isFund = (r: { marketTicker: string; kind: AssetKind }) => {
+      const k = knownById.get(`mkt:${r.marketTicker}`)
+      return r.kind === "stock" && isFundTicker({ marketTicker: r.marketTicker, type: k?.type, providerChecked: isProviderChecked(k) })
+    }
+    const fundRows = unpriced.filter(isFund).slice(0, MAX_FUND_LOOKUPS_PER_IMPORT)
+    const missing = unpriced.filter((r) => !isFund(r))
+    const tiingoKey = tiingoApiKey(process.env)
+    if (fundRows.length > 0 && tiingoKey) {
+      const answer = await tiingoFundCloses(fundRows.map((r) => r.marketTicker), { apiKey: tiingoKey })
+      for (const row of fundRows) {
+        const close = answer.closes.get(row.marketTicker)
+        if (!close) continue
+        await storeFirstPrice({ marketTicker: row.marketTicker, kind: row.kind, name: row.name, price: close.price, asOf: close.asOf, type: "mutual_fund" })
+        priced.add(`mkt:${row.marketTicker}`)
+      }
+    }
     if (missing.length > 0) {
       const closes = await latestCloses(missing.map((r) => r.marketTicker))
       for (const row of missing) {
@@ -303,7 +376,6 @@ async function primePrices(rows: { marketTicker: string; kind: AssetKind; name?:
 
       // Mutual funds are on none of those, but Tiingo publishes their daily price.
       const funds = rest.filter((r) => r.kind === "stock" && !quotes?.quotes.has(r.marketTicker)).slice(0, MAX_FUND_LOOKUPS_PER_IMPORT)
-      const tiingoKey = tiingoApiKey(process.env)
       if (funds.length > 0 && tiingoKey) {
         const answer = await tiingoFundCloses(funds.map((r) => r.marketTicker), { apiKey: tiingoKey })
         for (const row of funds) {
@@ -373,7 +445,7 @@ async function ensureUnpriced(marketTicker: string, kind: AssetKind, name: strin
       id,
       tickerSymbol: displaySymbol(marketTicker),
       name: name ?? null,
-      type: kind === "crypto" ? "cryptocurrency" : "equity",
+      type: kind === "crypto" ? "cryptocurrency" : isFundTicker({ marketTicker }) ? "mutual_fund" : "equity",
       marketTicker,
       // Old on purpose, so the next catch-up picks it up straight away.
       updatedAt: new Date(Date.now() - 86_400_000),
@@ -387,7 +459,7 @@ async function ensureUnpriced(marketTicker: string, kind: AssetKind, name: strin
  * mention are removed afterwards, but only when every row went in, so a bad
  * ticker can never leave an account half-emptied.
  */
-export async function importPositions(accountId: string, userId: string, rows: ImportRowInput[], { replace }: { replace: boolean }, store: MutationStore = db): Promise<ImportResult> {
+async function importPositionsRun(accountId: string, userId: string, rows: ImportRowInput[], { replace }: { replace: boolean }, store: MutationStore = db): Promise<ImportResult> {
   const result: ImportResult = { imported: 0, removed: 0, fromFile: [], failed: [], pending: [] }
 
   const keptSecurityIds = new Set<string>()
@@ -491,6 +563,11 @@ export async function importPositions(accountId: string, userId: string, rows: I
   return result
 }
 
+/** Its provider requests are labeled `import` in the event log. */
+export function importPositions(...args: Parameters<typeof importPositionsRun>): ReturnType<typeof importPositionsRun> {
+  return withProviderCaller("import", () => importPositionsRun(...args))
+}
+
 export async function removePosition(accountId: string, holdingId: string, store: MutationStore = db) {
   const deleted = await store
     .delete(holdings)
@@ -569,9 +646,8 @@ export type CatchUpResult = { refreshed: number; awaitingClose?: number; unconfi
  * left to it, and a run may have had nothing eligible at all:
  * - `unconfirmed`: live prices never replaced by an official close, from the latest
  *   finished session or any before it. A close we know we don't have.
- * - `behind`: official closes older than that session. On the day after a holiday
- *   (which `latestCompletedSession` doesn't know) this counts everything, so it informs
- *   rather than alarms.
+ * - `behind`: official closes older than that session (`captureSession`, which skips
+ *   holidays, so the day after one is not counted as behind).
  */
 async function closeFreshness(expectedDate: string): Promise<{ unconfirmed: number; behind: number }> {
   const [row] = await db
@@ -604,10 +680,25 @@ export async function refreshStalePrices({
   lastRefreshAttempt = now
 
   try {
+    // Steady state: market closed and every held security already has the last session's
+    // official close. Nothing newer can appear, so no provider call and no stale-row scan.
+    // A ticker no source can settle (OTC, delisted, redeemed) stays unsettled for good, so it
+    // is only due again every few hours (`catchUpRecheckMinutes`); only tickers actually due count.
+    const marketOpen = isUsMarketOpen(new Date(now))
+    const expectedDate = captureSession(new Date(now))
+    const neverPricedRecheckBefore = new Date(now - recheckMinutes * 60_000)
+    const recheckBefore = new Date(now - closeRecheckMinutes(new Date(now), expectedDate, { marketOpen, earlyMinutes: recheckMinutes }) * 60_000)
+    const fundNavOpen = fundNavMayBePublished(new Date(now), expectedDate)
+    const [pending] = [...(await db.execute<{ n: number; due: number }>(unsettledHeldSql(expectedDate, { recheckBefore, neverPricedRecheckBefore, fundNavOpen })))]
+    if (canSkipCloseCheck({ marketOpen, unsettled: Number(pending?.due ?? 0) })) {
+      // Still-unsettled tickers are waiting out their retry delay: say so rather than report all fresh.
+      return { refreshed: 0, awaitingClose: 0, ...(Number(pending?.n ?? 0) > 0 ? await closeFreshness(expectedDate) : { unconfirmed: 0, behind: 0 }) }
+    }
+
     const cutoff = new Date(now - maxAgeHours * 3_600_000)
     // Also look when the stored close is older than the latest finished session, so a
     // new official close is picked up shortly after it's published, not hours later.
-    const catchUp = { expectedDate: latestCompletedSession(new Date(now)), recheckBefore: new Date(now - recheckMinutes * 60_000) }
+    const catchUp = { expectedDate, recheckBefore, neverPricedRecheckBefore, marketClosed: !marketOpen, fundNavOpen }
     const stale = await db
       .select({ id: securities.id, marketTicker: securities.marketTicker, asOf: securities.closePriceAsOf, final: securities.closePriceFinal, type: securities.type })
       .from(securities)
@@ -618,8 +709,10 @@ export async function refreshStalePrices({
 
     // A failed whole-market lookup (a 429 on the free plan, say) must not stop the
     // per-ticker steps below: they are what confirm the latest session's closes.
-    const closes = wholeMarket
-      ? await latestCloses(stale.map((s) => s.marketTicker!)).catch((error: unknown) => {
+    // Funds aren't in the whole-market bars; a backlog of only funds must not cost a request.
+    const barTickers = stale.filter((s) => s.type !== "mutual_fund").map((s) => s.marketTicker!)
+    const closes = wholeMarket && barTickers.length > 0
+      ? await latestCloses(barTickers).catch((error: unknown) => {
           console.error("[positions] whole-market closes failed:", error instanceof Error ? error.message : error)
           return new Map<string, Close>()
         })
@@ -629,7 +722,8 @@ export async function refreshStalePrices({
 
     // Securities still without any price (just imported) go to the live-price sources first:
     // many tickers per request, no per-minute squeeze, and the official close replaces it later.
-    const unpriced = stale.filter((s) => !s.asOf && !closes.has(s.marketTicker!))
+    // Funds go to Tiingo only (below): the live-price sources don't carry them.
+    const unpriced = stale.filter((s) => !s.asOf && !closes.has(s.marketTicker!) && s.type !== "mutual_fund")
     if (unpriced.length > 0) {
       const quotes = await createQuoteProvider(process.env, undefined, undefined, { anyAge: true })?.getQuotes(unpriced.map((s) => s.marketTicker!))
       for (const security of unpriced) {
@@ -677,7 +771,7 @@ export async function refreshStalePrices({
       const claimed = await db
         .update(securities)
         .set({ updatedAt: new Date() })
-        .where(and(inArray(securities.id, candidates.map((s) => s.id)), lt(securities.updatedAt, catchUp.recheckBefore)))
+        .where(and(inArray(securities.id, candidates.map((s) => s.id)), closeClaimDue(catchUp)))
         .returning({ id: securities.id })
       for (const { id } of claimed) closeAsked.add(id)
       const batch = candidates.filter((s) => closeAsked.has(s.id))
@@ -717,8 +811,10 @@ export async function refreshStalePrices({
     // (the free allowance is small, so a few per run; the rest wait for the next one).
     const behindSession = (s: { asOf: string | null }) => !s.asOf || s.asOf.slice(0, 10) < catchUp.expectedDate
     const fundBacklog = stale.filter((s) => s.type === "mutual_fund" && !closes.has(s.marketTicker!) && behindSession(s))
-    const fundsNow = fundBacklog.slice(0, MAX_FUND_LOOKUPS_PER_RUN)
+    // A fund's NAV for the session isn't out until the evening: before then every ask is a wasted call.
     const tiingoKey = tiingoApiKey(process.env)
+    const fundsOpen = !!tiingoKey && fundNavOpen
+    const fundsNow = fundsOpen ? fundBacklog.slice(0, MAX_FUND_LOOKUPS_PER_RUN) : []
     if (fundsNow.length > 0 && tiingoKey) {
       const answer = await tiingoFundCloses(fundsNow.map((s) => s.marketTicker!), { apiKey: tiingoKey })
       for (const fund of fundsNow) {
@@ -726,7 +822,7 @@ export async function refreshStalePrices({
         if (close) closes.set(fund.marketTicker!, close)
       }
     }
-    const fundsWaiting = new Set(fundBacklog.slice(tiingoKey ? MAX_FUND_LOOKUPS_PER_RUN : 0).map((s) => s.id))
+    const fundsWaiting = new Set(fundBacklog.slice(fundsOpen ? MAX_FUND_LOOKUPS_PER_RUN : 0).map((s) => s.id))
 
     // The whole-market bars can trail a finished session by a day on some plans. The
     // per-ticker "previous close" doesn't, so use it for a few tickers per run (the
@@ -814,7 +910,8 @@ async function executeRevaluation(query: SQL, store: MutationStore) {
 }
 
 /**
- * Recomputes holding values and manual account balances from stored closes.
+ * Recomputes holding values and account balances from stored closes. Manual accounts are the
+ * sum of their positions; linked accounts move by what their positions' prices moved.
  * With an account id, only that account — including one whose last position
  * was just removed, which drops to zero.
  */
@@ -828,7 +925,32 @@ export async function revalue(accountId?: string, securityIds?: string[], store:
     SET institution_value = h.quantity * s.close_price, updated_at = now()
     FROM securities s
     WHERE s.id = h.security_id AND s.market_ticker IS NOT NULL
-      AND EXISTS (SELECT 1 FROM accounts a WHERE a.id = h.account_id AND a.is_active) ${onlyAccount} ${onlySecurities}
+      AND EXISTS (SELECT 1 FROM accounts a WHERE a.id = h.account_id AND a.is_active AND a.source = 'manual') ${onlyAccount} ${onlySecurities}
+  `, store)
+
+  // Linked accounts: the institution's value and balance are the starting point at each sync;
+  // as our prices move, each holding takes the new value and its account's balance moves by the
+  // same difference. A sync starts again from the institution's numbers.
+  await executeRevaluation(sql`
+    WITH changed AS (
+      SELECT h.id, round(h.quantity * s.close_price, 4) AS new_value,
+        COALESCE(h.institution_value, round(h.quantity * s.close_price, 4)) AS old_value
+      FROM holdings h
+      JOIN securities s ON s.id = h.security_id
+      JOIN accounts a ON a.id = h.account_id
+      WHERE s.market_ticker IS NOT NULL AND s.close_price IS NOT NULL AND h.quantity IS NOT NULL
+        AND a.is_active AND a.source <> 'manual' ${onlyAccount} ${onlySecurities}
+      -- Locked before the old value is read, so two overlapping revaluations can't both count the same move.
+      ORDER BY h.id FOR UPDATE OF h
+    ), moved AS (
+      UPDATE holdings h SET institution_value = c.new_value, updated_at = now()
+      FROM changed c
+      WHERE h.id = c.id AND h.institution_value IS DISTINCT FROM c.new_value
+      RETURNING h.account_id, c.new_value - c.old_value AS delta
+    )
+    UPDATE accounts a SET current_balance = a.current_balance + d.delta, updated_at = now()
+    FROM (SELECT account_id, sum(delta) AS delta FROM moved GROUP BY account_id) d
+    WHERE a.id = d.account_id
   `, store)
 
   // With a list of securities, only the accounts that hold them need a new balance.

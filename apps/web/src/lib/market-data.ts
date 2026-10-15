@@ -8,7 +8,8 @@
  * Free of database imports so the tests can exercise it with a stubbed fetch.
  */
 
-import { providerFetch } from "./provider-fetch.ts"
+import { nextNewYorkTime } from "./market-hours.ts"
+import { providerFetch, withProviderCaller } from "./provider-fetch.ts"
 
 const BASE_URL = process.env.MASSIVE_BASE_URL ?? "https://api.massive.com"
 
@@ -63,14 +64,25 @@ async function get(path: string, fetchImpl: typeof fetch): Promise<AggsResponse>
   return getJson<AggsResponse>(path, fetchImpl)
 }
 
+/** What a Massive request is for, by its path, for the provider event log. */
+function callerOf(path: string): string {
+  if (path.includes("/aggs/grouped/")) return "closes"
+  if (path.includes("/aggs/ticker/")) return "close"
+  if (path.startsWith("/v3/reference/tickers?")) return "search"
+  if (path.startsWith("/v3/reference/tickers/")) return "metadata"
+  return "massive"
+}
+
 async function getJson<T>(path: string, fetchImpl: typeof fetch): Promise<T> {
   const key = process.env.MASSIVE_API_KEY
   if (!key) throw new MarketDataError("MASSIVE_API_KEY is not set")
 
-  const response = await fetchImpl(`${BASE_URL}${path}`, {
-    headers: { Authorization: `Bearer ${key}` },
-    cache: "no-store",
-  })
+  const response = await withProviderCaller(callerOf(path), () =>
+    fetchImpl(`${BASE_URL}${path}`, {
+      headers: { Authorization: `Bearer ${key}` },
+      cache: "no-store",
+    }),
+  )
 
   if (!response.ok) throw new MarketDataError(`Market data request failed (${response.status})`, response.status)
   return (await response.json()) as T
@@ -110,6 +122,21 @@ function firstDayBack(marketTickerIsCrypto: boolean, now: Date): number {
 }
 
 /**
+ * Whole-market bars the plan refused (403/404 for a day it withholds), by request path, until when.
+ * The free plan won't serve today's bars before the day is over, so asking again every few
+ * minutes all evening only fails again; the refusal is remembered for a few hours instead.
+ */
+const REFUSED_BARS_HOURS = 6
+/** Bars are published around 06:00 New York time; a refusal never outlives the next 06:10, when a withheld bar may exist. */
+const PUBLICATION_MINUTE = 6 * 60 + 10
+const refusedBars = new Map<string, number>()
+
+/** Forgets every remembered refusal (for the tests). */
+export function resetRefusedBars() {
+  refusedBars.clear()
+}
+
+/**
  * Latest daily close for each ticker, from whole-market daily bars.
  *
  * Starts at the latest finished day (see `firstDayBack`) and walks back past
@@ -137,15 +164,21 @@ export async function latestCloses(
       day.setUTCDate(day.getUTCDate() - back)
       const date = day.toISOString().slice(0, 10)
 
+      const url = `${market.path}/${date}?adjusted=true&include_otc=true`
+      if ((refusedBars.get(url) ?? 0) > now.getTime()) continue
+
       let data: AggsResponse
       try {
-        data = await get(`${market.path}/${date}?adjusted=true&include_otc=true`, fetchImpl)
+        data = await get(url, fetchImpl)
       } catch (error) {
         // Some plans withhold the newest bars for a day or so. That is "not yet",
         // not an outage: the day before is still a correct answer. (Real trouble,
         // such as a bad key, fails every day, so it still surfaces further back.)
         const notYet = back <= 1 && error instanceof MarketDataError && (error.status === 403 || error.status === 404)
-        if (notYet) continue
+        if (notYet) {
+          refusedBars.set(url, Math.min(now.getTime() + REFUSED_BARS_HOURS * 3_600_000, nextNewYorkTime(now, PUBLICATION_MINUTE).getTime()))
+          continue
+        }
         throw error
       }
       if (!data.results?.length) continue

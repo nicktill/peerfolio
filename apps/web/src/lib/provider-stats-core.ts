@@ -111,6 +111,12 @@ export type ProviderDashboard = {
   lastHourRatio: number | null
   today: { requests: number; symbols: number }
   totals: Omit<StatRow, "provider" | "minute">
+  /** Requests sent in the range that the provider answered with data: sent, minus 429s and errors. */
+  succeeded: number
+  /** `succeeded` over requests sent, or null with no requests. */
+  successRate: number | null
+  /** Tickers per request in the range: how well requests are batched. Null with no requests. */
+  avgBatch: number | null
   warn: boolean
 }
 
@@ -198,6 +204,7 @@ export function buildDashboard(
       if (value > peak.value) peak = { value, at: new Date(key).toISOString() }
     }
 
+    const succeeded = Math.max(0, totals.requests - totals.failed - totals.rateLimited)
     const budget = hourlyBudgets[provider] ?? null
     const peakRatio = Number.isFinite(limit.amount) ? peak.value / limit.amount : 0
     return {
@@ -212,9 +219,231 @@ export function buildDashboard(
       lastHourRatio: budget ? lastHour.requests / budget : null,
       today,
       totals,
+      succeeded,
+      successRate: totals.requests > 0 ? succeeded / totals.requests : null,
+      avgBatch: totals.requests > 0 ? totals.symbols / totals.requests : null,
       warn: peakRatio > WARN_RATIO,
     }
   })
 
   return { range, from: new Date(from).toISOString(), to: now.toISOString(), bucketMinutes, hasData: rows.length > 0, providers }
+}
+
+// ---------------------------------------------------------------------------
+// Event log: one row per non-success request, kept 14 days. Public market data
+// only: a path with no query string, up to five tickers, a short reason. Never a
+// URL with its query, a header, a key or a token.
+// ---------------------------------------------------------------------------
+
+export const EVENT_KINDS = ["denied", "rate_limited", "failed", "timeout"] as const
+export type EventKind = (typeof EVENT_KINDS)[number]
+export const isEventKind = (value: string | null): value is EventKind => value != null && (EVENT_KINDS as readonly string[]).includes(value)
+
+export const EVENT_KEEP_DAYS = 14
+export const REASON_MAX = 200
+export const SAMPLE_MAX = 5
+/** Events one process writes per provider per minute; the rest are counted, not stored. */
+export const EVENTS_PER_MINUTE = 20
+
+/** What gets stored for one non-success request. */
+export type NewProviderEvent = {
+  provider: string
+  kind: EventKind
+  httpStatus: number | null
+  endpoint: string
+  symbolsCount: number
+  symbolsSample: string
+  reason: string
+  waitSeconds: number | null
+  caller: string | null
+  /** Events this process skipped (over the per-minute cap) since its last written one for this provider. */
+  suppressed: number
+}
+
+/** An event as the admin API returns it. */
+export type ProviderEventRow = Omit<NewProviderEvent, "symbolsSample"> & { id: number; at: string; symbolsSample: string[] }
+
+export type ReasonCount = { provider: string; kind: EventKind; httpStatus: number | null; reason: string; count: number; last: string }
+
+export type EventsResponse = {
+  from: string
+  to: string
+  events: ProviderEventRow[]
+  /** Counts by kind over the window, before the provider/kind filters. */
+  totals: Record<EventKind, number>
+  reasons: ReasonCount[]
+  /** More matching events exist than were returned. */
+  more: boolean
+}
+
+const TICKER = /^[A-Za-z0-9][A-Za-z0-9.:\-/]{0,11}$/
+
+const parseUrl = (input: RequestInfo | URL): URL | null => {
+  try {
+    return new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url)
+  } catch {
+    return null
+  }
+}
+
+/** The request's path only, with any long opaque segment masked in case something secret sits in one. */
+export function endpointOf(input: RequestInfo | URL): string {
+  const url = parseUrl(input)
+  if (!url) return "(unknown)"
+  return url.pathname.replace(/[A-Za-z0-9_-]{28,}/g, ":id") || "/"
+}
+
+/** Up to five tickers the request names, from `symbols`/`symbol` or a ticker path segment. */
+export function symbolsSampleOf(input: RequestInfo | URL): string[] {
+  const url = parseUrl(input)
+  if (!url) return []
+  const fromQuery = (url.searchParams.get("symbols") ?? url.searchParams.get("symbol") ?? "").split(",")
+  const segments = url.pathname.split("/")
+  const at = segments.findIndex((s) => s === "ticker" || s === "tickers" || s === "daily")
+  const fromPath = at >= 0 && segments[at + 1] ? [segments[at + 1]!] : []
+  const out: string[] = []
+  for (const raw of [...fromQuery, ...fromPath]) {
+    let symbol = raw.trim()
+    try {
+      symbol = decodeURIComponent(symbol)
+    } catch {
+      // keep it as written; the pattern below decides
+    }
+    symbol = symbol.toUpperCase()
+    if (TICKER.test(symbol) && !out.includes(symbol)) out.push(symbol)
+    if (out.length >= SAMPLE_MAX) break
+  }
+  return out
+}
+
+export const truncate = (text: string, max = REASON_MAX) => (text.length > max ? `${text.slice(0, max - 1)}…` : text)
+
+/** Strips anything shaped like a credential from text we are about to store. */
+const scrub = (text: string) =>
+  text
+    .replace(/bearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer …")
+    .replace(/((?:api[_-]?key|apikey|token|secret|authorization|password)["']?\s*[:=]\s*["']?)[^\s"',&}]+/gi, "$1…")
+
+/** A short reason from an error response's body: its message field if it is JSON, else its text. */
+export function reasonFromBody(body: string | undefined, fallback = ""): string {
+  const text = (body ?? "").trim()
+  if (!text) return truncate(fallback)
+  let picked = ""
+  try {
+    const json: unknown = JSON.parse(text)
+    const pick = (value: unknown): string => {
+      if (typeof value === "string") return value
+      if (value && typeof value === "object") {
+        const record = value as Record<string, unknown>
+        for (const key of ["message", "error", "error_description", "detail", "status"]) {
+          const found = record[key] !== undefined ? pick(record[key]) : ""
+          if (found) return found
+        }
+      }
+      return ""
+    }
+    picked = pick(json)
+  } catch {
+    // not JSON
+  }
+  const flat = (picked || (text.startsWith("<") ? "" : text)).replace(/\s+/g, " ").trim()
+  return truncate(scrub(flat || fallback))
+}
+
+/** What a thrown fetch error becomes: a timeout, or a failure named by error type and network code. No message text. */
+export function classifyError(error: unknown): { kind: "timeout" | "failed"; reason: string } {
+  const name = error instanceof Error ? error.name : "Error"
+  if (name === "TimeoutError" || name === "AbortError") return { kind: "timeout", reason: name === "TimeoutError" ? "request timed out" : "request aborted" }
+  const cause = error instanceof Error ? (error as { cause?: { code?: unknown } }).cause : undefined
+  const code = typeof cause?.code === "string" ? cause.code : ""
+  return { kind: "failed", reason: truncate(`${name}: network error${code ? ` (${code})` : ""}`) }
+}
+
+/**
+ * The row to store for a non-success request. `body` is the (already read) error
+ * response text, if any. Pure, so the tests can check what is and isn't stored.
+ */
+export function buildEvent(args: {
+  provider: string
+  kind: EventKind
+  input: RequestInfo | URL
+  status?: number | null
+  reason?: string
+  body?: string
+  waitSeconds?: number | null
+  caller?: string | null
+  suppressed?: number
+}): NewProviderEvent {
+  return {
+    provider: args.provider,
+    kind: args.kind,
+    httpStatus: args.status ?? null,
+    endpoint: endpointOf(args.input),
+    symbolsCount: symbolCount(args.input),
+    symbolsSample: symbolsSampleOf(args.input).join(","),
+    reason: args.reason != null ? truncate(scrub(args.reason)) : reasonFromBody(args.body, args.status ? `HTTP ${args.status}` : "unknown"),
+    waitSeconds: args.waitSeconds != null && Number.isFinite(args.waitSeconds) ? Math.max(0, Math.ceil(args.waitSeconds)) : null,
+    caller: args.caller ?? null,
+    suppressed: args.suppressed ?? 0,
+  }
+}
+
+/**
+ * Caps how many events a process writes per provider per minute, so an outage
+ * can't flood the table. Over the cap, events are counted; the next one written
+ * carries the count as `suppressed`.
+ */
+export function createEventLimiter({ perMinute = EVENTS_PER_MINUTE }: { perMinute?: number } = {}) {
+  const state = new Map<string, { minute: number; written: number; skipped: number }>()
+  return {
+    admit(provider: string, now = Date.now()): { write: boolean; suppressed: number } {
+      const minute = Math.floor(now / 60_000)
+      const s = state.get(provider) ?? { minute, written: 0, skipped: 0 }
+      if (s.minute !== minute) {
+        s.minute = minute
+        s.written = 0
+      }
+      state.set(provider, s)
+      if (s.written >= perMinute) {
+        s.skipped++
+        return { write: false, suppressed: 0 }
+      }
+      s.written++
+      const suppressed = s.skipped
+      s.skipped = 0
+      return { write: true, suppressed }
+    },
+  }
+}
+
+/** Groups events by what went wrong, most frequent first; numbers in a reason (waits, counts) are ignored when grouping. */
+export function groupReasons(events: Pick<ProviderEventRow, "provider" | "kind" | "httpStatus" | "reason" | "at">[], limit = 12): ReasonCount[] {
+  const groups = new Map<string, ReasonCount>()
+  for (const e of events) {
+    const reason = e.reason.replace(/\d+/g, "N")
+    const key = [e.provider, e.kind, e.httpStatus ?? "", reason].join("\u0000")
+    const g = groups.get(key)
+    if (!g) groups.set(key, { provider: e.provider, kind: e.kind, httpStatus: e.httpStatus, reason: e.reason, count: 1, last: e.at })
+    else {
+      g.count++
+      if (e.at > g.last) {
+        g.last = e.at
+        g.reason = e.reason
+      }
+    }
+  }
+  return [...groups.values()].sort((a, b) => b.count - a.count || (a.last < b.last ? 1 : -1)).slice(0, limit)
+}
+
+/**
+ * Free-plan allowances and what we let ourselves use of them: at most `burst +
+ * perMinute` in any minute, below each allowance. Massive allows only 5 a minute, so
+ * at most 4: two at once, then one every 30 seconds. Tiingo allows 50 an hour and
+ * 1,000 a day; 40 an hour plus a burst of 5 stays under both.
+ */
+export const BUDGET_DEFAULTS: Record<"finnhub" | "alpaca" | "massive" | "tiingo", { perMinute: number; burst: number }> = {
+  finnhub: { perMinute: 40, burst: 5 }, // allows 60 a minute
+  alpaca: { perMinute: 150, burst: 10 }, // allows 200 a minute
+  massive: { perMinute: 2, burst: 2 }, // allows 5 a minute
+  tiingo: { perMinute: 40 / 60, burst: 5 }, // allows 50 an hour, 1,000 a day
 }

@@ -1,3 +1,5 @@
+import { toMarketTicker } from "./market-data.ts"
+
 /** Small, injectable helpers shared by the sync and its regression tests. */
 /** How long to keep asking while Plaid is still extracting a new Item's data (it can take a minute or more). */
 const NOT_READY_WAITS = [2000, 3000, 5000, 8000, 10000]
@@ -182,4 +184,21 @@ export function flowChanges(transactions: InvestmentFlow[], previous: Map<string
     }
   }
   return { entries, net: entries.reduce((sum, entry) => sum + entry.delta, 0) }
+}
+
+export type MarketTarget = { id: string; marketTicker: string; type: "equity" | "etf" | "mutual_fund" }
+
+/**
+ * The shared price row (`mkt:<TICKER>`, the same one manual positions use) a Plaid security
+ * should be tracked under, or null when it should stay a Plaid-only security: cash and sweeps,
+ * plan funds with no public ticker (401(k) trusts), bonds, options and anything whose ticker
+ * isn't a market symbol. Plaid still owns quantity, cost and balances; only the price comes
+ * from our own sources, so every holder of a ticker is valued the same way.
+ */
+export function marketTarget(s: { ticker_symbol?: string | null; type?: string | null; is_cash_equivalent?: boolean | null }): MarketTarget | null {
+  if (s.is_cash_equivalent || !s.ticker_symbol) return null
+  const type = s.type === "equity" ? "equity" : s.type === "etf" ? "etf" : s.type === "mutual fund" ? "mutual_fund" : null
+  if (!type) return null
+  const marketTicker = toMarketTicker(s.ticker_symbol, "stock")
+  return marketTicker ? { id: `mkt:${marketTicker}`, marketTicker, type } : null
 }

@@ -15,7 +15,8 @@ jobs:
         env:
           POSTGRES_PASSWORD: plaid-test
           POSTGRES_DB: plaid_test
-        ports: [55433:5432]
+        # Tests connect from the runner host; keep the published port local to it.
+        ports: ["127.0.0.1:55433:5432"]
         options: >-
           --health-cmd "pg_isready -U postgres"
           --health-interval 5s

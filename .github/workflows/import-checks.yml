@@ -15,7 +15,8 @@ jobs:
         env:
           POSTGRES_PASSWORD: regression
           POSTGRES_DB: regression
-        ports: [5432:5432]
+        # Tests connect from the runner host; keep the published port local to it.
+        ports: ["127.0.0.1:5432:5432"]
         options: >-
           --health-cmd "pg_isready -U postgres"
           --health-interval 5s
@@ -29,6 +30,8 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm test --workspace @repo/web
+        env:
+          PEERFOLIO_TEST_PG_URL: postgres://postgres:regression@127.0.0.1:5432/regression
       - run: npm run check-types --workspace @repo/web
       - run: node apps/web/scripts/import-regression.mjs
         env:

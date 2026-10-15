@@ -1,6 +1,18 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { buildDashboard, summarize, symbolCount, type StatRow } from "./provider-stats-core.ts"
+import {
+  buildDashboard,
+  buildEvent,
+  classifyError,
+  createEventLimiter,
+  endpointOf,
+  groupReasons,
+  reasonFromBody,
+  summarize,
+  symbolCount,
+  symbolsSampleOf,
+  type StatRow,
+} from "./provider-stats-core.ts"
 
 const row = (provider: string, minute: string, requests: number, extra: Partial<StatRow> = {}): StatRow => ({
   provider, minute: new Date(minute), requests, symbols: requests, denied: 0, rateLimited: 0, failed: 0, ...extra,
@@ -94,5 +106,110 @@ describe("buildDashboard", () => {
     assert.equal(alpaca.totals.requests, 190) // yesterday's row is outside 6h
     assert.equal(alpaca.days.length, 7)
     assert.equal(alpaca.days.at(-2)!.rateLimited, 1)
+  })
+})
+
+describe("event fields", () => {
+  it("keeps the path and drops the query, so keys in a URL never reach the log", () => {
+    assert.equal(endpointOf("https://data.alpaca.markets/v2/stocks/snapshots?symbols=AAPL&apikey=SECRET123"), "/v2/stocks/snapshots")
+    assert.equal(endpointOf(new URL("https://finnhub.io/api/v1/quote?symbol=AAPL&token=abc")), "/api/v1/quote")
+    assert.equal(endpointOf("nonsense"), "(unknown)")
+    assert.equal(endpointOf(`https://x.test/v1/${"a".repeat(40)}/prices`), "/v1/:id/prices")
+  })
+
+  it("samples up to five tickers from the query or the path", () => {
+    assert.deepEqual(symbolsSampleOf("https://x.test/v2/stocks/snapshots?symbols=aapl,MSFT,BRK.B,A,B,C,D"), ["AAPL", "MSFT", "BRK.B", "A", "B"])
+    assert.deepEqual(symbolsSampleOf("https://finnhub.io/api/v1/quote?symbol=VTSAX"), ["VTSAX"])
+    assert.deepEqual(symbolsSampleOf("https://api.massive.com/v2/aggs/ticker/AAPL/prev?adjusted=true"), ["AAPL"])
+    assert.deepEqual(symbolsSampleOf("https://api.massive.com/v3/reference/tickers?search=apple%20inc"), [])
+    assert.deepEqual(symbolsSampleOf("https://x.test/q?symbols=%E0%A4%A,<script>"), [])
+  })
+
+  it("reads a reason from a JSON message or plain text, truncated and scrubbed", () => {
+    assert.equal(reasonFromBody('{"error":"Invalid API key"}'), "Invalid API key")
+    assert.equal(reasonFromBody('{"message":"forbidden","status":"ERROR"}'), "forbidden")
+    assert.equal(reasonFromBody('{"error":{"message":"bad symbol"}}'), "bad symbol")
+    assert.equal(reasonFromBody("plain  text\nanswer"), "plain text answer")
+    assert.equal(reasonFromBody("<html><body>Bad gateway</body></html>", "HTTP 502"), "HTTP 502")
+    assert.equal(reasonFromBody(undefined, "HTTP 500"), "HTTP 500")
+    assert.equal(reasonFromBody("x".repeat(500)).length, 200)
+    const scrubbed = reasonFromBody("request failed: token=abc123XYZ and Bearer eyJhbGciOi.payload.sig")
+    assert.ok(!scrubbed.includes("abc123XYZ") && !scrubbed.includes("eyJhbGciOi"), scrubbed)
+  })
+
+  it("names a thrown error by type and network code, never by message", () => {
+    const refused = Object.assign(new TypeError("fetch failed: https://x.test/?token=SECRET"), { cause: { code: "ECONNRESET" } })
+    assert.deepEqual(classifyError(refused), { kind: "failed", reason: "TypeError: network error (ECONNRESET)" })
+    assert.equal(classifyError(new DOMException("signal timed out", "TimeoutError")).kind, "timeout")
+    assert.equal(classifyError(new DOMException("aborted", "AbortError")).kind, "timeout")
+  })
+
+  it("builds the row to store", () => {
+    const denied = buildEvent({ provider: "massive", kind: "denied", input: "https://api.massive.com/v2/aggs/ticker/AAPL/prev?adjusted=true", reason: "budget spent", waitSeconds: 14.2, caller: "import" })
+    assert.deepEqual(denied, {
+      provider: "massive", kind: "denied", httpStatus: null, endpoint: "/v2/aggs/ticker/AAPL/prev", symbolsCount: 1,
+      symbolsSample: "AAPL", reason: "budget spent", waitSeconds: 15, caller: "import", suppressed: 0,
+    })
+    const failed = buildEvent({ provider: "finnhub", kind: "failed", input: "https://finnhub.io/api/v1/quote?symbol=VTSAX", status: 403, body: '{"error":"You don\'t have access to this resource."}' })
+    assert.equal(failed.httpStatus, 403)
+    assert.equal(failed.reason, "You don't have access to this resource.")
+    assert.equal(buildEvent({ provider: "finnhub", kind: "failed", input: "https://finnhub.io/api/v1/quote", status: 500 }).reason, "HTTP 500")
+    assert.ok(!JSON.stringify(failed).includes("token"))
+  })
+})
+
+describe("createEventLimiter", () => {
+  const at = (iso: string) => Date.parse(iso)
+
+  it("writes up to the cap each minute, then counts what it skipped and hands the count to the next write", () => {
+    const limiter = createEventLimiter({ perMinute: 3 })
+    const first = ["10:00:01", "10:00:02", "10:00:03", "10:00:04", "10:00:05"].map((t) => limiter.admit("finnhub", at(`2026-10-14T${t}Z`)))
+    assert.deepEqual(first.map((a) => a.write), [true, true, true, false, false])
+    // A new minute starts fresh and carries the two skipped events.
+    assert.deepEqual(limiter.admit("finnhub", at("2026-10-14T10:01:00Z")), { write: true, suppressed: 2 })
+    assert.deepEqual(limiter.admit("finnhub", at("2026-10-14T10:01:01Z")), { write: true, suppressed: 0 })
+  })
+
+  it("caps each provider on its own", () => {
+    const limiter = createEventLimiter({ perMinute: 1 })
+    const t = at("2026-10-14T10:00:00Z")
+    assert.equal(limiter.admit("massive", t).write, true)
+    assert.equal(limiter.admit("massive", t).write, false)
+    assert.equal(limiter.admit("alpaca", t).write, true)
+  })
+})
+
+describe("groupReasons", () => {
+  const e = (provider: string, kind: "denied" | "failed", reason: string, at: string, httpStatus: number | null = null) => ({ provider, kind, reason, at, httpStatus })
+
+  it("counts by provider, kind, status and reason, ignoring numbers, most frequent first, then most recent", () => {
+    const groups = groupReasons([
+      e("finnhub", "failed", "Invalid API key", "2026-10-14T04:00:00Z", 401),
+      e("massive", "denied", "budget spent", "2026-10-14T04:01:00Z"),
+      e("finnhub", "failed", "Invalid API key", "2026-10-14T05:00:00Z", 401),
+      e("finnhub", "failed", "HTTP 502", "2026-10-14T05:05:00Z", 502),
+      e("finnhub", "failed", "HTTP 503", "2026-10-14T05:06:00Z", 503),
+    ])
+    assert.deepEqual(groups.map((g) => [g.provider, g.reason, g.count]), [["finnhub", "Invalid API key", 2], ["finnhub", "HTTP 503", 1], ["finnhub", "HTTP 502", 1], ["massive", "budget spent", 1]])
+    assert.equal(groups[0]!.last, "2026-10-14T05:00:00Z")
+  })
+})
+
+describe("buildDashboard success insights", () => {
+  const now = new Date("2026-10-13T14:00:00Z")
+  const row = (over: Partial<StatRow>): StatRow => ({ provider: "alpaca", minute: new Date("2026-10-13T13:00:00Z"), requests: 0, symbols: 0, denied: 0, rateLimited: 0, failed: 0, ...over })
+
+  it("counts requests that weren't rate limited or failed as succeeded, and averages the batch size", () => {
+    const d = buildDashboard([row({ requests: 10, symbols: 300, failed: 1, rateLimited: 2 })], { now, range: "6h" })
+    const alpaca = d.providers.find((p) => p.provider === "alpaca")!
+    assert.equal(alpaca.succeeded, 7)
+    assert.equal(alpaca.successRate, 0.7)
+    assert.equal(alpaca.avgBatch, 30)
+  })
+
+  it("has no rates without requests", () => {
+    const finnhub = buildDashboard([row({ denied: 3 })], { now, range: "6h" }).providers.find((p) => p.provider === "finnhub")!
+    assert.equal(finnhub.successRate, null)
+    assert.equal(finnhub.avgBatch, null)
   })
 })

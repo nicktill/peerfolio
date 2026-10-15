@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { accountsAwaitingHoldings, countByReason, securityDisplayName, externalFlow, flowChanges, investmentHistoryStart, investmentPages, mergeDuplicateHoldings, retryPlaid, splitUsableHoldings, type InvestmentFlow } from "./plaid-sync-core.ts"
+import { accountsAwaitingHoldings, countByReason, marketTarget, securityDisplayName, externalFlow, flowChanges, investmentHistoryStart, investmentPages, mergeDuplicateHoldings, retryPlaid, splitUsableHoldings, type InvestmentFlow } from "./plaid-sync-core.ts"
 import { timeWeightedReturn } from "./ranges.ts"
 
 const tx = (id: string, subtype: string, amount: number, account = "a"): InvestmentFlow => ({ investment_transaction_id: id, account_id: account, type: "cash", subtype, amount })
@@ -185,5 +185,24 @@ describe("assumed line currency", () => {
     const result = splitUsableHoldings([{ account_id: "a", security_id: "s", quantity: 1, institution_value: 5, iso_currency_code: null }, { account_id: "a", security_id: "t", quantity: 1, institution_value: 5, iso_currency_code: "USD" }], new Map([["a", "USD"]]))
     assert.equal(result.assumedCurrency, 1)
     assert.equal(result.kept.length, 2)
+  })
+})
+
+describe("marketTarget", () => {
+  it("tracks stocks, ETFs and funds with a market ticker under the shared price row", () => {
+    assert.deepEqual(marketTarget({ ticker_symbol: "VOO", type: "etf" }), { id: "mkt:VOO", marketTicker: "VOO", type: "etf" })
+    assert.deepEqual(marketTarget({ ticker_symbol: "BRK.B", type: "equity" }), { id: "mkt:BRK.B", marketTicker: "BRK.B", type: "equity" })
+    assert.deepEqual(marketTarget({ ticker_symbol: "FSPTX", type: "mutual fund" }), { id: "mkt:FSPTX", marketTicker: "FSPTX", type: "mutual_fund" })
+  })
+
+  it("leaves cash, plan funds and non-market securities with Plaid", () => {
+    assert.equal(marketTarget({ ticker_symbol: "CUR:USD", type: "cash" }), null)
+    assert.equal(marketTarget({ ticker_symbol: "SPAXX", type: "cash", is_cash_equivalent: true }), null)
+    assert.equal(marketTarget({ ticker_symbol: "SPAXX", type: "equity", is_cash_equivalent: true }), null)
+    assert.equal(marketTarget({ ticker_symbol: "TOTAL.STOCK.MKT.IDX", type: "equity" }), null)
+    assert.equal(marketTarget({ ticker_symbol: "VANGUARD.TARGET.2065", type: "mutual fund" }), null)
+    assert.equal(marketTarget({ ticker_symbol: null, type: "equity" }), null)
+    assert.equal(marketTarget({ ticker_symbol: "XYZ", type: "fixed income" }), null)
+    assert.equal(marketTarget({ ticker_symbol: "XYZ", type: "derivative" }), null)
   })
 })

@@ -3,6 +3,8 @@ import { listSyncableUserIds, syncUser } from "@web/lib/plaid-sync"
 import { assertCronAuthorized, withPublic } from "@web/lib/api"
 import { withProviderPatience } from "@web/lib/provider-fetch"
 import { refreshStalePrices, repricePositions, type CatchUpResult } from "@web/lib/positions"
+import { pruneProviderEvents, pruneProviderStats } from "@web/lib/provider-stats"
+import { pruneSyncRuns } from "@web/lib/plaid-sync-runs"
 import { checkFantasyIntegrity, snapshotFantasy } from "@web/lib/fantasy"
 
 export const maxDuration = 300
@@ -37,6 +39,11 @@ async function snapshot() {
     console.error("[cron] repricing failed", error)
     pricing = { error: error instanceof Error ? error.message : "unknown" }
   }
+
+  // Housekeeping once a day (it used to run on every price refresh).
+  await pruneProviderStats().catch(() => {})
+  await pruneProviderEvents().catch(() => {})
+  await pruneSyncRuns().catch(() => {})
 
   const userIds = await listSyncableUserIds()
   let succeeded = 0
