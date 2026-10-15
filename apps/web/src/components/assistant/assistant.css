@@ -84,8 +84,6 @@
   box-shadow: var(--ai-shadow), inset 0 1px 0 rgb(255 255 255 / 0.12);
   transition: border-color 0.2s, box-shadow 0.2s;
 }
-.pf-ai-launch.is-tab { right: 0; bottom: auto; top: calc(50% - 60px); height: auto; padding: 14px 8px; flex-direction: column; gap: 10px; border-radius: 14px 0 0 14px; border-right: 0; }
-.pf-ai-launch.is-tab .pf-ai-launch-t { writing-mode: vertical-rl; transform: rotate(180deg); }
 .pf-ai-launch:hover { border-color: color-mix(in srgb, var(--pf-accent) 55%, var(--ai-edge)); box-shadow: var(--ai-shadow), 0 0 0 4px rgba(var(--accent-a), 0.1), inset 0 1px 0 rgb(255 255 255 / 0.16); }
 .pf-ai-launch:focus-visible { outline: none; box-shadow: var(--pf-ring), var(--ai-shadow); }
 .pf-ai-launch-t { letter-spacing: -0.005em; }
@@ -208,7 +206,7 @@
 .pf-xr-save:disabled { color: var(--pf-accent); border-color: color-mix(in srgb, var(--pf-accent) 40%, var(--hair)); cursor: default; }
 
 /* ---------- Launch card (nothing said yet) ---------- */
-.pf-ai-win.is-launch .pf-ai-body { overflow: hidden; }
+.pf-ai-win.is-launch .pf-ai-body { overflow: auto; }
 .is-launch .pf-ai-empty { padding: 20px 20px 4px; }
 .is-launch .pf-ai-empty > div:first-child { margin-bottom: 6px; }
 .is-launch .pf-ai-empty h3 { font-size: 22px; }
@@ -467,3 +465,11 @@
 /* On a phone the pill can rest against the right edge as a slim nub. */
 .pf-ai-launch.is-nub { right: 0; padding: 0 8px 0 6px; gap: 2px; height: 48px; border-radius: 14px 0 0 14px; border-right: 0; opacity: 0.92; touch-action: pan-y; }
 .pf-ai-launch { touch-action: pan-y; }
+
+/* Docked: drag the panel's left edge to set its width; the page narrows with it. */
+.pf-ai-dockgrip { position: absolute; z-index: 4; top: 0; bottom: 0; left: -4px; width: 9px; cursor: ew-resize; touch-action: none; }
+.pf-ai-dockgrip::after { content: ""; position: absolute; top: 50%; left: 3px; width: 3px; height: 36px; margin-top: -18px; border-radius: 2px; background: var(--fg3); opacity: 0; transition: opacity 0.2s; }
+.pf-ai-dockgrip:hover::after, .pf-ai-dockgrip:focus-visible::after, .pf-ai-win.is-live .pf-ai-dockgrip::after { opacity: 0.55; }
+.pf-ai-dockgrip:focus-visible { outline: none; }
+.pf-ai-win.is-docked.is-live { transition: none; }
+.dock-live .peerfolio-main, .dock-live .peerfolio-app, .peerfolio-app.dock-live { transition: none !important; }

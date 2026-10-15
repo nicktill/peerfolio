@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExter
 import Link from "next/link"
 import { AnimatePresence, MotionConfig, animate, motion, useDragControls, useMotionValue } from "motion/react"
 import { AppWindow, ArrowUp, ChevronLeft, ArrowUpRight, Check, FileText, Maximize2, MessageSquare, Minimize2, Minus, PanelRight, RotateCcw, Square, SquarePen, X } from "lucide-react"
+import { OPEN_EVENT } from "@web/components/assistant/open-event"
 import { Orb } from "@web/components/assistant/orb"
 import { PAGE_LABEL, copyFor, useAssistant, type Msg, type Phase } from "@web/components/assistant/use-assistant"
 import { XRayReport } from "@web/components/assistant/xray-report"
@@ -14,18 +15,18 @@ import { isWealthHref } from "@web/lib/wealth/link"
 import { useApi } from "@web/lib/use-api"
 import "@web/components/assistant/assistant.css"
 
-const GEO_KEY = "pf-assistant-geo-v1"
+// v2: the window now opens centred and is resizable from its first card; older saved positions are dropped.
+const GEO_KEY = "pf-assistant-geo-v2"
 const DOCK_KEY = "pf-assistant-dock-v1"
 const TUCK_KEY = "pf-assistant-tucked-v1"
 /** Docking squeezes the page, so it needs room: below this width the window floats instead. */
 const DOCK_MIN_VIEWPORT = 1100
 const DOCK_WIDTH = 400
 const DOCK_WIDE = 680
+const DOCK_MIN = 340
 const DOCK_WIDTH_KEY = "pf-assistant-dockw-v1"
 const MIN = { w: 340, h: 400 }
-const COMPACT = { w: 400, h: 600 }
-/** The opening card: orb, prompts and composer. It grows into the conversation on the first message. */
-const LAUNCH = { w: 440, h: 522 }
+const COMPACT = { w: 480, h: 640 }
 const EDGE = 12
 
 type Edge = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw"
@@ -54,7 +55,10 @@ function fit(g: Geo): Geo {
 }
 
 function loadGeo(): Geo {
-  const fallback: Geo = { ...COMPACT, right: 24, bottom: 24, expanded: false }
+  // First open: centred, so it reads as a window to work in rather than a corner widget.
+  const w = Math.min(COMPACT.w, window.innerWidth - EDGE * 2)
+  const h = Math.min(COMPACT.h, window.innerHeight - EDGE * 2)
+  const fallback: Geo = { w, h, right: Math.max(EDGE, (window.innerWidth - w) / 2), bottom: Math.max(EDGE, (window.innerHeight - h) / 2), expanded: false }
   try {
     const saved = JSON.parse(localStorage.getItem(GEO_KEY) ?? "null") as Partial<Geo> | null
     if (saved && [saved.w, saved.h, saved.right, saved.bottom].every((n) => typeof n === "number" && Number.isFinite(n))) {
@@ -99,8 +103,14 @@ function AssistantInner() {
         setOpen((v) => !v)
       }
     }
+    // The sidebar's "Ask anything" item opens the window the same way the shortcut does.
+    const onNav = () => setOpen(true)
     window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
+    window.addEventListener(OPEN_EVENT, onNav)
+    return () => {
+      window.removeEventListener("keydown", onKey)
+      window.removeEventListener(OPEN_EVENT, onNav)
+    }
   }, [])
 
   return (
@@ -114,21 +124,18 @@ function AssistantInner() {
 function Launcher({ onOpen }: { onOpen: () => void }) {
   const { busy, phase } = useAssistant()
   const [hint, setHint] = useState("")
-  const [tab, setTab] = useState(false)
-  const wide = useWide()
-  useEffect(() => {
-    setHint(isMac() ? "⌘/" : "Ctrl /")
-    // Someone who docks the assistant gets a slim tab on the page's edge instead of a floating pill.
-    try {
-      setTab(localStorage.getItem(DOCK_KEY) === "1")
-    } catch {
-      // Default pill.
-    }
-  }, [])
-  const asTab = tab && wide
+  useEffect(() => setHint(isMac() ? "⌘/" : "Ctrl /"), [])
 
-  // On a phone the pill can be swiped off to the right edge, where it rests as a slim nub; swipe it back or tap it.
-  const narrow = useNarrow()
+  // Where the sidebar is hidden the pill can be swiped off to the right edge, where it rests as a slim nub; swipe it back or tap it.
+  const narrow = useSyncExternalStore(
+    (cb) => {
+      const mq = window.matchMedia("(max-width: 860px)")
+      mq.addEventListener("change", cb)
+      return () => mq.removeEventListener("change", cb)
+    },
+    () => window.matchMedia("(max-width: 860px)").matches,
+    () => false,
+  )
   const [tucked, setTucked] = useState(false)
   useEffect(() => {
     try {
@@ -149,7 +156,7 @@ function Launcher({ onOpen }: { onOpen: () => void }) {
   return (
     <motion.button
       type="button"
-      className={`pf-ai-launch ${asTab ? "is-tab" : ""} ${nub ? "is-nub" : ""}`}
+      className={`pf-ai-launch ${nub ? "is-nub" : ""}`}
       onClick={() => {
         if (nub) tuck(false)
         onOpen()
@@ -162,9 +169,9 @@ function Launcher({ onOpen }: { onOpen: () => void }) {
         if (!nub && (info.offset.x > 48 || info.velocity.x > 420)) tuck(true)
         else if (nub && (info.offset.x < -24 || info.velocity.x < -300)) tuck(false)
       }}
-      initial={asTab ? { opacity: 0, x: 24 } : { opacity: 0, y: 12, scale: 0.94 }}
-      animate={asTab ? { opacity: 1, x: 0 } : { opacity: 1, y: 0, scale: 1 }}
-      exit={asTab ? { opacity: 0, x: 24 } : { opacity: 0, y: 8, scale: 0.96 }}
+      initial={{ opacity: 0, y: 12, scale: 0.94 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 8, scale: 0.96 }}
       transition={{ type: "spring", stiffness: 420, damping: 34 }}
       whileTap={{ scale: 0.97 }}
       aria-label={nub ? "Open Peerfolio Intelligence (tucked away)" : "Open Peerfolio Intelligence. Swipe right to tuck it away."}
@@ -173,7 +180,7 @@ function Launcher({ onOpen }: { onOpen: () => void }) {
       {nub ? <ChevronLeft size={14} aria-hidden /> : null}
       <Orb size={nub ? 16 : 20} phase={phase} />
       {nub ? null : <span className="pf-ai-launch-t">{busy ? "Working…" : "Ask Peerfolio"}</span>}
-      {hint && !asTab && !nub ? <kbd className="pf-ai-kbd">{hint}</kbd> : null}
+      {hint && !nub ? <kbd className="pf-ai-kbd">{hint}</kbd> : null}
     </motion.button>
   )
 }
@@ -181,7 +188,7 @@ function Launcher({ onOpen }: { onOpen: () => void }) {
 function Panel({ onClose }: { onClose: () => void }) {
   const narrow = useNarrow()
   const wide = useWide()
-  const { messages, phase, activity, busy, page, send, cancel, retry, reset, reportSeq, recent } = useAssistant()
+  const { messages, phase, activity, busy, page, send, cancel, retry, reset, reportSeq } = useAssistant()
   const [geo, setGeo] = useState<Geo>(() => loadGeo())
   const [dockPref, setDockPref] = useState<boolean>(() => {
     try {
@@ -206,22 +213,56 @@ function Panel({ onClose }: { onClose: () => void }) {
   const [dockW, setDockW] = useState<number>(() => {
     try {
       const saved = Number(localStorage.getItem(DOCK_WIDTH_KEY))
-      return saved === DOCK_WIDE ? DOCK_WIDE : DOCK_WIDTH
+      return Number.isFinite(saved) && saved >= DOCK_MIN ? saved : DOCK_WIDTH
     } catch {
       return DOCK_WIDTH
     }
   })
-  const dockWide = dockW === DOCK_WIDE
-  // Expanding grows the panel to the left; the page narrows to match. Never more than 60% of the window.
-  const dockWidth = dockWide ? Math.min(DOCK_WIDE, Math.floor(window.innerWidth * 0.6)) : DOCK_WIDTH
-  const toggleDockWide = () => {
-    const next = dockWide ? DOCK_WIDTH : DOCK_WIDE
-    setDockW(next)
+  // Never narrower than a readable column, never more than 60% of the window (the page narrows to match).
+  const dockMax = () => Math.max(DOCK_MIN, Math.floor(window.innerWidth * 0.6))
+  const dockWidth = Math.min(Math.max(dockW, DOCK_MIN), dockMax())
+  const dockWide = dockWidth >= DOCK_WIDE - 40
+  const saveDockW = (next: number) => {
     try {
-      localStorage.setItem(DOCK_WIDTH_KEY, String(next))
+      localStorage.setItem(DOCK_WIDTH_KEY, String(Math.round(next)))
     } catch {
       // Not remembered; it still works for this visit.
     }
+  }
+  const toggleDockWide = () => {
+    const next = dockWide ? DOCK_WIDTH : DOCK_WIDE
+    setDockW(next)
+    saveDockW(next)
+  }
+  const dockDrag = useRef<{ x: number; w: number } | null>(null)
+  const dockGrip = {
+    onPointerDown: (e: React.PointerEvent<HTMLElement>) => {
+      if (e.button !== 0) return
+      e.currentTarget.setPointerCapture(e.pointerId)
+      dockDrag.current = { x: e.clientX, w: dockWidth }
+      // The page follows the panel live; without this its width transition would lag behind the pointer.
+      document.querySelector<HTMLElement>(".peerfolio-app")?.classList.add("dock-live")
+      setInteracting(true)
+    },
+    onPointerMove: (e: React.PointerEvent<HTMLElement>) => {
+      const s = dockDrag.current
+      if (s) setDockW(Math.min(Math.max(s.w + (s.x - e.clientX), DOCK_MIN), dockMax()))
+    },
+    onPointerUp: (e: React.PointerEvent<HTMLElement>) => {
+      if (!dockDrag.current) return
+      dockDrag.current = null
+      e.currentTarget.releasePointerCapture(e.pointerId)
+      document.querySelector<HTMLElement>(".peerfolio-app")?.classList.remove("dock-live")
+      setInteracting(false)
+      saveDockW(dockWidth)
+    },
+    onKeyDown: (e: React.KeyboardEvent<HTMLElement>) => {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return
+      e.preventDefault()
+      const next = Math.min(Math.max(dockWidth + (e.key === "ArrowLeft" ? 24 : -24), DOCK_MIN), dockMax())
+      setDockW(next)
+      saveDockW(next)
+    },
   }
 
   // Docked, the page makes room instead of being covered.
@@ -386,9 +427,7 @@ function Panel({ onClose }: { onClose: () => void }) {
   }, [launch])
   const size = expanded
     ? expandedSize()
-    : launch
-      ? { w: Math.min(LAUNCH.w, viewport().vw - EDGE * 2), h: Math.min(LAUNCH.h + (recent.length > 0 ? 30 + recent.length * 34 : 0), viewport().vh - EDGE * 2) }
-      : { w: geo.w, h: geo.h }
+    : { w: geo.w, h: geo.h }
   const ask = useCallback(
     (q: string) => {
       stick.current = true
@@ -434,7 +473,21 @@ function Panel({ onClose }: { onClose: () => void }) {
         if (e.key === "Escape") onClose()
       }}
     >
-      {!narrow && !docked && !expanded && !launch
+      {docked ? (
+        <div
+          className="pf-ai-dockgrip"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize the assistant panel. Arrow keys change its width."
+          aria-valuenow={Math.round(dockWidth)}
+          aria-valuemin={DOCK_MIN}
+          tabIndex={0}
+          {...dockGrip}
+          onPointerCancel={dockGrip.onPointerUp}
+          onDoubleClick={toggleDockWide}
+        />
+      ) : null}
+      {!narrow && !docked && !expanded
         ? EDGES.map((edge) => <div key={edge} className={`pf-ai-edge is-${edge}`} onPointerDown={begin(edge)} onPointerMove={track} onPointerUp={end} onPointerCancel={end} aria-hidden />)
         : null}
 
