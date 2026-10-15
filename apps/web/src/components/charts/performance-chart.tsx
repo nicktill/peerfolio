@@ -36,6 +36,7 @@ export function PerformanceChart({
   compareStyle,
   reveal = null,
   markerIndex = null,
+  formatLabel,
 }: {
   points: PerformancePoint[]
   height?: number
@@ -68,6 +69,8 @@ export function PerformanceChart({
   reveal?: number | null
   /** Replay: where to draw the vertical marker and dots (usually the same index as `reveal`). */
   markerIndex?: number | null
+  /** How a point's date is written on the edge labels and in the tooltip; the default is a calendar date. Intraday charts pass a clock time. */
+  formatLabel?: (date: string, style: "short" | "medium") => string
 }) {
   const { ref, width } = useMeasure<HTMLDivElement>()
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
@@ -352,8 +355,8 @@ export function PerformanceChart({
           className="pointer-events-none absolute bottom-0 flex justify-between text-xs text-muted-foreground"
           style={{ left: pad.left, right: pad.right }}
         >
-          <span>{formatDate(points[0]!.date, "short")}</span>
-          <span>{formatDate(points[points.length - 1]!.date, "short")}</span>
+          <span>{(formatLabel ?? formatDate)(points[0]!.date, "short")}</span>
+          <span>{(formatLabel ?? formatDate)(points[points.length - 1]!.date, "short")}</span>
         </div>
       ) : null}
 
@@ -368,7 +371,7 @@ export function PerformanceChart({
           }}
           transition={{ type: "spring", stiffness: 600, damping: 44 }}
         >
-          <div className="text-muted-foreground">{formatDate(active.date)}</div>
+          <div className="text-muted-foreground">{(formatLabel ?? formatDate)(active.date, "medium")}</div>
           <div className="numeric mt-0.5 font-semibold">{valueFormatter(active.value)}</div>
         </motion.div>
       ) : null}
