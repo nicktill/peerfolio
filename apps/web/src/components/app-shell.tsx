@@ -8,8 +8,12 @@ import { RouteProgress } from "@web/components/ui/route-progress"
 import { AssistantProvider } from "@web/components/assistant/use-assistant"
 import { AssistantRoot } from "@web/components/assistant/assistant"
 
-/** Off until the migration, API key and spend cap are in place on the target environment. */
-const ASSISTANT_ENABLED = process.env.NEXT_PUBLIC_ASSISTANT_ENABLED === "1"
+/**
+ * On by default. The assistant only appears once the server confirms it is usable (API key, budget, its
+ * table: see /api/assistant/status), and `ASSISTANT_ENABLED=0` on the server hides it without a redeploy.
+ * `NEXT_PUBLIC_ASSISTANT_ENABLED=0` removes it from the build entirely.
+ */
+const ASSISTANT_ENABLED = process.env.NEXT_PUBLIC_ASSISTANT_ENABLED !== "0"
 
 const PreviewDemoContext = createContext(false)
 export const usePreviewDemo = () => useContext(PreviewDemoContext)

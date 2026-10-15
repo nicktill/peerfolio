@@ -1,7 +1,7 @@
 import OpenAI from "openai"
 import { NextResponse } from "next/server"
 import { getCurrentUserId } from "@web/lib/auth"
-import { ASSISTANT_MODEL, LIMITS, cleanContext, cleanHistory, costOf, tokenBound, worstCaseUsd, type PageContext } from "@web/lib/ai/limits"
+import { ASSISTANT_MODEL, LIMITS, assistantConfigured, cleanContext, cleanHistory, costOf, tokenBound, worstCaseUsd, type PageContext } from "@web/lib/ai/limits"
 import { reserve, settle } from "@web/lib/ai/usage"
 import { TOOL_DEFS, runTool } from "@web/lib/ai/tools"
 import type { XRay } from "@web/lib/ai/portfolio-xray"
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
   const context = cleanContext(body?.context)
 
   const openai = client()
-  if (!openai) return NextResponse.json({ error: "The assistant isn't set up on this server yet." }, { status: 503 })
+  if (!openai || !assistantConfigured(process.env)) return NextResponse.json({ error: "The assistant isn't available right now." }, { status: 503 })
 
   const instructions = `${SYSTEM}\n\nThe person is currently on the ${context.page} page. ${PAGE_GUIDANCE[context.page]}`
   const input: Item[] = messages.map((m) => ({ role: m.role, content: m.content }))

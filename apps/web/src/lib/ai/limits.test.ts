@@ -1,6 +1,6 @@
 import { describe, it } from "node:test"
 import assert from "node:assert/strict"
-import { LIMITS, cleanContext, cleanHistory, costOf, decide, worstCaseUsd } from "./limits.ts"
+import { LIMITS, assistantConfigured, cleanContext, cleanHistory, costOf, decide, worstCaseUsd } from "./limits.ts"
 
 const calm = { requestsLastHour: 0, userUsdLastDay: 0, monthUsd: 0 }
 
@@ -45,6 +45,18 @@ describe("cleanHistory", () => {
   it("rejects non-arrays and non-string content", () => {
     assert.equal(cleanHistory("hi"), null)
     assert.equal(cleanHistory([{ role: "user", content: 5 }]), null)
+  })
+})
+
+describe("assistantConfigured", () => {
+  it("is on with just an API key", () => assert.equal(assistantConfigured({ OPENAI_API_KEY: "k" }), true))
+  it("is off without a key", () => assert.equal(assistantConfigured({}), false))
+  it("honours the runtime kill switch", () => assert.equal(assistantConfigured({ OPENAI_API_KEY: "k", ASSISTANT_ENABLED: "0" }), false))
+  it("is off when the monthly budget is zero or invalid, on when blank", () => {
+    assert.equal(assistantConfigured({ OPENAI_API_KEY: "k", ASSISTANT_MONTHLY_BUDGET_USD: "0" }), false)
+    assert.equal(assistantConfigured({ OPENAI_API_KEY: "k", ASSISTANT_MONTHLY_BUDGET_USD: "abc" }), false)
+    assert.equal(assistantConfigured({ OPENAI_API_KEY: "k", ASSISTANT_MONTHLY_BUDGET_USD: "" }), true)
+    assert.equal(assistantConfigured({ OPENAI_API_KEY: "k", ASSISTANT_MONTHLY_BUDGET_USD: "5" }), true)
   })
 })
 

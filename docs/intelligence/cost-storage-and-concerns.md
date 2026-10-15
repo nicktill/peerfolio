@@ -93,8 +93,8 @@ against expected traffic.
   slightly shortens that user's daily allowance).
 - The X-Ray cache (3 minutes) and the benchmark retry throttle are in-memory per server instance, so on serverless
   they are best-effort. Provider calls are still governed by the shared provider budgets.
-- The kill switch is the environment: `NEXT_PUBLIC_ASSISTANT_ENABLED` is read at build time, so turning it off
-  needs a redeploy. Setting `ASSISTANT_MONTHLY_BUDGET_USD` to a tiny value pauses the assistant at runtime.
+- The assistant is on for every signed-in user by default. The runtime kill switch is `ASSISTANT_ENABLED=0` (or a
+  zero `ASSISTANT_MONTHLY_BUDGET_USD`); it takes effect on the next request with no redeploy.
 
 **Privacy and safety**
 - Holdings, values and league data are sent to OpenAI to answer questions. This needs to be disclosed in the

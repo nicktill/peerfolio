@@ -63,7 +63,13 @@ const useNarrow = () => useSyncExternalStore(subscribeNarrow, () => window.match
 
 const isMac = () => typeof navigator !== "undefined" && /mac|iphone|ipad/i.test(navigator.platform || navigator.userAgent)
 
+/** Mounted for every signed-in user; renders nothing unless the server says the assistant is usable. */
 export function AssistantRoot() {
+  const status = useApi<{ available: boolean }>("/api/assistant/status")
+  return status.data?.available ? <AssistantInner /> : null
+}
+
+function AssistantInner() {
   const [open, setOpen] = useState(false)
 
   useEffect(() => {

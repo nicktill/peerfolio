@@ -26,6 +26,17 @@ export const LIMITS = {
   maxInputTokens: 24_000,
 } as const
 
+/**
+ * Whether the assistant should be offered at all. On by default; `ASSISTANT_ENABLED=0` is a runtime kill
+ * switch (no redeploy), and without an API key or a positive monthly budget there is nothing to offer.
+ */
+export function assistantConfigured(env: Record<string, string | undefined>): boolean {
+  if (env.ASSISTANT_ENABLED === "0") return false
+  if (!env.OPENAI_API_KEY) return false
+  const budget = env.ASSISTANT_MONTHLY_BUDGET_USD
+  return budget === undefined || budget === "" || Number(budget) > 0
+}
+
 export const costOf = (inputTokens: number, outputTokens: number) => (inputTokens * INPUT_PER_M + outputTokens * OUTPUT_PER_M) / 1_000_000
 
 const utf8 = new TextEncoder()
