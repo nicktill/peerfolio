@@ -23,6 +23,7 @@ const TUCK_KEY = "pf-assistant-tucked-v1"
 const DOCK_MIN_VIEWPORT = 1100
 const DOCK_WIDTH = 400
 const DOCK_WIDE = 680
+const DOCK_MIN = 340
 const DOCK_WIDTH_KEY = "pf-assistant-dockw-v1"
 const MIN = { w: 340, h: 400 }
 const COMPACT = { w: 480, h: 640 }
@@ -212,22 +213,56 @@ function Panel({ onClose }: { onClose: () => void }) {
   const [dockW, setDockW] = useState<number>(() => {
     try {
       const saved = Number(localStorage.getItem(DOCK_WIDTH_KEY))
-      return saved === DOCK_WIDE ? DOCK_WIDE : DOCK_WIDTH
+      return Number.isFinite(saved) && saved >= DOCK_MIN ? saved : DOCK_WIDTH
     } catch {
       return DOCK_WIDTH
     }
   })
-  const dockWide = dockW === DOCK_WIDE
-  // Expanding grows the panel to the left; the page narrows to match. Never more than 60% of the window.
-  const dockWidth = dockWide ? Math.min(DOCK_WIDE, Math.floor(window.innerWidth * 0.6)) : DOCK_WIDTH
-  const toggleDockWide = () => {
-    const next = dockWide ? DOCK_WIDTH : DOCK_WIDE
-    setDockW(next)
+  // Never narrower than a readable column, never more than 60% of the window (the page narrows to match).
+  const dockMax = () => Math.max(DOCK_MIN, Math.floor(window.innerWidth * 0.6))
+  const dockWidth = Math.min(Math.max(dockW, DOCK_MIN), dockMax())
+  const dockWide = dockWidth >= DOCK_WIDE - 40
+  const saveDockW = (next: number) => {
     try {
-      localStorage.setItem(DOCK_WIDTH_KEY, String(next))
+      localStorage.setItem(DOCK_WIDTH_KEY, String(Math.round(next)))
     } catch {
       // Not remembered; it still works for this visit.
     }
+  }
+  const toggleDockWide = () => {
+    const next = dockWide ? DOCK_WIDTH : DOCK_WIDE
+    setDockW(next)
+    saveDockW(next)
+  }
+  const dockDrag = useRef<{ x: number; w: number } | null>(null)
+  const dockGrip = {
+    onPointerDown: (e: React.PointerEvent<HTMLElement>) => {
+      if (e.button !== 0) return
+      e.currentTarget.setPointerCapture(e.pointerId)
+      dockDrag.current = { x: e.clientX, w: dockWidth }
+      // The page follows the panel live; without this its width transition would lag behind the pointer.
+      document.querySelector<HTMLElement>(".peerfolio-app")?.classList.add("dock-live")
+      setInteracting(true)
+    },
+    onPointerMove: (e: React.PointerEvent<HTMLElement>) => {
+      const s = dockDrag.current
+      if (s) setDockW(Math.min(Math.max(s.w + (s.x - e.clientX), DOCK_MIN), dockMax()))
+    },
+    onPointerUp: (e: React.PointerEvent<HTMLElement>) => {
+      if (!dockDrag.current) return
+      dockDrag.current = null
+      e.currentTarget.releasePointerCapture(e.pointerId)
+      document.querySelector<HTMLElement>(".peerfolio-app")?.classList.remove("dock-live")
+      setInteracting(false)
+      saveDockW(dockWidth)
+    },
+    onKeyDown: (e: React.KeyboardEvent<HTMLElement>) => {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return
+      e.preventDefault()
+      const next = Math.min(Math.max(dockWidth + (e.key === "ArrowLeft" ? 24 : -24), DOCK_MIN), dockMax())
+      setDockW(next)
+      saveDockW(next)
+    },
   }
 
   // Docked, the page makes room instead of being covered.
@@ -438,6 +473,20 @@ function Panel({ onClose }: { onClose: () => void }) {
         if (e.key === "Escape") onClose()
       }}
     >
+      {docked ? (
+        <div
+          className="pf-ai-dockgrip"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize the assistant panel. Arrow keys change its width."
+          aria-valuenow={Math.round(dockWidth)}
+          aria-valuemin={DOCK_MIN}
+          tabIndex={0}
+          {...dockGrip}
+          onPointerCancel={dockGrip.onPointerUp}
+          onDoubleClick={toggleDockWide}
+        />
+      ) : null}
       {!narrow && !docked && !expanded
         ? EDGES.map((edge) => <div key={edge} className={`pf-ai-edge is-${edge}`} onPointerDown={begin(edge)} onPointerMove={track} onPointerUp={end} onPointerCancel={end} aria-hidden />)
         : null}

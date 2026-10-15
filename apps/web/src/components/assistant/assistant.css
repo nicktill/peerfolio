@@ -465,3 +465,11 @@
 /* On a phone the pill can rest against the right edge as a slim nub. */
 .pf-ai-launch.is-nub { right: 0; padding: 0 8px 0 6px; gap: 2px; height: 48px; border-radius: 14px 0 0 14px; border-right: 0; opacity: 0.92; touch-action: pan-y; }
 .pf-ai-launch { touch-action: pan-y; }
+
+/* Docked: drag the panel's left edge to set its width; the page narrows with it. */
+.pf-ai-dockgrip { position: absolute; z-index: 4; top: 0; bottom: 0; left: -4px; width: 9px; cursor: ew-resize; touch-action: none; }
+.pf-ai-dockgrip::after { content: ""; position: absolute; top: 50%; left: 3px; width: 3px; height: 36px; margin-top: -18px; border-radius: 2px; background: var(--fg3); opacity: 0; transition: opacity 0.2s; }
+.pf-ai-dockgrip:hover::after, .pf-ai-dockgrip:focus-visible::after, .pf-ai-win.is-live .pf-ai-dockgrip::after { opacity: 0.55; }
+.pf-ai-dockgrip:focus-visible { outline: none; }
+.pf-ai-win.is-docked.is-live { transition: none; }
+.dock-live .peerfolio-main, .dock-live .peerfolio-app, .peerfolio-app.dock-live { transition: none !important; }
