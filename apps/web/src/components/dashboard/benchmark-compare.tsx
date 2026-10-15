@@ -1,7 +1,6 @@
 "use client"
 
 import { motion } from "motion/react"
-import { Segmented } from "@web/components/ui/segmented"
 import { cn } from "@web/lib/utils"
 import { formatPercent } from "@web/lib/format"
 import "./benchmark-compare.css"
@@ -61,10 +60,44 @@ export function BenchmarkCompare({
   const ahead = c ? c.differencePoints >= 0 : null
 
   return (
-    <div className="mt-3 flex flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <span className="pf-eyebrow">Compare with</span>
-        <Segmented<BenchmarkChoice> options={BENCHMARK_OPTIONS} value={choice} onChange={onChoose} size="sm" label="Compare with a benchmark" />
+    <div className="mt-2 flex flex-col gap-1.5">
+      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+        <span className="pf-eyebrow !text-[10px]">Compare</span>
+        <div
+          role="radiogroup"
+          aria-label="Compare with a benchmark"
+          className="flex flex-wrap gap-1"
+          onKeyDown={(e) => {
+            const step = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0
+            if (!step) return
+            e.preventDefault()
+            const at = BENCHMARK_OPTIONS.findIndex((o) => o.value === choice)
+            const next = BENCHMARK_OPTIONS[(at + step + BENCHMARK_OPTIONS.length) % BENCHMARK_OPTIONS.length]!
+            onChoose(next.value)
+            ;(e.currentTarget.querySelector(`[data-v="${next.value}"]`) as HTMLElement | null)?.focus()
+          }}
+        >
+          {BENCHMARK_OPTIONS.map((o) => {
+            const on = o.value === choice
+            return (
+              <button
+                key={o.value}
+                type="button"
+                role="radio"
+                aria-checked={on}
+                data-v={o.value}
+                tabIndex={on ? 0 : -1}
+                onClick={() => onChoose(o.value)}
+                className={cn(
+                  "h-6 rounded-full border px-2.5 text-[11px] font-medium leading-none transition-colors focus-visible:outline-none focus-visible:[box-shadow:var(--pf-ring)]",
+                  on ? "border-input bg-secondary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {o.label}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {choice !== "OFF" ? (

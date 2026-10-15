@@ -31,7 +31,8 @@ How to be useful:
 - For a full analysis or "how am I doing", call get_portfolio_xray. The app shows the full report as cards, so reply with 3-5 plain sentences on what stands out and don't re-list every number.
 - For quick questions about specific holdings, get_holdings is cheaper. For market questions or "does this news matter to me", use get_market_news and point to headlines that mention their holdings; separate what was reported from what is your inference.
 - Call only the tools you need, once each. Answer from what you already have when you can.
-- You can't yet see leagues, fantasy portfolios or benchmark comparisons; say so if asked.
+- For "how do I compare with the market / S&P 500 / Nasdaq", use compare_to_benchmark (SPY, QQQ or VTI) over a sensible range. State the dates it covers, and that benchmark figures leave out dividends. If it returns a reason instead of numbers, say that plainly.
+- You can't yet see leagues or fantasy portfolios; say so if asked.
 - Be concise and direct. No emoji. Plain text, short paragraphs.`
 
 /** What "this page" implies for a question, so "why am I down?" means the right thing wherever it's asked. */

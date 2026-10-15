@@ -2,7 +2,10 @@ import "server-only"
 import { summarizeHoldings } from "@web/lib/dashboard-math"
 import { readCachedNews } from "@web/lib/news"
 import { matchHoldings } from "@web/lib/ai/news-match"
-import { loadPositions, loadXRay } from "@web/lib/ai/portfolio-data"
+import { BENCHMARKS, compareToBenchmark, isBenchmarkSymbol } from "@web/lib/benchmarks"
+import { benchmarkCloses } from "@web/lib/benchmark-data"
+import { isRange, type Range } from "@web/lib/ranges"
+import { loadPositions, loadXRay, trackedWindow } from "@web/lib/ai/portfolio-data"
 import type { XRay } from "@web/lib/ai/portfolio-xray"
 
 /**
@@ -42,6 +45,22 @@ export const TOOL_DEFS: ToolDef[] = [
       type: "object",
       properties: { limit: { type: "integer", description: "How many holdings to return, 1-25." } },
       required: ["limit"],
+      additionalProperties: false,
+    },
+    strict: true,
+  },
+  {
+    type: "function",
+    name: "compare_to_benchmark",
+    description:
+      "Compares the user's time-weighted return (deposits removed) with a benchmark index ETF over the same dates. Benchmarks are price returns without dividends, which understates them slightly. Returns a reason instead of numbers when there isn't enough history.",
+    parameters: {
+      type: "object",
+      properties: {
+        symbol: { type: "string", enum: ["SPY", "QQQ", "VTI"], description: "SPY = S&P 500, QQQ = Nasdaq 100, VTI = US total market." },
+        range: { type: "string", enum: ["1W", "1M", "3M", "6M", "1Y", "ALL"] },
+      },
+      required: ["symbol", "range"],
       additionalProperties: false,
     },
     strict: true,
@@ -98,6 +117,30 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
           gainPercent: round(r.gainPercent),
           accounts: r.positions,
         })),
+      }
+    }
+    case "compare_to_benchmark": {
+      let args: { symbol?: unknown; range?: unknown } = {}
+      try {
+        args = JSON.parse(rawArgs) as typeof args
+      } catch {
+        // Falls through to the validation below.
+      }
+      const symbol = typeof args.symbol === "string" ? args.symbol.toUpperCase() : ""
+      if (!isBenchmarkSymbol(symbol)) return { error: "Unknown benchmark. Use SPY, QQQ or VTI." }
+      const range: Range = typeof args.range === "string" && isRange(args.range) ? args.range : "1M"
+      const window = await trackedWindow(ctx.userId, range)
+      if (!window || window.series.length < 2) return { reason: "Not enough tracked history for a comparison yet." }
+      const result = compareToBenchmark(window.series, await benchmarkCloses(symbol, window.series[0]!.date))
+      if (!result.ok) return { reason: result.reason === "starts-late" ? "Benchmark prices don't reach back to the first tracked day." : "Benchmark prices aren't available right now." }
+      const c = result.value
+      return {
+        benchmark: BENCHMARKS.find((b) => b.symbol === symbol)!.label,
+        basis: "price return (dividends not included)",
+        window: { start: c.startDate, end: c.endDate, range },
+        yourReturnPercent: round(c.portfolioPercent),
+        benchmarkReturnPercent: round(c.benchmarkPercent),
+        differencePoints: round(c.differencePoints),
       }
     }
     case "get_market_news": {
