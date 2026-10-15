@@ -217,8 +217,10 @@ export function buildXRay({ positions, period = null, series = [] }: XRayInput):
   const risks: Insight[] = []
   const nextSteps: Insight[] = []
   const top = rows[0]
+  // A broad fund (an index fund, a plan fund) is itself diversified: a big weight in one is not single-company risk.
+  const topIsFund = top != null && ["etf", "mutual_fund", "fund"].includes(top.type ?? "")
 
-  if (top) {
+  if (top && !topIsFund) {
     if (top.weight >= LIMITS.notableHolding) {
       risks.push({
         id: "single-holding",

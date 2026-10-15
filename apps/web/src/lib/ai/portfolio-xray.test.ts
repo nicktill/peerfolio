@@ -18,6 +18,15 @@ describe("buildXRay", () => {
     assert.ok(Math.abs(x.concentration.effectiveHoldings - 1 / 0.46) < 1e-9)
   })
 
+  it("does not call a large broad fund single-company concentration", () => {
+    const x = buildXRay({ positions: [pos({ securityId: "idx", ticker: "IDX", type: "fund", value: 800 }), pos({ securityId: "b", ticker: "B", value: 200 })] })
+    assert.equal(x.risks.find((r) => r.id === "single-holding"), undefined)
+    assert.equal(x.nextSteps.find((r) => r.id === "review-top"), undefined)
+    // The same weight in a single stock still is.
+    const stock = buildXRay({ positions: [pos({ securityId: "a", ticker: "A", type: "equity", value: 800 }), pos({ securityId: "b", ticker: "B", value: 200 })] })
+    assert.equal(stock.risks[0]?.id, "single-holding")
+  })
+
   it("flags a dominant holding as notable and lists it first", () => {
     const x = buildXRay({ positions: [pos({ securityId: "a", ticker: "A", value: 800 }), pos({ securityId: "b", ticker: "B", value: 200 })] })
     assert.equal(x.risks[0]?.id, "single-holding")
