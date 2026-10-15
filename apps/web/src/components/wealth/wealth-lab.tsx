@@ -145,7 +145,7 @@ export function WealthLab() {
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)] lg:items-start">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)] lg:items-stretch">
         {/* Controls */}
         <section className="pf-panel" aria-label="Assumptions">
           <div className="pf-ph">
