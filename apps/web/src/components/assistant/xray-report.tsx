@@ -12,6 +12,8 @@ const rise: Variants = {
 }
 
 const SLICE_COLORS = ["var(--series-1)", "var(--series-2)", "var(--series-3)", "var(--series-4)", "var(--series-5)", "var(--series-7)"]
+const NEUTRAL = "color-mix(in srgb, var(--fg3) 55%, transparent)"
+const MUTED = "color-mix(in srgb, var(--fg3) 28%, transparent)"
 const pct = (n: number) => `${n.toFixed(1)}%`
 const tone = (n: number) => (n > 0 ? "var(--gain)" : n < 0 ? "var(--loss)" : "var(--fg2)")
 const arrow = (n: number) => (n > 0 ? "▲" : n < 0 ? "▼" : "")
@@ -70,7 +72,11 @@ function InsightCard({ insight, onAsk }: { insight: Insight; onAsk: (q: string) 
  * the server's result; nothing is derived here beyond formatting.
  */
 export function XRayReport({ xray, onAsk }: { xray: XRay; onAsk: (question: string) => void }) {
-  const { overview, allocation, concentration: c, performance: p } = xray
+  const { overview, allocation, sectors, concentration: c, performance: p } = xray
+  // The five largest sectors get a series colour; smaller ones share a neutral, and non-sector buckets a muted tint.
+  let sectorRank = 0
+  const sectorColor = (kind: "sector" | "bucket" | "unclassified") => (kind === "unclassified" ? MUTED : kind === "bucket" ? NEUTRAL : sectorRank < 5 ? SLICE_COLORS[sectorRank++] : "var(--fg2)")
+  const sectorSlices = sectors.slices.map((sl) => ({ ...sl, color: sectorColor(sl.kind) }))
   const bars = [
     { k: "Largest holding", v: c.top1 },
     { k: "Top 3", v: c.top3 },
@@ -160,6 +166,43 @@ export function XRayReport({ xray, onAsk }: { xray: XRay; onAsk: (question: stri
             </li>
           ))}
         </ul>
+      </Section>
+
+      <Section title="Sectors">
+        <div className="pf-xr-stack" role="img" aria-label={sectorSlices.map((a) => `${a.name} ${pct(a.percent)}`).join(", ")}>
+          {sectorSlices.map((a, i) => (
+            <motion.span
+              key={a.name}
+              style={{ background: a.color, flexGrow: a.percent, transformOrigin: "left" }}
+              initial={{ scaleX: 0 }}
+              animate={{ scaleX: 1 }}
+              transition={{ type: "spring", stiffness: 220, damping: 30, delay: 0.2 + i * 0.04 }}
+              className="pf-xr-seg"
+              title={`${a.name} ${pct(a.percent)}`}
+            />
+          ))}
+        </div>
+        <ul className="pf-xr-legend">
+          {sectorSlices.map((a) => (
+            <li key={a.name}>
+              <i style={{ background: a.color }} />
+              <span>{a.name}</span>
+              <b>{pct(a.percent)}</b>
+            </li>
+          ))}
+        </ul>
+        <p className="pf-xr-note">
+          {sectors.coverage == null
+            ? "No individual stocks to show sectors for. "
+            : sectors.stocks.classifiedValue === 0
+              ? "Sector data for your stocks isn't available yet. "
+              : sectors.partial
+                ? `Partial: sector data covers ${pct(sectors.coverage)} of your stock value. `
+                : sectors.largest
+                  ? `${sectors.largest.name} is the largest, at ${pct(sectors.largest.percentOfClassified)} of your stocks with sector data. `
+                  : ""}
+          Funds, crypto and cash aren&apos;t broken into sectors; fund look-through isn&apos;t available.
+        </p>
       </Section>
 
       <Section title="Concentration">
