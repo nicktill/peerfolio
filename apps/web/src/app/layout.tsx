@@ -34,7 +34,7 @@ export const metadata: Metadata = {
     siteName: SITE.name,
     images: [
       {
-        url: "/share-preview",
+        url: "/share-preview.png",
         width: 1200,
         height: 630,
         alt: SITE.name,
@@ -45,7 +45,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: SITE.shareTitle,
     description: SITE.description,
-    images: ["/share-preview"],
+    images: ["/share-preview.png"],
   },
   icons: {
     icon: "/favicon.png",
