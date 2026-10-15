@@ -7,6 +7,7 @@ import { AppWindow, ArrowUp, ArrowUpRight, Check, FileText, Maximize2, MessageSq
 import { Orb } from "@web/components/assistant/orb"
 import { PAGE_LABEL, copyFor, useAssistant, type Msg, type Phase } from "@web/components/assistant/use-assistant"
 import { XRayReport } from "@web/components/assistant/xray-report"
+import { VisualCard } from "@web/components/assistant/visuals"
 import { formatCurrency } from "@web/lib/format"
 import type { XRay } from "@web/lib/ai/portfolio-xray"
 import { isWealthHref } from "@web/lib/wealth/link"
@@ -467,7 +468,7 @@ function Panel({ onClose }: { onClose: () => void }) {
         ) : (
           <div className="pf-ai-thread">
             {messages.map((m, i) => (
-              <Message key={m.id} m={m} last={i === messages.length - 1} phase={phase} activity={activity} busy={busy} onAsk={ask} onRetry={retry} repeatReport={!!m.xray && messages.slice(0, i).some((x) => !!x.xray)} />
+              <Message key={m.id} m={m} last={i === messages.length - 1} phase={phase} activity={activity} busy={busy} onAsk={ask} onRetry={retry} repeatReport={!!m.xray && messages.slice(0, i).some((x) => !!x.xray)} earlierKinds={new Set(messages.slice(0, i).flatMap((x) => (x.visuals ?? []).map((v) => v.kind)))} />
             ))}
           </div>
         )}
@@ -644,7 +645,7 @@ function CollapsedReport({ xray, onAsk, onSave }: { xray: XRay; onAsk: (q: strin
   )
 }
 
-function Message({ m, last, phase, activity, busy, onAsk, onRetry, repeatReport = false }: { m: Msg; last: boolean; phase: Phase; activity: string | null; busy: boolean; onAsk: (q: string) => void; onRetry: () => void; repeatReport?: boolean }) {
+function Message({ m, last, phase, activity, busy, onAsk, onRetry, repeatReport = false, earlierKinds }: { m: Msg; last: boolean; phase: Phase; activity: string | null; busy: boolean; onAsk: (q: string) => void; onRetry: () => void; repeatReport?: boolean; earlierKinds?: Set<string> }) {
   const { saveReport } = useAssistant()
   if (m.role === "user") {
     return (
@@ -671,6 +672,9 @@ function Message({ m, last, phase, activity, busy, onAsk, onRetry, repeatReport 
           {working && phase === "writing" ? <span className="pf-ai-caret" aria-hidden /> : null}
         </p>
       ) : null}
+      {m.visuals?.map((v) => (
+        <VisualCard key={v.kind} v={v} repeat={earlierKinds?.has(v.kind)} />
+      ))}
       {m.link && isWealthHref(m.link.href) && !(working && phase === "writing") ? (
         <Link href={m.link.href} className="pf-ai-link">
           {m.link.label} <ArrowUpRight size={12} aria-hidden />

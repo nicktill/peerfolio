@@ -7,6 +7,7 @@ import { portfolioBrief } from "@web/lib/ai/portfolio-brief"
 import { reserve, settle } from "@web/lib/ai/usage"
 import { TOOL_DEFS, runTool } from "@web/lib/ai/tools"
 import type { XRay } from "@web/lib/ai/portfolio-xray"
+import type { Visual } from "@web/lib/ai/visuals"
 import { isUsMarketOpen } from "@web/lib/market-hours"
 
 export const runtime = "nodejs"
@@ -17,6 +18,7 @@ export type AssistantEvent =
   | { type: "status"; stage: "reading" | "analyzing" | "writing"; label?: string }
   | { type: "text"; delta: string }
   | { type: "xray"; data: XRay }
+  | { type: "visual"; data: Visual }
   | { type: "link"; label: string; href: string }
   | { type: "error"; message: string }
   | { type: "done" }

@@ -432,3 +432,34 @@
 .pf-ai-win.is-sheet .pf-ai-head { cursor: grab; }
 .pf-ai-win.is-sheet .pf-ai-handle { width: 40px; height: 5px; margin-left: -20px; top: 7px; }
 @media (prefers-reduced-motion: reduce) { .pf-ai-bot { animation: none; } .pf-ai-body { scroll-behavior: auto; } }
+
+
+/* ---------- Visuals: compact figures drawn from a tool's own numbers ---------- */
+.pf-vz { margin: 10px 0 2px; padding: 12px 14px 13px; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--hair) 90%, transparent); background: color-mix(in srgb, var(--raise) 40%, transparent); }
+.pf-vz header { margin-bottom: 10px; }
+.pf-vz .is-up { color: var(--gain-ink, var(--gain)); } .pf-vz .is-down { color: var(--loss-ink, var(--loss)); }
+.pf-vz-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: 8px; margin-bottom: 12px; }
+.pf-vz-tiles div { display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, var(--panel) 60%, transparent); }
+.pf-vz-tiles span { font: 450 11px/1.2 var(--sans); color: var(--fg3); }
+.pf-vz-tiles b { font: 600 14px/1 var(--mono); font-variant-numeric: tabular-nums; }
+.pf-vz-spread { display: grid; gap: 7px; list-style: none; margin: 0; padding: 0; }
+.pf-vz-spread li { display: grid; grid-template-columns: minmax(70px, 108px) 1fr 58px; align-items: center; gap: 10px; font: 450 12px/1 var(--sans); }
+.pf-vz-n { color: var(--fg2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pf-vz-track { position: relative; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--fg) 7%, transparent); }
+.pf-vz-track::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: color-mix(in srgb, var(--fg) 18%, transparent); }
+.pf-vz-track i { position: absolute; top: 0; height: 100%; border-radius: 3px; background: currentColor; }
+.pf-vz-v { text-align: right; font: 600 12px/1 var(--mono); font-variant-numeric: tabular-nums; }
+.pf-vz-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.pf-vz-sub { display: block; margin-bottom: 6px; font: 500 11px/1 var(--sans); color: var(--fg3); }
+.pf-vz-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.pf-vz-list li { display: flex; justify-content: space-between; align-items: center; gap: 8px; font: 500 12.5px/1 var(--mono); }
+.pf-vz-list em { margin-left: 6px; padding: 2px 5px; border-radius: 5px; font: 500 9.5px/1 var(--sans); font-style: normal; letter-spacing: 0.04em; text-transform: uppercase; color: var(--pf-accent); background: color-mix(in srgb, var(--pf-accent) 14%, transparent); }
+.pf-vz-days { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.pf-vz-days li { display: grid; grid-template-columns: 44px 1fr; gap: 10px; align-items: baseline; }
+.pf-vz-day { font: 500 11px/1 var(--sans); color: var(--fg3); }
+.pf-vz-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.pf-vz-chips span { padding: 4px 7px; border-radius: 7px; font: 500 11.5px/1 var(--mono); color: var(--fg2); background: color-mix(in srgb, var(--panel) 60%, transparent); border: 1px solid transparent; }
+.pf-vz-chips span.is-held { color: var(--fg); border-color: color-mix(in srgb, var(--pf-accent) 55%, transparent); background: color-mix(in srgb, var(--pf-accent) 12%, transparent); }
+.pf-vz-note { margin: 10px 0 0; font: 450 11px/1.4 var(--sans); color: var(--fg3); }
+.pf-vz-fold { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 0; border: 0; background: none; cursor: pointer; color: var(--fg3); font: 450 11.5px/1 var(--sans); }
+@media (max-width: 420px) { .pf-vz-cols { grid-template-columns: 1fr; } }
