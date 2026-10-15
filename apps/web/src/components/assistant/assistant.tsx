@@ -12,6 +12,8 @@ import "@web/components/assistant/assistant.css"
 const GEO_KEY = "pf-assistant-geo-v1"
 const MIN = { w: 340, h: 400 }
 const COMPACT = { w: 400, h: 600 }
+/** The opening card: orb, prompts and composer. It grows into the conversation on the first message. */
+const LAUNCH = { w: 440, h: 522 }
 const EDGE = 12
 
 type Geo = { w: number; h: number; right: number; bottom: number; expanded: boolean }
@@ -41,7 +43,8 @@ function loadGeo(): Geo {
   try {
     const saved = JSON.parse(localStorage.getItem(GEO_KEY) ?? "null") as Partial<Geo> | null
     if (saved && [saved.w, saved.h, saved.right, saved.bottom].every((n) => typeof n === "number" && Number.isFinite(n))) {
-      return fit({ ...fallback, ...saved, expanded: !!saved.expanded })
+      // Size and place are remembered; "expanded" is not, so it opens small and grows when there's something to show.
+      return fit({ ...fallback, ...saved, expanded: false })
     }
   } catch {
     // Unreadable storage: use the default placement.
@@ -223,7 +226,24 @@ function Panel({ onClose }: { onClose: () => void }) {
     if (el) stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 140
   }
 
-  const size = expanded ? expandedSize() : { w: geo.w, h: geo.h }
+  // Nothing said yet: a small card, not an empty window. It grows (with the same morph) once there's a conversation.
+  const launch = messages.length === 0 && !expanded
+  const wasLaunch = useRef(launch)
+  useEffect(() => {
+    if (wasLaunch.current !== launch) {
+      wasLaunch.current = launch
+      setMorph(true)
+      // Growing from the small card must stay on screen.
+      setGeo((g) => fit(g))
+      const t = window.setTimeout(() => setMorph(false), 460)
+      return () => window.clearTimeout(t)
+    }
+  }, [launch])
+  const size = expanded
+    ? expandedSize()
+    : launch
+      ? { w: Math.min(LAUNCH.w, viewport().vw - EDGE * 2), h: Math.min(LAUNCH.h, viewport().vh - EDGE * 2) }
+      : { w: geo.w, h: geo.h }
   const ask = useCallback(
     (q: string) => {
       stick.current = true
@@ -241,7 +261,7 @@ function Panel({ onClose }: { onClose: () => void }) {
       ref={panelRef}
       role="dialog"
       aria-label="Peerfolio Intelligence"
-      className={`pf-ai-win ${narrow ? "is-sheet" : ""} ${expanded ? "is-expanded" : ""} ${morph ? "is-morph" : ""} ${busy ? "is-busy" : ""} ${interacting ? "is-live" : ""}`}
+      className={`pf-ai-win ${narrow ? "is-sheet" : ""} ${expanded ? "is-expanded" : ""} ${launch ? "is-launch" : ""} ${morph ? "is-morph" : ""} ${busy ? "is-busy" : ""} ${interacting ? "is-live" : ""}`}
       style={style}
       initial={narrow ? { y: "100%" } : { opacity: 0, y: 16, scale: 0.96 }}
       animate={narrow ? { y: 0 } : { opacity: 1, y: 0, scale: 1 }}
@@ -251,7 +271,7 @@ function Panel({ onClose }: { onClose: () => void }) {
         if (e.key === "Escape") onClose()
       }}
     >
-      {!narrow && !expanded ? <div className="pf-ai-grip" onPointerDown={begin("size")} onPointerMove={track} onPointerUp={end} onPointerCancel={end} aria-hidden title="Resize" /> : null}
+      {!narrow && !expanded && !launch ? <div className="pf-ai-grip" onPointerDown={begin("size")} onPointerMove={track} onPointerUp={end} onPointerCancel={end} aria-hidden title="Resize" /> : null}
 
       <header
         className="pf-ai-head"

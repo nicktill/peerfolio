@@ -154,6 +154,16 @@
 .pf-ai-thread { display: flex; flex-direction: column; gap: 18px; padding: 20px 18px 8px; max-width: 760px; margin: 0 auto; }
 .is-expanded .pf-ai-thread { padding-left: 28px; padding-right: 28px; }
 
+/* ---------- Launch card (nothing said yet) ---------- */
+.pf-ai-win.is-launch .pf-ai-body { overflow: hidden; }
+.is-launch .pf-ai-empty { padding: 20px 20px 4px; }
+.is-launch .pf-ai-empty > div:first-child { margin-bottom: 6px; }
+.is-launch .pf-ai-empty h3 { font-size: 22px; }
+.is-launch .pf-ai-empty p { margin-bottom: 10px; }
+.is-launch .pf-ai-sugs { gap: 5px; }
+.is-launch .pf-ai-sug { padding: 9px 12px; }
+.pf-ai-win.is-sheet.is-launch { height: min(560px, calc(var(--pf-vvh, 100dvh) * 0.86)); }
+
 /* ---------- Empty ---------- */
 .pf-ai-empty { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 38px 22px 18px; gap: 6px; }
 .pf-ai-empty > div:first-child { margin-bottom: 12px; }
