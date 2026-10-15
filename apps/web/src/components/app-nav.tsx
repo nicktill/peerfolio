@@ -1,10 +1,12 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { signOut, useSession } from "next-auth/react"
-import { Activity, Gamepad2, LineChart, Repeat, LayoutDashboard, LogOut, Newspaper, Settings, ShieldCheck, Trophy, Users } from "lucide-react"
+import { Activity, Gamepad2, LineChart, Repeat, LayoutDashboard, LogOut, Newspaper, Sparkle, Settings, ShieldCheck, Trophy, Users } from "lucide-react"
+import { OPEN_EVENT } from "@web/components/assistant/open-event"
 import { cn } from "@web/lib/utils"
 import { useApi } from "@web/lib/use-api"
 import { cacheClear } from "@web/lib/api-cache"
@@ -39,6 +41,10 @@ export function AppNav() {
   const { data: brokerageAccess, error: accessError } = useApi<{ admin: boolean }>(status === "authenticated" ? "/api/plaid/access" : null, [], { refreshMs: 60_000 })
   const activeHref = LINKS.find((link) => pathname.startsWith(link.href))?.href ?? null
   const admin = brokerageAccess?.admin && !accessError
+  const assistant = useApi<{ available: boolean }>(status === "authenticated" ? "/api/assistant/status" : null)
+  const assistantReady = !!assistant.data?.available
+  const [hint, setHint] = useState("")
+  useEffect(() => setHint(/mac|iphone|ipad/i.test(navigator.platform || navigator.userAgent) ? "⌘/" : "Ctrl /"), [])
 
   function logout() {
     cacheClear()
@@ -63,6 +69,13 @@ export function AppNav() {
               <span>{label}</span>
             </Link>
           ))}
+          {assistantReady ? (
+            <button type="button" className="peerfolio-nav-link pf-nav-ask" onClick={() => window.dispatchEvent(new Event(OPEN_EVENT))} aria-keyshortcuts="Control+Slash Meta+Slash">
+              <Sparkle size={16} strokeWidth={1.75} aria-hidden />
+              <span>Ask anything</span>
+              <kbd>{hint}</kbd>
+            </button>
+          ) : null}
         </nav>
         <div className="peerfolio-sidebar-footer">
           {admin ? (
