@@ -8,6 +8,7 @@
  * Free of database imports so the tests can exercise it with a stubbed fetch.
  */
 
+import { nextNewYorkTime } from "./market-hours.ts"
 import { providerFetch, withProviderCaller } from "./provider-fetch.ts"
 
 const BASE_URL = process.env.MASSIVE_BASE_URL ?? "https://api.massive.com"
@@ -121,6 +122,21 @@ function firstDayBack(marketTickerIsCrypto: boolean, now: Date): number {
 }
 
 /**
+ * Whole-market bars the plan refused (403/404 for a day it withholds), by request path, until when.
+ * The free plan won't serve today's bars before the day is over, so asking again every few
+ * minutes all evening only fails again; the refusal is remembered for a few hours instead.
+ */
+const REFUSED_BARS_HOURS = 6
+/** Bars are published around 06:00 New York time; a refusal never outlives the next 06:10, when a withheld bar may exist. */
+const PUBLICATION_MINUTE = 6 * 60 + 10
+const refusedBars = new Map<string, number>()
+
+/** Forgets every remembered refusal (for the tests). */
+export function resetRefusedBars() {
+  refusedBars.clear()
+}
+
+/**
  * Latest daily close for each ticker, from whole-market daily bars.
  *
  * Starts at the latest finished day (see `firstDayBack`) and walks back past
@@ -148,15 +164,21 @@ export async function latestCloses(
       day.setUTCDate(day.getUTCDate() - back)
       const date = day.toISOString().slice(0, 10)
 
+      const url = `${market.path}/${date}?adjusted=true&include_otc=true`
+      if ((refusedBars.get(url) ?? 0) > now.getTime()) continue
+
       let data: AggsResponse
       try {
-        data = await get(`${market.path}/${date}?adjusted=true&include_otc=true`, fetchImpl)
+        data = await get(url, fetchImpl)
       } catch (error) {
         // Some plans withhold the newest bars for a day or so. That is "not yet",
         // not an outage: the day before is still a correct answer. (Real trouble,
         // such as a bad key, fails every day, so it still surfaces further back.)
         const notYet = back <= 1 && error instanceof MarketDataError && (error.status === 403 || error.status === 404)
-        if (notYet) continue
+        if (notYet) {
+          refusedBars.set(url, Math.min(now.getTime() + REFUSED_BARS_HOURS * 3_600_000, nextNewYorkTime(now, PUBLICATION_MINUTE).getTime()))
+          continue
+        }
         throw error
       }
       if (!data.results?.length) continue

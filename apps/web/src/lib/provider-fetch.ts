@@ -25,14 +25,44 @@ export type ProviderName = "finnhub" | "alpaca" | "massive" | "tiingo"
 
 export type Budget = { perMinute: number; burst: number }
 
-/** The budget for `provider`, overridable with e.g. FINNHUB_PER_MINUTE and FINNHUB_BURST. */
+/**
+ * What each provider allows, per timescale. A bucket of `burst` tokens refilling `perMinute` a
+ * minute can spend burst + perMinute x window in any window, so every timescale is checked, not
+ * just one. `perSecond` is our own conservative cap on `burst + perMinute / 60` for each provider.
+ * Finnhub's 30 calls/second is not verified against official docs, and the other values are ours too.
+ */
+const ALLOWANCE: Record<ProviderName, { perSecond: number; perMinute?: number; perHour?: number; perDay?: number }> = {
+  finnhub: { perSecond: 25, perMinute: 60 },
+  alpaca: { perSecond: 50, perMinute: 200 },
+  massive: { perSecond: 5, perMinute: 5 },
+  tiingo: { perSecond: 10, perHour: 50, perDay: 1000 },
+}
+
+/** Whether a bucket of this size stays strictly under the provider's allowance in any second, minute, hour and day. */
+export function withinAllowance(provider: ProviderName, { perMinute, burst }: Budget): boolean {
+  const cap = ALLOWANCE[provider]
+  // In one second the bucket can spend its burst plus a second's refill.
+  if (burst + perMinute / 60 > cap.perSecond) return false
+  if (cap.perMinute !== undefined && !(burst + perMinute < cap.perMinute)) return false
+  if (cap.perHour !== undefined && !(burst + perMinute * 60 < cap.perHour)) return false
+  if (cap.perDay !== undefined && !(burst + perMinute * 1440 < cap.perDay)) return false
+  return true
+}
+
+/**
+ * The budget for `provider`, overridable with e.g. FINNHUB_PER_MINUTE and FINNHUB_BURST. An override
+ * that would reach the provider's allowance on any timescale (second, minute, hour, day) is ignored for the defaults: a mistyped environment
+ * value must not be what earns a 429.
+ */
 export function budgetFor(provider: ProviderName, env: Record<string, string | undefined> = process.env): Budget {
   const name = provider.toUpperCase()
   const read = (key: string, fallback: number) => {
     const value = Number(env[`${name}_${key}`])
     return Number.isFinite(value) && value > 0 ? value : fallback
   }
-  return { perMinute: read("PER_MINUTE", BUDGET_DEFAULTS[provider].perMinute), burst: Math.max(1, read("BURST", BUDGET_DEFAULTS[provider].burst)) }
+  const defaults = BUDGET_DEFAULTS[provider]
+  const requested = { perMinute: read("PER_MINUTE", defaults.perMinute), burst: Math.max(1, read("BURST", defaults.burst)) }
+  return withinAllowance(provider, requested) ? requested : defaults
 }
 
 /**

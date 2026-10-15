@@ -194,3 +194,22 @@ describe("groupReasons", () => {
     assert.equal(groups[0]!.last, "2026-10-14T05:00:00Z")
   })
 })
+
+describe("buildDashboard success insights", () => {
+  const now = new Date("2026-10-13T14:00:00Z")
+  const row = (over: Partial<StatRow>): StatRow => ({ provider: "alpaca", minute: new Date("2026-10-13T13:00:00Z"), requests: 0, symbols: 0, denied: 0, rateLimited: 0, failed: 0, ...over })
+
+  it("counts requests that weren't rate limited or failed as succeeded, and averages the batch size", () => {
+    const d = buildDashboard([row({ requests: 10, symbols: 300, failed: 1, rateLimited: 2 })], { now, range: "6h" })
+    const alpaca = d.providers.find((p) => p.provider === "alpaca")!
+    assert.equal(alpaca.succeeded, 7)
+    assert.equal(alpaca.successRate, 0.7)
+    assert.equal(alpaca.avgBatch, 30)
+  })
+
+  it("has no rates without requests", () => {
+    const finnhub = buildDashboard([row({ denied: 3 })], { now, range: "6h" }).providers.find((p) => p.provider === "finnhub")!
+    assert.equal(finnhub.successRate, null)
+    assert.equal(finnhub.avgBatch, null)
+  })
+})

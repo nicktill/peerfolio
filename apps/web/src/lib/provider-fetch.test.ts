@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { budgetFor, retryAfterSeconds } from "./provider-fetch.ts"
+import { budgetFor, retryAfterSeconds, withinAllowance } from "./provider-fetch.ts"
 
 describe("budgetFor", () => {
   it("leaves headroom under each free allowance: burst plus a minute's refill stays below it", () => {
@@ -40,5 +40,13 @@ describe("retryAfterSeconds", () => {
     assert.equal(retryAfterSeconds(null, now), 60)
     assert.equal(retryAfterSeconds("soon", now), 60)
     assert.equal(retryAfterSeconds("0", now), 1)
+  })
+})
+
+describe("withinAllowance one-second bound", () => {
+  it("counts a second's refill on top of the burst", () => {
+    assert.equal(withinAllowance("finnhub", { perMinute: 30, burst: 25 }), false) // 25 + 0.5 > 25
+    assert.equal(withinAllowance("finnhub", { perMinute: 30, burst: 24 }), true) // 24.5 <= 25
+    assert.equal(withinAllowance("finnhub", { perMinute: 40, burst: 5 }), true) // the defaults
   })
 })

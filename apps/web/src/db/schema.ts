@@ -10,6 +10,7 @@ import {
   pgEnum,
   pgTable,
   primaryKey,
+  smallint,
   text,
   timestamp,
   uniqueIndex,
@@ -205,6 +206,17 @@ export const securities = pgTable("securities", {
    * null because the institution already reports their value.
    */
   marketTicker: text("market_ticker"),
+  /**
+   * When a price was last written to this row, by any source (a trigger sets it
+   * on every write to `close_price` or `close_price_as_of`). Unlike `updated_at`,
+   * which is also bumped when a refresh is only attempted, this is the last time
+   * a price actually arrived. Null for rows priced before it existed.
+   */
+  pricedAt: timestamp("priced_at", { withTimezone: true }),
+  // Reserved for retry scheduling; currently unused (columns exist in production via migration 0021).
+  closeAttempts: smallint("close_attempts").notNull().default(0),
+  closeAttemptSession: date("close_attempt_session"),
+  unsupportedBy: text("unsupported_by").array(),
   /** Metadata retries are independent of price freshness. */
   metadataCheckedAt: timestamp("metadata_checked_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

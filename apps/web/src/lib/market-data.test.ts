@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { beforeEach, describe, it } from "node:test"
-import { displaySymbol, isNewerClose, latestCloses, MarketDataError, previousClose, searchTickers, securityTypeFromTickerType, tickerDetails, toMarketTicker } from "./market-data.ts"
+import { displaySymbol, isNewerClose, latestCloses, MarketDataError, resetRefusedBars, previousClose, searchTickers, securityTypeFromTickerType, tickerDetails, toMarketTicker } from "./market-data.ts"
 
 /** Stub fetch that answers from a path → body table and records every call. */
 function stubFetch(routes: Record<string, unknown>, status = 200) {
@@ -95,6 +95,8 @@ describe("isNewerClose", () => {
 })
 
 describe("latestCloses", () => {
+  beforeEach(() => resetRefusedBars())
+
   // A Monday: the last stock session was Friday, crypto traded all weekend.
   const monday = new Date(Date.UTC(2026, 8, 28, 6))
 
@@ -107,6 +109,27 @@ describe("latestCloses", () => {
 
     assert.deepEqual(closes.get("VTI"), { price: 301.1, asOf: "2026-09-25" })
     assert.deepEqual(calls, [`${STOCKS}/2026-09-27`, `${STOCKS}/2026-09-26`, `${STOCKS}/2026-09-25`])
+  })
+
+  it("does not let a refusal hide a bar published at the next 06:10 New York boundary", async () => {
+    const day = `${STOCKS}/2026-10-13`
+    const refuse = (async () => new Response("no", { status: 403 })) as typeof fetch
+    // 05:05 ET: the plan withholds yesterday's bar (and the one before is looked up too).
+    const early = await latestCloses(["VTI"], { now: new Date("2026-10-14T09:05:00Z"), fetchImpl: refuse }).catch(() => null)
+    assert.equal(early, null)
+    // 06:15 ET: it is out now, and the 6 h memory must not skip it.
+    const { fetchImpl, calls } = stubFetch({ [day]: { resultsCount: 1, results: [{ T: "VTI", c: 310 }] } })
+    const closes = await latestCloses(["VTI"], { now: new Date("2026-10-14T10:15:00Z"), fetchImpl })
+    assert.deepEqual(closes.get("VTI"), { price: 310, asOf: "2026-10-13" })
+    assert.equal(calls[0], day)
+  })
+
+  it("still remembers a refusal within the same publication window", async () => {
+    const refuse = (async () => new Response("no", { status: 403 })) as typeof fetch
+    await latestCloses(["VTI"], { now: new Date("2026-10-14T08:00:00Z"), fetchImpl: refuse }).catch(() => null)
+    const { fetchImpl, calls } = stubFetch({ [`${STOCKS}/2026-10-12`]: { resultsCount: 1, results: [{ T: "VTI", c: 300 }] } })
+    await latestCloses(["VTI"], { now: new Date("2026-10-14T09:00:00Z"), fetchImpl }) // 05:00 ET, same window
+    assert.ok(!calls.includes(`${STOCKS}/2026-10-13`))
   })
 
   it("prices crypto from yesterday's bar", async () => {
@@ -178,6 +201,39 @@ describe("latestCloses", () => {
 
     assert.deepEqual(closes.get("VTI"), { price: 301, asOf: "2026-09-28" })
     assert.deepEqual(calls, [`${STOCKS}/2026-09-29`, `${STOCKS}/2026-09-28`])
+  })
+
+  it("remembers a day the plan refused instead of asking again every run", async () => {
+    const tuesdayNight = new Date(Date.UTC(2026, 8, 29, 22, 30))
+    const calls: string[] = []
+    const fetchImpl = (async (input: string | URL | Request) => {
+      const path = new URL(String(input)).pathname
+      calls.push(path)
+      if (path === `${STOCKS}/2026-09-29`) return new Response("{}", { status: 403 })
+      return new Response(JSON.stringify({ results: [{ T: "VTI", c: 301 }] }), { status: 200 })
+    }) as typeof fetch
+
+    await latestCloses(["VTI"], { now: tuesdayNight, fetchImpl })
+    const again = await latestCloses(["VTI"], { now: new Date(tuesdayNight.getTime() + 10 * 60_000), fetchImpl })
+
+    assert.deepEqual(again.get("VTI"), { price: 301, asOf: "2026-09-28" })
+    assert.deepEqual(calls, [`${STOCKS}/2026-09-29`, `${STOCKS}/2026-09-28`, `${STOCKS}/2026-09-28`])
+  })
+
+  it("asks for the refused day again once the refusal has aged out", async () => {
+    const tuesdayNight = new Date(Date.UTC(2026, 8, 29, 22, 30))
+    const calls: string[] = []
+    const fetchImpl = (async (input: string | URL | Request) => {
+      const path = new URL(String(input)).pathname
+      calls.push(path)
+      if (path === `${STOCKS}/2026-09-29` && calls.length === 1) return new Response("{}", { status: 403 })
+      return new Response(JSON.stringify({ results: [{ T: "VTI", c: 302 }] }), { status: 200 })
+    }) as typeof fetch
+
+    await latestCloses(["VTI"], { now: tuesdayNight, fetchImpl })
+    const later = await latestCloses(["VTI"], { now: new Date(tuesdayNight.getTime() + 7 * 3_600_000), fetchImpl })
+
+    assert.deepEqual(later.get("VTI"), { price: 302, asOf: "2026-09-29" })
   })
 
   it("also falls back when yesterday's bar is withheld after midnight UTC", async () => {
