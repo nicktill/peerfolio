@@ -245,13 +245,13 @@ export const PAGE_COPY: Record<Page, PageCopy> = {
   },
   fantasy: {
     title: "Sharpen your fantasy strategy",
-    subtitle: "Fantasy positions aren't readable yet. For now I can analyze your real portfolio.",
+    subtitle: "I can read your league's standings, picks and trades.",
     suggestions: [
-      { label: "Analyze my portfolio", featured: true },
-      { label: "Am I overly concentrated?" },
-      { label: "What are my biggest risks?" },
+      { label: "Analyze my fantasy portfolio", featured: true },
+      { label: "What drove my fantasy returns?" },
+      { label: "How does my strategy compare with the leader?" },
+      { label: "What changed in the standings?" },
     ],
-    note: "Fantasy data is coming soon.",
   },
   board: {
     title: "Understand the board",

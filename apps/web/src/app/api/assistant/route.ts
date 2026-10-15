@@ -33,7 +33,7 @@ How to be useful:
 - Call only the tools you need, once each. Answer from what you already have when you can.
 - For "how do I compare with the market / S&P 500 / Nasdaq", use compare_to_benchmark (SPY, QQQ or VTI) over a sensible range. State the dates it covers, and that benchmark figures leave out dividends. If it returns a reason instead of numbers, say that plainly.
 - For league questions use get_my_leagues and get_league_standings. Never reveal anything about a member beyond what those tools return.
-- You can't yet see fantasy portfolios or the public board; say so if asked.
+- For fantasy league questions use get_fantasy_league. You can't yet see the public board; say so if asked.
 - Be concise and direct. No emoji. Plain text, short paragraphs.`
 
 /** What "this page" implies for a question, so "why am I down?" means the right thing wherever it's asked. */
@@ -41,7 +41,7 @@ const PAGE_GUIDANCE: Record<PageContext["page"], string> = {
   portfolio: "Questions about \"my portfolio\", performance or holdings refer to their real accounts here.",
   news: "Lean on get_market_news first, and tie stories to their holdings when a headline mentions them.",
   leagues: "Use get_league_standings for rank questions (it defaults to the league open on the page). Explain a rank by comparing returns over the same range; you only know other members' holdings when they chose to share them, so never guess at the rest. If the league has few ranked members or short history, say the ranking is early.",
-  fantasy: "You can't read fantasy positions, trades or standings yet. If asked, say so, then offer to analyze their real portfolio instead.",
+  fantasy: "Use get_fantasy_league for rank, strategy and trade questions (it defaults to the league open on the page). Picks are public inside a fantasy league, so you may discuss other members' holdings from the tool. Its prices are stored ones, not live quotes: say so when exact figures matter. This is a game with virtual money, separate from their real portfolio.",
   board: "You can't read the public board yet. If asked about rankings, say so, then offer to analyze their own portfolio instead.",
   other: "",
 }
@@ -135,7 +135,7 @@ export async function POST(request: Request) {
           for (const call of calls) {
             let output: unknown
             try {
-              output = await runTool(call.name, call.arguments, { userId, pageLeagueId: context.page === "leagues" ? context.entityId : undefined, emit: (e) => send(e) })
+              output = await runTool(call.name, call.arguments, { userId, pageLeagueId: context.page === "leagues" ? context.entityId : undefined, pageFantasyId: context.page === "fantasy" ? context.entityId : undefined, emit: (e) => send(e) })
             } catch (error) {
               console.error("[assistant] tool failed", call.name, error instanceof Error ? error.message : error)
               output = { error: "That data isn't available right now." }
