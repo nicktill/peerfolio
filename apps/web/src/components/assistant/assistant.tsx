@@ -18,6 +18,8 @@ const DOCK_KEY = "pf-assistant-dock-v1"
 /** Docking squeezes the page, so it needs room: below this width the window floats instead. */
 const DOCK_MIN_VIEWPORT = 1100
 const DOCK_WIDTH = 400
+const DOCK_WIDE = 680
+const DOCK_WIDTH_KEY = "pf-assistant-dockw-v1"
 const MIN = { w: 340, h: 400 }
 const COMPACT = { w: 400, h: 600 }
 /** The opening card: orb, prompts and composer. It grows into the conversation on the first message. */
@@ -152,18 +154,43 @@ function Panel({ onClose }: { onClose: () => void }) {
     }
   }
 
+  // The docked width is the person's to set: drag the left edge (or use the arrow keys on it).
+  const [dockW, setDockW] = useState<number>(() => {
+    try {
+      const saved = Number(localStorage.getItem(DOCK_WIDTH_KEY))
+      return saved === DOCK_WIDE ? DOCK_WIDE : DOCK_WIDTH
+    } catch {
+      return DOCK_WIDTH
+    }
+  })
+  const dockWide = dockW === DOCK_WIDE
+  // Expanding grows the panel to the left; the page narrows to match. Never more than 60% of the window.
+  const dockWidth = dockWide ? Math.min(DOCK_WIDE, Math.floor(window.innerWidth * 0.6)) : DOCK_WIDTH
+  const toggleDockWide = () => {
+    const next = dockWide ? DOCK_WIDTH : DOCK_WIDE
+    setDockW(next)
+    try {
+      localStorage.setItem(DOCK_WIDTH_KEY, String(next))
+    } catch {
+      // Not remembered; it still works for this visit.
+    }
+  }
+
   // Docked, the page makes room instead of being covered.
   useEffect(() => {
     if (!docked) return
     const app = document.querySelector<HTMLElement>(".peerfolio-app")
     if (!app) return
-    app.style.setProperty("--pf-dock-w", `${DOCK_WIDTH}px`)
     app.classList.add("has-dock")
     return () => {
-      app.classList.remove("has-dock")
+      app.classList.remove("has-dock", "dock-live")
       app.style.removeProperty("--pf-dock-w")
     }
   }, [docked])
+  useEffect(() => {
+    if (!docked) return
+    document.querySelector<HTMLElement>(".peerfolio-app")?.style.setProperty("--pf-dock-w", `${dockWidth}px`)
+  }, [docked, dockWidth])
   const [morph, setMorph] = useState(false)
   const [interacting, setInteracting] = useState(false)
   const scroller = useRef<HTMLDivElement>(null)
@@ -362,7 +389,11 @@ function Panel({ onClose }: { onClose: () => void }) {
               {docked ? <AppWindow size={15} /> : <PanelRight size={15} />}
             </button>
           ) : null}
-          {docked ? null : (
+          {docked ? (
+            <button type="button" className="pf-ai-ib" onClick={toggleDockWide} aria-label={dockWide ? "Restore size" : "Expand"} aria-pressed={dockWide} title={dockWide ? "Restore size" : "Expand"}>
+              {dockWide ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+            </button>
+          ) : (
             <button type="button" className="pf-ai-ib" onClick={() => setExpanded(!expanded)} aria-label={expanded ? "Restore size" : "Expand"} title={expanded ? "Restore size" : "Expand"}>
               {expanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
             </button>

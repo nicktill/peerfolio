@@ -71,7 +71,7 @@ export function classifyPosition(type: string | null, sector: string | null): Se
     case "fixed_income":
       return { kind: "bucket", name: CASH_BUCKET }
     case "equity":
-      return sector ? { kind: "sector", name: sector } : { kind: "unclassified", name: "Stocks without sector data" }
+      return sector ? { kind: "sector", name: sector } : { kind: "unclassified", name: "No sector data yet" }
     default:
       return { kind: "unclassified", name: "Other holdings" }
   }
