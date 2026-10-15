@@ -317,10 +317,11 @@ function EmptyState({ onPick }: { onPick: (q: string) => void }) {
       <motion.h3 variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}>What would you like to understand?</motion.h3>
       <motion.p variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}>I can read your holdings and explain what they show.</motion.p>
       <div className="pf-ai-sugs">
-        {items.map((s) => (
+        {items.map((s, i) => (
           <motion.button
             key={s.label}
             type="button"
+            style={{ "--i": i } as React.CSSProperties}
             className={`pf-ai-sug ${s.featured ? "is-featured" : ""}`}
             variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}
             onClick={() => onPick(s.label)}

@@ -187,8 +187,9 @@
   background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.1), rgba(var(--ai-violet), 0.12), transparent);
   transform: translateX(-120%) skewX(-18deg);
 }
-.pf-ai-sug:hover::after { opacity: 1; animation: pf-sweep 0.9s ease-out 1; }
-.pf-ai-sug.is-featured::after { opacity: 1; animation: pf-sweep 3.6s ease-in-out 1.2s infinite; }
+.pf-ai-sug::after { opacity: 1; animation: pf-sweep 4.4s ease-in-out infinite; animation-delay: calc(var(--i, 0) * 0.45s + 1s); }
+.pf-ai-sug.is-featured::after { background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.14), rgba(var(--ai-violet), 0.18), transparent); }
+.pf-ai-sug:hover::after { animation-duration: 1.1s; animation-delay: 0s; }
 
 /* Skeleton of the report, shown while the analysis is actually running. */
 .pf-sk-xr { display: flex; flex-direction: column; gap: 16px; padding: 18px; border-radius: 14px; border: 1px solid var(--hair); background: color-mix(in srgb, var(--panel) 78%, transparent); }
@@ -330,7 +331,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .pf-ai-shimmer, .pf-sk-b, .pf-ai-sug::after, .pf-ai-sug:hover::after, .pf-ai-sug.is-featured::after { animation: none; }
-  .pf-ai-sug.is-featured::after, .pf-ai-sug:hover::after { opacity: 0; }
+  .pf-ai-sug::after, .pf-ai-sug.is-featured::after, .pf-ai-sug:hover::after { opacity: 0; }
   .pf-ai-shimmer { -webkit-text-fill-color: currentColor; color: var(--fg2); background: none; }
   .pf-orb-core, .pf-orb-core::before, .pf-orb-core::after, .pf-orb.is-busy .pf-orb-core, .pf-orb.is-busy .pf-orb-core::before, .pf-orb.is-busy .pf-orb-core::after, .pf-orb.is-writing .pf-orb-core::before, .pf-orb.is-writing .pf-orb-core::after, .pf-orb.is-writing .pf-orb-core, .pf-orb-spin, .pf-orb-glow, .pf-ai-win.is-busy::before, .is-now .pf-ai-pn, .pf-ai-caret, .pf-ai-think span:last-child::after { animation: none; }
   .pf-ai-win.is-morph { transition: none; }
