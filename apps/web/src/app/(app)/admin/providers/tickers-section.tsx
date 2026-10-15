@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { ChevronRight, Layers, Search } from "lucide-react"
-import { Card, CardContent } from "@web/components/ui/card"
+import { CollapsibleCard } from "@web/components/ui/collapsible-card"
 import { EmptyState } from "@web/components/ui/empty-state"
 import { TickerLogo } from "@web/components/ui/ticker-logo"
 import { useApi } from "@web/lib/use-api"
@@ -143,11 +143,15 @@ export function TickersSection() {
   const chip = (active: boolean) => cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 hover:bg-secondary", active && "border-primary bg-primary/5")
 
   return (
-    <Card id="tickers" className="scroll-mt-20">
-      <CardContent className="space-y-4 pt-5">
+    <CollapsibleCard
+      id="tickers"
+      storageKey="providers-tickers"
+      defaultOpen={false}
+      title={<h2 className="flex items-center gap-2 font-display font-semibold"><Layers aria-hidden className="size-4" />Held tickers</h2>}
+      summary={data ? `${tickers.length.toLocaleString("en-US")} tickers` : undefined}
+    >
         <div>
-          <h2 className="flex items-center gap-2 font-display font-semibold"><Layers aria-hidden className="size-4" />Held tickers</h2>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             Every ticker someone holds, and whether its price is where it should be right now.
             {data ? ` ${data.marketOpen ? `Market open, live quotes every ${Math.round(data.refreshSeconds / 60)} min.` : "Market closed."}` : ""}
           </p>
@@ -204,7 +208,6 @@ export function TickersSection() {
             )}
           </>
         ) : null}
-      </CardContent>
-    </Card>
+    </CollapsibleCard>
   )
 }
