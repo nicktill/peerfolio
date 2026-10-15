@@ -7,6 +7,7 @@ import { SectionLabel } from "@web/components/ui/section-card"
 import { EmptyState } from "@web/components/ui/empty-state"
 import { Segmented } from "@web/components/ui/segmented"
 import { TickerLogo } from "@web/components/ui/ticker-logo"
+import { cashLabel, isCashTicker } from "@web/lib/cash-ticker"
 import { colorForIndex, type AllocationSlice } from "@web/components/charts/allocation-bar"
 import { formatCurrency, formatPercent } from "@web/lib/format"
 import { cn } from "@web/lib/utils"
@@ -178,9 +179,9 @@ export function HoldingsTable({
               <div className="flex min-w-0 items-center gap-3">
                 <TickerLogo symbol={h.ticker ?? "?"} kind={h.type === "cryptocurrency" ? "crypto" : "stock"} size="sm" />
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{h.ticker ?? h.name ?? "Position"}</p>
+                  <p className="truncate text-sm font-medium">{isCashTicker(h.ticker) ? cashLabel(h.ticker).title : h.ticker ?? h.name ?? "Position"}</p>
                   <p className="truncate text-xs text-muted-foreground">
-                    {h.name ?? ""}
+                    {isCashTicker(h.ticker) ? cashLabel(h.ticker).subtitle : h.name ?? ""}
                     {h.positions > 1 ? ` · ${h.positions} accounts` : ""}
                   </p>
                 </div>

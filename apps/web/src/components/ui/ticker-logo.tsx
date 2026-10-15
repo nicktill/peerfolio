@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { cn } from "@web/lib/utils"
+import { isCashTicker } from "@web/lib/cash-ticker"
 
 const SIZES = { xs: "size-[18px] text-[6px]", sm: "size-8 text-[10px]", md: "size-10 text-[11px]", lg: "size-12 text-xs" }
 
@@ -31,6 +32,17 @@ export function TickerLogo({ symbol, kind = "stock", size = "md", className }: {
     }
   }, [symbol])
   const s = symbol.toUpperCase()
+  if (isCashTicker(s)) {
+    return (
+      <span className={cn("grid shrink-0 place-items-center rounded-full bg-gain/15 text-gain-ink", SIZES[size], className)} aria-hidden>
+        <svg viewBox="0 0 24 24" className="size-[70%]" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <circle cx="12" cy="12" r="9.5" />
+          <circle cx="12" cy="12" r="6.75" strokeWidth="1" opacity="0.55" />
+          <path d="M14.4 9.6c-.4-.9-1.3-1.4-2.4-1.4-1.3 0-2.2.7-2.2 1.7 0 2.3 4.6 1.1 4.6 3.5 0 1-1 1.8-2.4 1.8-1.2 0-2.2-.6-2.6-1.6M12 7v1.2m0 7.6V17" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </span>
+    )
+  }
   const showImage = kind === "stock" && !failed
 
   return (
