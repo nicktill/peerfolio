@@ -4,6 +4,9 @@ import { board, earnings, fearGreed, movers, quotesFor } from "@web/lib/news-mar
 import { earningsWeekDates } from "@web/lib/news-market"
 import { loadPositions } from "@web/lib/ai/portfolio-data"
 import { parseArgs } from "@web/lib/ai/tool-args"
+import type { Visual } from "@web/lib/ai/visuals"
+
+type Show = (visual: Visual) => void
 
 /** A market tool never holds the answer up past this: a slow provider becomes a plain "unavailable", not a hung reply. */
 const withTimeout = <T,>(work: Promise<T>, ms = 8_000): Promise<T | { reason: string }> =>
@@ -21,10 +24,11 @@ export function parseSymbols(args: Record<string, unknown>): string[] {
   return [...new Set(clean.filter((s) => /^[A-Z][A-Z0-9]{0,5}(\.[A-Z0-9]{1,2})?$/.test(s)))].slice(0, MAX_SYMBOLS)
 }
 
-export const runMarketSnapshot = () => withTimeout(marketSnapshot())
-async function marketSnapshot(): Promise<unknown> {
+export const runMarketSnapshot = (show: Show) => withTimeout(marketSnapshot(show))
+async function marketSnapshot(show: Show): Promise<unknown> {
   const [b, fg] = await Promise.all([board(), fearGreed(nyDate(new Date()))])
   if (!b) return { reason: "Market quotes aren't available right now." }
+  show({ kind: "market", session: b.session, indexes: b.indexes.map((i) => ({ name: i.name, dayPercent: i.day.percent })), sectors: b.sectors.map(([name, day]) => ({ name, dayPercent: day })) })
   return {
     session: b.session,
     asOf: b.asOf,
@@ -51,8 +55,8 @@ async function getQuotes(rawArgs: string): Promise<unknown> {
 
 const heldTickers = async (userId: string) => new Set((await loadPositions(userId)).filter((p) => p.value > 0 && p.ticker).map((p) => p.ticker!.toUpperCase()))
 
-export const runTopMovers = (rawArgs: string, userId: string) => withTimeout(topMovers(rawArgs, userId)).catch(() => ({ reason: "Market-wide movers aren't available right now." }))
-async function topMovers(rawArgs: string, userId: string): Promise<unknown> {
+export const runTopMovers = (rawArgs: string, userId: string, show: Show) => withTimeout(topMovers(rawArgs, userId, show)).catch(() => ({ reason: "Market-wide movers aren't available right now." }))
+async function topMovers(rawArgs: string, userId: string, show: Show): Promise<unknown> {
   const args = parseArgs(rawArgs)
   const direction = args.direction === "gainers" || args.direction === "losers" ? args.direction : "both"
   const limit = typeof args.limit === "number" && Number.isFinite(args.limit) ? Math.min(10, Math.max(1, Math.trunc(args.limit))) : 5
@@ -60,6 +64,10 @@ async function topMovers(rawArgs: string, userId: string): Promise<unknown> {
   if (!result) return { reason: "Market-wide movers aren't available right now." }
   const row = (m: { symbol: string; price: number; changePercent: number }) => ({ symbol: m.symbol, price: m.price, changePercent: m.changePercent, youHoldThis: held.has(m.symbol) })
   const all = result.movers
+  const gain = all.filter((m) => m.changePercent > 0).slice(0, limit)
+  const lose = all.filter((m) => m.changePercent < 0).slice(-limit).reverse()
+  const mini = (m: { symbol: string; changePercent: number }) => ({ symbol: m.symbol, changePercent: m.changePercent, held: held.has(m.symbol) })
+  show({ kind: "movers", gainers: direction === "losers" ? [] : gain.slice(0, 5).map(mini), losers: direction === "gainers" ? [] : lose.slice(0, 5).map(mini) })
   return {
     universe: `${all.length} of the largest, most-traded US stocks (a Peerfolio list, not an official index). Not the whole market.`,
     asOf: result.asOf,
@@ -69,8 +77,8 @@ async function topMovers(rawArgs: string, userId: string): Promise<unknown> {
   }
 }
 
-export const runEarnings = (rawArgs: string, userId: string) => withTimeout(earningsCalendar(rawArgs, userId))
-async function earningsCalendar(rawArgs: string, userId: string): Promise<unknown> {
+export const runEarnings = (rawArgs: string, userId: string, show: Show) => withTimeout(earningsCalendar(rawArgs, userId, show))
+async function earningsCalendar(rawArgs: string, userId: string, show: Show): Promise<unknown> {
   const args = parseArgs(rawArgs)
   const scope = args.scope === "today" || args.scope === "my_holdings_week" ? args.scope : "week"
   const now = new Date()
@@ -85,6 +93,7 @@ async function earningsCalendar(rawArgs: string, userId: string): Promise<unknow
       return { date: d.iso, day: d.dow, reports: reports.map(shape) }
     })
     .filter((d) => d.reports.length > 0)
+  if (days.length > 0) show({ kind: "earnings", days: days.slice(0, 5).map((d) => ({ day: d.day, reports: d.reports.slice(0, 6).map((r) => ({ symbol: r.symbol, when: r.when, held: r.youHoldThis })) })) })
   return {
     week: data.label,
     asOf: data.asOf,

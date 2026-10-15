@@ -98,7 +98,7 @@ export function PortfolioScreen({
   const [replayDate, setReplayDate] = useState<string | null>(null)
   const [range, setRange] = useState<Range>("1M")
   // "1D" is the day's move, which the stored snapshots (one a day) can't draw as a window of their own.
-  const [oneDay, setOneDay] = useState(false)
+  const [oneDay, setOneDay] = useState(true)
   // Until someone picks a range themselves, show the longest one their history can fill.
   const pickedRange = useRef(false)
   const [hidden, setHidden] = useState(false)
@@ -224,7 +224,19 @@ export function PortfolioScreen({
   const shownReturn = shown ? (dayView ? (hoverIndex === 0 ? 0 : (data.today?.percent ?? null)) : hoverIndex == null ? data.performance.percent : returnOn.get(shown.date)) : undefined
   const replayAt = replayDate == null ? -1 : series.findIndex((p) => p.date === replayDate)
   const replayIndex = replayAt >= 0 ? replayAt : null
-  const windowLabel = dayView ? "today" : windowCoversAll && data.firstDate ? `since ${formatDate(data.firstDate)}` : `last ${RANGE_NAMES[range]}`
+  const windowLabel = windowCoversAll && data.firstDate ? `since ${formatDate(data.firstDate)}` : `last ${RANGE_NAMES[range]}`
+
+  // The change tile follows the selected range: today's move on 1D, otherwise the market gain over the window
+  // (the return, deposits removed, applied to what the window started with), so a deposit never reads as a gain.
+  const windowStart = data.history[0]?.investableAssets
+  const windowChange =
+    data.hasHistory && windowStart != null && windowStart > 0
+      ? {
+          label: range === "ALL" || windowCoversAll ? "Since tracking began" : `Past ${RANGE_NAMES[range]}`,
+          amount: (windowStart * data.performance.percent) / 100,
+          percent: data.performance.percent,
+        }
+      : null
 
   const netWorthWhole = Math.floor(data.summary.netWorth)
   const cents = Math.round((data.summary.netWorth - netWorthWhole) * 100)
@@ -330,33 +342,57 @@ export function PortfolioScreen({
 
             {/* Today, how the investments did, and since purchase: side by side, not behind a toggle. */}
             <dl className="pf-stats">
-              <Stat label={todayLabel === "today" ? "Today" : `Last session (${todayLabel.replace(/^on /, "")})`}>
-                {data.today ? (
-                  <>
-                    <span className={cn("numeric pf-stat-v", data.today.amount >= 0 ? "text-gain-ink" : "text-loss-ink")}>
-                      {hidden ? formatPercent(data.today.percent) : signedUsd(data.today.amount)}
-                    </span>
-                    {hidden ? null : <span className={cn("numeric text-xs", data.today.amount >= 0 ? "text-gain-ink" : "text-loss-ink")}>{formatPercent(data.today.percent)}</span>}
-                    {data.today.coverage != null && data.today.coverage < 0.95 ? (
-                      <span className="text-xs text-muted-foreground">on {Math.round(data.today.coverage * 100)}% of holdings</span>
-                    ) : null}
-                  </>
+              <Stat label={dayView || !windowChange ? (todayLabel === "today" ? "Today" : `Last session (${todayLabel.replace(/^on /, "")})`) : windowChange.label}>
+                {dayView || !windowChange ? (
+                  data.today ? (
+                    <>
+                      <span className={cn("numeric pf-stat-v", data.today.amount >= 0 ? "text-gain-ink" : "text-loss-ink")}>
+                        {hidden ? formatPercent(data.today.percent) : signedUsd(data.today.amount)}
+                      </span>
+                      {hidden ? null : <span className={cn("numeric text-xs", data.today.amount >= 0 ? "text-gain-ink" : "text-loss-ink")}>{formatPercent(data.today.percent)}</span>}
+                      {data.today.coverage != null && data.today.coverage < 0.95 ? (
+                        <span className="text-xs text-muted-foreground">on {Math.round(data.today.coverage * 100)}% of holdings</span>
+                      ) : null}
+                    </>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">No change yet</span>
+                  )
                 ) : (
-                  <span className="text-sm text-muted-foreground">No change yet</span>
+                  <>
+                    <span className={cn("numeric pf-stat-v", windowChange.amount >= 0 ? "text-gain-ink" : "text-loss-ink")}>
+                      {hidden ? formatPercent(windowChange.percent) : signedUsd(windowChange.amount)}
+                    </span>
+                    {hidden ? null : <span className={cn("numeric text-xs", windowChange.amount >= 0 ? "text-gain-ink" : "text-loss-ink")}>{formatPercent(windowChange.percent)}</span>}
+                  </>
                 )}
               </Stat>
-              <Stat label="Return">
-                {data.hasHistory ? (
-                  <>
-                    <span className={cn("numeric pf-stat-v", data.performance.percent >= 0 ? "text-gain-ink" : "text-loss-ink")}>
-                      {formatPercent(data.performance.percent)}
-                    </span>
-                    <span className="text-xs text-muted-foreground">{windowLabel}{windowCoversAll ? ` · ${plural(data.performance.days, "day")} tracked` : ""}</span>
-                  </>
-                ) : (
-                  <span className="text-sm text-muted-foreground">Starts after your first day</span>
-                )}
-              </Stat>
+              {dayView || !windowChange ? (
+                <Stat label="Return">
+                  {data.hasHistory ? (
+                    <>
+                      <span className={cn("numeric pf-stat-v", data.performance.percent >= 0 ? "text-gain-ink" : "text-loss-ink")}>
+                        {formatPercent(data.performance.percent)}
+                      </span>
+                      <span className="text-xs text-muted-foreground">{windowLabel}{windowCoversAll ? ` · ${plural(data.performance.days, "day")} tracked` : ""}</span>
+                    </>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">Starts after your first day</span>
+                  )}
+                </Stat>
+              ) : (
+                <Stat label={todayLabel === "today" ? "Today" : `Last session (${todayLabel.replace(/^on /, "")})`}>
+                  {data.today ? (
+                    <>
+                      <span className={cn("numeric pf-stat-v", data.today.amount >= 0 ? "text-gain-ink" : "text-loss-ink")}>
+                        {hidden ? formatPercent(data.today.percent) : signedUsd(data.today.amount)}
+                      </span>
+                      {hidden ? null : <span className={cn("numeric text-xs", data.today.amount >= 0 ? "text-gain-ink" : "text-loss-ink")}>{formatPercent(data.today.percent)}</span>}
+                    </>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">No change yet</span>
+                  )}
+                </Stat>
+              )}
               <Stat label="Since purchase" title={data.allTime ? `Across the ${Math.round(data.allTime.coverage * 100)}% of your holdings that have an average cost` : undefined}>
                 {data.allTime ? (
                   <>
@@ -391,7 +427,9 @@ export function PortfolioScreen({
                   <span className="min-w-0 truncate text-xs text-muted-foreground">
                     {hoverIndex != null
                       ? formatDate(shown.date)
-                      : `${windowLabel}${windowCoversAll ? ` · ${plural(data.performance.days, "day")} tracked` : ""}`}
+                      : dayView
+                        ? "today"
+                        : `${windowLabel}${windowCoversAll ? ` · ${plural(data.performance.days, "day")} tracked` : ""}`}
                   </span>
                 </div>
                 {/* Keyed so a range switch fades the new line in instead of morphing between unrelated shapes. */}

@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react"
 import Link from "next/link"
 import { AnimatePresence, MotionConfig, animate, motion, useDragControls, useMotionValue } from "motion/react"
-import { AppWindow, ArrowUp, ArrowUpRight, Check, FileText, Maximize2, MessageSquare, Minimize2, Minus, PanelRight, RotateCcw, Square, SquarePen, X } from "lucide-react"
+import { AppWindow, ArrowUp, ChevronLeft, ArrowUpRight, Check, FileText, Maximize2, MessageSquare, Minimize2, Minus, PanelRight, RotateCcw, Square, SquarePen, X } from "lucide-react"
 import { Orb } from "@web/components/assistant/orb"
 import { PAGE_LABEL, copyFor, useAssistant, type Msg, type Phase } from "@web/components/assistant/use-assistant"
 import { XRayReport } from "@web/components/assistant/xray-report"
+import { VisualCard } from "@web/components/assistant/visuals"
 import { formatCurrency } from "@web/lib/format"
 import type { XRay } from "@web/lib/ai/portfolio-xray"
 import { isWealthHref } from "@web/lib/wealth/link"
@@ -15,6 +16,7 @@ import "@web/components/assistant/assistant.css"
 
 const GEO_KEY = "pf-assistant-geo-v1"
 const DOCK_KEY = "pf-assistant-dock-v1"
+const TUCK_KEY = "pf-assistant-tucked-v1"
 /** Docking squeezes the page, so it needs room: below this width the window floats instead. */
 const DOCK_MIN_VIEWPORT = 1100
 const DOCK_WIDTH = 400
@@ -124,22 +126,54 @@ function Launcher({ onOpen }: { onOpen: () => void }) {
     }
   }, [])
   const asTab = tab && wide
+
+  // On a phone the pill can be swiped off to the right edge, where it rests as a slim nub; swipe it back or tap it.
+  const narrow = useNarrow()
+  const [tucked, setTucked] = useState(false)
+  useEffect(() => {
+    try {
+      setTucked(localStorage.getItem(TUCK_KEY) === "1")
+    } catch {
+      // Not remembered.
+    }
+  }, [])
+  const tuck = (next: boolean) => {
+    setTucked(next)
+    try {
+      localStorage.setItem(TUCK_KEY, next ? "1" : "0")
+    } catch {
+      // Not remembered; it still works for this visit.
+    }
+  }
+  const nub = narrow && tucked
   return (
     <motion.button
       type="button"
-      className={`pf-ai-launch ${asTab ? "is-tab" : ""}`}
-      onClick={onOpen}
+      className={`pf-ai-launch ${asTab ? "is-tab" : ""} ${nub ? "is-nub" : ""}`}
+      onClick={() => {
+        if (nub) tuck(false)
+        onOpen()
+      }}
+      drag={narrow ? "x" : false}
+      dragConstraints={{ left: 0, right: 0 }}
+      dragElastic={nub ? { left: 0.6, right: 0 } : { left: 0, right: 0.6 }}
+      dragSnapToOrigin
+      onDragEnd={(_, info) => {
+        if (!nub && (info.offset.x > 48 || info.velocity.x > 420)) tuck(true)
+        else if (nub && (info.offset.x < -24 || info.velocity.x < -300)) tuck(false)
+      }}
       initial={asTab ? { opacity: 0, x: 24 } : { opacity: 0, y: 12, scale: 0.94 }}
       animate={asTab ? { opacity: 1, x: 0 } : { opacity: 1, y: 0, scale: 1 }}
       exit={asTab ? { opacity: 0, x: 24 } : { opacity: 0, y: 8, scale: 0.96 }}
       transition={{ type: "spring", stiffness: 420, damping: 34 }}
       whileTap={{ scale: 0.97 }}
-      aria-label="Open Peerfolio Intelligence"
+      aria-label={nub ? "Open Peerfolio Intelligence (tucked away)" : "Open Peerfolio Intelligence. Swipe right to tuck it away."}
       aria-keyshortcuts="Control+Slash Meta+Slash"
     >
-      <Orb size={20} phase={phase} />
-      <span className="pf-ai-launch-t">{busy ? "Working…" : "Ask Peerfolio"}</span>
-      {hint && !asTab ? <kbd className="pf-ai-kbd">{hint}</kbd> : null}
+      {nub ? <ChevronLeft size={14} aria-hidden /> : null}
+      <Orb size={nub ? 16 : 20} phase={phase} />
+      {nub ? null : <span className="pf-ai-launch-t">{busy ? "Working…" : "Ask Peerfolio"}</span>}
+      {hint && !asTab && !nub ? <kbd className="pf-ai-kbd">{hint}</kbd> : null}
     </motion.button>
   )
 }
@@ -467,7 +501,7 @@ function Panel({ onClose }: { onClose: () => void }) {
         ) : (
           <div className="pf-ai-thread">
             {messages.map((m, i) => (
-              <Message key={m.id} m={m} last={i === messages.length - 1} phase={phase} activity={activity} busy={busy} onAsk={ask} onRetry={retry} repeatReport={!!m.xray && messages.slice(0, i).some((x) => !!x.xray)} />
+              <Message key={m.id} m={m} last={i === messages.length - 1} phase={phase} activity={activity} busy={busy} onAsk={ask} onRetry={retry} repeatReport={!!m.xray && messages.slice(0, i).some((x) => !!x.xray)} earlierKinds={new Set(messages.slice(0, i).flatMap((x) => (x.visuals ?? []).map((v) => v.kind)))} />
             ))}
           </div>
         )}
@@ -644,7 +678,7 @@ function CollapsedReport({ xray, onAsk, onSave }: { xray: XRay; onAsk: (q: strin
   )
 }
 
-function Message({ m, last, phase, activity, busy, onAsk, onRetry, repeatReport = false }: { m: Msg; last: boolean; phase: Phase; activity: string | null; busy: boolean; onAsk: (q: string) => void; onRetry: () => void; repeatReport?: boolean }) {
+function Message({ m, last, phase, activity, busy, onAsk, onRetry, repeatReport = false, earlierKinds }: { m: Msg; last: boolean; phase: Phase; activity: string | null; busy: boolean; onAsk: (q: string) => void; onRetry: () => void; repeatReport?: boolean; earlierKinds?: Set<string> }) {
   const { saveReport } = useAssistant()
   if (m.role === "user") {
     return (
@@ -671,6 +705,9 @@ function Message({ m, last, phase, activity, busy, onAsk, onRetry, repeatReport 
           {working && phase === "writing" ? <span className="pf-ai-caret" aria-hidden /> : null}
         </p>
       ) : null}
+      {m.visuals?.map((v) => (
+        <VisualCard key={v.kind} v={v} repeat={earlierKinds?.has(v.kind)} />
+      ))}
       {m.link && isWealthHref(m.link.href) && !(working && phase === "writing") ? (
         <Link href={m.link.href} className="pf-ai-link">
           {m.link.label} <ArrowUpRight size={12} aria-hidden />

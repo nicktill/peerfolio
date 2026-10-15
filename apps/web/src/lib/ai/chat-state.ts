@@ -1,4 +1,5 @@
 import type { XRay } from "./portfolio-xray.ts"
+import { isVisual, withVisual, type Visual } from "./visuals.ts"
 import { isWealthHref } from "../wealth/link.ts"
 
 /** The pure parts of the assistant's conversation state, kept apart from React so they can be tested. */
@@ -8,6 +9,8 @@ export type Msg = {
   role: "user" | "assistant"
   text: string
   xray?: XRay
+  /** Compact charts and lists from tools, drawn by the app. */
+  visuals?: Visual[]
   /** A same-origin button the assistant offers, e.g. "Open in Wealth Lab". */
   link?: { label: string; href: string }
   error?: string
@@ -17,6 +20,7 @@ export type ChatEvent =
   | { type: "status"; stage: "reading" | "analyzing" | "writing"; label?: string }
   | { type: "text"; delta: string }
   | { type: "xray"; data: XRay }
+  | { type: "visual"; data: Visual }
   | { type: "link"; label: string; href: string }
   | { type: "error"; message: string }
   | { type: "done" }
@@ -25,6 +29,7 @@ export type ChatEvent =
 export function applyEvent(m: Msg, event: ChatEvent): Msg {
   if (event.type === "text") return { ...m, text: m.text + event.delta }
   if (event.type === "xray") return { ...m, xray: event.data }
+  if (event.type === "visual") return isVisual(event.data) ? { ...m, visuals: withVisual(m.visuals, event.data) } : m
   // Only same-origin Wealth Lab links are ever rendered, whatever the server sent.
   if (event.type === "link") return isWealthHref(event.href) && typeof event.label === "string" ? { ...m, link: { label: event.label.slice(0, 60), href: event.href } } : m
   if (event.type === "error") return { ...m, error: event.message }

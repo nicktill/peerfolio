@@ -13,6 +13,7 @@ import { benchmarkCloses } from "@web/lib/benchmark-data"
 import { MAX_LEAGUE_OVERVIEW, parseArgs, parseBenchmark, parseLimit, parseRange, planLeagueLookup, readAfterMembership, requestedLeagueId } from "@web/lib/ai/tool-args"
 import { loadPositions, loadXRay, trackedWindow } from "@web/lib/ai/portfolio-data"
 import type { XRay } from "@web/lib/ai/portfolio-xray"
+import type { Visual } from "@web/lib/ai/visuals"
 import { runProjectWealth } from "@web/lib/ai/tools-wealth"
 import { runEarnings, runGetQuotes, runMarketSnapshot, runTopMovers } from "@web/lib/ai/tools-market"
 
@@ -29,7 +30,7 @@ export type ToolContext = {
   /** The fantasy league open on the page; same rule as `pageLeagueId`. */
   pageFantasyId?: string
   /** Called when a tool produces something the interface should render itself. */
-  emit: (event: { type: "xray"; data: XRay } | { type: "link"; label: string; href: string }) => void
+  emit: (event: { type: "xray"; data: XRay } | { type: "visual"; data: Visual } | { type: "link"; label: string; href: string }) => void
 }
 
 export { TOOL_DEFS, type ToolDef } from "@web/lib/ai/tool-defs"
@@ -157,6 +158,7 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
       const result = compareToBenchmark(window.series, await benchmarkCloses(symbol, window.series[0]!.date))
       if (!result.ok) return { reason: result.reason === "starts-late" ? "Benchmark prices don't reach back to the first tracked day." : "Benchmark prices aren't available right now." }
       const c = result.value
+      ctx.emit({ type: "visual", data: { kind: "benchmark", label: BENCHMARKS.find((b) => b.symbol === symbol)!.label, range, you: round(c.portfolioPercent) ?? 0, benchmark: round(c.benchmarkPercent) ?? 0 } })
       return {
         benchmark: BENCHMARKS.find((b) => b.symbol === symbol)!.label,
         basis: "price return (dividends not included)",
@@ -183,11 +185,11 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
       }
     }
     case "get_market_snapshot":
-      return runMarketSnapshot()
+      return runMarketSnapshot((v) => ctx.emit({ type: "visual", data: v }))
     case "get_top_movers":
-      return runTopMovers(rawArgs, ctx.userId)
+      return runTopMovers(rawArgs, ctx.userId, (v) => ctx.emit({ type: "visual", data: v }))
     case "get_earnings_calendar":
-      return runEarnings(rawArgs, ctx.userId)
+      return runEarnings(rawArgs, ctx.userId, (v) => ctx.emit({ type: "visual", data: v }))
     case "get_quotes":
       return runGetQuotes(rawArgs)
     case "project_wealth":
