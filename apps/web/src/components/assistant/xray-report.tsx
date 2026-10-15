@@ -28,6 +28,22 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
+const RANGE_DAYS: Record<string, number> = { "1W": 7, "1M": 30, "3M": 90, "6M": 180, "1Y": 365 }
+const RANGE_NAME: Record<string, string> = { "1W": "week", "1M": "month", "3M": "3 months", "6M": "6 months", "1Y": "year" }
+
+/** The window is named for what it actually covers: a portfolio tracked for 16 days has no "past 3 months". */
+function periodShort(period: { range: string; days: number }) {
+  const full = RANGE_DAYS[period.range]
+  return full != null && period.days < full * 0.85
+}
+function periodLabel(period: { range: string; days: number } | null) {
+  if (!period) return "Period"
+  return periodShort(period) ? "Since tracking began" : `Past ${RANGE_NAME[period.range] ?? period.range}`
+}
+function periodNote(period: { range: string; days: number }) {
+  return periodShort(period) ? `${period.days} tracked days` : undefined
+}
+
 function Move({ label, amount, percent, note }: { label: string; amount?: number; percent: number | null; note?: string }) {
   const basis = percent ?? amount ?? 0
   return (
@@ -133,7 +149,7 @@ export function XRayReport({ xray, onAsk, onSave }: { xray: XRay; onAsk: (questi
       <Section title="Performance">
         <div className="pf-xr-stats">
           <Move label="Today" percent={p.today?.percent ?? null} amount={p.today?.amount} note="Not enough price history" />
-          <Move label={p.period ? `Past ${p.period.range === "1M" ? "month" : p.period.range === "3M" ? "3 months" : p.period.range}` : "Period"} percent={p.period?.percent ?? null} note="Needs more tracked history" />
+          <Move label={periodLabel(p.period)} percent={p.period?.percent ?? null} note={p.period ? periodNote(p.period) : "Needs more tracked history"} />
           <Move label="Since purchase" percent={p.allTime?.percent ?? null} amount={p.allTime?.amount} note="No cost basis" />
         </div>
         {p.risk && (p.risk.volatility != null || p.risk.maxDrawdown != null) ? (

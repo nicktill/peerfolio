@@ -163,6 +163,7 @@
   box-shadow: -18px 0 50px -24px rgb(0 0 0 / 0.4), inset 1px 0 0 rgb(255 255 255 / 0.06);
 }
 .pf-ai-win.is-docked .pf-ai-head { cursor: default; }
+.pf-ai-win.is-docked { transition: width 0.35s cubic-bezier(0.22, 1, 0.36, 1); }
 .is-docked .pf-ai-thread { padding-left: 16px; padding-right: 16px; }
 /* The report was laid out for a wide window; in a 400px column it stacks like it does on a phone. */
 .is-docked .pf-xr-stats { grid-template-columns: 1fr; }
