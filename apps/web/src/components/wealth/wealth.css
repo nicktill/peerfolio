@@ -1,0 +1,39 @@
+/* Wealth Lab: slider + control styling on top of the 5C tokens. */
+.wl-range { -webkit-appearance: none; appearance: none; width: 100%; height: 20px; background: transparent; cursor: pointer; margin: 0; --p: 0%; border-radius: 4px; }
+.wl-range::-webkit-slider-runnable-track { height: 3px; border-radius: 2px; background: linear-gradient(to right, var(--pf-accent) var(--p), var(--hair) var(--p)); }
+.wl-range::-moz-range-track { height: 3px; border-radius: 2px; background: var(--hair); }
+.wl-range::-moz-range-progress { height: 3px; border-radius: 2px; background: var(--pf-accent); }
+.wl-range::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -6.5px; border-radius: 50%; background: var(--panel); border: 2px solid var(--pf-accent); transition: transform 0.15s; }
+.wl-range::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--panel); border: 2px solid var(--pf-accent); }
+.wl-range:hover::-webkit-slider-thumb, .wl-range:active::-webkit-slider-thumb { transform: scale(1.15); }
+.wl-range:focus-visible { outline: none; box-shadow: var(--pf-ring); }
+
+.wl-input { display: flex; align-items: center; gap: 4px; height: 34px; padding: 0 10px; border: 1px solid var(--hair); border-radius: var(--r-s); background: var(--bg); color: var(--fg); transition: border-color 0.15s; }
+.wl-input:hover { border-color: var(--line); }
+.wl-input:focus-within { border-color: var(--pf-accent); box-shadow: var(--pf-ring); }
+.wl-input input { min-width: 0; width: 100%; background: transparent; border: 0; outline: none !important; box-shadow: none !important; color: var(--fg); font: 400 16px/20px var(--mono); font-variant-numeric: tabular-nums; text-align: right; }
+.wl-input span { font: 400 12px/16px var(--mono); color: var(--fg3); flex: none; }
+
+.wl-chip { height: 28px; padding: 0 10px; border: 1px solid var(--hair); border-radius: 6px; background: transparent; color: var(--fg2); font: 500 11px/16px var(--mono); letter-spacing: 0.04em; cursor: pointer; transition: color 0.15s, border-color 0.15s, background 0.15s; }
+.wl-chip:hover { color: var(--fg); border-color: var(--line); }
+.wl-chip[aria-pressed="true"] { color: var(--fg); background: var(--raise); border-color: var(--line); box-shadow: inset 0 -2px 0 var(--pf-accent); }
+.wl-chip:focus-visible { outline: none; box-shadow: var(--pf-ring); }
+@media (max-width: 860px) { .wl-chip { height: 34px; } }
+
+.wl-tag { display: inline-flex; align-items: center; height: 16px; padding: 0 5px; border: 1px solid var(--pf-accent); border-radius: 4px; color: var(--pf-accent); font: 500 9.5px/12px var(--mono); letter-spacing: 0.1em; text-transform: uppercase; }
+.wl-q { padding: var(--ins); border-top: 1px solid var(--hair); min-width: 0; }
+.wl-q:first-child { border-top: 0; }
+@media (min-width: 1100px) { .wl-qgrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); } .wl-q { border-top: 0; border-left: 1px solid var(--hair); } .wl-q:first-child { border-left: 0; } }
+.wl-panel { container-type: inline-size; }
+.wl-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; background: var(--hair); }
+.wl-stats .pf-stat { background: var(--panel); border: 0; }
+.wl-stats .pf-stat:last-child { grid-column: span 2; }
+@container (min-width: 520px) {
+  .wl-stats { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .wl-stats .pf-stat { grid-column: span 2 !important; }
+  .wl-stats .pf-stat:nth-child(n+4) { grid-column: span 3 !important; }
+}
+@container (min-width: 900px) {
+  .wl-stats { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .wl-stats .pf-stat, .wl-stats .pf-stat:nth-child(n+4) { grid-column: span 1 !important; }
+}
