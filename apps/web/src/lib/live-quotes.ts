@@ -1,10 +1,11 @@
 import { withProviderCaller } from "@web/lib/provider-fetch"
 import { after } from "next/server"
-import { and, eq, inArray } from "drizzle-orm"
+import { and, eq, inArray, isNull, or } from "drizzle-orm"
 import { db, securities } from "@web/db"
 import { isNewerClose } from "@web/lib/market-data"
 import { previousCloseOnUpdate } from "@web/lib/price-write"
 import { revalueSecurities } from "@web/lib/positions"
+import { isFundTicker, isProviderChecked } from "@web/lib/fund-ticker"
 import { acceptQuote, createQuoteProvider, isUsMarketOpen, quoteDate } from "@web/lib/quote-provider"
 import { claimBudget, claimLiveQuotesSql, recentClaimsSql, releaseClaimsSql } from "@web/lib/stale-prices"
 
@@ -63,8 +64,24 @@ async function refreshLivePricesRun({
   const limit = claimBudget({ recent: Number(recent?.n ?? 0), perMinute: callsPerMinute, maxPerRun: maxSymbols })
   if (limit <= 0) return { skipped: "budget" as const }
 
-  const claimed = [...(await db.execute<{ id: string; market_ticker: string; close_price_as_of: string | null }>(claimLiveQuotesSql(maxAgeSeconds, limit)))]
-  if (claimed.length === 0) return { provider: provider.name, claimed: 0, refreshed: 0 }
+  const all = [...(await db.execute<{ id: string; market_ticker: string; close_price_as_of: string | null }>(claimLiveQuotesSql(maxAgeSeconds, limit)))]
+  if (all.length === 0) return { provider: provider.name, claimed: 0, refreshed: 0 }
+
+  // A fund-shaped ticker is never asked of Alpaca or Finnhub (Tiingo prices it nightly): type it
+  // as a fund and park it for a day before any provider call.
+  const stored = await db.select({ id: securities.id, type: securities.type, name: securities.name, checked: securities.metadataCheckedAt }).from(securities).where(inArray(securities.id, all.map((r) => r.id)))
+  const info = new Map(stored.map((r) => [r.id, r]))
+  const isFund = (r: { id: string; market_ticker: string }) => {
+    const i = info.get(r.id)
+    return isFundTicker({ marketTicker: r.market_ticker, type: i?.type, providerChecked: isProviderChecked({ metadataCheckedAt: i?.checked, name: i?.name }) })
+  }
+  const fundIds = all.filter(isFund).map((r) => r.id)
+  if (fundIds.length > 0) {
+    await db.update(securities).set({ type: "mutual_fund" }).where(and(inArray(securities.id, fundIds), or(isNull(securities.type), eq(securities.type, "equity"))))
+    await db.execute(releaseClaimsSql(fundIds, RETRY_AFTER_UNSUPPORTED_SECONDS, maxAgeSeconds))
+  }
+  const claimed = all.filter((r) => !fundIds.includes(r.id))
+  if (claimed.length === 0) return { provider: provider.name, claimed: all.length, funds: fundIds.length, refreshed: 0 }
 
   const result = await provider.getQuotes(claimed.map((r) => r.market_ticker))
 
@@ -99,13 +116,13 @@ async function refreshLivePricesRun({
     // A retry longer than the period puts updated_at in the future, so it isn't due until then.
     // Five letters ending in X is a mutual fund: nothing here prices it intraday, but typed as one
     // it joins the nightly Tiingo run instead of being asked of Finnhub (and refused) every cycle.
-    const funds = claimed.filter((r) => unsupported.has(r.id) && /^[A-Z]{4}X$/.test(r.market_ticker)).map((r) => r.id)
+    const funds = claimed.filter((r) => unsupported.has(r.id) && isFundTicker({ marketTicker: r.market_ticker })).map((r) => r.id)
     if (funds.length > 0) await db.update(securities).set({ type: "mutual_fund" }).where(and(inArray(securities.id, funds), eq(securities.type, "equity")))
     if (unsupported.size > 0) await db.execute(releaseClaimsSql([...unsupported].filter((id) => missed.includes(id)), RETRY_AFTER_UNSUPPORTED_SECONDS, maxAgeSeconds))
   }
 
   if (result.rateLimited) console.warn(`[quotes] ${provider.name} rate limited us after ${result.quotes.size}/${claimed.length}`)
-  return { provider: provider.name, sources: result.sources, claimed: claimed.length, refreshed: updated.length, rejected, rejectedExample, rateLimited: result.rateLimited, failed: result.failed }
+  return { provider: provider.name, sources: result.sources, claimed: all.length, funds: fundIds.length, refreshed: updated.length, rejected, rejectedExample, rateLimited: result.rateLimited, failed: result.failed }
 }
 
 export function refreshLivePrices(options: Parameters<typeof refreshLivePricesRun>[0] = {}) {

@@ -26,7 +26,7 @@ if (!['localhost', '127.0.0.1'].includes(target.hostname) || target.pathname !==
 const db = postgres(url, { onnotice: () => {} });
 await db.unsafe(`CREATE TABLE IF NOT EXISTS users(id uuid PRIMARY KEY DEFAULT gen_random_uuid());
 CREATE TABLE IF NOT EXISTS accounts(id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id uuid NOT NULL REFERENCES users(id), source text DEFAULT 'manual', is_active boolean NOT NULL DEFAULT true, name text, current_balance numeric(20,4), updated_at timestamptz DEFAULT now());
-CREATE TABLE IF NOT EXISTS securities(id text PRIMARY KEY, ticker_symbol text, name text, type text, close_price numeric(20,6), close_price_as_of date, close_price_final boolean NOT NULL DEFAULT true, previous_close numeric(20,6), iso_currency_code text DEFAULT 'USD', market_ticker text, metadata_checked_at timestamptz, updated_at timestamptz DEFAULT now());
+CREATE TABLE IF NOT EXISTS securities(id text PRIMARY KEY, ticker_symbol text, name text, type text, close_price numeric(20,6), close_price_as_of date, close_price_final boolean NOT NULL DEFAULT true, previous_close numeric(20,6), iso_currency_code text DEFAULT 'USD', market_ticker text, metadata_checked_at timestamptz, priced_at timestamptz, close_attempts smallint NOT NULL DEFAULT 0, close_attempt_session date, unsupported_by text[], updated_at timestamptz DEFAULT now());
 CREATE TABLE IF NOT EXISTS holdings(id uuid PRIMARY KEY DEFAULT gen_random_uuid(), account_id uuid REFERENCES accounts(id),user_id uuid REFERENCES users(id),security_id text REFERENCES securities(id),quantity numeric(24,8),cost_basis numeric(20,4),institution_value numeric(20,4),iso_currency_code text DEFAULT 'USD',updated_at timestamptz DEFAULT now(), UNIQUE(account_id,security_id));
 CREATE TABLE IF NOT EXISTS fantasy_positions(security_id text);
 CREATE TABLE IF NOT EXISTS provider_budgets(provider text PRIMARY KEY, tokens double precision NOT NULL, refilled_at timestamptz NOT NULL DEFAULT now(), blocked_until timestamptz, last_granted boolean NOT NULL DEFAULT true);`);
@@ -40,7 +40,7 @@ process.env.DATABASE_URL = url;
 for (const key of Object.keys(process.env)) if (/API_KEY|API_SECRET|_PER_MINUTE|_BURST|QUOTE_PROVIDER/.test(key)) delete process.env[key];
 process.env.FINNHUB_API_KEY = 'test';
 process.env.MASSIVE_API_KEY = 'test';
-const { refreshStalePrices, importPositions, ensureLivePrice, withProviderPatience, createFinnhubProvider } = require(path.join(temp, 'services.cjs'));
+const { refreshStalePrices, importPositions, ensureLivePrice, withProviderPatience, createFinnhubProvider, refreshSecurityMetadata } = require(path.join(temp, 'services.cjs'));
 
 // Monday Oct 5, 2026. The catch-up runs at 7pm New York time, after the session; trades at 2pm, during it.
 const evening = Date.parse('2026-10-05T23:00:00Z');
@@ -58,12 +58,12 @@ async function scenario(name, { rows, respond, budgets = {} }) {
   await db.unsafe('TRUNCATE holdings, fantasy_positions, accounts, securities, users, provider_budgets CASCADE');
   for (const key of Object.keys(process.env)) if (/_PER_MINUTE|_BURST/.test(key)) delete process.env[key];
   // Generous unless a scenario is about the budget: the other scenarios test the catch-up itself.
-  Object.assign(process.env, { FINNHUB_PER_MINUTE: '600', FINNHUB_BURST: '100', MASSIVE_PER_MINUTE: '600', MASSIVE_BURST: '100' }, budgets);
+  Object.assign(process.env, { FINNHUB_PER_MINUTE: '50', FINNHUB_BURST: '9', MASSIVE_PER_MINUTE: '0.5', MASSIVE_BURST: '4' }, budgets);
   const [{ id: user }] = await db`INSERT INTO users DEFAULT VALUES RETURNING id`;
   const [{ id: account }] = await db`INSERT INTO accounts(user_id,name) VALUES(${user},'A') RETURNING id`;
   for (const r of rows) {
     await db`INSERT INTO securities(id,ticker_symbol,type,close_price,close_price_as_of,close_price_final,previous_close,market_ticker,updated_at)
-      VALUES(${'mkt:' + r.ticker},${r.ticker},'equity',${r.price},${r.asOf ?? day},${r.final},${r.previousClose ?? null},${r.ticker},${r.checkedAt ?? '2026-10-05T19:04:08Z'})`;
+      VALUES(${'mkt:' + r.ticker},${r.ticker},'equity',${r.price},${r.asOf === undefined ? day : r.asOf},${r.final},${r.previousClose ?? null},${r.ticker},${r.checkedAt ?? '2026-10-05T19:04:08Z'})`;
     await db`INSERT INTO holdings(account_id,user_id,security_id,quantity) VALUES(${account},${user},${'mkt:' + r.ticker},10)`;
   }
   const sent = { finnhub: [], massive: [], prev: 0, grouped: 0 };
@@ -244,7 +244,7 @@ const noBars = (u, json) => (u.includes('/grouped/') ? json({}, 404) : json({ re
 //    that waits a second for a token still gets its full 300ms for the request itself.
 {
   const { sent } = await scenario('timeout starts after the wait for budget', {
-    budgets: { FINNHUB_PER_MINUTE: '60', FINNHUB_BURST: '1' },
+    budgets: { FINNHUB_PER_MINUTE: '55', FINNHUB_BURST: '1' },
     rows: [],
     respond: (u, json) => json(quote(100.5, at4pm)),
   });
@@ -273,6 +273,34 @@ const noBars = (u, json) => (u.includes('/grouped/') ? json({}, 404) : json({ re
   assert.equal(result.refreshed, 0);
   assert.equal(result.unconfirmed, 2, 'both live prices count, this session and an older one');
   assert.equal(result.behind, 1);
+}
+
+// Never-priced recovery must survive the complete selection/claim/provider/write path.
+{
+  const { sent, stored, values } = await scenario('never-priced recovery uses the short claim cutoff', {
+    rows: [{ ticker: 'NEW', price: null, asOf: null, final: false, checkedAt: '2026-10-05T22:44:00Z' }],
+    respond: (u, json) => u.includes('finnhub.io') ? json(quote(123.45, at4pm)) : noBars(u, json),
+  });
+  const result = await catchUp();
+  assert.equal(result.refreshed, 1);
+  assert.equal((await stored()).NEW.close_price, '123.450000');
+  assert.equal((await stored()).NEW.close_price_final, true);
+  assert.equal((await values())['mkt:NEW'], '1234.5000');
+  assert.equal(sent.finnhub.length, 2, 'initial quote and claimed close confirmation');
+}
+
+// A thrown metadata lookup must not turn a named fund into a confirmed equity.
+{
+  await scenario('failed metadata lookup keeps fund routing', {
+    rows: [{ ticker: 'FSPSX', price: 50, final: true }],
+    respond: (u, json) => json({ error: 'unavailable' }, 503),
+  });
+  await db`UPDATE securities SET name = 'Fidelity', metadata_checked_at = NULL WHERE id = 'mkt:FSPSX'`;
+  const result = await refreshSecurityMetadata();
+  assert.equal(result.attempted, 1);
+  const [saved] = await db`SELECT type, metadata_checked_at FROM securities WHERE id = 'mkt:FSPSX'`;
+  assert.equal(saved.type, 'mutual_fund');
+  assert.equal(saved.metadata_checked_at, null);
 }
 
 await db.end();

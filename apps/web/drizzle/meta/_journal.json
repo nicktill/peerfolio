@@ -141,6 +141,20 @@
       "when": 1791955755752,
       "tag": "0019_provider_request_events",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792018699198,
+      "tag": "0020_securities_priced_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792020254838,
+      "tag": "0021_close_attempts_unsupported_by",
+      "breakpoints": true
     }
   ]
 }

@@ -28,7 +28,7 @@ if (!['localhost', '127.0.0.1'].includes(target.hostname) || target.pathname !==
 const sql = postgres(url, { onnotice: () => {} });
 await sql.unsafe(`CREATE TABLE IF NOT EXISTS users(id uuid PRIMARY KEY DEFAULT gen_random_uuid());
 CREATE TABLE IF NOT EXISTS accounts(id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id uuid NOT NULL REFERENCES users(id), source text DEFAULT 'manual', is_active boolean NOT NULL DEFAULT true, name text, current_balance numeric(20,4), updated_at timestamptz DEFAULT now());
-CREATE TABLE IF NOT EXISTS securities(id text PRIMARY KEY, ticker_symbol text, name text, type text, close_price numeric(20,6), close_price_as_of date, close_price_final boolean NOT NULL DEFAULT true, previous_close numeric(20,6), iso_currency_code text DEFAULT 'USD', market_ticker text, metadata_checked_at timestamptz, updated_at timestamptz DEFAULT now());
+CREATE TABLE IF NOT EXISTS securities(id text PRIMARY KEY, ticker_symbol text, name text, type text, close_price numeric(20,6), close_price_as_of date, close_price_final boolean NOT NULL DEFAULT true, previous_close numeric(20,6), iso_currency_code text DEFAULT 'USD', market_ticker text, metadata_checked_at timestamptz, priced_at timestamptz, close_attempts smallint NOT NULL DEFAULT 0, close_attempt_session date, unsupported_by text[], updated_at timestamptz DEFAULT now());
 CREATE TABLE IF NOT EXISTS holdings(id uuid PRIMARY KEY DEFAULT gen_random_uuid(), account_id uuid REFERENCES accounts(id),user_id uuid REFERENCES users(id),security_id text REFERENCES securities(id),quantity numeric(24,8),cost_basis numeric(20,4),institution_value numeric(20,4),iso_currency_code text DEFAULT 'USD',updated_at timestamptz DEFAULT now(), UNIQUE(account_id,security_id));
 CREATE TABLE IF NOT EXISTS fantasy_positions(security_id text);
 CREATE TABLE IF NOT EXISTS provider_budgets(provider text PRIMARY KEY, tokens double precision NOT NULL, refilled_at timestamptz NOT NULL DEFAULT now(), blocked_until timestamptz, last_granted boolean NOT NULL DEFAULT true);`);
@@ -42,7 +42,7 @@ b.onLoad({filter:/.*/,namespace:'stub'},a=>({contents:a.path==='api'?'export cla
 process.env.DATABASE_URL=url;
 for(const key of Object.keys(process.env)) if(/API_KEY|API_SECRET/.test(key))delete process.env[key];
 // This test is about imports and metadata, not request budgets (close-regression.mjs covers those).
-process.env.MASSIVE_PER_MINUTE='600';process.env.MASSIVE_BURST='100';
+process.env.MASSIVE_PER_MINUTE='0.5';process.env.MASSIVE_BURST='4';
 let providerCalls = 0;
 globalThis.fetch=()=>{providerCalls++;throw new Error('Unexpected provider network request')};
 const {importPositions,setPosition,repricePositions,refreshStalePrices,refreshSecurityMetadata,lookupTicker}=require(path.join(temp,'positions.cjs'));
@@ -99,6 +99,7 @@ await db`UPDATE securities SET metadata_checked_at=null WHERE id='mkt:VOO'`;
 globalThis.fetch=async()=>new Response(JSON.stringify({results:{name:'Unknown',type:'UNKNOWN'}}));
 await refreshSecurityMetadata();assert.equal((await db`SELECT type FROM securities WHERE id='mkt:VOO'`)[0].type,'etf');
 await db`UPDATE securities SET metadata_checked_at=null WHERE id='mkt:VTI'`;
+await db`UPDATE provider_budgets SET tokens=4, refilled_at=now() WHERE provider='massive'`;
 globalThis.fetch=async()=>new Response('',{status:429});
 assert.equal((await refreshSecurityMetadata()).checked,0);
 assert.equal((await refreshSecurityMetadata()).checked,0);

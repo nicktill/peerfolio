@@ -111,6 +111,12 @@ export type ProviderDashboard = {
   lastHourRatio: number | null
   today: { requests: number; symbols: number }
   totals: Omit<StatRow, "provider" | "minute">
+  /** Requests sent in the range that the provider answered with data: sent, minus 429s and errors. */
+  succeeded: number
+  /** `succeeded` over requests sent, or null with no requests. */
+  successRate: number | null
+  /** Tickers per request in the range: how well requests are batched. Null with no requests. */
+  avgBatch: number | null
   warn: boolean
 }
 
@@ -198,6 +204,7 @@ export function buildDashboard(
       if (value > peak.value) peak = { value, at: new Date(key).toISOString() }
     }
 
+    const succeeded = Math.max(0, totals.requests - totals.failed - totals.rateLimited)
     const budget = hourlyBudgets[provider] ?? null
     const peakRatio = Number.isFinite(limit.amount) ? peak.value / limit.amount : 0
     return {
@@ -212,6 +219,9 @@ export function buildDashboard(
       lastHourRatio: budget ? lastHour.requests / budget : null,
       today,
       totals,
+      succeeded,
+      successRate: totals.requests > 0 ? succeeded / totals.requests : null,
+      avgBatch: totals.requests > 0 ? totals.symbols / totals.requests : null,
       warn: peakRatio > WARN_RATIO,
     }
   })

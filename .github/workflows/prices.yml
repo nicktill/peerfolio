@@ -1,14 +1,18 @@
 name: Refresh prices
 
 # Vercel's free plan only allows one cron run a day, so GitHub calls the app's
-# price endpoint instead. Times are UTC; the market window is 9:30-16:00 ET
-# whether or not daylight saving is on. Runs can be a few minutes late.
+# price endpoint instead. GitHub's cron is UTC and knows nothing of daylight
+# saving, so these times are a superset of the New York windows with work to do
+# (live 9:30-16:05, close capture 16:30-20:00, fund NAVs 19:00-23:00, the 6:15
+# morning pass); the route itself checks the New York clock and answers at once
+# outside them. Runs can be a few minutes late.
 on:
   schedule:
-    - cron: "*/5 13-21 * * 1-5" # market hours: live quotes every 5 minutes (between visits)
-    - cron: "5,15,25,35,45,55 22-23 * * 1-5" # after the close: pick up the official close
-    - cron: "5,15,25,35,45,55 0-1 * * 2-6" #   (still the same evening in US time)
-    - cron: "15 10 * * 2-6" # early morning safety net for the previous close
+    - cron: "*/5 13-21 * * 1-5" # market hours: live quotes every 5 minutes (between visits); also the 10-minute close checks at 16:30-17:30 ET
+    - cron: "*/10 22 * * 1-5" # after the close, winter: still within the early close checks
+    - cron: "5 23 * * 1-5" # evening: hourly fund NAVs and the 2-hourly close retries (summer 19:00-23:00 ET = 23:00-03:00 UTC)
+    - cron: "5 0-4 * * 2-6" #   (the same evening in US time; winter ends at 04:00 UTC)
+    - cron: "15 10,11 * * *" # 6:15am New York, every day: 10:15 UTC in summer, 11:15 in winter
   workflow_dispatch: {}
 
 concurrency:
@@ -50,6 +54,13 @@ jobs:
         env:
           APP_URL: ${{ vars.PEERFOLIO_URL || 'https://www.peerfolio.org' }}
         run: |
+          # Market hours only (New York clock, weekdays 9:30-16:05); the cards don't change outside them.
+          dow=$(TZ=America/New_York date +%u)
+          hm=$((10#$(TZ=America/New_York date +%H%M)))
+          if [ "$dow" -gt 5 ] || [ "$hm" -lt 930 ] || [ "$hm" -gt 1605 ]; then
+            echo "Market closed: nothing to warm."
+            exit 0
+          fi
           stamp=$(date +%s)
           for part in board earnings fear-greed; do
             curl --silent --show-error --max-time 75 -o /dev/null \

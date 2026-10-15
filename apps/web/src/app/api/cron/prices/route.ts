@@ -2,9 +2,9 @@ import { NextResponse } from "next/server"
 import { assertCronAuthorized, withPublic } from "@web/lib/api"
 import { withProviderPatience } from "@web/lib/provider-fetch"
 import { fillQueuedOrders } from "@web/lib/fantasy"
-import { pruneProviderEvents, pruneProviderStats } from "@web/lib/provider-stats"
-import { pruneSyncRuns } from "@web/lib/plaid-sync-runs"
+import { cronWindow } from "@web/lib/cron-window"
 import { refreshLivePrices } from "@web/lib/live-quotes"
+import { liveRefreshBroken } from "@web/lib/stale-prices"
 import { refreshSecurityMetadata, refreshStalePrices } from "@web/lib/positions"
 
 export const maxDuration = 60
@@ -26,22 +26,27 @@ export const maxDuration = 60
  */
 export const GET = withPublic<unknown>(async (request) => {
   assertCronAuthorized(request)
+  // Before anything touches the database or a provider: outside the windows with work to do, answer at once.
+  const window = cronWindow(new Date())
+  if (!window.any) return NextResponse.json({ healthy: true, skipped: "outside_window" })
   // A scheduled run may wait a little for provider budget (within maxDuration) rather than defer work.
-  return withProviderPatience(20_000, refresh)
+  return withProviderPatience(20_000, () => refresh(window))
 })
 
-async function refresh() {
-  const live = await refreshLivePrices().catch((error) => ({ error: error instanceof Error ? error.message : "unknown" }))
+async function refresh(window: ReturnType<typeof cronWindow>) {
+  // Live quotes and queued fantasy orders only matter while the market is open; refreshLivePrices
+  // itself also checks, so this only saves the call.
+  const live = window.live
+    ? await refreshLivePrices().catch((error) => ({ error: error instanceof Error ? error.message : "unknown" }))
+    : { skipped: "market_closed" as const }
   // No per-instance throttle here: the schedule is the throttle.
   const closes = await refreshStalePrices({ minIntervalMinutes: 0, recheckMinutes: 10 })
 
+  // (Pruning moved to the daily snapshot cron.)
   const metadata = await refreshSecurityMetadata().catch(() => ({ checked: 0 }))
-  await pruneProviderStats().catch(() => {})
-  await pruneProviderEvents().catch(() => {})
-  await pruneSyncRuns().catch(() => {})
-  const orders = await fillQueuedOrders().catch((error) => ({ error: error instanceof Error ? error.message : "unknown" }))
+  const orders = window.live ? await fillQueuedOrders().catch((error) => ({ error: error instanceof Error ? error.message : "unknown" })) : { skipped: "market_closed" as const }
 
-  const liveBroken = "error" in live || ("claimed" in live && (live.claimed ?? 0) > 0 && live.refreshed === 0)
+  const liveBroken = liveRefreshBroken(live)
   console.log("[cron] prices", JSON.stringify({ live, closes, metadata, orders }))
   return NextResponse.json({ healthy: !liveBroken, live, closes, metadata, orders }, { status: liveBroken ? 500 : 200 })
 }

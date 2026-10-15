@@ -30,7 +30,7 @@ const PROVIDER_OPTIONS = [{ value: "all", label: "All providers" }, ...PROVIDERS
 
 const kindsParam = (kind: KindFilter) => (kind === "all" ? "" : kind === "errors" ? "failed,timeout" : kind)
 
-function ago(iso: string, now = Date.now()) {
+export function ago(iso: string, now = Date.now()) {
   const s = Math.max(0, Math.round((now - Date.parse(iso)) / 1000))
   if (s < 60) return `${s}s ago`
   if (s < 3600) return `${Math.floor(s / 60)}m ago`
