@@ -187,7 +187,7 @@ function Launcher({ onOpen }: { onOpen: () => void }) {
 function Panel({ onClose }: { onClose: () => void }) {
   const narrow = useNarrow()
   const wide = useWide()
-  const { messages, phase, activity, busy, page, send, cancel, retry, reset, reportSeq, recent } = useAssistant()
+  const { messages, phase, activity, busy, page, send, cancel, retry, reset, reportSeq } = useAssistant()
   const [geo, setGeo] = useState<Geo>(() => loadGeo())
   const [dockPref, setDockPref] = useState<boolean>(() => {
     try {
