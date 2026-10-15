@@ -29,8 +29,6 @@ const ALL_EMOJIS: ReadonlySet<string> = new Set(EMOJI_GROUPS.flatMap((g) => g.em
 
 export const isLeagueEmoji = (value: string) => ALL_EMOJIS.has(value)
 
-export const accentFor = (key: string | null | undefined) => ACCENTS[(key as AccentKey) ?? "emerald"] ?? ACCENTS.emerald
-
 /** A random logo and colour, for the "Surprise me" button. `rand` returns [0, 1). */
 export function randomLook(rand: () => number = Math.random): { emoji: string; accent: AccentKey } {
   const all = [...ALL_EMOJIS]

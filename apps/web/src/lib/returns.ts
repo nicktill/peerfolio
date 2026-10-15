@@ -3,7 +3,7 @@ import { hasVerifiedAccounts } from "@web/lib/plaid-verification"
 import { and, asc, eq, gte, inArray } from "drizzle-orm"
 import "server-only"
 import { accounts, db, plaidItems, portfolioSnapshots } from "@web/db"
-import { rangeStart, sparkline, timeWeightedReturn, withLivePoint, type Range, type ReturnSummary, type SnapshotPoint } from "@web/lib/ranges"
+import { rangeStart, sparkline, timeWeightedReturn, withLivePoint, type Range, type SnapshotPoint } from "@web/lib/ranges"
 
 export * from "@web/lib/ranges"
 
@@ -87,15 +87,6 @@ export async function loadLivePoints(userIds: string[]): Promise<Map<string, Pic
     out.set(userId, { netWorth: a.assets - a.liabilities, investableAssets: a.investable, isVerified: hasVerifiedAccounts(accountsByUser.get(userId) ?? [], itemsByUser.get(userId) ?? []) })
   }
   return out
-}
-
-export async function computeReturns(
-  userId: string,
-  range: Range,
-  basis: "investableAssets" | "netWorth" = "investableAssets",
-): Promise<ReturnSummary> {
-  const byUser = await loadSnapshots([userId], range)
-  return timeWeightedReturn(byUser.get(userId) ?? [], basis)
 }
 
 export type StandingInput = { userId: string; name: string | null; handle: string | null; image: string | null }
