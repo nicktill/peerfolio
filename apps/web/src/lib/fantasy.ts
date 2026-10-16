@@ -8,6 +8,7 @@ import {
   fantasyOrders,
   fantasyPositions,
   fantasyReactions,
+  fantasySeasons,
   fantasySnapshots,
   fantasyTrades,
   securities,
@@ -124,7 +125,9 @@ export async function previewFantasyLeague(inviteCode: string) {
     .select({ count: sql<number>`count(*)::int` })
     .from(fantasyMembers)
     .where(eq(fantasyMembers.leagueId, league.id))) as [{ count: number }]
-  return { id: league.id, name: league.name, emoji: league.emoji, startingCash: n(league.startingCash), endsAt: league.endsAt, memberCount: count }
+  const [season] = await db.select({ mode: fantasySeasons.mode, picks: fantasySeasons.picksPerRound }).from(fantasySeasons).where(eq(fantasySeasons.leagueId, league.id)).orderBy(desc(fantasySeasons.number)).limit(1)
+  const playsAs = season?.mode === "draft" ? `Weekly draft: pick ${season.picks ?? 5} stocks before each round` : "Free trading with play money"
+  return { id: league.id, name: league.name, emoji: league.emoji, startingCash: n(league.startingCash), endsAt: league.endsAt, memberCount: count, playsAs }
 }
 
 export async function requireFantasyMember(userId: string, leagueId: string) {
@@ -740,7 +743,7 @@ async function loadOrders(memberId: string): Promise<OrderItem[]> {
   }))
 }
 
-export type FeedItem = { id: string; name: string | null; handle: string | null; image: string | null; side: "buy" | "sell"; ticker: string; shares: number; price: number; at: string }
+export type FeedItem = { id: string; userId: string; name: string | null; handle: string | null; image: string | null; side: "buy" | "sell"; ticker: string; shares: number; price: number; at: string }
 
 async function loadFeed(leagueId: string, limit = 30): Promise<FeedItem[]> {
   const rows = await db
@@ -750,6 +753,7 @@ async function loadFeed(leagueId: string, limit = 30): Promise<FeedItem[]> {
       shares: fantasyTrades.shares,
       price: fantasyTrades.price,
       at: fantasyTrades.createdAt,
+      userId: users.id,
       ticker: securities.tickerSymbol,
       name: users.name,
       handle: users.handle,

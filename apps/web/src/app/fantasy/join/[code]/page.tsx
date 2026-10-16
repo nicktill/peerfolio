@@ -41,6 +41,7 @@ export default async function JoinFantasyPage({ params }: { params: Promise<{ co
             {league.memberCount} {league.memberCount === 1 ? "player" : "players"} · {formatCurrency(league.startingCash)} of play money each
             {league.endsAt ? ` · ends ${league.endsAt.toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : " · all-time"}
           </p>
+          <p className="mt-1 text-sm text-muted-foreground">{league.playsAs}. A new round every Monday.</p>
           <JoinFantasy code={normalized} leagueName={league.name} />
         </div>
       )}

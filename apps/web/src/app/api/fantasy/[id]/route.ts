@@ -14,7 +14,7 @@ export const GET = withUser<Ctx>(async (userId, _request, { params }) => {
   const league = await loadFantasyLeague(userId, id)
   // "Why I picked this" notes ride along with the trade feed.
   const notes = await loadNotesFor({ tradeIds: league.feed.map((f) => f.id) }, userId)
-  return NextResponse.json({ ...league, feed: league.feed.map((f) => ({ ...f, note: notes.get(`trade:${f.id}`) ?? null })) })
+  return NextResponse.json({ ...league, feed: league.feed.map(({ userId: author, ...f }) => ({ ...f, isYou: author === userId, note: notes.get(`trade:${f.id}`) ?? null })) })
 })
 
 /** `.strict()` so an attempt to change starting cash or the pick cap is an error, not silently ignored. */

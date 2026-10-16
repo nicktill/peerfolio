@@ -12,6 +12,7 @@ import { EditLeagueDialog } from "@web/components/fantasy/edit-league-dialog"
 import { CashStat, PortfolioStat, RankStat, ReturnStat, SplitBar } from "@web/components/fantasy/balance-cards"
 import { TradePanel } from "@web/components/fantasy/trade-panel"
 import { TradeFeed, type FeedItem } from "@web/components/fantasy/trade-feed"
+import { SeasonStrip } from "@web/components/fantasy/season/season-strip"
 import { timeLeft } from "@web/components/fantasy/time-left"
 import { useRankBaseline } from "@web/components/fantasy/use-rank-baseline"
 import { AnimatedNumber } from "@web/components/ui/animated-number"
@@ -145,6 +146,8 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
         <SplitBar value={you.value} cash={you.cash} />
       </dl>
 
+      <SeasonStrip leagueId={league.id} />
+
       {league.isOwner && !league.isClosed ? (
         <EditLeagueDialog league={league} open={editing} onClose={() => setEditing(false)} onSaved={refetch} />
       ) : null}
@@ -178,7 +181,7 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
         <aside className="fw-rail reveal" style={revealStyle(3)}>
           <TradePanel leagueId={league.id} cash={you.cash} positions={you.positions} onTraded={refetch} closed={league.isClosed} />
           <Holdings positions={you.positions} orders={you.orders} onCancel={league.isClosed ? undefined : cancelOrder} />
-          <TradeFeed items={feed} />
+          <TradeFeed items={feed} leagueId={league.id} onChanged={refetch} />
         </aside>
       </div>
     </div>

@@ -4,6 +4,7 @@ import {
   db,
   fantasyDraftPicks,
   fantasyMembers,
+  fantasyLeagues,
   fantasyRecaps,
   fantasyRounds,
   fantasySeasons,
@@ -302,6 +303,24 @@ async function loadPicks(roundIds: string[], viewer: string, hideOthers: boolean
 }
 
 /* ------------------------------------------------------------------ */
+
+/**
+ * A recap by its share token, for the public page and image. Returns names and
+ * percentages only (that is all a recap holds) plus the league's look. The token
+ * is the permission: it is random, and only members can see it in the app.
+ */
+export async function loadPublicRecap(token: string): Promise<{ recap: RoundRecap; league: { name: string; emoji: string; accent: string }; seasonNumber: number } | null> {
+  if (!/^[A-Za-z0-9_-]{10,40}$/.test(token)) return null
+  const [row] = await db
+    .select({ payload: fantasyRecaps.payload, name: fantasyLeagues.name, emoji: fantasyLeagues.emoji, accent: fantasyLeagues.accent, seasonNumber: fantasySeasons.number })
+    .from(fantasyRecaps)
+    .innerJoin(fantasyRounds, eq(fantasyRecaps.roundId, fantasyRounds.id))
+    .innerJoin(fantasySeasons, eq(fantasyRounds.seasonId, fantasySeasons.id))
+    .innerJoin(fantasyLeagues, eq(fantasyRecaps.leagueId, fantasyLeagues.id))
+    .where(eq(fantasyRecaps.shareToken, token))
+  if (!row) return null
+  return { recap: row.payload as RoundRecap, league: { name: row.name, emoji: row.emoji, accent: row.accent }, seasonNumber: row.seasonNumber }
+}
 
 export type RoundChip = {
   mode: "trading" | "draft"

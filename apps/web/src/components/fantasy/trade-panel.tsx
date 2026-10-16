@@ -12,6 +12,7 @@ import { fillsAtOpen } from "@web/lib/fantasy-rules"
 import { formatCurrency } from "@web/lib/format"
 import { amountFromFraction, BUY_SPOTS, checkTradeInput, estimateShares, sanitizeAmount, SELL_SPOTS, snapFraction, snapThreshold } from "@web/lib/trade-input"
 import { mutate } from "@web/lib/use-api"
+import "@web/components/fantasy/season/fantasy-season.css"
 
 type Held = { ticker: string; shares: number; value: number; averageCost: number }
 type Quote = { symbol: string; name: string | null; price: number; asOf: string; live?: boolean }
@@ -42,6 +43,8 @@ export function TradePanel({ leagueId, cash, positions, onTraded, closed = false
   const [receipt, setReceipt] = useState<Receipt | null>(null)
   const closeReceipt = useCallback(() => setReceipt(null), [])
   const [touched, setTouched] = useState(false)
+  const [why, setWhy] = useState("")
+  const [whyOpen, setWhyOpen] = useState(false)
   const [lookup, setLookup] = useState<Lookup>({ state: "idle" })
 
   const ticker = symbol.trim().toUpperCase()
@@ -101,7 +104,8 @@ export function TradePanel({ leagueId, cash, positions, onTraded, closed = false
 
     setPending(true)
     try {
-      const body = side === "buy" ? { side, symbol: ticker, amount: check.value } : { side, symbol: ticker, shares: check.value }
+      const note = why.trim() || undefined
+      const body = side === "buy" ? { side, symbol: ticker, amount: check.value, note } : { side, symbol: ticker, shares: check.value, note }
       const result = await mutate<{ queued: true; why: "closed" | "no-live-price"; ticker: string } | { queued?: undefined; ticker: string; shares: number; price: number }>(`/api/fantasy/${leagueId}/trade`, { body })
       if (result.queued) {
         setReceipt({ id: Date.now(), side, ticker: result.ticker, shares: 0, price: 0, averageCost: null, isNew: false, queued: true })
@@ -113,6 +117,8 @@ export function TradePanel({ leagueId, cash, positions, onTraded, closed = false
         )
         setAmount("")
         setTouched(false)
+        setWhy("")
+        setWhyOpen(false)
         onTraded()
         return
       }
@@ -125,6 +131,8 @@ export function TradePanel({ leagueId, cash, positions, onTraded, closed = false
       }
       setAmount("")
       setTouched(false)
+      setWhy("")
+      setWhyOpen(false)
       onTraded()
     } catch (error) {
       toast(error instanceof Error ? error.message : "Trade failed.", "error")
@@ -262,6 +270,18 @@ export function TradePanel({ leagueId, cash, positions, onTraded, closed = false
           amount={amount}
           onChange={setAmount}
         />
+        <div className="fs-why-field">
+          {whyOpen ? (
+            <>
+              <input className="fw-input fs-why" value={why} maxLength={280} onChange={(e) => setWhy(e.target.value)} placeholder="Why this one? Your league will see it." aria-label="Why are you making this move?" />
+              <span className="fs-count numeric">{why.length}/280</span>
+            </>
+          ) : (
+            <button type="button" className="fs-add-note" onClick={() => setWhyOpen(true)}>
+              Add why (optional)
+            </button>
+          )}
+        </div>
         <button type="submit" className="fw-submit" data-side={side} disabled={pending || cashingOut} aria-busy={pending || undefined}>
           {pending ? <span className="spin" aria-hidden /> : null}
           {pending ? "Placing order…" : side === "buy" ? (queues ? "Queue buy" : "Buy") : queues ? "Queue sell" : "Sell"}

@@ -4,7 +4,7 @@ import "@web/components/fantasy/fantasy-workspace.css"
 
 import { useState } from "react"
 import Link from "next/link"
-import { ArrowRight, Clock, Infinity as Forever, Plus, Users } from "lucide-react"
+import { ArrowRight, Clock, Infinity as Forever, Plus, Trophy, Users } from "lucide-react"
 import { formatPercent } from "@web/lib/format"
 import { visibleReturn } from "@web/lib/return-display"
 import { revealStyle } from "@web/components/motion/reveal"
@@ -13,6 +13,8 @@ import { mutate, useApi } from "@web/lib/use-api"
 import { timeLeft } from "@web/components/fantasy/time-left"
 import { Choice, Row } from "@web/components/fantasy/choice"
 import { LookPicker } from "@web/components/fantasy/league-look-picker"
+import { FantasyEmpty, RoundMeta, SeasonFormatRow } from "@web/components/fantasy/season/list-parts"
+import type { RoundChip } from "@web/lib/fantasy-season-view"
 
 type FantasySummary = {
   id: string
@@ -23,6 +25,8 @@ type FantasySummary = {
   isClosed: boolean
   memberCount: number
   yourReturn: number
+  yourRank?: number | null
+  round?: RoundChip | null
 }
 
 export default function FantasyPage() {
@@ -73,6 +77,13 @@ export default function FantasyPage() {
                         <Users aria-hidden />
                         <span className="numeric">{league.memberCount}</span> {league.memberCount === 1 ? "player" : "players"}
                       </span>
+                      {league.yourRank && league.memberCount > 1 ? (
+                        <span>
+                          <Trophy aria-hidden />
+                          <span className="numeric">#{league.yourRank}</span> of {league.memberCount}
+                        </span>
+                      ) : null}
+                      <RoundMeta round={league.round} />
                       <span>
                         {league.endsAt ? <Clock aria-hidden /> : <Forever aria-hidden />}
                         {league.isClosed ? "Final" : league.endsAt ? timeLeft(league.endsAt) : "All-time"}
@@ -90,14 +101,7 @@ export default function FantasyPage() {
           })}
         </ul>
       ) : (
-        <div className="fw-empty-state">
-          <svg className="fw-empty-art" viewBox="0 0 120 64" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <path d="M8 56h104" opacity=".4" />
-            <path d="M14 48l22-14 18 8 24-22 20 10 10-12" />
-            <circle cx="108" cy="18" r="3.5" />
-          </svg>
-          <p>No fantasy leagues yet. Start one and drop the link in the group chat.</p>
-        </div>
+        <FantasyEmpty />
       )}
     </div>
   )
@@ -124,6 +128,7 @@ function CreateForm({ onCancel }: { onCancel: () => void }) {
   const [cash, setCash] = useState(100_000)
   const [days, setDays] = useState<number | null>(30)
   const [cap, setCap] = useState<number | null>(null)
+  const [format, setFormat] = useState<{ mode: "trading" | "draft"; picks: number }>({ mode: "trading", picks: 5 })
 
   async function submit(event: React.FormEvent) {
     event.preventDefault()
@@ -137,6 +142,7 @@ function CreateForm({ onCancel }: { onCancel: () => void }) {
           startingCash: cash,
           maxPositionPct: cap,
           endsAt: days ? new Date(Date.now() + days * 86_400_000).toISOString() : null,
+          season: { mode: format.mode, rounds: null, picks: format.picks },
         },
       })
       window.location.href = `/fantasy/${result.league.id}`
@@ -176,6 +182,7 @@ function CreateForm({ onCancel }: { onCancel: () => void }) {
           </Choice>
         ))}
       </Row>
+      <SeasonFormatRow mode={format.mode} picks={format.picks} onChange={setFormat} />
       <Row label="Biggest single pick">
         {CAPS.map((c) => (
           <Choice key={c.label} active={cap === c.value} onClick={() => setCap(c.value)}>
