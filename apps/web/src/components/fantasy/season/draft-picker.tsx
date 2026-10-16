@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react"
 import { Check, Lock, X } from "lucide-react"
 import { TickerCombobox } from "@web/components/fantasy/ticker-combobox"
-import { Countdown, personName } from "@web/components/fantasy/season/season-parts"
+import { Countdown } from "@web/components/fantasy/season/season-parts"
 import { formatDeadline } from "@web/components/fantasy/season/season-format"
 import { useToast } from "@web/components/ui/toast"
 import { plural } from "@web/lib/plural"
@@ -114,7 +114,7 @@ export function DraftPicker({ leagueId, draft, onSaved }: { leagueId: string; dr
             {draft.submitted} of {draft.players} in.
           </span>
           <span>
-            Waiting on <b>{draft.waitingOn.map((p) => personName(p)).join(", ")}</b>
+            Waiting on <b>{draft.waitingOn.map((p) => (p.isYou ? "you" : (p.name?.split(" ")[0] ?? p.handle ?? "a player"))).join(", ")}</b>
           </span>
         </div>
       ) : (

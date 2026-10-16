@@ -63,7 +63,7 @@ export default function SeasonPage({ params }: { params: Promise<{ id: string }>
         <ul className="fw-meta" aria-label="Season rules">
           <li className="fw-meta-status">{season.state === "complete" ? "Complete" : season.state === "upcoming" ? `Starts ${formatDay(season.startsAt)}` : "In progress"}</li>
           <li>{describeSeason(season)}</li>
-          <li>{plural(standings.length || 0, "player")} scored</li>
+          <li>{plural(draft?.players ?? current?.rows.length ?? standings.length, "player")}</li>
           {mine ? <li>You: {formatPoints(mine.points)} pts</li> : null}
         </ul>
       </header>

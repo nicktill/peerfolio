@@ -37,7 +37,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tok
           Peerfolio
         </div>
         <div style={{ display: "flex", flexDirection: "column" }}>
-          <div style={{ display: "flex", color: "#8fb0e6", fontSize: 18, letterSpacing: 3, fontFamily: mono }}>{`${league.name.toUpperCase()}  /  SEASON ${seasonNumber}  /  ROUND ${recap.roundNumber}`}</div>
+          <div style={{ display: "flex", color: "#8fb0e6", fontSize: 18, letterSpacing: 3, fontFamily: mono }}>{`SEASON ${seasonNumber}  /  ROUND ${recap.roundNumber}`}</div>
+          <div style={{ display: "flex", marginTop: 8, color: "#a7b0bc", fontSize: 22 }}>{league.name.length > 34 ? `${league.name.slice(0, 33)}…` : league.name}</div>
           <div style={{ display: "flex", marginTop: 20, fontSize: 56, lineHeight: 1.08, fontWeight: 700 }}>{recap.headline}</div>
           {call ? (
             <div style={{ display: "flex", marginTop: 26, fontSize: 22, color: "#a7b0bc" }}>
