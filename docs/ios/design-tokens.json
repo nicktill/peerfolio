@@ -1,0 +1,105 @@
+{
+  "$comment": "Peerfolio design tokens for the signed-in app (the '5C' system in apps/web/src/app/peerfolio-5c.css), plus chart series from apps/web/src/app/globals.css. The iOS app is the signed-in app, so it uses 5C, not the warm/emerald landing-page palette in globals.css :root.",
+  "source": {
+    "colors": "apps/web/src/app/peerfolio-5c.css (.peerfolio-app, .dark .peerfolio-app)",
+    "series": "apps/web/src/app/globals.css (--series-1..7, --viz-surface)",
+    "fonts": "apps/web/src/app/layout.tsx (Hanken Grotesk, Newsreader, IBM Plex Mono)"
+  },
+  "color": {
+    "light": {
+      "bg": "#eceff2",
+      "panel": "#f9fafb",
+      "raise": "#edf0f4",
+      "hair": "#d6dce3",
+      "hair2": "#e5e9ee",
+      "line": "#b4bfcb",
+      "fg": "#202a34",
+      "fg2": "#4a5967",
+      "fg3": "#5b6b7c",
+      "accent": "#3867a1",
+      "gain": "#286549",
+      "loss": "#a65048",
+      "ink": "#25364b",
+      "inkFg": "#f9fafb",
+      "medal1": "#8a6500",
+      "medal2": "#4f5d6d",
+      "medal3": "#8a5426",
+      "vizSurface": "#f9fafb"
+    },
+    "dark": {
+      "bg": "#0d0f11",
+      "panel": "#14171a",
+      "raise": "#1e2226",
+      "hair": "#2a3036",
+      "hair2": "#22272b",
+      "line": "#3b434b",
+      "fg": "#f0f2f4",
+      "fg2": "#b4bcc5",
+      "fg3": "#939ca7",
+      "accent": "#98b8e7",
+      "gain": "#94c8af",
+      "loss": "#e6a39d",
+      "ink": "#edf2f8",
+      "inkFg": "#14181d",
+      "medal1": "#e0b544",
+      "medal2": "#c3d0de",
+      "medal3": "#d39b6c",
+      "vizSurface": "#14171a"
+    },
+    "destructive": { "light": "#a65048", "dark": "#e6a39d" }
+  },
+  "series": {
+    "light": ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#7c5cd6"],
+    "dark": ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#008300", "#9b7cf0"],
+    "note": "Assigned in order and never cycled. Direction of money is never colour alone: always a sign and an arrow."
+  },
+  "radius": { "panel": 14, "control": 9, "chip": 4, "leagueAvatar": 12, "pill": 999 },
+  "spacing": { "panelInset": 18, "panelInsetCompact": 16, "pageGap": 16, "rowMinHeight": 56, "panelHeadMinHeight": 46, "tabBarHeight": 52, "mobileHeaderHeight": 48 },
+  "border": { "hairline": 1, "accentTickWidth": 2, "accentTickHeight": 9, "rankRailWidth": 2 },
+  "shadow": { "panel": "none (5C panels are flat; depth comes from the hairline)", "pop": "0 2px 6px rgba(0,0,0,.4), 0 24px 48px -12px rgba(0,0,0,.8) dark / 0 2px 4px rgba(20,20,10,.05), 0 18px 40px -12px rgba(20,20,10,.22) light" },
+  "font": {
+    "sans": { "family": "Hanken Grotesk", "weights": [400, 500, 600], "postScript": { "400": "HankenGrotesk-Regular", "500": "HankenGrotesk-Medium", "600": "HankenGrotesk-SemiBold" }, "role": "UI and data, body 14/20" },
+    "serif": { "family": "Newsreader", "weights": [400], "postScript": { "400": "Newsreader16pt16pt-Regular", "italic": "Newsreader16pt16pt-Italic" }, "role": "page titles, league names, hero figures" },
+    "mono": { "family": "IBM Plex Mono", "weights": [400, 500], "postScript": { "400": "IBMPlexMono-Regular", "500": "IBMPlexMono-Medium" }, "role": "eyebrows, tickers, captions, range pickers" }
+  },
+  "type": {
+    "pageTitle": { "font": "serif", "size": 28, "lineHeight": 32, "tracking": -0.025, "note": "web: 36/42 desktop, 28/32 below 860px" },
+    "heroFigure": { "font": "serif", "size": 46, "lineHeight": 50, "tracking": -0.035, "tabular": true, "note": "web clamp(46px,4vw,60px)" },
+    "stat": { "font": "sans-500", "size": 20, "lineHeight": 28, "tracking": -0.01 },
+    "body": { "font": "sans-400", "size": 14, "lineHeight": 20 },
+    "rowTitle": { "font": "sans-500", "size": 14, "lineHeight": 20 },
+    "rowSubtitle": { "font": "mono-400", "size": 11, "lineHeight": 16 },
+    "caption": { "font": "sans-400", "size": 12, "lineHeight": 16 },
+    "eyebrow": { "font": "mono-500", "size": 10.5, "lineHeight": 16, "tracking": 0.09, "uppercase": true, "color": "fg2" },
+    "columnHead": { "font": "mono-500", "size": 10.5, "lineHeight": 16, "tracking": 0.12, "uppercase": true, "color": "fg3" },
+    "tab": { "font": "sans-500", "size": 11, "lineHeight": 12 }
+  },
+  "motion": {
+    "ease": [0.22, 1, 0.36, 1],
+    "duration": { "d1": 0.12, "d2": 0.2, "d3": 0.32, "d4": 0.5 },
+    "pageEnter": { "translateY": 4, "opacity": [0, 1], "duration": "d3", "stagger": [0.04, 0.085, 0.13, 0.175, 0.22] },
+    "reveal": { "translateY": 12, "duration": 0.42, "staggerPerIndex": 0.04, "maxIndex": 6 },
+    "swapIn": { "translateY": 4, "blur": 3, "duration": 0.38 },
+    "press": { "scale": 0.97, "duration": 0.15 },
+    "skeleton": "opacity pulse 1.0 -> 0.5, 1.4s ease-in-out infinite",
+    "liveDot": "ring scales 1 -> 2.4 while fading .45 -> 0, 2.6s ease-out, infinite",
+    "reducedMotion": "Disable all of the above (opacity-only cross-fades are fine)."
+  },
+  "chart": {
+    "lineWidth": 2,
+    "performanceStroke": "accent",
+    "areaFill": "accent at 12% opacity fading to 0",
+    "gridLines": "hair2",
+    "axisLabel": "mono 400 10.5, fg3",
+    "drawIn": "line draws left to right over d4 (0.5s) using the ease"
+  },
+  "haptics": {
+    "note": "iOS-only additions on top of the web system",
+    "rangeChange": "selection",
+    "tabChange": "selection",
+    "tradeConfirmed": "success notification",
+    "tradeQueued": "warning notification",
+    "error": "error notification",
+    "pullToRefresh": "light impact on release"
+  }
+}
