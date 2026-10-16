@@ -36,6 +36,8 @@ apply to the app; use a real Apple or Google account against your local server, 
 | `MOBILE_AUTH_SECRET` | 32+ chars; signs access tokens. Without it the mobile endpoints answer 503 and bearer tokens are ignored. |
 | `APPLE_BUNDLE_ID` | audience of Apple ID tokens; comma-separate to allow several |
 | `GOOGLE_IOS_CLIENT_ID` | audience of Google ID tokens from the app (`GOOGLE_CLIENT_ID` is also accepted) |
+| `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY` | Sign in with Apple key; with `APPLE_BUNDLE_ID` enables token revocation on account deletion |
+| `APP_REVIEW_EMAIL`, `APP_REVIEW_CODE`, `APP_REVIEW_SEED_DEMO` | App Review sign-in (off unless both of the first two are set); see COMPLIANCE.md |
 | `MOBILE_ACCESS_TTL_SECONDS`, `MOBILE_REFRESH_TTL_SECONDS` | optional, defaults 900 and 2592000 |
 
 ## Linux checks (what runs without Xcode)

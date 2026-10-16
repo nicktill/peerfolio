@@ -11,8 +11,11 @@ RootView
      |- Portfolio    NavigationStack
      |    `- hero panel (net worth, today, all time, range picker, scrubbable chart, stats)
      |       allocation, holdings (top 6, expand), accounts, league pills, reconnect banner
+     |       Wealth Lab row -> WealthLabView (scenarios chart, assumptions, target maths; also opened prefilled from the assistant's link)
      |       toolbar avatar -> SettingsView (sheet) -> DeleteAccountView (sheet)
      |- Leagues      NavigationStack
+     |    |- My leagues | Board segmented control
+     |    |    `- Board: range and All/Following pickers, verified traders, follow button
      |    |- list  (+ menu: Join with a code, Create a league -> sheets)
      |    `- LeagueDetailView  range picker, standings (tap row: holdings + reactions), invite (ShareLink), sharing toggle, leave
      |- Fantasy      NavigationStack
@@ -30,5 +33,5 @@ what is on screen. Every screen has previews with `Mock` data (light and dark), 
 Assistant context: when you switch to the Assistant tab the page you came from (`portfolio`, `leagues`, `fantasy`, `news`) is sent as
 `context.page`, which the backend uses to interpret "my portfolio" style questions.
 
-Deliberately not in v1: account and position editing (manual accounts), Plaid Link, public Board and profiles, Wealth Lab, benchmark overlay on the
+Deliberately not in v1: account and position editing (manual accounts), Plaid Link, public trader profiles, benchmark overlay on the
 chart, push notifications, widgets, iPad-specific layouts (it runs, with the phone layout), offline cache, saved assistant history.

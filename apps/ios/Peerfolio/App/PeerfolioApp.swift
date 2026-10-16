@@ -6,6 +6,7 @@ import GoogleSignIn
 #endif
 
 @main
+@MainActor
 struct PeerfolioApp: App {
     @State private var env = AppEnvironment(baseURL: AppEnvironment.configuredBaseURL())
     @AppStorage("appearance") private var appearanceRaw = AppearancePreference.system.rawValue

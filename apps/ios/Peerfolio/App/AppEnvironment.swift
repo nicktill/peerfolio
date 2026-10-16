@@ -35,7 +35,7 @@ final class AppEnvironment {
         return URL(string: href, relativeTo: baseURL)?.absoluteURL
     }
 
-    static func configuredBaseURL() -> URL {
+    nonisolated static func configuredBaseURL() -> URL {
         let raw = Bundle.main.object(forInfoDictionaryKey: "PeerfolioBaseURL") as? String
         return URL(string: raw ?? "") ?? URL(string: "https://www.peerfolio.org")!
     }

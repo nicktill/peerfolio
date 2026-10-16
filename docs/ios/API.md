@@ -18,6 +18,13 @@ fall-through to a cookie.
 | `/mobile/auth/token` | POST | none | `{provider:"apple"\|"google", idToken, nonce, fullName?}` | `{accessToken, refreshToken, tokenType:"Bearer", expiresIn, refreshExpiresAt, user:{id,email,name,image,handle}}` |
 | `/mobile/auth/refresh` | POST | none | `{refreshToken}` | `{accessToken, refreshToken, tokenType, expiresIn, refreshExpiresAt}`; any failure is `401 {"error":"Please sign in again."}` |
 | `/mobile/auth/logout` | POST | none | `{refreshToken}` | `{ok:true}` (idempotent) |
+| `/mobile/auth/review` | POST | none | `{email, code}` | same session shape as `/token`; **404 unless `APP_REVIEW_EMAIL` + `APP_REVIEW_CODE` are set**; 401 on a wrong pair |
+| `/mobile/devices` | POST | bearer | `{token (hex), environment:"sandbox"\|"production"}` | `{ok}`; stores an APNs token (push groundwork, nothing sends yet) |
+| `/mobile/devices` | DELETE | bearer | `{token}` | `{ok}` |
+
+`/token` also accepts `authorizationCode` (Apple): exchanged server-side and stored encrypted so `DELETE /api/me` can revoke Apple's token.
+The four unauthenticated routes are rate limited per hashed address (Postgres fixed windows in `rate_limits`): token 20/min, refresh and logout 60/min,
+review 5 per 5 minutes; over the limit is `429 {"error","retryAfterSec"}`. A broken limiter fails open.
 
 - Access token: HS256 JWT signed with `MOBILE_AUTH_SECRET`, `iss=peerfolio`, `aud=peerfolio-mobile`, 15 minutes, verified with `jose`.
 - Refresh token: opaque `pfr_...`, 30 days, stored only as a SHA-256 hash in `mobile_refresh_tokens`, **single use**. Each refresh
@@ -27,7 +34,7 @@ fall-through to a cookie.
   expiry and the nonce (raw value or its SHA-256 hex). The user is found by `(provider, sub)` in `auth_identities`, else created or linked by
   verified email via the same `upsertUser` the website uses. Apple hides the email after the first sign-in, hence the identity table.
 - Deleting the account cascades to both new tables, so all mobile sessions die with it.
-- Not implemented: no rate limiting on the mobile endpoints (the repo has none anywhere), and no Apple token revocation on delete (see COMPLIANCE.md).
+- Apple token revocation on delete is built (needs the Apple key env vars, see COMPLIANCE.md). Rate limiting covers only the mobile routes.
 
 ## Errors
 
@@ -56,8 +63,9 @@ Range values: `1W 1M 3M 6M 1Y ALL`. Dates are `YYYY-MM-DD` strings (market or UT
 | `/leagues/join` | POST | Join sheet | `{code}` | `{league{id,name}, alreadyMember}`; 404 bad code, 409 full |
 | `/leagues/{id}/leave` | POST | League detail | | `{ok,deleted}`; 409 owner must hand over |
 | `/leagues/{id}/react` | POST | Standing row | `{toUserId, emoji}` | `{active}` (toggle). Emoji set: 🔥 🚀 👏 🧊 🤝 😤 |
-| `/board?range=&scope=all\|following` | GET | not yet in app | public | `{range,scope,minHistoryDays,requiresVerified,traders[]}` |
-| `/users/{handle}`, `/users/{handle}/follow` | GET/POST | not yet in app | | profile / follow |
+| `/board?range=&scope=all\|following` | GET | Leagues > Board | public | `{range,scope,minHistoryDays,requiresVerified,traders[]}` |
+| `/users/{handle}/follow` | POST/DELETE | Board | | `{isFollowing}` |
+| `/users/{handle}` | GET | not yet in app | public | trader profile |
 | `/fantasy` | GET | Fantasy list | | `{leagues:[{id,name,emoji,accent,endsAt,isClosed,memberCount,yourReturn,yourRank}]}` |
 | `/fantasy` | POST | Create | `{name,emoji,accent,startingCash,maxPositionPct?,endsAt?}` | 201 `{league{id}}` |
 | `/fantasy/{id}` | GET | Fantasy league | | `{league, standings[], you{cash,value,percent,rank,positions[],orders[]}, feed[]}` |
@@ -85,7 +93,7 @@ ignores unknown event types and visual kinds so the server can add more. Up to 1
 ## Gaps for mobile (known, deliberate)
 
 - **Plaid Link**: `/plaid/link-token` and `/plaid/exchange` are web-flow only (hosted Link with `PLAID_REDIRECT_URI`). A native Link needs the Plaid iOS SDK, an iOS redirect/universal link registered in Plaid, and a link-token variant. Not built; the app tells people to link on the web. Brokerage linking is also gated by `brokerageLinkingEnabled` / production Plaid.
-- **Push notifications**: no infrastructure exists (no APNs, no device-token table). Not built.
+- **Push notifications**: groundwork only (device-token table and register endpoint). No sender, and the app does not request notification permission yet.
+- **Wealth Lab** needs no API: the projection engine is pure maths, ported to `PeerfolioKit` (`Wealth`) and cross-checked against the web's `engine.ts`. It reads `/portfolio` only to prefill the starting value.
 - **Sports fantasy**: no backend. The UI is gated by `Features.sportsEnabled`.
-- **Wealth Lab**: web-only; the assistant's link events open it in an in-app browser.
 - **Pagination / ETags**: none. Payloads are fetched whole; fine at current sizes.
