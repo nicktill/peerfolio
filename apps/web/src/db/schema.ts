@@ -510,6 +510,51 @@ export const follows = pgTable(
 )
 
 /* ------------------------------------------------------------------ *
+ * Native-app sign-in
+ *
+ * The website keeps its stateless next-auth cookie. The iOS app instead
+ * exchanges a provider ID token for a short-lived access JWT plus a rotating
+ * refresh token; only a hash of that refresh token is ever stored.
+ * ------------------------------------------------------------------ */
+
+/** A provider account (Apple `sub`, Google `sub`) linked to a user, so a sign-in survives Apple hiding the email. */
+export const authIdentities = pgTable(
+  "auth_identities",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull(),
+    subject: text("subject").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("auth_identities_provider_subject_idx").on(t.provider, t.subject), index("auth_identities_user_idx").on(t.userId)],
+)
+
+/**
+ * One row per issued refresh token. Rotation marks the old row used and inserts a successor in the same
+ * `familyId`; presenting a used token again revokes the whole family (it was stolen or replayed).
+ */
+export const mobileRefreshTokens = pgTable(
+  "mobile_refresh_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    familyId: uuid("family_id").notNull(),
+    /** SHA-256 of the token. The token itself is never stored. */
+    tokenHash: text("token_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("mobile_refresh_tokens_hash_idx").on(t.tokenHash), index("mobile_refresh_tokens_family_idx").on(t.familyId), index("mobile_refresh_tokens_user_idx").on(t.userId)],
+)
+
+/* ------------------------------------------------------------------ *
  * Fantasy leagues — paper money, picked stocks
  *
  * Kept apart from `leagues` on purpose: nothing here ever touches real

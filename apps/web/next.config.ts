@@ -15,6 +15,14 @@ const nextConfig: NextConfig = {
   },
   // The preview login can create an empty demo database's tables, which needs the migration files at runtime.
   outputFileTracingIncludes: { "/api/auth/*": ["./drizzle/**/*"] },
+  // The native app calls /api/v1/*, which is the same handler as /api/*. Pinning the prefix lets a future breaking
+  // change ship as /api/v2 while installed apps keep working. The website keeps using /api/*.
+  async rewrites() {
+    return [{ source: "/api/v1/:path*", destination: "/api/:path*" }];
+  },
+  async headers() {
+    return [{ source: "/api/v1/:path*", headers: [{ key: "X-Peerfolio-Api-Version", value: "1" }] }];
+  },
   // The pre-launch waitlist is gone; old links land on the homepage instead.
   async redirects() {
     return [{ source: "/waitlist", destination: "/", permanent: true }];

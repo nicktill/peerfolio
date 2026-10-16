@@ -5,6 +5,7 @@ import { getServerSession } from "next-auth"
 import { eq } from "drizzle-orm"
 import { db, users } from "@web/db"
 import { ensureDemoUser, rootMessage } from "@web/lib/demo-bootstrap"
+import { bearerUserId } from "@web/lib/mobile-bearer"
 import { devLoginMode, passcodeMatches, passcodeRequired, previewAllowlist } from "@web/lib/dev-login"
 
 /**
@@ -21,7 +22,7 @@ function seedHandle(name: string | null | undefined): string {
   return `${base || "investor"}${suffix}`
 }
 
-async function upsertUser(profile: { email: string; name?: string | null; image?: string | null }) {
+export async function upsertUser(profile: { email: string; name?: string | null; image?: string | null }) {
   const existing = await db.query.users.findFirst({ where: eq(users.email, profile.email) })
 
   if (existing) {
@@ -124,8 +125,12 @@ export const authOptions: NextAuthOptions = {
   pages: { signIn: "/" },
 }
 
-/** Returns the signed-in user's id, or null. Use in route handlers. */
+/** Returns the signed-in user's id (cookie session, or the native app's bearer token), or null. Use in route handlers. */
 export async function getCurrentUserId(): Promise<string | null> {
+  // The native app sends a bearer access token; the website never does and falls through to the cookie.
+  const bearer = await bearerUserId()
+  if (bearer.present) return bearer.userId
+
   const session = await getServerSession(authOptions)
   return session?.user?.id ?? null
 }
