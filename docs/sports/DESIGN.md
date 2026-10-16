@@ -29,17 +29,26 @@ take the median fair probability, then price the contest with one fixed margin (
 -110/-110). Lopsided markets (a side under 10% fair) are not offered. If fewer than 3 books agree
 the market is simply not published: no line beats an inaccurate line. Prices round to the nearest 5.
 
-**Early lock.** Games lock 30 minutes before start, props 60 minutes (lineup news lands pregame).
+**Publish late, lock early, freeze on movement.** Lines are published only within 24 hours of
+kickoff, so a fixed line is never days old. Games and props lock 2 hours before start: NFL
+inactives post about 90 minutes before kickoff, so no pick can land after that news. The tradeoff is
+a shorter pick window (about 22 hours); we chose it over a tighter lock because early lock is the
+only guard that does not depend on cron timing or provider credits. As a second guard, every
+publish cron compares the fresh consensus with each open market and **freezes** it (no new picks
+at the old price) when fair probability moved 4 points or the point moved 1 or more. Picks already
+accepted keep their line. Start times are synced every fetch: a start that moves earlier pulls the
+lock earlier, or freezes the market at once if the new lock has passed (tennis). Quotes older than
+15 minutes (when the provider timestamps them) are dropped from the consensus.
 `acceptPick` checks the lock against **server time** (`now` is passed in; the client clock is never
-read). A cron also flips due markets `open -> locked` for bookkeeping, but the time check is the
-guard, so a missed cron cannot let a late pick through.
+read). A cron also flips due markets `open -> locked`, but the time check is the guard.
 
 **Void on news.** `voidMarket` (operator route `POST /api/sports/admin/void`, CRON_SECRET bearer)
 voids one market and refunds every open pick on it, idempotently. A void on injury/lineup news is
 manual in Phase 1. Phase 2 adds an automatic trigger: if the provider's line for a published market
 moves more than a threshold (default 1.5 points or 8 points of probability) before lock, void and
-republish as a new market. Postponed games void after 48 hours without a final. Retirements and
-walkovers (tennis) void.
+republish as a new market. Postponed games void after 48 hours without a final, and a game no source ever finalises
+voids 72 hours after its start (feeds that cannot say "postponed"). A cancelled or retired report voids only with quorum (two independent sources) and after the settle delay; a
+retirement reported next to an agreed final goes to `review`.
 
 **Caps.** Per pick: min 10 credits, max 10% of starting credits. Per member: 20 open picks, at most
 60% of starting credits at risk across open picks, one pick per market (no hedging both sides), and
@@ -49,6 +58,8 @@ no single pick may win more than 50% of starting credits. Stakes are whole credi
 accepted `price`, `point` and the fixed `total_return` (floored to whole credits). Grading and
 payout read only the snapshot. The client sends the price/point it saw; if it differs from the
 published line the pick is refused, never silently re-priced.
+
+**Void/pick race.** `placeSportsPick` takes a shared row lock on the market; `voidMarket` and the move freeze take it exclusively, so a void either waits for an in-flight pick (and refunds it) or runs first (and the pick is refused). `settleDueEvents` also sweeps picks left open on void markets.
 
 **Atomic reservation.** `placeSportsPick` runs in one transaction: lock the member row
 (`SELECT ... FOR UPDATE`), re-validate everything against the locked balance, insert the pick, insert
@@ -62,7 +73,7 @@ only credits if that update changed a row; the ledger row has a unique `idempote
 a crash, pays once. Verified: ledger sums equal member credits after repeated runs.
 
 **Separate results source.** Prices come from the odds composite; results come from
-`ResultsProvider`s. A game settles only when `minSources` (default 2) independent sources report
+`ResultsProvider`s. A game settles only when `minSources` (default 2) independent sources (distinct upstream families: Odds-API-compatible resellers count as one) report
 the same final score, after a settle delay (default 6 h) from the first final seen. Disagreement
 goes to `review` (nothing settles). Stat corrections after settlement are ignored by policy:
 settlement is final. Ties/pushes (NFL tie, a spread or total landing on the number) refund the
@@ -95,6 +106,8 @@ All new, additive (migration `0025_sports_picks.sql`):
 - `sports_picks` (league, member, market, line, selection, stake, price/point snapshot, `total_return`, status, `request_id`, accepted/settled at)
 - `sports_ledger` (member, pick, type `grant|place|settle_win|settle_refund`, signed amount, unique `idempotency_key`)
 - `sports_provider_usage` (provider, UTC day, credits) for budget pacing
+- `sports_notifications` outbox (migration 0026): a `pick_settled` row per settled pick, for push/email later
+- 0026 also adds `fair_prob_a`, `point_a`, `frozen_reason` on markets and `aliases` on events
 
 Invariant: `sports_members.credits == sum(sports_ledger.amount)` per member.
 
@@ -126,7 +139,8 @@ sources. See PROVIDERS.md for the budget math.
 - `GET /api/sports/leagues/[id]` (standings, open markets with lines, my picks, limits)
 - `POST /api/sports/leagues/[id]/picks` (`lineId, stake, expectedPrice, expectedPoint, requestId`)
 - `GET /api/cron/sports/publish`, `GET /api/cron/sports/settle` (CRON_SECRET bearer)
-- `POST /api/sports/admin/void` (CRON_SECRET bearer)
+- `GET /api/sports/leagues/[id]/report` (league owner: mirrored-pick pairs on locked markets)
+- `POST /api/sports/admin/void` (CRON_SECRET bearer, constant-time compare)
 
 ## Screens
 

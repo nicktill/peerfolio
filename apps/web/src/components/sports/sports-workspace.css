@@ -5,15 +5,6 @@
  * Everything reads --fw-* tokens, so light and dark follow the app.
  */
 
-/* Stocks | Sports switch: the same sliding pill as the trade panel's Buy | Sell */
-.sp-mode { position: relative; display: inline-grid; grid-template-columns: 1fr 1fr; align-self: flex-start; padding: 3px; border: 1px solid var(--fw-hair); border-radius: calc(var(--fw-rs) + 2px); background: var(--fw-panel); }
-.sp-mode::before { content: ""; position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc(50% - 3px); border-radius: calc(var(--fw-rs) - 1px); background: var(--fw-raise); box-shadow: inset 0 0 0 1px var(--fw-line); transition: transform .28s cubic-bezier(.22, 1, .36, 1); }
-.sp-mode[data-mode="sports"]::before { transform: translateX(100%); }
-.sp-mode button { position: relative; z-index: 1; min-width: 92px; height: 32px; padding: 0 16px; border-radius: calc(var(--fw-rs) - 1px); font: 500 12.5px var(--fw-sans); color: var(--fw-fg3); transition: color .2s; }
-.sp-mode button[aria-selected="true"] { color: var(--fw-fg); }
-.sp-mode button:hover { color: var(--fw-fg); }
-.sp-mode button:focus-visible { outline: 2px solid var(--fw-accent); outline-offset: 2px; }
-
 /* Markets */
 .sp-day { margin: 0; padding: 14px 0 6px; font: 500 10.5px/16px var(--fw-mono); text-transform: uppercase; letter-spacing: .09em; color: var(--fw-fg3); }
 .sp-events { list-style: none; margin: 0; padding: 0; }
@@ -23,9 +14,9 @@
 .sp-event-head strong { font: 500 14px/20px var(--fw-sans); letter-spacing: -.005em; }
 .sp-event-head span { font: 400 10.5px/16px var(--fw-mono); color: var(--fw-fg3); white-space: nowrap; }
 .sp-market { margin-top: 10px; }
-.sp-market-title { display: block; margin-bottom: 6px; font: 400 10.5px/16px var(--fw-mono); letter-spacing: .02em; color: var(--fw-fg3); }
+.sp-market-title { display: block; font: 400 10.5px/16px var(--fw-mono); letter-spacing: .02em; color: var(--fw-fg3); }
 .sp-lines { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
-.sp-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; height: 44px; padding: 0 12px; border: 1px solid var(--fw-hair); border-radius: var(--fw-rs); background: var(--fw-bg); text-align: left; transition: background .15s, border-color .15s, transform .12s; }
+.sp-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; min-height: 50px; padding-block: 6px; padding: 0 12px; border: 1px solid var(--fw-hair); border-radius: var(--fw-rs); background: var(--fw-bg); text-align: left; transition: background .15s, border-color .15s, transform .12s; }
 .sp-line:enabled:hover { background: var(--fw-raise); border-color: var(--fw-line); }
 .sp-line:enabled:active { transform: scale(.985); }
 .sp-line[aria-pressed="true"] { border-color: var(--fw-accent); background: color-mix(in srgb, var(--fw-accent) 10%, var(--fw-raise)); box-shadow: inset 0 0 0 1px var(--fw-accent); }
@@ -60,14 +51,64 @@
 .sp-standing .fw-rank { margin-top: 0; }
 
 /* Flag-off / no-games states reuse .fw-empty-state */
-.sp-scoreboard { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.fw-scoreboard.sp-scoreboard { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
-@media (max-width: 1050px) { .sp-scoreboard { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 700px) {
-  .sp-mode { align-self: stretch; }
-  .sp-mode button { min-width: 0; }
   .sp-lines { grid-template-columns: 1fr; }
-  .sp-line { height: 48px; }
-  .sp-scoreboard { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .sp-line { min-height: 54px; }
+  .fw-scoreboard.sp-scoreboard { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 14px; }
+  .sp-scoreboard .fw-figure { font-size: 20px; }
+  .sp-scoreboard .fw-figure small { display: none; }
 }
-@media (prefers-reduced-motion: reduce) { .sp-mode::before, .sp-line { transition: none !important; } }
+@media (prefers-reduced-motion: reduce) { .sp-line, .sp-sheet { transition: none !important; } }
+
+/* Explainer, sport filter, market head */
+.sp-explain { margin: 0; padding: 12px 0 4px; font-size: 12px; line-height: 19px; color: var(--fw-fg3); }
+.sp-explain b { font: 600 11.5px var(--fw-mono); color: var(--fw-fg2); }
+.sp-filter { padding: 8px 0 2px; }
+.sp-market-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+.sp-market-head .sp-market-title { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-lock { flex: none; font: 400 10.5px/16px var(--fw-mono); color: var(--fw-fg3); white-space: nowrap; }
+
+/* Lines: odds on top, what 100 wins underneath; a picked line says so and shows the stake */
+.sp-line-name { display: flex; flex-wrap: wrap; align-items: center; column-gap: 6px; row-gap: 2px; white-space: normal; overflow: visible; }
+.sp-line-name small { margin-left: 0; }
+.sp-line-odds { display: flex; flex-direction: column; align-items: flex-end; flex: none; line-height: 1.2; }
+.sp-line-odds small { font: 400 10px var(--fw-mono); color: var(--fw-fg3); white-space: nowrap; }
+.sp-line-tag { display: inline-flex; align-items: center; gap: 4px; flex-basis: 100%; font: 500 10px/14px var(--fw-mono); font-style: normal; letter-spacing: .04em; text-transform: uppercase; color: var(--fw-accent); }
+.sp-line-tag svg { width: 11px; height: 11px; }
+.sp-line[data-picked]:disabled { opacity: 1; }
+.sp-line:disabled:not([data-picked]) { opacity: .45; }
+
+/* Slip: clear button, empty "to win", phone bottom sheet */
+.sp-clear { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 10px; border: 1px solid var(--fw-hair); border-radius: var(--fw-rs); font: 500 10px var(--fw-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--fw-fg2); }
+.sp-clear:hover { background: var(--fw-raise); color: var(--fw-fg); }
+.sp-clear:focus-visible { outline: 2px solid var(--fw-accent); outline-offset: 2px; }
+.sp-clear svg { width: 12px; height: 12px; }
+.sp-slip-hint { font-size: 12px; color: var(--fw-fg3); }
+.sp-sheet-spacer { display: none; }
+
+/* Pick rows and results: label + icon + signed amount, never colour alone */
+.sp-pick { align-items: flex-start; }
+.sp-pick .fw-pick-body strong { white-space: normal; }
+.sp-pick-who { color: var(--fw-fg3); font-weight: 400; }
+.sp-pick .fw-pick-body > span { white-space: normal; }
+.sp-result { display: inline-flex; align-items: center; gap: 4px; }
+.sp-result svg { width: 10px; height: 10px; }
+.sp-net { font: 500 12px var(--fw-mono); color: var(--fw-fg2); }
+.sp-result[data-status="won"] + .sp-net { color: var(--gain-ink); }
+.sp-result[data-status="lost"] + .sp-net { color: var(--loss-ink); }
+
+@media (max-width: 700px) {
+  /* The slip becomes a sheet above the tab bar once a line is tapped, so it is always in reach. */
+  .sp-sheet[data-open] {
+    position: fixed; left: 12px; right: 12px; bottom: calc(76px + env(safe-area-inset-bottom)); z-index: 40;
+    max-height: min(72dvh, 520px); overflow-y: auto; overscroll-behavior: contain;
+    box-shadow: 0 -18px 40px -14px rgb(0 0 0 / .35), 0 2px 8px rgb(0 0 0 / .12);
+    animation: sp-sheet-in .26s cubic-bezier(.22, 1, .36, 1);
+  }
+  .sp-sheet[data-open] .fw-section-head { min-height: 44px; padding: 8px 0; }
+  .sp-sheet[data-open] form { gap: 12px; padding-top: 12px; }
+  .sp-sheet-spacer[data-on] { display: block; height: 330px; }
+}
+@keyframes sp-sheet-in { from { transform: translateY(16px); opacity: 0; } to { transform: none; opacity: 1; } }

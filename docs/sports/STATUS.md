@@ -2,6 +2,10 @@
 
 Branch: `feat/sports-picks`. Flag: `NEXT_PUBLIC_SPORTS_ENABLED=1` (default off).
 
+## Review round 1 fixes (all in this branch)
+
+Stale-line window (publish within 24 h, lock 2 h, freeze on movement), start-time sync, results matching by name and time with learned aliases, independent-source quorum, void quorum, finite-score checks, void-vs-pick row lock plus sweep, member-limit lock, uniform join error + limiter, constant-time cron secret, quote timestamps, `picked` by market id, mirrored-pick report, settled-pick notification outbox, tennis totals off by default (`SPORTS_TENNIS_TOTALS=1`), dynamic import of the sports UI, tablist semantics, pick history with game/market/side/stake/payout, sport filter, win-per-100 on each line, lock times, locked-picks reveal, phone pick sheet. Covered by `fixes.test.ts` and `review.test.ts`.
+
 ## Done
 
 - Provider investigation and combined free-tier budget math: PROVIDERS.md
@@ -21,7 +25,7 @@ Branch: `feat/sports-picks`. Flag: `NEXT_PUBLIC_SPORTS_ENABLED=1` (default off).
 - **Every provider fact** in PROVIDERS.md: no provider site was reachable (DNS blocked), only search snippets. The Odds API free tier was not resolved with certainty; the best evidence says free is limited by credits, not by market type, and that props work per event.
 - **The Odds API adapter**: response shapes follow the public v4 docs from memory; covered by a fixture test only. Tennis home/away naming, the `/scores` payload and tennis score semantics (sets vs games) are unconfirmed.
 - Odds-API-compatible vendor reuse (PropLine) is a claim from a directory listing.
-- **Not visually verified.** No browser was available in the sandbox, so the new UI has not been seen in light/dark or at mobile width. It reuses the Fantasy classes and tokens (and the trade panel's sliding-pill pattern for the switch), but please look at it in both themes and at ~375px before enabling. Likely tweaks: slip placement on mobile, line button heights.
+- **Visually checked** with Playwright screenshots in light and dark at 1280px and 375px (home, league, slip, settled history). Not checked: other viewport sizes, the create form, keyboard-only flow in a real screen reader.
 - Results: only the odds vendors' own score endpoints are wired. DESIGN.md wants two independent sources; until a second exists, settlement waits forever unless `SPORTS_MIN_RESULT_SOURCES=1` is set (a knowing downgrade). Player-prop box scores have no source yet (props void if stats are missing).
 - Load behaviour at scale, and concurrency under real traffic (the row lock approach is standard but untested beyond the unit and smoke tests).
 - Two pre-existing lint warnings in files this branch does not touch (`admin/syncs/page.tsx`, `invite-preview/[kind]/route.tsx`) make `npm run lint` exit non-zero on the base branch as well.
@@ -36,6 +40,7 @@ Branch: `feat/sports-picks`. Flag: `NEXT_PUBLIC_SPORTS_ENABLED=1` (default off).
 | `PROPLINE_API_KEY`, `PROPLINE_BASE_URL`, `PROPLINE_MONTHLY_CREDITS` | Optional second, Odds-API-compatible source |
 | `SPORTS_PROPS_ENABLED` | `1` to fetch player props (costs more credits) |
 | `SPORTS_MIN_RESULT_SOURCES` | Override the 2-source settlement rule (default 2) |
+| `SPORTS_TENNIS_TOTALS` | `1` offers tennis total games (needs confirmed score semantics first) |
 | `SPORTS_MOCK` | `1` uses the offline mock for odds and results (local/dev only) |
 | `CRON_SECRET` | Already used by other crons; also guards sports cron and admin void |
 

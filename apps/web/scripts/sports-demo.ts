@@ -83,12 +83,14 @@ async function settleDemo() {
   for (const e of events) {
     await db.update(schema.sportsEvents).set({ startsAt: past }).where(eq(schema.sportsEvents.id, e.id))
     await db.update(schema.sportsMarkets).set({ status: "locked", lockAt: past }).where(eq(schema.sportsMarkets.eventId, e.id))
-    const n = e.externalId.split("-").pop()
+    const props = await db.select().from(schema.sportsMarkets).where(eq(schema.sportsMarkets.eventId, e.id))
+    const playerStats: Record<string, Record<string, number>> = {}
+    for (const m of props) if (m.player && m.statKey) playerStats[m.player] = { [m.statKey]: m.statKey === "player_pass_yds" ? 262 : 31 }
     results[e.externalId] = {
       status: "final",
       homeScore: e.sport === "nba" ? 118 : e.sport === "tennis" ? 2 : 27,
       awayScore: e.sport === "nba" ? 109 : e.sport === "tennis" ? 1 : 20,
-      playerStats: { [`Mock Player ${n}`]: { player_pass_yds: 262, player_points: 31 } },
+      playerStats,
     }
   }
   const out = await settleDueEvents(db, [new MockProvider(results)], new Date(), { ...DEFAULT_RESOLVE, minSources: 1, settleDelayMs: 0 })

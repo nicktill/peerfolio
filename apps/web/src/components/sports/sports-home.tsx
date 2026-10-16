@@ -6,6 +6,7 @@ import "@web/components/sports/sports-workspace.css"
 import { useState } from "react"
 import Link from "next/link"
 import { ArrowRight, Clock, Infinity as Forever, Plus, Users } from "lucide-react"
+import { ModePanel } from "@web/components/sports/mode-switch"
 import { revealStyle } from "@web/components/motion/reveal"
 import { useToast } from "@web/components/ui/toast"
 import { Choice, Row } from "@web/components/fantasy/choice"
@@ -37,7 +38,7 @@ const DURATIONS = [
 const SPORT_OPTIONS = ["nfl", "nba", "tennis"] as const
 
 /** The Sports side of the Fantasy page: your leagues, start one, or join with a code. */
-export function SportsHome() {
+export function SportsHome({ switcher }: { switcher?: React.ReactNode }) {
   const { data, loading, refetch } = useApi<{ leagues: SportsSummary[] }>("/api/sports/leagues")
   const [mode, setMode] = useState<"none" | "create" | "join">("none")
 
@@ -45,9 +46,10 @@ export function SportsHome() {
     <>
       <header className="fw-intro reveal" style={revealStyle(0)}>
         <div>
+          {switcher}
           <span className="fw-eyebrow">Pregame picks. Play credits.</span>
           <h1>Sports leagues</h1>
-          <p className="fw-lede">Everyone starts with the same credits. Back your picks on NFL, NBA and tennis, and climb the standings. No real money, ever.</p>
+          <p className="fw-lede">Everyone starts with the same credits. Back your picks on NFL, NBA and tennis, and climb the standings. Lines are fixed contest lines, not live odds. No real money, ever.</p>
         </div>
         <div className="fw-actions">
           <span className="fw-pill">Play credits</span>
@@ -60,6 +62,7 @@ export function SportsHome() {
         </div>
       </header>
 
+      <ModePanel mode="sports">
       {mode === "create" ? <CreateForm onCancel={() => setMode("none")} /> : null}
       {mode === "join" ? (
         <JoinForm
@@ -116,6 +119,7 @@ export function SportsHome() {
           <p>No sports leagues yet. Start one and drop the link in the group chat.</p>
         </div>
       )}
+      </ModePanel>
     </>
   )
 }
