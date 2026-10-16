@@ -22,9 +22,11 @@ final class AppEnvironment {
         let transport = URLSessionTransport()
         let holder = SignOutRelay()
         let session = SessionManager(config: config, transport: transport, store: tokenStore, onSignedOut: { holder.fire() })
-        self.client = APIClient(config: config, transport: transport, session: session)
-        self.auth = AuthController(client: client)
-        holder.handler = { [weak auth] in Task { @MainActor in auth?.sessionEnded() } }
+        let apiClient = APIClient(config: config, transport: transport, session: session)
+        let controller = AuthController(client: apiClient)
+        self.client = apiClient
+        self.auth = controller
+        holder.handler = { [weak controller] in Task { @MainActor in controller?.sessionEnded() } }
     }
 
     /// The web app's URL for a path such as `/wealth?x=1` returned by the assistant.

@@ -66,8 +66,10 @@ struct NetWorthChart: View {
             }
         }
         .chartXAxis {
-            AxisMarks(values: .automatic(desiredCount: 4)) { _ in
-                AxisValueLabel(format: .dateTime.month(.abbreviated).day(), anchor: .top).font(PFFont.mono(10)).foregroundStyle(Theme.fg3)
+            AxisMarks(values: .automatic(desiredCount: 4)) { value in
+                AxisValueLabel(anchor: .top) {
+                    if let d = value.as(Date.self) { Text(d.formatted(.dateTime.month(.abbreviated).day())).font(PFFont.mono(10)).foregroundStyle(Theme.fg3) }
+                }
             }
         }
         // The line draws in from the left, like the web's `.pf-draw`.

@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import PeerfolioKit
 
 /// Colour tokens of the signed-in web app ("5C", apps/web/src/app/peerfolio-5c.css), light and dark.
 /// Values mirror docs/ios/design-tokens.json; change them there and here together.

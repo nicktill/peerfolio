@@ -2,6 +2,7 @@ import SwiftUI
 import Observation
 import AuthenticationServices
 import CryptoKit
+import Security
 import PeerfolioKit
 #if canImport(GoogleSignIn)
 import GoogleSignIn
@@ -78,7 +79,7 @@ final class AuthController {
             guard let token = result.user.idToken?.tokenString else { return fail("Google didn't return what we need. Try again.") }
             await exchange(TokenExchangeRequest(provider: .google, idToken: token, nonce: nonce))
         } catch {
-            if (error as NSError).code != GIDSignInError.canceled.rawValue { fail("Google sign-in didn't finish. Try again.") }
+            if (error as? GIDSignInError)?.code != .canceled { fail("Google sign-in didn't finish. Try again.") }
         }
         #else
         fail("Google sign-in isn't included in this build.")
