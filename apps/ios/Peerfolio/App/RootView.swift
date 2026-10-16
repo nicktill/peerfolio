@@ -35,6 +35,7 @@ enum AppTab: Hashable { case portfolio, leagues, fantasy, news, assistant }
 struct MainTabs: View {
     @Environment(AppEnvironment.self) private var env
     @State private var selection: AppTab = .portfolio
+    @State private var contextPage: AssistantContext.Page = .portfolio
 
     var body: some View {
         TabView(selection: $selection) {
@@ -46,9 +47,22 @@ struct MainTabs: View {
                 .tabItem { Label("Fantasy", systemImage: "gamecontroller") }.tag(AppTab.fantasy)
             NewsView(model: NewsViewModel(client: env.client))
                 .tabItem { Label("News", systemImage: "newspaper") }.tag(AppTab.news)
-            AssistantView(model: AssistantViewModel(client: env.client, page: .portfolio))
+            AssistantView(model: AssistantViewModel(client: env.client, page: contextPage), page: contextPage)
                 .tabItem { Label("Assistant", systemImage: "sparkles") }.tag(AppTab.assistant)
         }
-        .onChange(of: selection) { _, _ in Haptics.selection() }
+        .onChange(of: selection) { old, new in
+            Haptics.selection()
+            // The assistant answers "my portfolio" questions differently on each page, so remember where the person came from.
+            if new == .assistant { contextPage = Self.page(for: old) }
+        }
+    }
+
+    private static func page(for tab: AppTab) -> AssistantContext.Page {
+        switch tab {
+        case .portfolio, .assistant: return .portfolio
+        case .leagues: return .leagues
+        case .fantasy: return .fantasy
+        case .news: return .news
+        }
     }
 }
