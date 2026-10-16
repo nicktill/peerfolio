@@ -66,7 +66,7 @@ export function resolveResult(
 
   // Merge player stats: first source that has any wins; conflicting numbers send it to review.
   const withStats = agreeing.filter((r) => r.playerStats)
-  let playerStats = withStats[0]?.playerStats
+  const playerStats = withStats[0]?.playerStats
   for (const other of withStats.slice(1)) {
     for (const [player, stats] of Object.entries(other.playerStats ?? {})) {
       for (const [k, v] of Object.entries(stats)) {

@@ -13,6 +13,8 @@ import { mutate, useApi } from "@web/lib/use-api"
 import { timeLeft } from "@web/components/fantasy/time-left"
 import { Choice, Row } from "@web/components/fantasy/choice"
 import { LookPicker } from "@web/components/fantasy/league-look-picker"
+import { ModeSwitch, useFantasyMode } from "@web/components/sports/mode-switch"
+import { SportsHome } from "@web/components/sports/sports-home"
 
 type FantasySummary = {
   id: string
@@ -28,9 +30,21 @@ type FantasySummary = {
 export default function FantasyPage() {
   const { data, loading, refetch } = useApi<{ leagues: FantasySummary[] }>("/api/fantasy")
   const [mode, setMode] = useState<"none" | "create" | "join">("none")
+  const [side, setSide] = useFantasyMode()
+
+  // Sports sits behind the `sportsEnabled` flag; with it off `side` is always "stocks" and the switch renders nothing.
+  if (side === "sports") {
+    return (
+      <div className="fw">
+        <ModeSwitch mode={side} onChange={setSide} />
+        <SportsHome />
+      </div>
+    )
+  }
 
   return (
     <div className="fw">
+      <ModeSwitch mode={side} onChange={setSide} />
       <header className="fw-intro reveal" style={revealStyle(0)}>
         <div>
           <span className="fw-eyebrow">The market. Your group chat.</span>

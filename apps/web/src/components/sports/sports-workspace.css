@@ -1,0 +1,73 @@
+/*
+ * Sports picks. Builds on fantasy-workspace.css (same .fw tokens, panels, eyebrows,
+ * buttons and forms); only what Fantasy doesn't already have lives here:
+ * the Stocks | Sports switch, market rows with tappable lines, the pick slip.
+ * Everything reads --fw-* tokens, so light and dark follow the app.
+ */
+
+/* Stocks | Sports switch: the same sliding pill as the trade panel's Buy | Sell */
+.sp-mode { position: relative; display: inline-grid; grid-template-columns: 1fr 1fr; align-self: flex-start; padding: 3px; border: 1px solid var(--fw-hair); border-radius: calc(var(--fw-rs) + 2px); background: var(--fw-panel); }
+.sp-mode::before { content: ""; position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc(50% - 3px); border-radius: calc(var(--fw-rs) - 1px); background: var(--fw-raise); box-shadow: inset 0 0 0 1px var(--fw-line); transition: transform .28s cubic-bezier(.22, 1, .36, 1); }
+.sp-mode[data-mode="sports"]::before { transform: translateX(100%); }
+.sp-mode button { position: relative; z-index: 1; min-width: 92px; height: 32px; padding: 0 16px; border-radius: calc(var(--fw-rs) - 1px); font: 500 12.5px var(--fw-sans); color: var(--fw-fg3); transition: color .2s; }
+.sp-mode button[aria-selected="true"] { color: var(--fw-fg); }
+.sp-mode button:hover { color: var(--fw-fg); }
+.sp-mode button:focus-visible { outline: 2px solid var(--fw-accent); outline-offset: 2px; }
+
+/* Markets */
+.sp-day { margin: 0; padding: 14px 0 6px; font: 500 10.5px/16px var(--fw-mono); text-transform: uppercase; letter-spacing: .09em; color: var(--fw-fg3); }
+.sp-events { list-style: none; margin: 0; padding: 0; }
+.sp-event { padding: 14px 0; border-top: 1px solid var(--fw-hair2); }
+.sp-event:first-of-type { border-top: 0; }
+.sp-event-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.sp-event-head strong { font: 500 14px/20px var(--fw-sans); letter-spacing: -.005em; }
+.sp-event-head span { font: 400 10.5px/16px var(--fw-mono); color: var(--fw-fg3); white-space: nowrap; }
+.sp-market { margin-top: 10px; }
+.sp-market-title { display: block; margin-bottom: 6px; font: 400 10.5px/16px var(--fw-mono); letter-spacing: .02em; color: var(--fw-fg3); }
+.sp-lines { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.sp-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; height: 44px; padding: 0 12px; border: 1px solid var(--fw-hair); border-radius: var(--fw-rs); background: var(--fw-bg); text-align: left; transition: background .15s, border-color .15s, transform .12s; }
+.sp-line:enabled:hover { background: var(--fw-raise); border-color: var(--fw-line); }
+.sp-line:enabled:active { transform: scale(.985); }
+.sp-line[aria-pressed="true"] { border-color: var(--fw-accent); background: color-mix(in srgb, var(--fw-accent) 10%, var(--fw-raise)); box-shadow: inset 0 0 0 1px var(--fw-accent); }
+.sp-line:disabled { opacity: .5; }
+.sp-line:focus-visible { outline: 2px solid var(--fw-accent); outline-offset: 2px; }
+.sp-line-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; font-weight: 500; }
+.sp-line-name small { margin-left: 6px; font: 500 11px var(--fw-mono); color: var(--fw-fg2); }
+.sp-price { flex: none; font: 600 12.5px var(--fw-mono); font-variant-numeric: tabular-nums; color: var(--fw-fg); }
+.sp-picked { display: inline-flex; align-items: center; gap: 5px; margin-top: 6px; font: 500 10px var(--fw-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--fw-fg3); }
+.sp-picked svg { width: 12px; height: 12px; }
+
+/* Pick slip (rail) */
+.sp-slip form { display: flex; flex-direction: column; gap: 16px; padding-top: 16px; }
+.sp-slip-pick { padding: 12px; border: 1px solid var(--fw-hair); border-radius: var(--fw-r); background: var(--fw-bg); }
+.sp-slip-pick strong { display: block; font: 500 14px/20px var(--fw-sans); }
+.sp-slip-pick span { display: block; margin-top: 2px; font: 400 10.5px/17px var(--fw-mono); color: var(--fw-fg3); }
+.sp-slip-return { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.sp-slip-return b { font: 400 26px/30px var(--fw-serif); letter-spacing: -.025em; font-variant-numeric: tabular-nums lining-nums; }
+.sp-slip .fw-quick { grid-template-columns: repeat(4, 1fr); }
+.sp-slip-empty { padding: 20px 0 6px; font-size: 13px; line-height: 20px; color: var(--fw-fg3); }
+.sp-fine { margin: 0; font-size: 11px; line-height: 17px; color: var(--fw-fg3); }
+
+/* Pick history */
+.sp-result { font: 500 9px/16px var(--fw-mono); text-transform: uppercase; letter-spacing: .08em; padding: 0 7px; border: 1px solid var(--fw-hair); border-radius: 999px; color: var(--fw-fg3); white-space: nowrap; }
+.sp-result[data-status="won"] { color: var(--gain-ink); border-color: color-mix(in srgb, var(--gain) 45%, transparent); }
+.sp-result[data-status="lost"] { color: var(--loss-ink); border-color: color-mix(in srgb, var(--loss) 45%, transparent); }
+.sp-result[data-status="open"] { color: var(--series-4, var(--fw-fg2)); border-color: color-mix(in srgb, var(--series-4, #e0a23f) 50%, transparent); }
+
+/* Standings: rank, player, credits (Fantasy's row, minus the sparkline and return columns) */
+.sp-standing { grid-template-columns: 22px minmax(0, 1fr) auto !important; align-items: center; }
+.sp-standing .fw-return { padding-top: 0; }
+.sp-standing .fw-rank { margin-top: 0; }
+
+/* Flag-off / no-games states reuse .fw-empty-state */
+.sp-scoreboard { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+@media (max-width: 1050px) { .sp-scoreboard { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 700px) {
+  .sp-mode { align-self: stretch; }
+  .sp-mode button { min-width: 0; }
+  .sp-lines { grid-template-columns: 1fr; }
+  .sp-line { height: 48px; }
+  .sp-scoreboard { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+}
+@media (prefers-reduced-motion: reduce) { .sp-mode::before, .sp-line { transition: none !important; } }
