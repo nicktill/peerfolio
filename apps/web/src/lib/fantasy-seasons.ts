@@ -268,7 +268,7 @@ type Scored = { memberId: string; userId: string; percent: number; floor?: numbe
 async function settleRound(tx: Tx, league: League, season: Season, round: Round, members: MemberRow[], now: Date): Promise<"wait" | "settled"> {
   const end = effectiveEnd(league, round)
   const playing = members.filter((m) => m.joinedAt.getTime() < end.getTime())
-  let scored: Scored[] = []
+  const scored: Scored[] = []
   let late = false
   let decisions: Decision[] = []
 
