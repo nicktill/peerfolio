@@ -29,7 +29,7 @@ Branch: `feat/league-seasons`. No PR opened.
 ## Next steps
 1. Delivery worker for `fantasy_events` (push/email) once a provider exists.
 2. Bound the snapshot query in `loadFantasyLeague`; cache the league list.
-3. Benchmark challenge round, exclusive snake draft, seasons for real-portfolio Leagues (see ANALYSIS.md).
+3. Benchmark challenge round, exclusive snake draft, seasons for real-portfolio Leagues.
 
 ## Run it locally
 ```
