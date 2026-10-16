@@ -1,0 +1,50 @@
+# Sports picks: status
+
+Branch: `feat/sports-picks`. Flag: `NEXT_PUBLIC_SPORTS_ENABLED=1` (default off).
+
+## Done
+
+- Provider investigation and combined free-tier budget math: PROVIDERS.md
+- Fairness design, threat model, data model, phased plan: DESIGN.md
+- Local test guide: TESTING.md
+- Migration `0025_sports_picks.sql` (8 new tables, additive only; `migration-safety` passes)
+- Pure logic with tests (`apps/web/src/lib/sports`): odds maths, consensus + devig, line publishing, pick lock, caps, accepted-line snapshot, result resolution, grading (moneyline, spread, total, props), idempotent settlement planning, credit budgeting, provider composite (failover, merge, pacing, cache)
+- Providers: mock; The Odds API adapter (also reusable for Odds-API-compatible vendors via name + base URL)
+- DB layer (`store.ts`): leagues, join, atomic pick placement, publishing, locking, void, settlement
+- Routes: `/api/sports/leagues`, `/join`, `/[id]`, `/[id]/picks`, `/api/sports/admin/void`, `/api/cron/sports/publish|settle`
+- UI: Stocks | Sports switch (remembered), Sports home (list / create / join), league page (lines, slip, standings, history), on the existing `fw-*` design tokens
+- Local scripts: `npm run sports:seed`, `npm run sports:settle-demo`
+- Verified locally against a real Postgres 16: migration applies, seed + settle work, second settle pays nothing, ledger sum equals credits, pick API returns 201/200 (replay)/409 (second pick, stale price)/403 (cron without secret); `/fantasy` and the league page respond 200.
+
+## Unverified (read this)
+
+- **Every provider fact** in PROVIDERS.md: no provider site was reachable (DNS blocked), only search snippets. The Odds API free tier was not resolved with certainty; the best evidence says free is limited by credits, not by market type, and that props work per event.
+- **The Odds API adapter**: response shapes follow the public v4 docs from memory; covered by a fixture test only. Tennis home/away naming, the `/scores` payload and tennis score semantics (sets vs games) are unconfirmed.
+- Odds-API-compatible vendor reuse (PropLine) is a claim from a directory listing.
+- **Not visually verified.** No browser was available in the sandbox, so the new UI has not been seen in light/dark or at mobile width. It reuses the Fantasy classes and tokens (and the trade panel's sliding-pill pattern for the switch), but please look at it in both themes and at ~375px before enabling. Likely tweaks: slip placement on mobile, line button heights.
+- Results: only the odds vendors' own score endpoints are wired. DESIGN.md wants two independent sources; until a second exists, settlement waits forever unless `SPORTS_MIN_RESULT_SOURCES=1` is set (a knowing downgrade). Player-prop box scores have no source yet (props void if stats are missing).
+- Load behaviour at scale, and concurrency under real traffic (the row lock approach is standard but untested beyond the unit and smoke tests).
+- Two pre-existing lint warnings in files this branch does not touch (`admin/syncs/page.tsx`, `invite-preview/[kind]/route.tsx`) make `npm run lint` exit non-zero on the base branch as well.
+
+## Environment variables
+
+| Var | Purpose |
+|---|---|
+| `NEXT_PUBLIC_SPORTS_ENABLED` | `1` enables the Sports UI and API (build-time for the client) |
+| `THE_ODDS_API_KEY` | The Odds API key (server only, never committed) |
+| `THE_ODDS_API_MONTHLY_CREDITS` | Plan size for pacing, default 500 |
+| `PROPLINE_API_KEY`, `PROPLINE_BASE_URL`, `PROPLINE_MONTHLY_CREDITS` | Optional second, Odds-API-compatible source |
+| `SPORTS_PROPS_ENABLED` | `1` to fetch player props (costs more credits) |
+| `SPORTS_MIN_RESULT_SOURCES` | Override the 2-source settlement rule (default 2) |
+| `SPORTS_MOCK` | `1` uses the offline mock for odds and results (local/dev only) |
+| `CRON_SECRET` | Already used by other crons; also guards sports cron and admin void |
+
+## Owner decisions / needs
+
+1. **API key**: create a free key at the-odds-api.com, set `THE_ODDS_API_KEY`, and run the verification checklist at the bottom of PROVIDERS.md (props on free? `/scores` shape? terms for showing derived odds).
+2. **Terms of use**: get written confirmation that displaying derived contest lines in a consumer app is allowed.
+3. **Second results source**: ESPN unofficial JSON (free, no ToS), SportsGameOdds, or BALLDONTLIE (about $40/month per sport for stats). Needed for safe auto-settlement and prop grading.
+4. **Cron schedule**: not added to `vercel.json` on purpose (would start spending credits on deploy). Suggested once keys exist: publish daily at 15:00 UTC and 2 hours before typical kickoffs on game days; settle every 30 minutes on game days.
+5. **Compliance**: credits-only is the design. Any prize, sponsorship or paid tier needs legal review (sweepstakes/gambling rules vary by state) before it is built.
+6. **Defaults to confirm**: margin 4.5%, locks 30/60 min, caps (10 min stake, 10% max stake, 20 open picks, 60% exposure), settle delay 6 h, 48 h postponement void.
+7. **Naming/copy** on the Sports screens, and the collusion report priority (Phase 2).
