@@ -44,5 +44,4 @@ offline cache, Sports fantasy (hidden by `Features.sportsEnabled`), Apple token 
 ## Local copies
 
 A git bundle of the branch is kept outside the tracked tree at `/home/user/peerfolio/ios-backups/feat-ios-app.bundle` (restore with
-`git clone feat-ios-app.bundle -b feat/ios-app`). The Linux Swift toolchain used here was unpacked from the `swift:6.0-noble` image into `/tmp/claude-0/swift-root`
-(disposable; `export PATH=/tmp/claude-0/swift-root/usr/bin:$PATH`).
+`git clone feat-ios-app.bundle -b feat/ios-app`). The Linux checks used the Swift 6.0.3 toolchain from the official `swift:6.0-noble` image (any Swift 5.10+ toolchain works for `swift test`).
