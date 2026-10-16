@@ -1,5 +1,6 @@
 import {
   bigserial,
+  check,
   boolean,
   date,
   doublePrecision,
@@ -845,3 +846,184 @@ export const benchmarkPrices = pgTable(
 
 export type NewsItem = typeof newsItems.$inferSelect
 export type NewsBrief = typeof newsBriefs.$inferSelect
+
+/* ------------------------------------------------------------------ *
+ * Sports picks (feature flag `sportsEnabled`)
+ *
+ * A second league type with virtual credits only. Fully separate from the
+ * fantasy stock tables: nothing here references fantasy_* or real holdings.
+ * Events, markets and lines are GLOBAL (one published line serves every
+ * league); only members, picks and the ledger are per league.
+ * Lines are immutable once published; picks snapshot the accepted price.
+ * ------------------------------------------------------------------ */
+
+export const sportsLeagues = pgTable(
+  "sports_leagues",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    emoji: text("emoji").notNull().default("🏈"),
+    accent: text("accent").notNull().default("emerald"),
+    ownerId: uuid("owner_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    inviteCode: text("invite_code").notNull(),
+    /** Which sports picks are offered, e.g. ["nfl","nba"]. */
+    sports: jsonb("sports").$type<string[]>().notNull(),
+    /** Virtual credits every member starts with. Fixed at creation. */
+    startingCredits: integer("starting_credits").notNull().default(1000),
+    endsAt: timestamp("ends_at", { withTimezone: true }),
+    memberLimit: integer("member_limit").notNull().default(50),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("sports_leagues_invite_code_idx").on(t.inviteCode), index("sports_leagues_owner_idx").on(t.ownerId)],
+)
+
+export const sportsMembers = pgTable(
+  "sports_members",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    leagueId: uuid("league_id")
+      .notNull()
+      .references(() => sportsLeagues.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** Spendable credits. Changed only together with a ledger row, under a row lock. */
+    credits: integer("credits").notNull(),
+    joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("sports_members_unique_idx").on(t.leagueId, t.userId),
+    index("sports_members_user_idx").on(t.userId),
+    check("sports_members_credits_nonneg", sql`${t.credits} >= 0`),
+  ],
+)
+
+export const sportsEvents = pgTable(
+  "sports_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    sport: text("sport").notNull(),
+    /** The odds provider's id for the game. */
+    externalId: text("external_id").notNull(),
+    homeName: text("home_name").notNull(),
+    awayName: text("away_name").notNull(),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    /** scheduled | postponed | cancelled | final | void */
+    status: text("status").notNull().default("scheduled"),
+    homeScore: integer("home_score"),
+    awayScore: integer("away_score"),
+    /** When a settlement source first reported a final. Starts the settle delay. */
+    finalFirstSeenAt: timestamp("final_first_seen_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("sports_events_external_idx").on(t.sport, t.externalId), index("sports_events_starts_idx").on(t.startsAt)],
+)
+
+export const sportsMarkets = pgTable(
+  "sports_markets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => sportsEvents.id, { onDelete: "cascade" }),
+    /** `${key}|${player}`, unique per event. */
+    marketKey: text("market_key").notNull(),
+    kind: text("kind").notNull(),
+    player: text("player"),
+    statKey: text("stat_key"),
+    /** open | locked | settled | void */
+    status: text("status").notNull().default("open"),
+    lockAt: timestamp("lock_at", { withTimezone: true }).notNull(),
+    booksUsed: integer("books_used").notNull(),
+    voidReason: text("void_reason"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("sports_markets_event_key_idx").on(t.eventId, t.marketKey), index("sports_markets_status_idx").on(t.status, t.lockAt)],
+)
+
+/** Immutable. A price change is a new market (after a void), never an UPDATE. */
+export const sportsLines = pgTable(
+  "sports_lines",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    marketId: uuid("market_id")
+      .notNull()
+      .references(() => sportsMarkets.id, { onDelete: "cascade" }),
+    selection: text("selection").notNull(),
+    /** American odds. */
+    price: integer("price").notNull(),
+    point: doublePrecision("point"),
+    publishedAt: timestamp("published_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("sports_lines_market_sel_idx").on(t.marketId, t.selection)],
+)
+
+export const sportsPicks = pgTable(
+  "sports_picks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    leagueId: uuid("league_id")
+      .notNull()
+      .references(() => sportsLeagues.id, { onDelete: "cascade" }),
+    memberId: uuid("member_id")
+      .notNull()
+      .references(() => sportsMembers.id, { onDelete: "cascade" }),
+    marketId: uuid("market_id")
+      .notNull()
+      .references(() => sportsMarkets.id),
+    lineId: uuid("line_id")
+      .notNull()
+      .references(() => sportsLines.id),
+    selection: text("selection").notNull(),
+    stake: integer("stake").notNull(),
+    /** Snapshot of the accepted line. */
+    price: integer("price").notNull(),
+    point: doublePrecision("point"),
+    /** Stake included, fixed at acceptance. */
+    totalReturn: integer("total_return").notNull(),
+    /** open | won | lost | push | void */
+    status: text("status").notNull().default("open"),
+    /** Client-supplied idempotency key so a double submit places one pick. */
+    requestId: text("request_id").notNull(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }).notNull().defaultNow(),
+    settledAt: timestamp("settled_at", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("sports_picks_member_market_idx").on(t.memberId, t.marketId),
+    uniqueIndex("sports_picks_request_idx").on(t.memberId, t.requestId),
+    index("sports_picks_market_idx").on(t.marketId, t.status),
+    check("sports_picks_stake_pos", sql`${t.stake} > 0`),
+  ],
+)
+
+/** Append-only credit ledger. A member's credits equal the sum of their rows. */
+export const sportsLedger = pgTable(
+  "sports_ledger",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    memberId: uuid("member_id")
+      .notNull()
+      .references(() => sportsMembers.id, { onDelete: "cascade" }),
+    pickId: uuid("pick_id").references(() => sportsPicks.id),
+    /** grant | place | settle_win | settle_refund */
+    type: text("type").notNull(),
+    /** Signed credits. */
+    amount: integer("amount").notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("sports_ledger_key_idx").on(t.idempotencyKey), index("sports_ledger_member_idx").on(t.memberId)],
+)
+
+/** Odds-provider credits spent per UTC day (see lib/sports/credit-budget.ts). */
+export const sportsProviderUsage = pgTable(
+  "sports_provider_usage",
+  {
+    provider: text("provider").notNull(),
+    day: date("day", { mode: "string" }).notNull(),
+    credits: integer("credits").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.provider, t.day] })],
+)

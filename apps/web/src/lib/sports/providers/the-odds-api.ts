@@ -1,0 +1,180 @@
+import type { BookQuote, EventRef, EventResult, OddsProvider, OddsSnapshot, ProviderEvent, ProviderMarket, ResultsProvider, Selection, Sport } from "../types.ts"
+
+/**
+ * Adapter for The Odds API v4 (the-odds-api.com). UNVERIFIED against the live
+ * service: the response shapes below follow the public v4 docs as remembered,
+ * and no provider site was reachable while this was written. The pure
+ * `normalize*` functions are covered by fixture tests; confirm against a real
+ * key before enabling (see docs/sports/STATUS.md).
+ *
+ * The key comes from THE_ODDS_API_KEY and is only ever sent as a query
+ * parameter to the provider; it is never logged or returned to clients.
+ */
+
+const DEFAULT_BASE = "https://api.the-odds-api.com/v4"
+
+const FIXED_KEYS: Partial<Record<Sport, string>> = { nfl: "americanfootball_nfl", nba: "basketball_nba" }
+
+/** Prop markets requested per sport. Each costs 1 credit per event per region. */
+export const PROP_MARKETS: Record<Sport, string[]> = {
+  nfl: ["player_pass_yds", "player_rush_yds", "player_reception_yds", "player_receptions"],
+  nba: ["player_points", "player_rebounds", "player_assists", "player_threes"],
+  tennis: [],
+}
+
+type FetchLike = (url: string) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>
+
+type RawOutcome = { name: string; description?: string; price: number; point?: number }
+type RawBookmaker = { key: string; markets: { key: string; outcomes: RawOutcome[] }[] }
+type RawEvent = { id: string; commence_time: string; home_team: string; away_team: string; bookmakers?: RawBookmaker[] }
+
+const addQuote = (map: Map<string, ProviderMarket>, key: string, kind: ProviderMarket["kind"], player: string | undefined, selection: Selection, q: BookQuote) => {
+  const id = `${key}|${player ?? ""}`
+  const market = map.get(id) ?? { key, kind, player, outcomes: [] }
+  let outcome = market.outcomes.find((o) => o.selection === selection)
+  if (!outcome) market.outcomes.push((outcome = { selection, quotes: [] }))
+  outcome.quotes.push(q)
+  map.set(id, market)
+}
+
+/** Pure: raw provider event -> neutral event. Unknown markets are ignored. */
+export function normalizeOddsApiEvent(raw: RawEvent, sport: Sport): ProviderEvent {
+  const markets = new Map<string, ProviderMarket>()
+  for (const book of raw.bookmakers ?? []) {
+    for (const m of book.markets) {
+      for (const o of m.outcomes) {
+        const q: BookQuote = { book: book.key, price: o.price, point: o.point ?? null }
+        if (m.key === "h2h") {
+          const side = o.name === raw.home_team ? "home" : o.name === raw.away_team ? "away" : null
+          if (side) addQuote(markets, "moneyline", "moneyline", undefined, side, q)
+        } else if (m.key === "spreads") {
+          const side = o.name === raw.home_team ? "home" : o.name === raw.away_team ? "away" : null
+          if (side && o.point != null) addQuote(markets, "spread", "spread", undefined, side, q)
+        } else if (m.key === "totals") {
+          const side = o.name === "Over" ? "over" : o.name === "Under" ? "under" : null
+          if (side && o.point != null) addQuote(markets, "total", "total", undefined, side, q)
+        } else if (m.key.startsWith("player_") && o.description) {
+          const side = o.name === "Over" ? "over" : o.name === "Under" ? "under" : null
+          if (side && o.point != null) addQuote(markets, m.key, "player_prop", o.description, side, q)
+        }
+      }
+    }
+  }
+  return {
+    externalId: raw.id,
+    sport,
+    homeName: raw.home_team,
+    awayName: raw.away_team,
+    startsAt: new Date(raw.commence_time),
+    markets: [...markets.values()],
+  }
+}
+
+/** Merges per-event prop markets into the game event. */
+export const mergeMarkets = (base: ProviderEvent, extra: ProviderEvent): ProviderEvent => ({
+  ...base,
+  markets: [...base.markets, ...extra.markets.filter((m) => m.kind === "player_prop")],
+})
+
+export class TheOddsApiProvider implements OddsProvider, ResultsProvider {
+  private readonly apiKey: string
+  private readonly fetchFn: FetchLike
+  private readonly opts: { includeProps: boolean; maxPropEvents: number }
+  readonly name: string
+  private readonly baseUrl: string
+
+  /** `name` and `baseUrl` are overridable so an Odds-API-compatible vendor (PropLine claims this shape; UNVERIFIED) can reuse the adapter. */
+  constructor(
+    apiKey: string,
+    fetchFn: FetchLike = (url) => fetch(url, { cache: "no-store" }),
+    opts: { includeProps: boolean; maxPropEvents: number } = { includeProps: false, maxPropEvents: 8 },
+    name = "the-odds-api",
+    baseUrl = DEFAULT_BASE,
+  ) {
+    this.apiKey = apiKey
+    this.fetchFn = fetchFn
+    this.opts = opts
+    this.name = name
+    this.baseUrl = baseUrl
+  }
+
+  static fromEnv(): TheOddsApiProvider {
+    const key = process.env.THE_ODDS_API_KEY
+    if (!key) throw new Error("THE_ODDS_API_KEY is not set")
+    return new TheOddsApiProvider(key, undefined, { includeProps: process.env.SPORTS_PROPS_ENABLED === "1", maxPropEvents: 8 })
+  }
+
+  /** Same adapter pointed at an Odds-API-compatible vendor (e.g. PropLine). UNVERIFIED shape. */
+  static compatibleFromEnv(name: string, keyVar: string, baseVar: string): TheOddsApiProvider | null {
+    const key = process.env[keyVar]
+    const base = process.env[baseVar]
+    if (!key || !base) return null
+    return new TheOddsApiProvider(key, undefined, { includeProps: process.env.SPORTS_PROPS_ENABLED === "1", maxPropEvents: 8 }, name, base)
+  }
+
+  private async get<T>(path: string, params: Record<string, string>): Promise<T> {
+    const qs = new URLSearchParams({ ...params, apiKey: this.apiKey })
+    const res = await this.fetchFn(`${this.baseUrl}${path}?${qs}`)
+    // Never include the URL (it carries the key) in errors.
+    if (!res.ok) throw new Error(`the-odds-api ${path} failed with ${res.status}`)
+    return (await res.json()) as T
+  }
+
+  /** Tennis has one sport key per tournament; find the ones in play. */
+  private async sportKeys(sport: Sport): Promise<string[]> {
+    const fixed = FIXED_KEYS[sport]
+    if (fixed) return [fixed]
+    const all = await this.get<{ key: string; active: boolean }[]>("/sports", {})
+    return all.filter((s) => s.active && s.key.startsWith("tennis_")).map((s) => s.key)
+  }
+
+  async fetchOdds(sport: Sport, now: Date): Promise<OddsSnapshot> {
+    const events: ProviderEvent[] = []
+    for (const key of await this.sportKeys(sport)) {
+      const raw = await this.get<RawEvent[]>(`/sports/${key}/odds`, { regions: "us", markets: "h2h,spreads,totals", oddsFormat: "american" })
+      let batch = raw.map((r) => normalizeOddsApiEvent(r, sport)).filter((e) => e.startsAt.getTime() > now.getTime())
+
+      const propMarkets = PROP_MARKETS[sport]
+      if (this.opts.includeProps && propMarkets.length) {
+        const soonest = [...batch].sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime()).slice(0, this.opts.maxPropEvents)
+        const enriched = new Map<string, ProviderEvent>()
+        for (const e of soonest) {
+          const rawProps = await this.get<RawEvent>(`/sports/${key}/events/${e.externalId}/odds`, {
+            regions: "us",
+            markets: propMarkets.join(","),
+            oddsFormat: "american",
+          })
+          enriched.set(e.externalId, mergeMarkets(e, normalizeOddsApiEvent(rawProps, sport)))
+        }
+        batch = batch.map((e) => enriched.get(e.externalId) ?? e)
+      }
+      events.push(...batch)
+    }
+    return { provider: this.name, fetchedAt: new Date(), events }
+  }
+
+  async fetchResults(sport: Sport, events: EventRef[]): Promise<EventResult[]> {
+    const wanted = new Set(events.map((e) => e.externalId))
+    const out: EventResult[] = []
+    for (const key of await this.sportKeys(sport)) {
+      const raw = await this.get<
+        { id: string; completed: boolean; home_team: string; away_team: string; scores: { name: string; score: string }[] | null }[]
+      >(`/sports/${key}/scores`, { daysFrom: "3" })
+      for (const r of raw) {
+        if (!wanted.has(r.id)) continue
+        const score = (team: string) => {
+          const s = r.scores?.find((x) => x.name === team)?.score
+          return s == null ? null : Number(s)
+        }
+        out.push({
+          source: this.name,
+          externalId: r.id,
+          status: r.completed ? "final" : "in_progress",
+          homeScore: r.completed ? score(r.home_team) : null,
+          awayScore: r.completed ? score(r.away_team) : null,
+        })
+      }
+    }
+    return out
+  }
+}
