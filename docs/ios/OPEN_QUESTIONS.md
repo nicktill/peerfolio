@@ -11,6 +11,6 @@
 9. **Assistant history** is not persisted in the app (the web keeps it in the browser). Store locally, or server-side?
 10. **Rate limiting.** Added for the mobile endpoints only (Postgres fixed windows, by hashed IP: token 20/min, refresh and logout 60/min, review 5 per 5 min, devices 30/min). The rest of the API still has none. Behind Vercel the first `x-forwarded-for` hop is the client; confirm that holds for your deployment.
 11. **Mobile token lifetimes** (15 min access, 30 day refresh). Rotating `MOBILE_AUTH_SECRET` invalidates access tokens only; refresh tokens survive because they are database-backed.
-12. **Migration numbering.** This branch's migration is `0026_mobile_auth` because `feat/sports-picks` takes `0025`. If that branch merges second, check that drizzle's journal and snapshots still chain (regenerate the snapshot with `npm run db:generate` if the `prevId` chain complains).
+12. **Migration numbering.** This branch's migration is `0027_mobile_auth`, after `feat/league-seasons` (0025) and `feat/sports-picks` (0026). Merge in that order. The snapshot's `prevId` chain still points at 0024, so after the merge check `npm run db:generate` reports nothing to do; if it complains, regenerate the 0027 snapshot (the SQL is unaffected).
 13. **App icon and name.** The site favicon is used as the icon; a dedicated design would be better.
 14. **Currency / locale.** All figures are USD and `en_US`, like the web.
