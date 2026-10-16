@@ -37,6 +37,8 @@ export async function saveDraftPicks(userId: string, leagueId: string, input: { 
   const noteFor = (ticker: string) => cleanNote(input.notes?.[ticker])
 
   return db.transaction(async (tx) => {
+    // One save at a time per player, so two quick taps can't leave a mix of both lists.
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${member.id}, 1))`)
     const [round] = await tx.execute<{ id: string; status: string; open: boolean }>(sql`
       SELECT r.id, r.status, (r.starts_at > now()) AS open
       FROM fantasy_rounds r
