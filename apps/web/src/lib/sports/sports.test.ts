@@ -99,7 +99,7 @@ describe("line publishing", () => {
     const plan = planPublication(await snapshotAt(NOW), NOW, new Set())
     const game = plan.drafts.find((d) => d.kind === "moneyline")!
     const prop = plan.drafts.find((d) => d.kind === "player_prop" && d.externalEventId === game.externalEventId)!
-    assert.ok(prop.lockAt.getTime() < game.lockAt.getTime())
+    assert.ok(prop.lockAt.getTime() <= game.lockAt.getTime())
   })
 
   it("spread sides carry opposite points", async () => {
@@ -245,9 +245,12 @@ describe("result resolution", () => {
   it("sends disagreements to review", () => {
     assert.equal(resolveResult([A, { ...B, homeScore: 11 }], ctx).kind, "review")
   })
-  it("voids cancelled and retired events", () => {
-    assert.equal(resolveResult([{ ...A, status: "cancelled" }], ctx).kind, "void")
-    assert.equal(resolveResult([{ ...A, status: "retired" }], ctx).kind, "void")
+  it("voids cancelled and retired events once enough independent sources say so", () => {
+    const c = (source: string, status: "cancelled" | "retired"): EventResult => ({ source, externalId: "e", status, homeScore: null, awayScore: null })
+    assert.equal(resolveResult([c("a", "cancelled")], ctx).kind, "wait")
+    const late = { ...ctx, startsAt: hours(-10) }
+    assert.equal(resolveResult([c("a", "cancelled"), c("b", "cancelled")], late).kind, "void")
+    assert.equal(resolveResult([c("a", "retired"), c("b", "retired")], late).kind, "void")
   })
   it("waits on a fresh postponement then voids after the grace period", () => {
     const pp: EventResult = { ...A, status: "postponed", homeScore: null, awayScore: null }

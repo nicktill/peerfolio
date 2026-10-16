@@ -25,7 +25,7 @@ export const PROP_MARKETS: Record<Sport, string[]> = {
 type FetchLike = (url: string) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>
 
 type RawOutcome = { name: string; description?: string; price: number; point?: number }
-type RawBookmaker = { key: string; markets: { key: string; outcomes: RawOutcome[] }[] }
+type RawBookmaker = { key: string; last_update?: string; markets: { key: string; outcomes: RawOutcome[] }[] }
 type RawEvent = { id: string; commence_time: string; home_team: string; away_team: string; bookmakers?: RawBookmaker[] }
 
 const addQuote = (map: Map<string, ProviderMarket>, key: string, kind: ProviderMarket["kind"], player: string | undefined, selection: Selection, q: BookQuote) => {
@@ -43,7 +43,9 @@ export function normalizeOddsApiEvent(raw: RawEvent, sport: Sport): ProviderEven
   for (const book of raw.bookmakers ?? []) {
     for (const m of book.markets) {
       for (const o of m.outcomes) {
-        const q: BookQuote = { book: book.key, price: o.price, point: o.point ?? null }
+        if (!Number.isFinite(o.price)) continue
+        const at = book.last_update ? new Date(book.last_update) : undefined
+        const q: BookQuote = { book: book.key, price: o.price, point: o.point ?? null, at: at && !Number.isNaN(at.getTime()) ? at : undefined }
         if (m.key === "h2h") {
           const side = o.name === raw.home_team ? "home" : o.name === raw.away_team ? "away" : null
           if (side) addQuote(markets, "moneyline", "moneyline", undefined, side, q)
@@ -153,25 +155,40 @@ export class TheOddsApiProvider implements OddsProvider, ResultsProvider {
     return { provider: this.name, fetchedAt: new Date(), events }
   }
 
+  /** Odds-API-compatible vendors resell the same upstream, so they all share one family and count once. */
+  readonly family = "the-odds-api"
+
   async fetchResults(sport: Sport, events: EventRef[]): Promise<EventResult[]> {
     const wanted = new Set(events.map((e) => e.externalId))
     const out: EventResult[] = []
     for (const key of await this.sportKeys(sport)) {
       const raw = await this.get<
-        { id: string; completed: boolean; home_team: string; away_team: string; scores: { name: string; score: string }[] | null }[]
+        { id: string; commence_time?: string; completed: boolean; home_team: string; away_team: string; scores: { name: string; score: string }[] | null }[]
       >(`/sports/${key}/scores`, { daysFrom: "3" })
       for (const r of raw) {
-        if (!wanted.has(r.id)) continue
+        const startsAt = r.commence_time ? new Date(r.commence_time) : undefined
+        // Either our id, or (for a fallback match) names + time are enough.
+        if (!wanted.has(r.id) && !startsAt) continue
         const score = (team: string) => {
           const s = r.scores?.find((x) => x.name === team)?.score
-          return s == null ? null : Number(s)
+          const n = s == null ? Number.NaN : Number(s)
+          return Number.isFinite(n) ? n : null
         }
+        const home = r.completed ? score(r.home_team) : null
+        const away = r.completed ? score(r.away_team) : null
+        // A "completed" game with an unreadable score is not a final.
+        const final = r.completed && home != null && away != null
         out.push({
           source: this.name,
+          family: this.family,
           externalId: r.id,
-          status: r.completed ? "final" : "in_progress",
-          homeScore: r.completed ? score(r.home_team) : null,
-          awayScore: r.completed ? score(r.away_team) : null,
+          homeName: r.home_team,
+          awayName: r.away_team,
+          startsAt: startsAt && !Number.isNaN(startsAt.getTime()) ? startsAt : undefined,
+          // This feed cannot say postponed/cancelled/retired. Resolution voids a game with no final long after its start.
+          status: final ? "final" : "in_progress",
+          homeScore: final ? home : null,
+          awayScore: final ? away : null,
         })
       }
     }

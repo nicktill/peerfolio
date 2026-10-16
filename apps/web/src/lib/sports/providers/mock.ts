@@ -9,6 +9,17 @@ const BOOKS = ["bookA", "bookB", "bookC", "bookD"]
 
 const quotes = (prices: number[], point: number | null = null): BookQuote[] => prices.map((price, i) => ({ book: BOOKS[i]!, price, point }))
 
+const TEAMS: Record<Sport, [string, string][]> = {
+  nfl: [["Kansas City Chiefs", "Buffalo Bills"], ["Philadelphia Eagles", "Dallas Cowboys"], ["San Francisco 49ers", "Detroit Lions"]],
+  nba: [["Boston Celtics", "New York Knicks"], ["Denver Nuggets", "Phoenix Suns"], ["Milwaukee Bucks", "Miami Heat"]],
+  tennis: [["Carlos Alcaraz", "Jannik Sinner"], ["Iga Swiatek", "Aryna Sabalenka"], ["Novak Djokovic", "Daniil Medvedev"]],
+}
+const PLAYERS: Record<Sport, string[]> = {
+  nfl: ["Patrick Mahomes", "Jalen Hurts", "Brock Purdy"],
+  nba: ["Jayson Tatum", "Nikola Jokic", "Giannis Antetokounmpo"],
+  tennis: ["", "", ""],
+}
+
 export function mockEvent(sport: Sport, n: number, startsAt: Date): ProviderEvent {
   const id = `mock-${sport}-${n}`
   const markets: ProviderEvent["markets"] = [
@@ -41,14 +52,15 @@ export function mockEvent(sport: Sport, n: number, startsAt: Date): ProviderEven
     markets.push({
       key: sport === "nfl" ? "player_pass_yds" : "player_points",
       kind: "player_prop",
-      player: `Mock Player ${n}`,
+      player: PLAYERS[sport][(n - 1) % 3],
       outcomes: [
         { selection: "over", quotes: quotes([-115, -110, -115, -112], sport === "nfl" ? 249.5 : 26.5) },
         { selection: "under", quotes: quotes([-105, -110, -105, -108], sport === "nfl" ? 249.5 : 26.5) },
       ],
     })
   }
-  return { externalId: id, sport, homeName: `Home ${n}`, awayName: `Away ${n}`, startsAt, markets }
+  const [home, away] = TEAMS[sport][(n - 1) % 3]!
+  return { externalId: id, sport, homeName: home, awayName: away, startsAt, markets }
 }
 
 export class MockProvider implements OddsProvider, ResultsProvider {
@@ -61,8 +73,7 @@ export class MockProvider implements OddsProvider, ResultsProvider {
   }
 
   async fetchOdds(sport: Sport, now: Date): Promise<OddsSnapshot> {
-    const day = 24 * 3600_000
-    const events = [1, 2, 3].map((n) => mockEvent(sport, n, new Date(now.getTime() + n * day)))
+    const events = [1, 2, 3].map((n) => mockEvent(sport, n, new Date(now.getTime() + (6 + n * 5) * 3600_000)))
     return { provider: this.name, fetchedAt: now, events }
   }
 

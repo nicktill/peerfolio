@@ -3,9 +3,10 @@ import type { PostgresJsDatabase } from "drizzle-orm/postgres-js"
 import * as schema from "../../db/schema.ts"
 import { generateInviteCode } from "../crypto.ts"
 import type { UsageStore } from "./credit-budget.ts"
-import { marketsToLock, planPublication, DEFAULT_PUBLISH } from "./lines.ts"
+import { DEFAULT_PUBLISH, detectMove, freshDrafts, marketsToLock, planPublication, planSchedule } from "./lines.ts"
 import { acceptPick, DEFAULT_LIMITS, PickRejected, type PickRequest } from "./picks.ts"
-import { DEFAULT_RESOLVE, gradePick, planSettlement, placeKey, resolveResult, type ResolveConfig, type SettlementPlan } from "./settlement.ts"
+import { mirroredPairs } from "./report.ts"
+import { DEFAULT_RESOLVE, gradePick, planSettlement, placeKey, resolveResult, resultsForEvent, type ResolveConfig, type SettlementPlan } from "./settlement.ts"
 import type { EventRef, MarketKind, OddsProvider, Outcome, ResultsProvider, Selection, Sport } from "./types.ts"
 import { SPORTS } from "./types.ts"
 
@@ -28,7 +29,9 @@ export class SportsError extends Error {
   }
 }
 
-const { sportsLeagues, sportsMembers, sportsEvents, sportsMarkets, sportsLines, sportsPicks, sportsLedger, sportsProviderUsage } = schema
+const { sportsLeagues, sportsMembers, sportsEvents, sportsMarkets, sportsLines, sportsPicks, sportsLedger, sportsProviderUsage, sportsNotifications } = schema
+
+export const JOIN_FAILED = "That code didn't work"
 
 /* ---------------- leagues ---------------- */
 
@@ -55,12 +58,16 @@ async function addMember(tx: Conn, leagueId: string, userId: string, credits: nu
 
 export async function joinSportsLeague(db: Db, userId: string, code: string) {
   return db.transaction(async (tx) => {
-    const [league] = await tx.select().from(sportsLeagues).where(eq(sportsLeagues.inviteCode, code.trim().toUpperCase())).limit(1)
-    if (!league) throw new SportsError("No league with that code", 404)
-    if (league.endsAt && league.endsAt.getTime() < Date.now()) throw new SportsError("That league has ended")
+    const [found] = await tx.select({ id: sportsLeagues.id }).from(sportsLeagues).where(eq(sportsLeagues.inviteCode, code.trim().toUpperCase())).limit(1)
+    // One message for unknown, ended and full, so codes can't be probed for what exists.
+    if (!found) throw new SportsError(JOIN_FAILED, 404)
+    // The league row lock serialises joins, so the member limit cannot be raced past.
+    const [league] = await tx.select().from(sportsLeagues).where(eq(sportsLeagues.id, found.id)).for("update")
+    if (!league) throw new SportsError(JOIN_FAILED, 404)
+    if (league.endsAt && league.endsAt.getTime() < Date.now()) throw new SportsError(JOIN_FAILED, 404)
     const members = await tx.select({ userId: sportsMembers.userId }).from(sportsMembers).where(eq(sportsMembers.leagueId, league.id))
     if (members.some((m) => m.userId === userId)) return league
-    if (members.length >= league.memberLimit) throw new SportsError("That league is full")
+    if (members.length >= league.memberLimit) throw new SportsError(JOIN_FAILED, 404)
     await addMember(tx, league.id, userId, league.startingCredits)
     return league
   })
@@ -105,6 +112,7 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
     .where(eq(sportsMembers.leagueId, leagueId))
   const me = members.find((m) => m.userId === userId)
   if (!me) throw new SportsError("League not found", 404)
+  const nameOf = new Map(members.map((m) => [m.id, m.name ?? "Player"]))
 
   // Standings: spendable credits plus stake still at risk, so an open pick doesn't read as a loss.
   const atRisk = await db
@@ -122,12 +130,87 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
     .from(sportsMarkets)
     .innerJoin(sportsEvents, eq(sportsEvents.id, sportsMarkets.eventId))
     .where(and(eq(sportsMarkets.status, "open"), gt(sportsMarkets.lockAt, now), inArray(sportsEvents.sport, league.sports)))
-    .orderBy(asc(sportsEvents.startsAt))
-    .limit(300)
-  const lines = open.length
-    ? await db.select().from(sportsLines).where(inArray(sportsLines.marketId, open.map((o) => o.market.id)))
+    .orderBy(asc(sportsEvents.startsAt), asc(sportsMarkets.marketKey))
+    .limit(400)
+  const lines = open.length ? await db.select().from(sportsLines).where(inArray(sportsLines.marketId, open.map((o) => o.market.id))) : []
+
+  // "Picked" is looked up by market id, not taken from the history list, so a long history can't hide it.
+  const pickedRows = open.length
+    ? await db
+        .select({ marketId: sportsPicks.marketId, selection: sportsPicks.selection, stake: sportsPicks.stake })
+        .from(sportsPicks)
+        .where(and(eq(sportsPicks.memberId, me.id), inArray(sportsPicks.marketId, open.map((o) => o.market.id))))
     : []
-  const mine = await db.select().from(sportsPicks).where(eq(sportsPicks.memberId, me.id)).orderBy(desc(sportsPicks.acceptedAt)).limit(100)
+  const pickedBy = new Map(pickedRows.map((p) => [p.marketId, p]))
+
+  const pickSelect = {
+    id: sportsPicks.id,
+    memberId: sportsPicks.memberId,
+    selection: sportsPicks.selection,
+    stake: sportsPicks.stake,
+    price: sportsPicks.price,
+    point: sportsPicks.point,
+    totalReturn: sportsPicks.totalReturn,
+    status: sportsPicks.status,
+    acceptedAt: sportsPicks.acceptedAt,
+    kind: sportsMarkets.kind,
+    player: sportsMarkets.player,
+    statKey: sportsMarkets.statKey,
+    lockAt: sportsMarkets.lockAt,
+    sport: sportsEvents.sport,
+    home: sportsEvents.homeName,
+    away: sportsEvents.awayName,
+    startsAt: sportsEvents.startsAt,
+  }
+  const shapePick = (p: {
+    id: string
+    selection: string
+    stake: number
+    price: number
+    point: number | null
+    totalReturn: number
+    status: string
+    acceptedAt: Date
+    kind: string
+    player: string | null
+    statKey: string | null
+    sport: string
+    home: string
+    away: string
+    startsAt: Date
+  }) => ({
+    id: p.id,
+    selection: p.selection,
+    stake: p.stake,
+    price: p.price,
+    point: p.point,
+    totalReturn: p.totalReturn,
+    // What actually comes back: the full return on a win, the stake on a push or void, nothing on a loss, unknown while open.
+    payout: p.status === "won" ? p.totalReturn : p.status === "push" || p.status === "void" ? p.stake : p.status === "lost" ? 0 : null,
+    status: p.status,
+    acceptedAt: p.acceptedAt.toISOString(),
+    market: { kind: p.kind, player: p.player, statKey: p.statKey },
+    event: { sport: p.sport, home: p.home, away: p.away, startsAt: p.startsAt.toISOString() },
+  })
+
+  const mine = await db
+    .select(pickSelect)
+    .from(sportsPicks)
+    .innerJoin(sportsMarkets, eq(sportsMarkets.id, sportsPicks.marketId))
+    .innerJoin(sportsEvents, eq(sportsEvents.id, sportsMarkets.eventId))
+    .where(eq(sportsPicks.memberId, me.id))
+    .orderBy(desc(sportsPicks.acceptedAt))
+    .limit(100)
+
+  // Other members' picks are revealed only once the market has locked: never while anyone can still pick it.
+  const others = await db
+    .select(pickSelect)
+    .from(sportsPicks)
+    .innerJoin(sportsMarkets, eq(sportsMarkets.id, sportsPicks.marketId))
+    .innerJoin(sportsEvents, eq(sportsEvents.id, sportsMarkets.eventId))
+    .where(and(eq(sportsPicks.leagueId, leagueId), sql`${sportsPicks.memberId} <> ${me.id}`, sql`(${sportsMarkets.status} <> 'open' OR ${sportsMarkets.lockAt} <= ${now.toISOString()}::timestamptz)`))
+    .orderBy(desc(sportsPicks.acceptedAt))
+    .limit(60)
 
   return {
     league: {
@@ -139,6 +222,7 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
       inviteCode: league.inviteCode,
       startingCredits: league.startingCredits,
       endsAt: league.endsAt?.toISOString() ?? null,
+      isOwner: league.ownerId === userId,
     },
     you: { credits: me.credits },
     limits: {
@@ -147,30 +231,42 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
       maxOpenPicks: DEFAULT_LIMITS.maxOpenPicks,
     },
     standings,
-    markets: open.map(({ market, event }) => ({
-      id: market.id,
-      kind: market.kind as MarketKind,
-      player: market.player,
-      statKey: market.statKey,
-      lockAt: market.lockAt.toISOString(),
-      event: { sport: event.sport, home: event.homeName, away: event.awayName, startsAt: event.startsAt.toISOString() },
-      lines: lines
-        .filter((l) => l.marketId === market.id)
-        .map((l) => ({ id: l.id, selection: l.selection as Selection, price: l.price, point: l.point })),
-      picked: mine.some((p) => p.marketId === market.id),
-    })),
-    picks: mine.map((p) => ({
-      id: p.id,
-      marketId: p.marketId,
-      selection: p.selection,
-      stake: p.stake,
-      price: p.price,
-      point: p.point,
-      totalReturn: p.totalReturn,
-      status: p.status,
-      acceptedAt: p.acceptedAt.toISOString(),
-    })),
+    markets: open.map(({ market, event }) => {
+      const picked = pickedBy.get(market.id)
+      return {
+        id: market.id,
+        kind: market.kind as MarketKind,
+        player: market.player,
+        statKey: market.statKey,
+        lockAt: market.lockAt.toISOString(),
+        event: { sport: event.sport, home: event.homeName, away: event.awayName, startsAt: event.startsAt.toISOString() },
+        lines: lines
+          .filter((l) => l.marketId === market.id)
+          .map((l) => ({ id: l.id, selection: l.selection as Selection, price: l.price, point: l.point })),
+        picked: picked ? { selection: picked.selection, stake: picked.stake } : null,
+      }
+    }),
+    picks: mine.map(shapePick),
+    leaguePicks: others.map((p) => ({ ...shapePick(p), name: nameOf.get(p.memberId) ?? "Player" })),
   }
+}
+
+/** Owner-only: pairs of members who keep taking opposite sides of the same locked market. */
+export async function getMirroredPickReport(db: Db, userId: string, leagueId: string, now: Date) {
+  const [league] = await db.select().from(sportsLeagues).where(eq(sportsLeagues.id, leagueId)).limit(1)
+  if (!league || league.ownerId !== userId) throw new SportsError("League not found", 404)
+  const rows = await db
+    .select({ memberId: sportsPicks.memberId, marketId: sportsPicks.marketId, selection: sportsPicks.selection })
+    .from(sportsPicks)
+    .innerJoin(sportsMarkets, eq(sportsMarkets.id, sportsPicks.marketId))
+    .where(and(eq(sportsPicks.leagueId, leagueId), sql`(${sportsMarkets.status} <> 'open' OR ${sportsMarkets.lockAt} <= ${now.toISOString()}::timestamptz)`))
+  const members = await db
+    .select({ id: sportsMembers.id, name: schema.users.name })
+    .from(sportsMembers)
+    .innerJoin(schema.users, eq(schema.users.id, sportsMembers.userId))
+    .where(eq(sportsMembers.leagueId, leagueId))
+  const nameOf = new Map(members.map((m) => [m.id, m.name ?? "Player"]))
+  return mirroredPairs(rows).map((p) => ({ a: nameOf.get(p.a) ?? "Player", b: nameOf.get(p.b) ?? "Player", markets: p.markets }))
 }
 
 /* ---------------- picks ---------------- */
@@ -199,14 +295,14 @@ export async function placeSportsPick(db: Db, userId: string, leagueId: string, 
     if (!league) throw new SportsError("League not found", 404)
     if (league.endsAt && league.endsAt.getTime() < now.getTime()) throw new SportsError("That league has ended")
 
-    const [row] = await tx
-      .select({ line: sportsLines, market: sportsMarkets, event: sportsEvents })
-      .from(sportsLines)
-      .innerJoin(sportsMarkets, eq(sportsMarkets.id, sportsLines.marketId))
-      .innerJoin(sportsEvents, eq(sportsEvents.id, sportsMarkets.eventId))
-      .where(eq(sportsLines.id, req.lineId))
-      .limit(1)
-    if (!row || !league.sports.includes(row.event.sport)) throw new SportsError("Line not found", 404)
+    const [theLine] = await tx.select().from(sportsLines).where(eq(sportsLines.id, req.lineId)).limit(1)
+    if (!theLine) throw new SportsError("Line not found", 404)
+    // A shared row lock on the market: voidMarket / freezing take the same row exclusively, so a void either
+    // waits for this pick to commit (and then refunds it) or runs first (and this pick sees `void` and is refused).
+    const [theMarket] = await tx.select().from(sportsMarkets).where(eq(sportsMarkets.id, theLine.marketId)).for("share")
+    const [theEvent] = theMarket ? await tx.select().from(sportsEvents).where(eq(sportsEvents.id, theMarket.eventId)).limit(1) : []
+    if (!theMarket || !theEvent || !league.sports.includes(theEvent.sport)) throw new SportsError("Line not found", 404)
+    const row = { line: theLine, market: theMarket, event: theEvent }
 
     const [existing] = await tx
       .select({ n: sql<number>`count(*)::int` })
@@ -287,17 +383,18 @@ export class DbUsageStore implements UsageStore {
   }
 }
 
-/** Fetches (via the provider, normally cached/composite), plans, and inserts new markets. Idempotent. */
-export async function publishLines(db: Db, provider: OddsProvider, sports: readonly Sport[], now: Date) {
-  const summary: { sport: Sport; published: number; rejected: string | null; notes: string[] }[] = []
+/** Fetches (via the provider, normally cached/composite), guards what is published, then publishes new fixed lines. Idempotent. */
+export async function publishLines(db: Db, provider: OddsProvider, sports: readonly Sport[], now: Date, cfg = DEFAULT_PUBLISH) {
+  const summary: { sport: Sport; published: number; frozen: number; rescheduled: number; rejected: string | null; notes: string[] }[] = []
   for (const sport of sports) {
     const snapshot = await provider.fetchOdds(sport, now)
+    const guard = await guardPublished(db, snapshot, sport, now, cfg)
     const existing = await db
       .select({ ext: sportsEvents.externalId, key: sportsMarkets.marketKey })
       .from(sportsMarkets)
       .innerJoin(sportsEvents, eq(sportsEvents.id, sportsMarkets.eventId))
       .where(and(eq(sportsEvents.sport, sport), gt(sportsEvents.startsAt, now)))
-    const plan = planPublication(snapshot, now, new Set(existing.map((e) => `${e.ext}::${e.key}`)), DEFAULT_PUBLISH)
+    const plan = planPublication(snapshot, now, new Set(existing.map((e) => `${e.ext}::${e.key}`)), cfg)
 
     let published = 0
     for (const draft of plan.drafts) {
@@ -318,6 +415,8 @@ export async function publishLines(db: Db, provider: OddsProvider, sports: reado
             statKey: draft.statKey,
             lockAt: draft.lockAt,
             booksUsed: draft.booksUsed,
+            fairProbA: draft.fairProbA,
+            pointA: draft.lines[0].point,
           })
           .onConflictDoNothing()
           .returning()
@@ -326,9 +425,54 @@ export async function publishLines(db: Db, provider: OddsProvider, sports: reado
         published++
       })
     }
-    summary.push({ sport, published, rejected: plan.rejected, notes: snapshot.notes ?? [] })
+    summary.push({ sport, published, frozen: guard.frozen, rescheduled: guard.rescheduled, rejected: plan.rejected, notes: snapshot.notes ?? [] })
   }
   return summary
+}
+
+/**
+ * Keeps already-published lines honest against a fresh snapshot:
+ *  - start times are synced; a start that moved earlier pulls the lock earlier (or freezes at once);
+ *  - a market whose fresh consensus has drifted past the threshold is frozen: no new picks at the old
+ *    price. Picks already accepted keep the line they were given.
+ * Freezing takes the market row exclusively, so it is ordered against concurrent pick placement.
+ */
+export async function guardPublished(db: Db, snapshot: Awaited<ReturnType<OddsProvider["fetchOdds"]>>, sport: Sport, now: Date, cfg = DEFAULT_PUBLISH) {
+  const out = { frozen: 0, rescheduled: 0 }
+  const fresh = freshDrafts(snapshot, now, cfg)
+  const open = await db
+    .select({ market: sportsMarkets, event: sportsEvents })
+    .from(sportsMarkets)
+    .innerJoin(sportsEvents, eq(sportsEvents.id, sportsMarkets.eventId))
+    .where(and(eq(sportsMarkets.status, "open"), eq(sportsEvents.sport, sport)))
+  for (const { market, event } of open) {
+    const theirs = snapshot.events.find((e) => e.externalId === event.externalId)
+    if (!theirs) continue
+    let freeze: string | null = null
+    let lockAt = market.lockAt
+    if (Math.abs(theirs.startsAt.getTime() - event.startsAt.getTime()) > 60_000) {
+      const plan = planSchedule({ kind: market.kind as MarketKind, lockAt: market.lockAt }, theirs.startsAt, now, cfg)
+      lockAt = plan.lockAt
+      freeze = plan.freeze
+      await db.update(sportsEvents).set({ startsAt: theirs.startsAt }).where(eq(sportsEvents.id, event.id))
+      out.rescheduled++
+    }
+    const draft = fresh.get(`${event.externalId}::${market.marketKey}`)
+    if (!freeze && draft) {
+      freeze = detectMove({ kind: market.kind as MarketKind, lockAt, fairProbA: market.fairProbA, pointA: market.pointA }, draft, cfg)
+    }
+    await db.transaction(async (tx) => {
+      // Exclusive lock on the market row: waits for in-flight picks, blocks new ones until commit.
+      const [locked] = await tx.select().from(sportsMarkets).where(eq(sportsMarkets.id, market.id)).for("update")
+      if (!locked || locked.status !== "open") return
+      await tx
+        .update(sportsMarkets)
+        .set(freeze ? { status: "locked", frozenReason: freeze, lockAt } : { lockAt })
+        .where(eq(sportsMarkets.id, market.id))
+      if (freeze) out.frozen++
+    })
+  }
+  return out
 }
 
 /** Closes markets whose lock time has passed. Picks are also refused by time in `acceptPick`, so this is bookkeeping, not the guard. */
@@ -355,6 +499,26 @@ export async function applySettlement(tx: Tx, plan: SettlementPlan, now: Date) {
       .where(and(eq(sportsPicks.id, s.pickId), eq(sportsPicks.status, "open")))
       .returning({ id: sportsPicks.id })
     if (done.length) moved.add(s.pickId)
+  }
+  if (moved.size) {
+    const rows = await tx
+      .select({ id: sportsPicks.id, status: sportsPicks.status, stake: sportsPicks.stake, totalReturn: sportsPicks.totalReturn, userId: sportsMembers.userId, leagueId: sportsPicks.leagueId })
+      .from(sportsPicks)
+      .innerJoin(sportsMembers, eq(sportsMembers.id, sportsPicks.memberId))
+      .where(inArray(sportsPicks.id, [...moved]))
+    if (rows.length) {
+      await tx
+        .insert(sportsNotifications)
+        .values(
+          rows.map((r) => ({
+            userId: r.userId,
+            kind: "pick_settled",
+            pickId: r.id,
+            payload: { status: r.status, stake: r.stake, payout: r.status === "won" ? r.totalReturn : r.status === "lost" ? 0 : r.stake, leagueId: r.leagueId },
+          })),
+        )
+        .onConflictDoNothing()
+    }
   }
   let credited = 0
   for (const entry of plan.ledger) {
@@ -393,6 +557,20 @@ export async function voidMarket(db: Db, marketId: string, reason: string, now: 
   })
 }
 
+/** Refunds picks still open on a void market (a void that raced a pick, or a crash mid-void). Safe to run any time. */
+export async function sweepVoidedMarkets(db: Db, now: Date) {
+  const stuck = await db
+    .selectDistinct({ marketId: sportsPicks.marketId })
+    .from(sportsPicks)
+    .innerJoin(sportsMarkets, eq(sportsMarkets.id, sportsPicks.marketId))
+    .where(and(eq(sportsPicks.status, "open"), eq(sportsMarkets.status, "void")))
+  let refunded = 0
+  for (const { marketId } of stuck) {
+    refunded += (await db.transaction((tx) => settleMarketPicks(tx, marketId, () => "void", now))).settled
+  }
+  return refunded
+}
+
 /**
  * Settles every started event that still has unsettled markets. Results come
  * from the `results` providers (a different source than the odds), and an
@@ -404,7 +582,7 @@ export async function settleDueEvents(db: Db, results: ResultsProvider[], now: D
     .from(sportsEvents)
     .innerJoin(sportsMarkets, eq(sportsMarkets.eventId, sportsEvents.id))
     .where(and(inArray(sportsMarkets.status, ["open", "locked"]), sql`${sportsEvents.startsAt} < ${now.toISOString()}::timestamptz`))
-  const out = { settled: 0, voided: 0, waiting: 0, review: 0 }
+  const out = { settled: 0, voided: 0, waiting: 0, review: 0, swept: await sweepVoidedMarkets(db, now) }
 
   for (const sport of SPORTS) {
     const ofSport = events.map((e) => e.event).filter((e) => e.sport === sport)
@@ -413,7 +591,11 @@ export async function settleDueEvents(db: Db, results: ResultsProvider[], now: D
     const all = (await Promise.all(results.map((p) => p.fetchResults(sport, refs).catch(() => [])))).flat()
 
     for (const event of ofSport) {
-      const mine = all.filter((r) => r.externalId === event.externalId)
+      const { results: mine, matched } = resultsForEvent(event, all)
+      const learned = Object.entries(matched).filter(([src, id]) => event.aliases?.[src] !== id)
+      if (learned.length) {
+        await db.update(sportsEvents).set({ aliases: { ...event.aliases, ...Object.fromEntries(learned) } }).where(eq(sportsEvents.id, event.id))
+      }
       const sawFinal = mine.some((r) => r.status === "final")
       let firstSeen = event.finalFirstSeenAt
       if (sawFinal && !firstSeen) {
@@ -434,7 +616,7 @@ export async function settleDueEvents(db: Db, results: ResultsProvider[], now: D
                 res.kind === "void"
                   ? "void"
                   : gradePick(
-                      { kind: m.kind as MarketKind, selection: p.selection as Selection, point: p.point, player: m.player, statKey: m.statKey },
+                      { sport: event.sport, kind: m.kind as MarketKind, selection: p.selection as Selection, point: p.point, player: m.player, statKey: m.statKey },
                       res.result,
                     ),
               now,

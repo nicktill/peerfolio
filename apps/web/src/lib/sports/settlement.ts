@@ -13,18 +13,21 @@ import type { EventResult, MarketKind, Outcome, PickStatus, Selection } from "./
  */
 
 export type ResolveConfig = {
-  /** How many sources must report the same final score. */
+  /** How many INDEPENDENT sources (distinct families) must report the same final score, or the same void. */
   minSources: number
   /** Wait this long after a final is first seen, to let obvious corrections land. */
   settleDelayMs: number
   /** A postponed game with no final this long after its start is voided. */
   postponeGraceMs: number
+  /** No source has a final this long after the start (feeds that cannot say "postponed"): void and refund. */
+  noResultVoidMs: number
 }
 
 export const DEFAULT_RESOLVE: ResolveConfig = {
   minSources: 2,
   settleDelayMs: 6 * 3600_000,
   postponeGraceMs: 48 * 3600_000,
+  noResultVoidMs: 72 * 3600_000,
 }
 
 export type Resolution =
@@ -33,33 +36,39 @@ export type Resolution =
   | { kind: "void"; reason: string }
   | { kind: "final"; result: EventResult }
 
+const familyOf = (r: EventResult) => r.family ?? r.source
+const validScore = (n: number | null): n is number => n != null && Number.isFinite(n) && n >= 0
+
 export function resolveResult(
   results: EventResult[],
   ctx: { now: Date; startsAt: Date; finalFirstSeenAt: Date | null },
   cfg: ResolveConfig = DEFAULT_RESOLVE,
 ): Resolution {
-  if (results.some((r) => r.status === "cancelled")) return { kind: "void", reason: "cancelled" }
-  // A retirement or walkover ends a tennis match without a full result: refund everyone.
-  if (results.some((r) => r.status === "retired")) return { kind: "void", reason: "retired" }
+  const finals = results.filter((r) => r.status === "final" && validScore(r.homeScore) && validScore(r.awayScore))
+  const groups = new Map<string, EventResult[]>()
+  for (const r of finals) groups.set(`${r.homeScore}-${r.awayScore}`, [...(groups.get(`${r.homeScore}-${r.awayScore}`) ?? []), r])
+  if (groups.size > 1) return { kind: "review", reason: "sources disagree on the score" }
+  const agreeing = [...groups.values()][0] ?? []
+  const finalQuorum = new Set(agreeing.map(familyOf)).size >= cfg.minSources
 
-  const finals = results.filter((r) => r.status === "final" && r.homeScore != null && r.awayScore != null)
+  // A void report (cancelled, retired) counts only with quorum, and never overrides an agreed final silently.
+  const voidFamilies = new Set(results.filter((r) => r.status === "cancelled" || r.status === "retired").map(familyOf))
+  const sinceStart = ctx.now.getTime() - ctx.startsAt.getTime()
+  if (finalQuorum && voidFamilies.size > 0) {
+    // Retirements arrive with partial scores: an agreed final next to a retirement is a human call.
+    if (results.some((r) => r.status === "retired")) return { kind: "review", reason: "retirement reported alongside a final score" }
+  } else if (voidFamilies.size >= cfg.minSources && sinceStart >= cfg.settleDelayMs) {
+    return { kind: "void", reason: results.some((r) => r.status === "cancelled") ? "cancelled" : "retired" }
+  } else if (voidFamilies.size > 0 && !finalQuorum) {
+    return { kind: "wait", reason: "void report without quorum" }
+  }
+
   if (finals.length === 0) {
-    if (results.some((r) => r.status === "postponed") && ctx.now.getTime() - ctx.startsAt.getTime() > cfg.postponeGraceMs) {
-      return { kind: "void", reason: "postponed" }
-    }
+    if (results.some((r) => r.status === "postponed") && sinceStart > cfg.postponeGraceMs) return { kind: "void", reason: "postponed" }
+    if (sinceStart > cfg.noResultVoidMs) return { kind: "void", reason: "no result" }
     return { kind: "wait", reason: "no final yet" }
   }
-
-  // Group finals by score; the biggest agreeing group must reach minSources.
-  const groups = new Map<string, EventResult[]>()
-  for (const r of finals) {
-    const key = `${r.homeScore}-${r.awayScore}`
-    groups.set(key, [...(groups.get(key) ?? []), r])
-  }
-  if (groups.size > 1) return { kind: "review", reason: "sources disagree on the score" }
-  const agreeing = [...groups.values()][0]!
-  if (new Set(agreeing.map((r) => r.source)).size < cfg.minSources) return { kind: "wait", reason: "waiting for a second source" }
-
+  if (!finalQuorum) return { kind: "wait", reason: "waiting for a second source" }
   if (!ctx.finalFirstSeenAt || ctx.now.getTime() - ctx.finalFirstSeenAt.getTime() < cfg.settleDelayMs) {
     return { kind: "wait", reason: "settle delay" }
   }
@@ -78,7 +87,41 @@ export function resolveResult(
   return { kind: "final", result: { ...agreeing[0]!, playerStats } }
 }
 
+const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "")
+const WINDOW_MS = 3 * 3600_000
+
+/**
+ * Picks the results that belong to one of our events. Matches by the id we know
+ * for that source first, then falls back to sport-agnostic team names (either
+ * orientation) plus a start-time window, so a second vendor with its own ids
+ * still lines up. `matched` lists (source -> their id) for caching as aliases.
+ */
+export function resultsForEvent(
+  event: { externalId: string; homeName: string; awayName: string; startsAt: Date; aliases?: Record<string, string> },
+  all: EventResult[],
+): { results: EventResult[]; matched: Record<string, string> } {
+  const results: EventResult[] = []
+  const matched: Record<string, string> = {}
+  for (const r of all) {
+    const byId = r.externalId === event.externalId || event.aliases?.[r.source] === r.externalId
+    const byName =
+      !!r.homeName &&
+      !!r.awayName &&
+      !!r.startsAt &&
+      Math.abs(r.startsAt.getTime() - event.startsAt.getTime()) <= WINDOW_MS &&
+      ((norm(r.homeName) === norm(event.homeName) && norm(r.awayName) === norm(event.awayName)) ||
+        (norm(r.homeName) === norm(event.awayName) && norm(r.awayName) === norm(event.homeName)))
+    if (!byId && !byName) continue
+    // A flipped listing swaps the scores back into our orientation.
+    const flipped = !byId && !!r.homeName && norm(r.homeName) === norm(event.awayName)
+    results.push(flipped ? { ...r, homeScore: r.awayScore, awayScore: r.homeScore } : r)
+    if (r.externalId !== event.externalId) matched[r.source] = r.externalId
+  }
+  return { results, matched }
+}
+
 export type GradableLine = {
+  sport?: string
   kind: MarketKind
   selection: Selection
   /** The point snapshotted on the pick. For spreads it is the picked side's handicap. */
@@ -89,11 +132,12 @@ export type GradableLine = {
 
 /** Grades one pick against a final result. Missing data voids rather than guesses. */
 export function gradePick(line: GradableLine, result: EventResult): Outcome {
-  if (result.status !== "final" || result.homeScore == null || result.awayScore == null) return "void"
+  if (result.status !== "final" || !validScore(result.homeScore) || !validScore(result.awayScore)) return "void"
   const { homeScore: h, awayScore: a } = result
 
   if (line.kind === "moneyline") {
-    if (h === a) return "push" // NFL ties refund; tennis and NBA cannot tie
+    // NFL ties refund. Tennis and NBA cannot tie, so an equal score means the feed is wrong: refund via void.
+    if (h === a) return line.sport === "nfl" || line.sport === undefined ? "push" : "void"
     return (h > a) === (line.selection === "home") ? "win" : "loss"
   }
 
@@ -112,7 +156,7 @@ export function gradePick(line: GradableLine, result: EventResult): Outcome {
         ? result.playerStats?.[line.player]?.[line.statKey]
         : undefined
   // A player who never appears in the box score voids the prop (DNP policy).
-  if (actual == null || line.point == null) return "void"
+  if (actual == null || !Number.isFinite(actual) || line.point == null || !Number.isFinite(line.point)) return "void"
   if (actual === line.point) return "push"
   return (actual > line.point) === (line.selection === "over") ? "win" : "loss"
 }

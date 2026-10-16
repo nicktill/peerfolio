@@ -15,7 +15,8 @@ export type Selection = "home" | "away" | "over" | "under"
 
 /* ---- provider odds (what a vendor reports) ---- */
 
-export type BookQuote = { book: string; price: number; point: number | null }
+/** `at` is when the book last updated this price. A quote with no timestamp is trusted only as fresh as its snapshot. */
+export type BookQuote = { book: string; price: number; point: number | null; at?: Date }
 
 export type ProviderOutcome = { selection: Selection; quotes: BookQuote[] }
 
@@ -56,7 +57,13 @@ export type ResultStatus = "scheduled" | "in_progress" | "final" | "postponed" |
 
 export type EventResult = {
   source: string
+  /** Upstream data family. Vendors that resell the same feed share one family and count as ONE source. Defaults to `source`. */
+  family?: string
   externalId: string
+  /** Names and start time let a vendor with different ids still be matched to our event. */
+  homeName?: string
+  awayName?: string
+  startsAt?: Date
   status: ResultStatus
   homeScore: number | null
   awayScore: number | null
@@ -69,6 +76,7 @@ export type EventRef = { externalId: string; homeName: string; awayName: string;
 
 export interface ResultsProvider {
   readonly name: string
+  readonly family?: string
   fetchResults(sport: Sport, events: EventRef[]): Promise<EventResult[]>
 }
 

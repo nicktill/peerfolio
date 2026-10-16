@@ -183,6 +183,13 @@
       "when": 1792177353119,
       "tag": "0025_sports_picks",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1792178908469,
+      "tag": "0026_sports_guards",
+      "breakpoints": true
     }
   ]
 }

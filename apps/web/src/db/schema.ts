@@ -916,6 +916,8 @@ export const sportsEvents = pgTable(
     awayScore: integer("away_score"),
     /** When a settlement source first reported a final. Starts the settle delay. */
     finalFirstSeenAt: timestamp("final_first_seen_at", { withTimezone: true }),
+    /** Other vendors' ids for this game, by source name, learned when a results source matched it by name and time. */
+    aliases: jsonb("aliases").$type<Record<string, string>>().notNull().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("sports_events_external_idx").on(t.sport, t.externalId), index("sports_events_starts_idx").on(t.startsAt)],
@@ -938,6 +940,11 @@ export const sportsMarkets = pgTable(
     lockAt: timestamp("lock_at", { withTimezone: true }).notNull(),
     booksUsed: integer("books_used").notNull(),
     voidReason: text("void_reason"),
+    /** Consensus at publish time, to notice when the true line has moved. */
+    fairProbA: doublePrecision("fair_prob_a"),
+    pointA: doublePrecision("point_a"),
+    /** Why a market was closed to new picks before its lock time (line moved, start moved earlier). */
+    frozenReason: text("frozen_reason"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("sports_markets_event_key_idx").on(t.eventId, t.marketKey), index("sports_markets_status_idx").on(t.status, t.lockAt)],
@@ -1026,4 +1033,21 @@ export const sportsProviderUsage = pgTable(
     credits: integer("credits").notNull().default(0),
   },
   (t) => [primaryKey({ columns: [t.provider, t.day] })],
+)
+
+/** Outbox for "your pick settled" messages: recorded now, delivered by push or email later. */
+export const sportsNotifications = pgTable(
+  "sports_notifications",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    pickId: uuid("pick_id").references(() => sportsPicks.id, { onDelete: "cascade" }),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+  },
+  (t) => [uniqueIndex("sports_notifications_pick_kind_idx").on(t.pickId, t.kind), index("sports_notifications_pending_idx").on(t.deliveredAt)],
 )

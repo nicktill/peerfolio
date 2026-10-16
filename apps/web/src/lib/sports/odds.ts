@@ -51,12 +51,16 @@ export type Consensus = {
 }
 
 export type ConsensusOptions = {
+  /** Drop a book quote last updated longer ago than this (only when the quote carries a timestamp). */
+  maxQuoteAgeMs: number
+  /** Reference time for quote age. */
+  now?: Date
   minBooks: number
   /** Drop a book whose fair prob is further than this from the median. */
   outlierDistance: number
 }
 
-export const DEFAULT_CONSENSUS: ConsensusOptions = { minBooks: 3, outlierDistance: 0.06 }
+export const DEFAULT_CONSENSUS: ConsensusOptions = { minBooks: 3, outlierDistance: 0.06, maxQuoteAgeMs: 15 * 60_000 }
 
 /**
  * Builds the consensus for a two-way market. `sideA` and `sideB` are the
@@ -71,8 +75,9 @@ export function consensusTwoWay(
   opts: ConsensusOptions = DEFAULT_CONSENSUS,
   sideBPointSign: 1 | -1 = 1,
 ): Consensus | null {
-  const byBookB = new Map(sideB.map((q) => [q.book, q]))
-  const pairs = sideA.flatMap((a) => {
+  const fresh = (q: BookQuote) => !q.at || !opts.now || opts.now.getTime() - q.at.getTime() <= opts.maxQuoteAgeMs
+  const byBookB = new Map(sideB.filter(fresh).map((q) => [q.book, q]))
+  const pairs = sideA.filter(fresh).flatMap((a) => {
     const b = byBookB.get(a.book)
     if (!b) return []
     if (!Number.isFinite(a.price) || !Number.isFinite(b.price)) return []
