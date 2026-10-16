@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { useAssistantView } from "@web/components/assistant/view-context"
 import {
   AlertTriangle,
   BadgeDollarSign,
@@ -100,6 +101,9 @@ export function AccountsCard({
   // All accounts start closed; refreshes retain the person's choice once they click.
   const [openById, setOpenById] = useState<Record<string, boolean>>(() => reconcileAccountExpansion({}, accounts))
   const isOpen = (a: AccountRow) => openById[a.id] ?? false
+  // The assistant resolves "this account" to the one card that is expanded (nothing when none or several are).
+  const expanded = accounts.filter((a) => openById[a.id])
+  useAssistantView({ account: expanded.length === 1 ? expanded[0]!.name : undefined })
   const toggle = (a: AccountRow) => {
     setOpenById((prev) => ({ ...prev, [a.id]: !prev[a.id] }))
   }

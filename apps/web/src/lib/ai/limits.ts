@@ -3,6 +3,9 @@
  * Pure, so the rules are testable without a database or a model.
  */
 
+import { isRange, type Range } from "../ranges.ts"
+import { isBenchmarkSymbol } from "../benchmarks.ts"
+
 /** Dollars per million tokens. Defaults are GPT-5 mini's list prices, as in the news job. */
 const INPUT_PER_M = Number(process.env.ASSISTANT_AI_INPUT_PER_M) || 0.25
 const OUTPUT_PER_M = Number(process.env.ASSISTANT_AI_OUTPUT_PER_M) || 2
@@ -95,17 +98,41 @@ export function cleanHistory(raw: unknown): ChatMessage[] | null {
   return recent
 }
 
-/** Where the person is in the app, as the client reports it. Informational only: tools re-check ownership. */
-export type PageContext = { page: "portfolio" | "leagues" | "fantasy" | "news" | "board" | "wealth" | "other"; entityId?: string }
+/**
+ * Where the person is in the app and what is on screen, as the client reports it. Informational only: tools
+ * re-check ownership, and nothing here is ever trusted as an identity or a figure.
+ */
+export type PageContext = {
+  page: "portfolio" | "leagues" | "fantasy" | "news" | "board" | "wealth" | "other"
+  /** The league (or fantasy league) open on the page. */
+  entityId?: string
+  /** The time range selected on the portfolio chart. */
+  range?: Range
+  /** The benchmark overlaid on the portfolio chart. */
+  benchmark?: string
+  /** The account card expanded on the portfolio page (its display name; only the signed-in user's own text). */
+  account?: string
+  /** A ticker the person is looking at on the portfolio page (typed into the holdings search). */
+  holding?: string
+}
 
 const PAGES = new Set(["portfolio", "leagues", "fantasy", "news", "board", "wealth", "other"])
 
 export function cleanContext(raw: unknown): PageContext {
   if (!raw || typeof raw !== "object") return { page: "other" }
-  const { page, entityId } = raw as { page?: unknown; entityId?: unknown }
+  const { page, entityId, range, benchmark, account, holding } = raw as { page?: unknown; entityId?: unknown; range?: unknown; benchmark?: unknown; account?: unknown; holding?: unknown }
+  const bench = typeof benchmark === "string" ? benchmark.toUpperCase() : ""
+  // Free text from the browser is bounded and stripped of control characters; the prompt quotes it as data.
+  const acct = typeof account === "string" ? account.replace(/[\u0000-\u001f\u007f<>`]/g, " ").replace(/\s+/g, " ").trim().slice(0, 40) : ""
+  const ticker = typeof holding === "string" ? holding.trim().toUpperCase() : ""
   return {
     page: typeof page === "string" && PAGES.has(page) ? (page as PageContext["page"]) : "other",
     entityId: typeof entityId === "string" && /^[0-9a-f-]{8,40}$/i.test(entityId) ? entityId : undefined,
+    // Only whitelisted values survive, so nothing free-form from the browser reaches the prompt.
+    ...(typeof range === "string" && isRange(range) ? { range } : {}),
+    ...(isBenchmarkSymbol(bench) ? { benchmark: bench } : {}),
+    ...(acct ? { account: acct } : {}),
+    ...(/^[A-Z][A-Z.\-]{0,9}$/.test(ticker) ? { holding: ticker } : {}),
   }
 }
 
@@ -130,6 +157,11 @@ export function needsWeb(text: string): boolean {
 /** Whether a question deserves reasoning effort: analysis, comparison, projections or long asks. Greetings and lookups don't. */
 export function needsDepth(text: string): boolean {
   return text.length > 180 || /\b(analy[sz]e|compare|risk|strateg|rebalanc|diversif|project|scenario|what if|should i|explain|why|forecast|retire|tax)\b/i.test(text)
+}
+
+/** Greetings and thanks: the only turns cheap enough to answer with no reasoning at all. Everything else may involve numbers. */
+export function isSmallTalk(text: string): boolean {
+  return text.trim().length < 40 && /^(hi|hello|hey|thanks|thank you|thx|ok|okay|cool|great|nice|got it)\b[\s!.?]*$/i.test(text.trim())
 }
 
 /**

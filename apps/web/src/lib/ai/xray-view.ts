@@ -69,3 +69,17 @@ export function chipsOf(x: XRay, max = 3): string[] {
   const all = [...x.risks, ...x.nextSteps].map((i) => i.followUp)
   return [...new Set(all)].slice(0, max)
 }
+
+export type ChartSlice = { name: string; percent: number; other?: boolean }
+
+/**
+ * The slices the headline chart draws: the largest few by name and the rest as one "Other", so the bar and
+ * its legend stay readable whatever the portfolio holds. Zero and negative shares are dropped.
+ */
+export function chartSlices(allocation: { name: string; percent: number }[], keep = 4): ChartSlice[] {
+  const sorted = allocation.filter((a) => a.percent > 0).sort((a, b) => b.percent - a.percent)
+  if (sorted.length <= keep + 1) return sorted.map((a) => ({ name: a.name, percent: a.percent }))
+  const head = sorted.slice(0, keep).map((a) => ({ name: a.name, percent: a.percent }))
+  const rest = sorted.slice(keep).reduce((sum, a) => sum + a.percent, 0)
+  return [...head, { name: "Other", percent: rest, other: true }]
+}

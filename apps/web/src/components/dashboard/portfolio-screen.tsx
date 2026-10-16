@@ -20,6 +20,7 @@ import { useToast } from "@web/components/ui/toast"
 import { type AllocationSlice } from "@web/components/charts/allocation-bar"
 import { PerformanceChart } from "@web/components/charts/performance-chart"
 import { BENCHMARK_OPTIONS, BENCHMARK_STYLE, BenchmarkCompare, type BenchmarkChoice, type BenchmarkResponse } from "@web/components/dashboard/benchmark-compare"
+import { useAssistantView } from "@web/components/assistant/view-context"
 import { ReplayControl } from "@web/components/dashboard/replay-control"
 import { AccountsCard, type AccountRow, type ItemRow } from "@web/components/dashboard/accounts-card"
 import { ConnectButton } from "@web/components/dashboard/connect-button"
@@ -130,6 +131,8 @@ export function PortfolioScreen({
   }
   const benchUrl = !demo && bench !== "OFF" ? `/api/portfolio/benchmark?symbol=${bench}&range=${range}` : null
   const cmp = useApi<BenchmarkResponse>(benchUrl, [bench, range])
+  // The assistant answers about what is on screen: the selected window and the benchmark overlaid on it.
+  useAssistantView({ range: oneDay ? undefined : range, benchmark: !demo && bench !== "OFF" ? bench : undefined })
   // Today's path, five minutes at a time, for the 1D view (it falls back to a straight line when there are no bars).
   const intraday = useApi<{ session: string; points: { t: string; delta: number }[] }>(!demo && oneDay ? "/api/portfolio/intraday" : null, [oneDay], { refreshMs: 120_000 })
 

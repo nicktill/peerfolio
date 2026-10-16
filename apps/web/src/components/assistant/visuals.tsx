@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { motion } from "motion/react"
 import { formatPercent } from "@web/lib/format"
-import type { Visual } from "@web/lib/ai/visuals"
+import { linePath, type Visual } from "@web/lib/ai/visuals"
 
 const tone = (v: number) => (v > 0 ? "is-up" : v < 0 ? "is-down" : "")
 const WHEN: Record<string, string> = { "before-open": "before open", "after-close": "after close", during: "during", unknown: "" }
@@ -89,8 +89,29 @@ function Body({ v }: { v: Visual }) {
       </ul>
     )
   }
+  const all = v.lines ? [...v.lines.you, ...v.lines.bench] : []
+  const min = Math.min(...all)
+  const max = Math.max(...all)
   return (
     <>
+      {v.lines ? (
+        <>
+          <div className="pf-vz-key" aria-hidden>
+            <span>
+              <i />
+              You
+            </span>
+            <span>
+              <i className="is-bench" />
+              {v.label}
+            </span>
+          </div>
+          <svg className="pf-vz-lines" viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label={`You ${formatPercent(v.you)} against ${v.label} ${formatPercent(v.benchmark)} over ${v.range}`}>
+            <motion.path className="is-bench" d={linePath(v.lines.bench, min, max)} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }} />
+            <motion.path className="is-you" d={linePath(v.lines.you, min, max)} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.6, delay: 0.1 }} />
+          </svg>
+        </>
+      ) : null}
       <Spread
         rows={[
           { name: "You", v: v.you },

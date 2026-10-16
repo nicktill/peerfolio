@@ -15,7 +15,8 @@
     "test": "node --test --experimental-strip-types \"src/**/*.test.ts\" \"scripts/*.test.mjs\"",
     "db:seed": "node --experimental-strip-types scripts/seed.ts",
     "db:reset": "drizzle-kit migrate && npm run db:seed",
-    "test:plaid-sync": "node scripts/test-plaid-sync.mjs"
+    "test:plaid-sync": "node scripts/test-plaid-sync.mjs",
+    "eval:assistant": "node --experimental-strip-types scripts/assistant-evals.mjs"
   },
   "dependencies": {
     "@next/eslint-plugin-next": "^15.1.3",
