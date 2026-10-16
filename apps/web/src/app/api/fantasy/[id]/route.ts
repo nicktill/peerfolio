@@ -4,13 +4,17 @@ import { eq } from "drizzle-orm"
 import { db, fantasyLeagues } from "@web/db"
 import { ApiError, readJson, withUser } from "@web/lib/api"
 import { loadFantasyLeague, requireFantasyMember, updateFantasyLeague } from "@web/lib/fantasy"
+import { loadNotesFor } from "@web/lib/fantasy-notes"
 import { ACCENT_KEYS, isLeagueEmoji } from "@web/lib/league-look"
 
 type Ctx = { params: Promise<{ id: string }> }
 
 export const GET = withUser<Ctx>(async (userId, _request, { params }) => {
   const { id } = await params
-  return NextResponse.json(await loadFantasyLeague(userId, id))
+  const league = await loadFantasyLeague(userId, id)
+  // "Why I picked this" notes ride along with the trade feed.
+  const notes = await loadNotesFor({ tradeIds: league.feed.map((f) => f.id) }, userId)
+  return NextResponse.json({ ...league, feed: league.feed.map((f) => ({ ...f, note: notes.get(`trade:${f.id}`) ?? null })) })
 })
 
 /** `.strict()` so an attempt to change starting cash or the pick cap is an error, not silently ignored. */
