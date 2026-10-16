@@ -6,6 +6,7 @@ struct AssistantView: View {
     @State var model: AssistantViewModel
     var page: AssistantContext.Page = .portfolio
     @State private var browser: IdentifiableURL?
+    @State private var wealth: WealthSheet?
     @FocusState private var composerFocused: Bool
 
     init(model: AssistantViewModel, page: AssistantContext.Page = .portfolio) {
@@ -47,6 +48,12 @@ struct AssistantView: View {
             .onAppear { model.page = page }
             .onChange(of: page) { _, new in model.page = new }
             .sheet(item: $browser) { SafariView(url: $0.url).ignoresSafeArea() }
+            .sheet(item: $wealth) { sheet in
+                NavigationStack {
+                    WealthLabView(model: WealthLabViewModel(client: env.client, inputs: sheet.inputs))
+                        .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { wealth = nil } } }
+                }
+            }
             .environment(\.openURL, OpenURLAction { url in
                 if url.scheme?.hasPrefix("http") == true { browser = IdentifiableURL(url: url); return .handled }
                 return .systemAction
@@ -56,6 +63,12 @@ struct AssistantView: View {
 
     private func open(_ href: String) {
         Haptics.selection()
+        // The assistant's "Open in Wealth Lab" link is a web path with the assumptions in the query: open the native screen, prefilled.
+        if href.hasPrefix("/wealth") {
+            let seed = Wealth.Inputs(startingValue: 0, monthlyContribution: 0, annualContributionGrowthPct: 0, years: 20, expectedAnnualReturnPct: 7, inflationPct: 2.5, targetValue: 0)
+            wealth = WealthSheet(inputs: Wealth.apply(link: href, to: seed) ?? seed)
+            return
+        }
         if let url = env.webURL(for: href) { browser = IdentifiableURL(url: url) }
     }
 
@@ -104,6 +117,8 @@ struct AssistantView: View {
         .overlay(alignment: .top) { RowDivider().background(Theme.hair) }
     }
 }
+
+struct WealthSheet: Identifiable { let id = UUID(); let inputs: Wealth.Inputs }
 
 // MARK: Turns
 

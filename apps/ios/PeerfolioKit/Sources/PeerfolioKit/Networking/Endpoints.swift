@@ -78,6 +78,16 @@ extension APIClient {
         try await get("/board", query: [URLQueryItem(name: "range", value: range.rawValue), URLQueryItem(name: "scope", value: followingOnly ? "following" : "all")], auth: .optional)
     }
 
+    public func follow(handle: String) async throws -> Bool {
+        let r: FollowResponse = try await send("POST", "/users/\(handle)/follow")
+        return r.isFollowing
+    }
+
+    public func unfollow(handle: String) async throws -> Bool {
+        let r: FollowResponse = try await send("DELETE", "/users/\(handle)/follow")
+        return r.isFollowing
+    }
+
     // MARK: Fantasy (stocks)
 
     public func fantasyLeagues() async throws -> [FantasyLeagueSummary] {

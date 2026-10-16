@@ -8,6 +8,7 @@ final class MockDataTests: XCTestCase {
         XCTAssertEqual(Mock.portfolio.accounts.count, 4)
         XCTAssertEqual(Mock.portfolio.history.count, 60)
         XCTAssertEqual(Mock.leagues.count, 2)
+        XCTAssertEqual(Mock.board.traders.count, 3)
         XCTAssertEqual(Mock.leagueDetail.standings.count, 4)
         XCTAssertEqual(Mock.fantasyLeagues.count, 2)
         XCTAssertEqual(Mock.fantasyDetail.you.positions.count, 2)

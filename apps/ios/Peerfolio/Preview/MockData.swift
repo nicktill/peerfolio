@@ -91,6 +91,16 @@ enum Mock {
         """)
     }
 
+    static var board: BoardResponse {
+        decode("""
+        {"range":"1M","scope":"all","minHistoryDays":7,"requiresVerified":true,"traders":[
+          {"handle":"marta","name":"Marta Silva","image":null,"bio":"Boring index funds, exciting compounding.","rank":1,"percent":6.42,"days":30,"spark":\(spark(1)),"holdings":[{"ticker":"VTI","name":"Vanguard Total","weight":55.0},{"ticker":"VXUS","name":"Vanguard Intl","weight":25.0}],"isFollowing":true,"isYou":false},
+          {"handle":"kenji","name":"Kenji Mori","image":null,"bio":null,"rank":2,"percent":4.1,"days":30,"spark":\(spark(0.4)),"holdings":[{"ticker":"MSFT","name":"Microsoft","weight":30.0}],"isFollowing":false,"isYou":false},
+          {"handle":"alexr","name":"Alex Rivera","image":null,"bio":"Index funds and curiosity.","rank":3,"percent":2.8,"days":30,"spark":\(spark(0.1)),"holdings":[],"isFollowing":false,"isYou":true}
+        ]}
+        """)
+    }
+
     static var fantasyLeagues: [FantasyLeagueSummary] {
         let list: FantasyListResponse = decode("""
         {"leagues":[

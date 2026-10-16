@@ -52,6 +52,21 @@ struct PortfolioView: View {
         if !p.holdings.isEmpty { HoldingsPanel(holdings: p.holdings).reveal(3) }
         AccountsPanel(accounts: p.accounts).reveal(4)
         if !p.leagues.isEmpty { LeaguePillsPanel(pills: p.leagues).reveal(5) }
+        NavigationLink {
+            WealthLabView(model: WealthLabViewModel(client: env.client))
+        } label: {
+            Panel {
+                DataRow(first: true) {
+                    Image(systemName: "function").font(.system(size: 15, weight: .medium)).foregroundStyle(Theme.fg2).frame(width: 34, height: 34)
+                        .overlay(RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous).strokeBorder(Theme.hair, lineWidth: 1))
+                    RowTitle(title: "Wealth Lab", subtitle: "what-if planning")
+                    Spacer()
+                    Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.fg3)
+                }
+            }
+        }
+        .buttonStyle(PressStyle())
+        .reveal(6)
         Text("Prices are delayed and may be stale. Figures are for tracking only and are not investment advice.")
             .font(PFFont.caption).foregroundStyle(Theme.fg3).padding(.horizontal, 4)
     }

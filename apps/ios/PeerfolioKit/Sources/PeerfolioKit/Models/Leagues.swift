@@ -98,6 +98,8 @@ public struct ReactionResponse: Codable, Equatable, Sendable {
     public var active: Bool
 }
 
+public struct FollowResponse: Codable, Equatable, Sendable { public var isFollowing: Bool }
+
 /// `GET /api/board` (public; sign-in only adds `isFollowing`/`isYou`).
 public struct BoardResponse: Codable, Equatable, Sendable {
     public var range: String

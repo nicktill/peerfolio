@@ -6,11 +6,18 @@ struct LeaguesView: View {
     @State private var showJoin = false
     @State private var showCreate = false
 
-    init(model: LeaguesViewModel) { _model = State(initialValue: model) }
+    enum Mode: String, CaseIterable { case mine = "My leagues", board = "Board" }
+    @State private var mode: Mode = .mine
+    @State private var board: BoardViewModel
+
+    init(model: LeaguesViewModel, boardPreset: BoardResponse? = nil) {
+        _model = State(initialValue: model)
+        _board = State(initialValue: BoardViewModel(client: model.client, preset: boardPreset))
+    }
 
     var body: some View {
         NavigationStack {
-            PageScroll(refresh: { await model.load() }) {
+            PageScroll(refresh: { await model.load(); if mode == .board { await board.load() } }) {
                 PageHead(title: "Leagues", lede: "Compare real returns with people you trust. Only percentages are shared, never balances.") {
                     Menu {
                         Button("Join with a code", systemImage: "ticket") { showJoin = true }
@@ -22,7 +29,8 @@ struct LeaguesView: View {
                     }
                     .accessibilityLabel("Join or create a league")
                 }
-                content
+                SegmentedPicker(options: Mode.allCases, selection: $mode) { $0.rawValue }
+                if mode == .mine { content } else { BoardView(model: board) }
             }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: LeagueSummary.self) { league in
