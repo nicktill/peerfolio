@@ -5,7 +5,7 @@ public struct FantasyListResponse: Codable, Equatable, Sendable {
     public var leagues: [FantasyLeagueSummary]
 }
 
-public struct FantasyLeagueSummary: Codable, Equatable, Sendable, Identifiable {
+public struct FantasyLeagueSummary: Codable, Hashable, Sendable, Identifiable {
     public var id: String
     public var name: String
     public var emoji: String

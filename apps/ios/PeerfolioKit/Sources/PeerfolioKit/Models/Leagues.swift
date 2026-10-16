@@ -14,7 +14,7 @@ public struct LeagueListResponse: Codable, Equatable, Sendable {
     public var leagues: [LeagueSummary]
 }
 
-public struct LeagueSummary: Codable, Equatable, Sendable, Identifiable {
+public struct LeagueSummary: Codable, Hashable, Sendable, Identifiable {
     public var id: String
     public var name: String
     public var description: String?
