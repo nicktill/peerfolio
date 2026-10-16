@@ -85,7 +85,7 @@ export function createCompositeOdds(sources: Source[], usage: UsageStore, opts: 
     async fetchOdds(sport: Sport, now: Date): Promise<OddsSnapshot> {
       let events: ProviderEvent[] = []
       const notes: string[] = []
-      let fetchedAt: Date | null = null
+      const fetched: Date[] = []
 
       for (const source of sources) {
         const name = source.provider.name
@@ -105,13 +105,13 @@ export function createCompositeOdds(sources: Source[], usage: UsageStore, opts: 
           await usage.record(name, cost, now)
           events = mergeSnapshots(events, snap.events)
           // The merged snapshot is only as fresh as its oldest contributor.
-          fetchedAt = fetchedAt && fetchedAt < snap.fetchedAt ? fetchedAt : snap.fetchedAt
+          fetched.push(snap.fetchedAt)
           notes.push(`${name}: ${snap.events.length} events, ${cost} credits`)
         } catch (error) {
           notes.push(`${name}: failed (${error instanceof Error ? error.message : "error"})`)
         }
       }
-      return { provider: sources.map((s) => s.provider.name).join("+"), fetchedAt: fetchedAt ?? new Date(0), events, notes }
+      return { provider: sources.map((s) => s.provider.name).join("+"), fetchedAt: fetched.length ? new Date(Math.min(...fetched.map((d) => d.getTime()))) : new Date(0), events, notes }
     },
   }
 }
