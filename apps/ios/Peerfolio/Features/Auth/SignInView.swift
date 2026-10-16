@@ -4,6 +4,7 @@ import AuthenticationServices
 struct SignInView: View {
     @Environment(AppEnvironment.self) private var env
     @Environment(\.colorScheme) private var scheme
+    @State private var showReview = false
 
     var body: some View {
         let auth = env.auth
@@ -54,6 +55,10 @@ struct SignInView: View {
             .opacity(auth.isWorking ? 0.6 : 1)
             .reveal(3)
 
+            Button("Have a review code?") { showReview = true }
+                .font(PFFont.mono(11)).tracking(0.4).foregroundStyle(Theme.fg3)
+                .frame(minHeight: 44)
+
             Text("Peerfolio is for tracking and learning. It isn't investment advice, and fantasy leagues use virtual cash only. No real trades are ever placed.")
                 .font(PFFont.caption).foregroundStyle(Theme.fg3).multilineTextAlignment(.center)
                 .padding(.horizontal, 32).padding(.top, 20).padding(.bottom, 16)
@@ -61,6 +66,39 @@ struct SignInView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.bg.ignoresSafeArea())
         .animation(Motion.ease(), value: auth.errorMessage)
+        .sheet(isPresented: $showReview) { ReviewSignInSheet().environment(env) }
+    }
+}
+
+/// For App Store review only: the server rejects it unless it has been switched on for the review period.
+struct ReviewSignInSheet: View {
+    @Environment(AppEnvironment.self) private var env
+    @Environment(\.dismiss) private var dismiss
+    @State private var email = ""
+    @State private var code = ""
+    @State private var error: String?
+
+    var body: some View {
+        NavigationStack {
+            PageScroll {
+                PageHead("Review sign-in", lede: "Enter the email and code from the App Review notes.")
+                TextField("Email", text: $email).textFieldStyle(PFTextFieldStyle())
+                    .keyboardType(.emailAddress).textInputAutocapitalization(.never).autocorrectionDisabled()
+                SecureField("Code", text: $code).textFieldStyle(PFTextFieldStyle())
+                if let error { Text(error).font(PFFont.caption).foregroundStyle(Theme.loss) }
+                Button("Sign in") {
+                    Task {
+                        error = await env.auth.reviewSignIn(email: email, code: code)
+                        if error == nil { dismiss() }
+                    }
+                }
+                .buttonStyle(PrimaryButtonStyle())
+                .disabled(email.isEmpty || code.isEmpty || env.auth.isWorking)
+            }
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .presentationDetents([.medium])
     }
 }
 

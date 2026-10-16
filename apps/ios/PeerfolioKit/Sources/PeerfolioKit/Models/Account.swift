@@ -19,9 +19,26 @@ public struct TokenExchangeRequest: Codable, Equatable, Sendable {
     /// The raw nonce; its SHA-256 went to the provider.
     public var nonce: String
     public var fullName: String?
-    public init(provider: Provider, idToken: String, nonce: String, fullName: String? = nil) {
-        self.provider = provider; self.idToken = idToken; self.nonce = nonce; self.fullName = fullName
+    /// Apple only: the one-time authorization code, so the server can revoke Apple's token when the account is deleted.
+    public var authorizationCode: String?
+    public init(provider: Provider, idToken: String, nonce: String, fullName: String? = nil, authorizationCode: String? = nil) {
+        self.provider = provider; self.idToken = idToken; self.nonce = nonce; self.fullName = fullName; self.authorizationCode = authorizationCode
     }
+}
+
+/// Body for `POST /api/mobile/auth/review` (App Review's sign-in; the route answers 404 unless the server enables it).
+public struct ReviewSignInRequest: Codable, Equatable, Sendable {
+    public var email: String
+    public var code: String
+    public init(email: String, code: String) { self.email = email; self.code = code }
+}
+
+/// Body for `POST /api/mobile/devices` (push groundwork).
+public struct RegisterDeviceRequest: Codable, Equatable, Sendable {
+    public enum Environment: String, Codable, Sendable { case sandbox, production }
+    public var token: String
+    public var environment: Environment
+    public init(token: String, environment: Environment) { self.token = token; self.environment = environment }
 }
 
 /// Reply from `/api/mobile/auth/token` (with `user`) and `/api/mobile/auth/refresh` (without).

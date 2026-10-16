@@ -128,6 +128,44 @@ final class APIClientTests: XCTestCase {
         XCTAssertNil(transport.requests[0].value(forHTTPHeaderField: "Authorization"))
     }
 
+    func testReviewSignInPostsCredentialsAndStoresTheSession() async throws {
+        let transport = MockTransport { _ in
+            (200, Data(#"{"accessToken":"AR","refreshToken":"RR","tokenType":"Bearer","expiresIn":900,"refreshExpiresAt":"2026-12-01T00:00:00Z","user":{"id":"u9","email":"review@x.co","name":"App Review","image":null,"handle":null}}"#.utf8))
+        }
+        let (client, store) = make(transport, tokens: nil)
+        let user = try await client.reviewSignIn(ReviewSignInRequest(email: "review@x.co", code: "secret-code"))
+        XCTAssertEqual(user?.name, "App Review")
+        XCTAssertEqual(store.load()?.accessToken, "AR")
+        XCTAssertEqual(transport.requests[0].url?.path, "/api/v1/mobile/auth/review")
+        let body = try JSONSerialization.jsonObject(with: transport.requests[0].httpBody!) as! [String: String]
+        XCTAssertEqual(body["code"], "secret-code")
+    }
+
+    func testReviewSignInIsA404WhenTheServerHasItOff() async {
+        let transport = MockTransport { _ in (404, Data(#"{"error":"Not found"}"#.utf8)) }
+        let (client, _) = make(transport, tokens: nil)
+        do { _ = try await client.reviewSignIn(ReviewSignInRequest(email: "a@b.co", code: "x")); XCTFail("should throw") }
+        catch { XCTAssertEqual(error as? APIError, .http(status: 404, message: "Not found")) }
+    }
+
+    func testAppleExchangeCarriesTheAuthorizationCodeAndRateLimitsSurface() async throws {
+        let transport = MockTransport { _ in (429, Data(#"{"error":"Too many attempts. Wait a moment and try again.","retryAfterSec":30}"#.utf8)) }
+        let (client, _) = make(transport, tokens: nil)
+        do { _ = try await client.signIn(TokenExchangeRequest(provider: .apple, idToken: "t", nonce: "n", authorizationCode: "code-123")); XCTFail("should throw") }
+        catch let error as APIError { XCTAssertEqual(error.errorDescription, "Too many attempts. Wait a moment and try again.") }
+        let body = try JSONSerialization.jsonObject(with: transport.requests[0].httpBody!) as! [String: String]
+        XCTAssertEqual(body["authorizationCode"], "code-123")
+    }
+
+    func testRegisterAndUnregisterDevice() async throws {
+        let transport = MockTransport { _ in (200, Data(#"{"ok":true}"#.utf8)) }
+        let (client, _) = make(transport, tokens: tokens())
+        try await client.registerDevice(RegisterDeviceRequest(token: String(repeating: "ab", count: 32), environment: .sandbox))
+        try await client.unregisterDevice(token: "abcd")
+        XCTAssertEqual(transport.requests.map { $0.httpMethod }, ["POST", "DELETE"])
+        XCTAssertEqual(transport.requests[0].url?.path, "/api/v1/mobile/devices")
+    }
+
     func testPublicEndpointWorksSignedOutWithoutAuthHeader() async throws {
         let transport = MockTransport { _ in (200, Data(#"{"day":null,"week":null,"headlines":[]}"#.utf8)) }
         let (client, _) = make(transport, tokens: nil)

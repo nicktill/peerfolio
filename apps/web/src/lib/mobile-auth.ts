@@ -2,6 +2,8 @@ import { and, eq, isNull } from "drizzle-orm"
 import { authIdentities, db, mobileRefreshTokens, users } from "@web/db"
 import { ApiError } from "@web/lib/api"
 import { upsertUser } from "@web/lib/auth"
+import { decrypt, encrypt } from "@web/lib/crypto"
+import { appleRevokeConfig, exchangeAuthorizationCode, revokeRefreshToken as revokeAppleRefreshToken, type FetchLike } from "@web/lib/apple-revoke-core"
 import type { RefreshStore, VerifiedIdentity } from "@web/lib/mobile-auth-core"
 
 /** Refresh-token storage backed by `mobile_refresh_tokens`. */
@@ -53,4 +55,42 @@ export async function publicUser(userId: string) {
   const user = await db.query.users.findFirst({ where: eq(users.id, userId) })
   if (!user) throw new ApiError("User not found", 404)
   return { id: user.id, email: user.email, name: user.name, image: user.image, handle: user.handle }
+}
+
+/** Real `fetch`, narrowed to what the Apple helpers use. */
+const appleFetch: FetchLike = (url, init) => fetch(url, { ...init, signal: AbortSignal.timeout(10_000) })
+
+/**
+ * Keeps Apple's refresh token (encrypted) for an identity so account deletion can revoke it later.
+ * Best effort: a missing config or a refused code only means there is nothing to revoke on deletion.
+ */
+export async function rememberAppleToken(userId: string, subject: string, authorizationCode: string) {
+  const config = appleRevokeConfig()
+  if (!config) return
+  try {
+    const token = await exchangeAuthorizationCode(config, authorizationCode, appleFetch)
+    if (!token) return
+    await db
+      .update(authIdentities)
+      .set({ providerRefreshToken: encrypt(token) })
+      .where(and(eq(authIdentities.userId, userId), eq(authIdentities.provider, "apple"), eq(authIdentities.subject, subject)))
+  } catch (error) {
+    console.error("[mobile] could not store Apple token", error instanceof Error ? error.message : error)
+  }
+}
+
+/** Revokes every stored Apple token for the user. Never throws: deletion must not be blocked by Apple being unreachable. */
+export async function revokeAppleTokens(userId: string) {
+  const config = appleRevokeConfig()
+  if (!config) return
+  try {
+    const rows = await db.select().from(authIdentities).where(and(eq(authIdentities.userId, userId), eq(authIdentities.provider, "apple")))
+    for (const row of rows) {
+      if (!row.providerRefreshToken) continue
+      const revoked = await revokeAppleRefreshToken(config, decrypt(row.providerRefreshToken), appleFetch)
+      if (!revoked) console.error("[mobile] Apple refused token revocation", { identityId: row.id })
+    }
+  } catch (error) {
+    console.error("[mobile] Apple revocation failed", error instanceof Error ? error.message : error)
+  }
 }

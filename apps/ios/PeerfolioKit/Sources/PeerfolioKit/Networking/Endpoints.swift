@@ -12,6 +12,23 @@ extension APIClient {
         return response.user
     }
 
+    /// App Review sign-in. Fails with a 404 `APIError.http` when the server has the feature switched off.
+    @discardableResult
+    public func reviewSignIn(_ request: ReviewSignInRequest) async throws -> SessionUser? {
+        let response: AuthSessionResponse = try await send("POST", "/mobile/auth/review", body: request, auth: .none)
+        await session.establish(response)
+        return response.user
+    }
+
+    /// Registers this device's APNs token. Groundwork: the server stores it but does not send yet.
+    public func registerDevice(_ request: RegisterDeviceRequest) async throws {
+        let _: OkResponse = try await send("POST", "/mobile/devices", body: request)
+    }
+
+    public func unregisterDevice(token: String) async throws {
+        let _: OkResponse = try await send("DELETE", "/mobile/devices", body: ["token": token])
+    }
+
     public func me() async throws -> MeResponse { try await get("/me") }
 
     @discardableResult

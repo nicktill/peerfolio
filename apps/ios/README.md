@@ -17,7 +17,7 @@ Docs: `docs/ios/` (API inventory, design tokens, screens, compliance, open quest
 
 1. `brew install xcodegen` and install Xcode 16 or newer.
 2. Run the web app against a database, with the mobile env vars (see below): from the repo root `docker compose up -d`, then in `apps/web`
-   `npm run db:migrate && npm run db:seed && npm run dev`. The migration `0025_mobile_auth` creates the two new tables.
+   `npm run db:migrate && npm run db:seed && npm run dev`. The migration `0026_mobile_auth` creates the two new tables.
 3. `cd apps/ios && xcodegen generate && open Peerfolio.xcodeproj`
 4. In `project.yml` (or Xcode): set `DEVELOPMENT_TEAM`, confirm the bundle id `org.peerfolio.app`, and for Google sign-in set `GOOGLE_IOS_CLIENT_ID` and
    `GOOGLE_IOS_REVERSED_CLIENT_ID` (Google Cloud Console > OAuth client of type iOS). Then regenerate.

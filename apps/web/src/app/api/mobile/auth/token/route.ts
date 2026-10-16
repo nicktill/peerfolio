@@ -2,7 +2,8 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { ApiError, readJson, withPublic } from "@web/lib/api"
 import { IdentityError, identityAudiences, issueSession, mobileAuthConfig, verifyIdentityToken } from "@web/lib/mobile-auth-core"
-import { publicUser, refreshStore, resolveUserForIdentity } from "@web/lib/mobile-auth"
+import { publicUser, refreshStore, rememberAppleToken, resolveUserForIdentity } from "@web/lib/mobile-auth"
+import { enforceMobileLimit } from "@web/lib/mobile-rate-limit"
 
 const Exchange = z.object({
   provider: z.enum(["apple", "google"]),
@@ -11,6 +12,8 @@ const Exchange = z.object({
   nonce: z.string().min(8).max(256),
   /** Apple only returns the name to the app, once, on first sign-in. */
   fullName: z.string().trim().max(80).optional(),
+  /** Apple only: the one-time authorization code, exchanged server-side so deleting the account can revoke the token. */
+  authorizationCode: z.string().min(10).max(2048).optional(),
 })
 
 /**
@@ -20,10 +23,11 @@ const Exchange = z.object({
 export const POST = withPublic<unknown>(async (request) => {
   const config = mobileAuthConfig()
   if (!config) throw new ApiError("Mobile sign-in isn't available right now.", 503)
+  await enforceMobileLimit(request, "token")
 
   const parsed = Exchange.safeParse(await readJson(request))
   if (!parsed.success) throw new ApiError("Invalid sign-in request")
-  const { provider, idToken, nonce, fullName } = parsed.data
+  const { provider, idToken, nonce, fullName, authorizationCode } = parsed.data
 
   let identity
   try {
@@ -34,6 +38,7 @@ export const POST = withPublic<unknown>(async (request) => {
   }
 
   const userId = await resolveUserForIdentity(identity, fullName)
+  if (provider === "apple" && authorizationCode) await rememberAppleToken(userId, identity.subject, authorizationCode)
   const session = await issueSession(refreshStore, config, userId)
   return NextResponse.json({ ...session, user: await publicUser(userId) }, { headers: { "Cache-Control": "no-store" } })
 })

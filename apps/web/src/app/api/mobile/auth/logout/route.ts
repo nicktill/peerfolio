@@ -3,11 +3,13 @@ import { z } from "zod"
 import { readJson, withPublic } from "@web/lib/api"
 import { revokeRefreshToken } from "@web/lib/mobile-auth-core"
 import { refreshStore } from "@web/lib/mobile-auth"
+import { enforceMobileLimit } from "@web/lib/mobile-rate-limit"
 
 const Logout = z.object({ refreshToken: z.string().min(20).max(256) })
 
 /** Revokes the refresh-token family. Idempotent: an unknown or already-revoked token is still a success. */
 export const POST = withPublic<unknown>(async (request) => {
+  await enforceMobileLimit(request, "logout")
   const parsed = Logout.safeParse(await readJson(request))
   if (parsed.success) await revokeRefreshToken(refreshStore, parsed.data.refreshToken)
   return NextResponse.json({ ok: true })

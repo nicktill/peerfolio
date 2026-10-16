@@ -527,6 +527,8 @@ export const authIdentities = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     provider: text("provider").notNull(),
     subject: text("subject").notNull(),
+    /** Apple only: the refresh token from the sign-in code exchange, encrypted, kept so deleting the account can revoke it. */
+    providerRefreshToken: text("provider_refresh_token"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("auth_identities_provider_subject_idx").on(t.provider, t.subject), index("auth_identities_user_idx").on(t.userId)],
@@ -552,6 +554,35 @@ export const mobileRefreshTokens = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("mobile_refresh_tokens_hash_idx").on(t.tokenHash), index("mobile_refresh_tokens_family_idx").on(t.familyId), index("mobile_refresh_tokens_user_idx").on(t.userId)],
+)
+
+/** APNs device tokens, registered by the app. Groundwork only: nothing sends to them yet. */
+export const deviceTokens = pgTable(
+  "device_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    token: text("token").notNull(),
+    platform: text("platform").notNull().default("ios"),
+    /** APNs environment the token belongs to: "sandbox" (debug builds) or "production". */
+    environment: text("environment").notNull().default("production"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("device_tokens_token_idx").on(t.token), index("device_tokens_user_idx").on(t.userId)],
+)
+
+/** Fixed-window request counters for the unauthenticated mobile endpoints. Keys are hashed; old windows are pruned. */
+export const rateLimits = pgTable(
+  "rate_limits",
+  {
+    key: text("key").notNull(),
+    windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+    count: integer("count").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.key, t.windowStart] })],
 )
 
 /* ------------------------------------------------------------------ *

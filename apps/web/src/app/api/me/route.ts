@@ -6,6 +6,7 @@ import { db, follows, leagueMembers, leagues, plaidItems, portfolioSnapshots, us
 import { ApiError, readJson, withUser } from "@web/lib/api"
 import { decrypt } from "@web/lib/crypto"
 import { getPlaidClient, plaidErrorCode } from "@web/lib/plaid"
+import { revokeAppleTokens } from "@web/lib/mobile-auth"
 
 export const maxDuration = 120
 
@@ -84,6 +85,10 @@ export const PATCH = withUser<unknown>(async (userId, request) => {
 export const DELETE = withUser<unknown>(async (userId) => {
   const user = await db.query.users.findFirst({ where: eq(users.id, userId) })
   if (!user) throw new ApiError("User not found", 404)
+
+  // Sign in with Apple users: tell Apple to drop the connection before the identity rows are cascaded away.
+  // Best effort and a no-op unless Apple revocation is configured; it never blocks deletion.
+  await revokeAppleTokens(userId)
 
   await db.transaction(async (tx) => {
     // Serialize with Link exchange/sync so a new remote Item cannot appear mid-delete.

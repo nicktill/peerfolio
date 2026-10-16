@@ -61,7 +61,8 @@ final class AuthController {
                   let tokenData = credential.identityToken, let token = String(data: tokenData, encoding: .utf8),
                   let nonce = pendingNonce else { return fail("Sign in with Apple didn't return what we need. Try again.") }
             let name = credential.fullName.flatMap { PersonNameComponentsFormatter().string(from: $0) }
-            await exchange(TokenExchangeRequest(provider: .apple, idToken: token, nonce: nonce, fullName: (name?.isEmpty == false) ? name : nil))
+            let code = credential.authorizationCode.flatMap { String(data: $0, encoding: .utf8) }
+            await exchange(TokenExchangeRequest(provider: .apple, idToken: token, nonce: nonce, fullName: (name?.isEmpty == false) ? name : nil, authorizationCode: code))
         }
         pendingNonce = nil
     }
@@ -99,6 +100,22 @@ final class AuthController {
         } catch {
             Haptics.error()
             fail((error as? APIError)?.errorDescription ?? "Couldn't sign you in. Try again.")
+        }
+    }
+
+    /// Sign-in for App Review. Returns an error message, or nil on success.
+    func reviewSignIn(email: String, code: String) async -> String? {
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            let user = try await client.reviewSignIn(ReviewSignInRequest(email: email, code: code))
+            Haptics.success()
+            state = .signedIn(user ?? SessionUser(id: "", email: email, name: "App Review", image: nil, handle: nil))
+            return nil
+        } catch {
+            Haptics.error()
+            if case .http(404, _)? = error as? APIError { return "Review sign-in isn't enabled." }
+            return (error as? APIError)?.errorDescription ?? "That sign-in isn't valid."
         }
     }
 
