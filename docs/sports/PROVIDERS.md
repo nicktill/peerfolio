@@ -119,3 +119,34 @@ re-checks, US region only.
 - https://sportsgameodds.com/docs/faq and https://sportsgameodds.com/blog/player-prop-odds-api-provider-guide
 - https://theoddsapi.com/ (different company; source of the "moneyline-only free" claim)
 - Capterra/GetApp PropLine listings; https://docs.therundown.io/rate-limits; Highlightly "Best NBA APIs in 2026" (BALLDONTLIE tiers)
+
+## Combined free-tier budget math (stacked providers)
+
+The code stacks providers the way stock quotes stack Finnhub/Tiingo/Alpaca
+(`lib/sports/providers/composite.ts`, `lib/sports/credit-budget.ts`): the first source is asked,
+later sources only if markets are thin (< 3 books) or the first failed or is out of pace. Each
+source is paced: usable credits = monthly cap x 0.9 safety; one day may spend at most 2x an even
+share. All plan sizes below are **unverified** and are env-configurable
+(`THE_ODDS_API_MONTHLY_CREDITS`, `PROPLINE_MONTHLY_CREDITS`).
+
+Cost model used by the code (Odds-API style): game lines = 3 markets x 1 region = 3 credits per
+sport key per fetch (tennis assumes up to 3 tournament keys = 9); props = markets x events, e.g.
+NFL 4 markets x 8 events = 32 credits per fetch.
+
+| Scenario | Credits per fetch | Fetches per month | Credits/month |
+|---|---|---|---|
+| NFL game lines only, Tue publish + Fri re-check | 3 | ~9 | ~27 |
+| NFL lines + props, same cadence | 35 | ~9 | ~315 |
+| NBA lines (daily in season) | 3 | ~30 | ~90 |
+| Tennis lines (daily) | 9 | ~30 | ~270 |
+| All three sports, lines only, daily | 15 | 30 | 450 |
+
+One free Odds API key (500/mo, 450 usable, ~29/day burst): NFL lines + props (~315) plus NBA
+lines (~90) fit; adding daily tennis (~270) does not. A second source (e.g. a 1,000 request/day
+Odds-API-compatible vendor, unverified) multiplies headroom and, because books are merged, raises
+the number of books behind each consensus. Fetch volume is independent of user count, so stacking
+free tiers serves 1k users and, with a paid $30 plan as the first source, 10k users.
+
+Because a published line is fixed, a market needs fetching only until it is published; the later
+re-check exists to catch late games and thin markets. Cadence is therefore chosen by the cron
+schedule (STATUS.md), not by traffic.
