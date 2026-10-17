@@ -1,13 +1,14 @@
 import "server-only"
 import { createHash } from "node:crypto"
 import { eq, sql } from "drizzle-orm"
-import { db, productionLinkAttempts, users } from "@web/db"
+import { db, plaidItems, productionLinkAttempts, users } from "@web/db"
+import { decrypt } from "@web/lib/crypto"
 import { ApiError } from "@web/lib/api"
 import { plaidLinkingEnabled } from "@web/lib/plaid"
 import { plaidEnvironment } from "@web/lib/plaid-config"
-import { brokerageBlock, choosePool, firstAvailablePool, isAdminEmail, poolBudgets, productionPools, totalCapacity, USER_LINK_LIMIT_NOTICE, USER_PRODUCTION_LINK_LIMIT } from "@web/lib/plaid-access-core"
+import { brokerageBlock, choosePool, firstAvailablePool, isAdminEmail, poolBudgets, productionPoolsChecked, totalCapacity, USER_LINK_LIMIT_NOTICE, USER_PRODUCTION_LINK_LIMIT } from "@web/lib/plaid-access-core"
 import { plaidPaused } from "@web/lib/plaid-switch"
-import { newPlaidProfile, trial2Configured, type PlaidProfile } from "@web/lib/plaid-profile"
+import { decodePlaidToken, newPlaidProfile, trial2Configured, type PlaidProfile } from "@web/lib/plaid-profile"
 
 type Store = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0]
 
@@ -30,8 +31,25 @@ export async function userLinkAttempts(userId: string, store: Store = db) {
   return Number(row?.n ?? 0)
 }
 
+let loggedPool2Error: string | null = null
+
+/** Items whose stored profile is trial2 while its credentials are missing: they cannot sync or be removed until restored. */
+export async function orphanedPool2Items(store: Store = db) {
+  if (trial2Configured(process.env)) return 0
+  const rows = await store.select({ id: plaidItems.id, accessToken: plaidItems.accessToken }).from(plaidItems)
+  let count = 0
+  for (const row of rows) {
+    try { if (decodePlaidToken(decrypt(row.accessToken)).profile === "trial2") count++ } catch { /* unreadable tokens are not pool-2 Items */ }
+  }
+  return count
+}
+
 export async function productionCapacity(store: Store = db) {
-  const pools = productionPools(process.env, trial2Configured(process.env))
+  const { pools, pool2Error } = productionPoolsChecked(process.env, trial2Configured(process.env))
+  if (pool2Error && pool2Error !== loggedPool2Error) {
+    loggedPool2Error = pool2Error
+    console.error(JSON.stringify({ level: "error", event: "plaid.pool2_misconfigured", reason: pool2Error }))
+  }
   const rows = await store.select({
     pool: productionLinkAttempts.pool,
     attempts: sql<number>`count(*)::int`,
@@ -42,7 +60,7 @@ export async function productionCapacity(store: Store = db) {
   for (const row of rows) ledger[row.pool] = { attempts: Number(row.attempts), reserved: Number(row.reserved), uncertain: Number(row.uncertain) }
   const budgets = poolBudgets(pools, ledger)
   // Totals cover configured pools only; `pools` carries the per-pool breakdown for the admin view.
-  return { ...totalCapacity(budgets), pools: budgets }
+  return { ...totalCapacity(budgets), pools: budgets, pool2Error }
 }
 
 /** Pool a new Link session should be created from: the first with room. Read-only; the reservation re-checks under lock. */

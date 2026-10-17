@@ -12,8 +12,9 @@ import { mutate, useApi } from "@web/lib/use-api"
 type BrokerageUser = { id: string; email: string; name: string | null; allowed: boolean }
 type AdminData = {
   users: BrokerageUser[]
+  orphanedPool2Items?: number
   credentials?: { pool: number; configured: boolean; clientId?: string }[]
-  capacity: { limit: number; used: number; reserved: number; uncertain: number; available: number; previouslyUsed: number; pools: { pool: number; limit: number; used: number; reserved: number; uncertain: number; available: number; previouslyUsed: number }[] }
+  capacity: { limit: number; used: number; reserved: number; uncertain: number; available: number; previouslyUsed: number; pool2Error?: string | null; pools: { pool: number; limit: number; used: number; reserved: number; uncertain: number; available: number; previouslyUsed: number }[] }
 }
 
 export default function BrokerageAdminPage() {
@@ -69,6 +70,8 @@ export default function BrokerageAdminPage() {
                   <div key={label}><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1 text-xl font-semibold tabular-nums">{value}</dd></div>
                 ))}
               </dl>
+              {data.capacity.pool2Error ? <p role="alert" className="text-sm text-loss-ink">Pool 2 misconfigured: {data.capacity.pool2Error}. Pool 2 is off until this is fixed.</p> : null}
+              {data.orphanedPool2Items ? <p role="alert" className="text-sm text-loss-ink">{data.orphanedPool2Items} {data.orphanedPool2Items === 1 ? "Item is" : "Items are"} linked to pool 2 but its credentials are missing. They cannot sync or be removed until PLAID_TRIAL_*_2 is restored.</p> : null}
               {data.credentials ? (
                 <ul className="space-y-1 text-xs text-muted-foreground">
                   {data.credentials.map((c) => (

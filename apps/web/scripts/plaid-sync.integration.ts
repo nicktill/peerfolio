@@ -7,7 +7,7 @@ import type { PlaidLinkOnSuccessMetadata } from 'react-plaid-link'
 import type { InvestmentFlow } from '../src/lib/plaid-sync-core'
 import * as schema from '../src/db/schema'
 import { db, plaidSyncRuns, users, plaidItems, accounts, holdings, portfolioSnapshots, plaidInvestmentFlows, accountEvents, securities } from '../src/db'
-import { finishProductionLinkAttempt, getBrokerageAccess, productionCapacity, reserveProductionLinkAttempt, userLinkAttempts } from '../src/lib/plaid-access'
+import { finishProductionLinkAttempt, getBrokerageAccess, orphanedPool2Items, productionCapacity, reserveProductionLinkAttempt, userLinkAttempts } from '../src/lib/plaid-access'
 import { loadLivePoints } from '../src/lib/returns'
 import { decrypt, encrypt } from '../src/lib/crypto'
 import { manualMutation } from '../src/lib/manual-mutation'
@@ -477,12 +477,12 @@ try {
     process.env.PLAID_ENV = 'production'
     process.env.PLAID_PRODUCTION_ITEM_LIMIT = '10'
     // Without pool-2 credentials the app is a single pool of 10.
-    delete process.env.PLAID_TRIAL2_CLIENT_ID
-    delete process.env.PLAID_TRIAL2_SECRET
+    delete process.env.PLAID_TRIAL_CLIENT_ID_2
+    delete process.env.PLAID_TRIAL_SECRET_2
     assert.equal((await productionCapacity()).pools.length, 1)
     assert.equal((await productionCapacity()).limit, 10)
-    process.env.PLAID_TRIAL2_CLIENT_ID = 'trial2-test'
-    process.env.PLAID_TRIAL2_SECRET = 'trial2-test-secret'
+    process.env.PLAID_TRIAL_CLIENT_ID_2 = 'trial2-test'
+    process.env.PLAID_TRIAL_SECRET_2 = 'trial2-test-secret'
     const base = await productionCapacity()
     assert.equal(base.pools.length, 2)
     assert.equal(base.limit, 20)
@@ -505,7 +505,7 @@ try {
     assert.equal(afterBoundary.pools[1]!.available, 10)
     assert.equal((await getBrokerageAccess(u4.id)).allowed, true)
     // Failover: a pool-2 request now succeeds with the trial2 profile and is recorded as pool 2.
-    process.env.PLAID_TRIAL2_ITEM_LIMIT = '3'
+    process.env.PLAID_TRIAL_ITEM_LIMIT_2 = '3'
     const second = await Promise.all([u2, u3].map((u, i) => reserveProductionLinkAttempt(u.id, `pool2-${i}`, 2)))
     assert.deepEqual(second.map((r) => r.profile), ['trial2', 'trial2'])
     assert.equal((await productionCapacity()).pools[1]!.attempts, 2)
@@ -523,14 +523,33 @@ try {
     assert.equal(exhausted.code, 'full')
     await assert.rejects(reserveProductionLinkAttempt(u1.id, 'all-full', 2), /Production connection limit reached/)
     // Removing pool-2 credentials returns to exactly today's single pool.
-    delete process.env.PLAID_TRIAL2_CLIENT_ID
-    delete process.env.PLAID_TRIAL2_SECRET
+    delete process.env.PLAID_TRIAL_CLIENT_ID_2
+    delete process.env.PLAID_TRIAL_SECRET_2
     assert.equal((await productionCapacity()).pools.length, 1)
+    // Pool-2 credentials gone while a pool-2 Item exists: that Item fails alone, loudly, and is visible to the admin.
+    assert.equal(await orphanedPool2Items(), 1)
+    const orphanSync = await syncItem(t2Item.id)
+    assert.equal(orphanSync.status, 'error')
+    assert.equal(orphanSync.errorCode, 'PROFILE_UNAVAILABLE')
+    await assert.rejects(disconnect(new Request('http://localhost/api/plaid/items/x', { method: 'DELETE' }), { params: Promise.resolve({ id: t2Item.id }) }), /credentials/)
+    assert.ok(await db.query.plaidItems.findFirst({ where: eq(plaidItems.id, t2Item.id) }), 'the Item and its token are preserved')
+    // A garbage pool-2 setting turns pool 2 off with a reason; pool 1 and access checks keep working for everyone.
+    process.env.PLAID_TRIAL_CLIENT_ID_2 = 'trial2-test'
+    process.env.PLAID_TRIAL_SECRET_2 = 'trial2-test-secret'
+    process.env.PLAID_TRIAL_ITEM_LIMIT_2 = 'garbage'
+    assert.equal(await orphanedPool2Items(), 0)
+    const broken = await productionCapacity()
+    assert.equal(broken.pools.length, 1)
+    assert.match(broken.pool2Error ?? '', /PLAID_TRIAL_ITEM_LIMIT_2/)
+    await getBrokerageAccess(u4.id)
+    delete process.env.PLAID_TRIAL_CLIENT_ID_2
+    delete process.env.PLAID_TRIAL_SECRET_2
+    delete process.env.PLAID_TRIAL_ITEM_LIMIT_2
     // Paid stays disabled even with every pool configured.
     process.env.PLAID_CONNECTION_PROFILE = 'paid'
     await assert.rejects(createLinkToken(new Request('http://localhost/api/plaid/link-token', { method: 'POST', body: JSON.stringify({ itemId: t2Item.id }) }), {}), /./)
     delete process.env.PLAID_CONNECTION_PROFILE
-    delete process.env.PLAID_TRIAL2_ITEM_LIMIT
+    delete process.env.PLAID_TRIAL_ITEM_LIMIT_2
     process.env.PLAID_PRODUCTION_ITEMS_PREVIOUSLY_USED = '0'
     process.env.PLAID_PRODUCTION_ITEM_LIMIT = '1'
     process.env.PLAID_ENV = 'sandbox'

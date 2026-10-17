@@ -3,19 +3,20 @@ import { desc, eq, ilike, or, sql } from "drizzle-orm"
 import { z } from "zod"
 import { db, users } from "@web/db"
 import { ApiError, readJson, withUser } from "@web/lib/api"
-import { assertAdmin, productionCapacity } from "@web/lib/plaid-access"
+import { assertAdmin, orphanedPool2Items, productionCapacity } from "@web/lib/plaid-access"
 import { trialCredentialSummary } from "@web/lib/plaid-profile"
 
 export const GET = withUser<unknown>(async (userId, request) => {
   await assertAdmin(userId)
   const q = new URL(request.url).searchParams.get("q")?.trim().slice(0, 120)
-  const [list, capacity] = await Promise.all([
+  const [list, capacity, orphanedPool2] = await Promise.all([
     db.select({ id: users.id, email: users.email, name: users.name, allowed: sql<boolean>`not ${users.brokerageLinkingBlocked}` }).from(users)
       .where(q ? or(ilike(users.email, `%${q}%`), ilike(users.name, `%${q}%`)) : undefined)
       .orderBy(desc(users.createdAt)).limit(50),
     productionCapacity(),
+    orphanedPool2Items(),
   ])
-  return NextResponse.json({ users: list, capacity, credentials: trialCredentialSummary(process.env) })
+  return NextResponse.json({ users: list, capacity, orphanedPool2Items: orphanedPool2, credentials: trialCredentialSummary(process.env) })
 })
 
 const UpdateAccess = z.object({ userId: z.string().uuid(), allowed: z.boolean() }).strict()

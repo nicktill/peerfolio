@@ -1,11 +1,15 @@
 import { decodeProtectedHeader } from "jose"
 import { getPlaidClient } from "@web/lib/plaid"
-import { trial2Configured, type PlaidProfile } from "@web/lib/plaid-profile"
+import { verificationProfiles, type PlaidProfile } from "@web/lib/plaid-profile"
 
-import { verifySignedWebhook, type PlaidJWK } from "@web/lib/plaid-webhook-core"
-type CachedKey = { jwk: PlaidJWK; fetchedAt: number }
-const keyCache = new Map<string, CachedKey>()
-const KEY_TTL_MS = 24 * 60 * 60 * 1000
+import { createKeyResolver, MAX_KEY_ID_LENGTH, verifySignedWebhook, type PlaidJWK } from "@web/lib/plaid-webhook-core"
+const resolveKey = createKeyResolver({
+  profiles: () => verificationProfiles(process.env),
+  fetchKey: async (profile, kid) => {
+    const { data } = await getPlaidClient(profile as PlaidProfile).webhookVerificationKeyGet({ key_id: kid })
+    return data.key as unknown as PlaidJWK
+  },
+})
 
 /**
  * Verifies a Plaid webhook per Plaid's scheme: the `plaid-verification` header
@@ -21,35 +25,12 @@ export async function verifyPlaidWebhook(rawBody: string, token: string | null):
   let kid: string
   try {
     const header = decodeProtectedHeader(token)
-    if (header.alg !== "ES256" || !header.kid || header.kid.length > 256) return false
+    if (header.alg !== "ES256" || !header.kid || header.kid.length > MAX_KEY_ID_LENGTH) return false
     kid = header.kid
   } catch {
     return false
   }
 
-  const jwk = await getVerificationKey(kid)
+  const jwk = await resolveKey(kid)
   return jwk ? verifySignedWebhook(rawBody, token, jwk) : false
-}
-
-async function getVerificationKey(kid: string): Promise<PlaidJWK | null> {
-  const cached = keyCache.get(kid)
-  if (cached && Date.now() - cached.fetchedAt < KEY_TTL_MS) return cached.jwk
-
-  try {
-    // The webhook may come from either Trial team, and a key id is only known to the team that sent it.
-    const profiles: PlaidProfile[] = ["trial", ...(trial2Configured(process.env) ? ["trial2" as const] : [])]
-    for (const profile of profiles) {
-      try {
-        const { data } = await getPlaidClient(profile).webhookVerificationKeyGet({ key_id: kid })
-        const jwk = data.key as unknown as PlaidJWK
-        keyCache.set(kid, { jwk, fetchedAt: Date.now() })
-        return jwk
-      } catch {
-        // Try the next team.
-      }
-    }
-    return null
-  } catch {
-    return null
-  }
 }

@@ -10,6 +10,19 @@ type Env = Record<string, string | undefined>
  * Re-enabling it requires a code change here (remove these guards and ship a reviewed release);
  * setting PLAID_CONNECTION_PROFILE=paid in Vercel only produces this error.
  */
+/**
+ * RUNBOOK: never unset or change PLAID_TRIAL_CLIENT_ID_2 / PLAID_TRIAL_SECRET_2 while Items linked to pool 2 exist.
+ * Those Items remember the `trial2` profile and can only be synced, refreshed or removed with its credentials. If the
+ * credentials go missing, each such Item fails on its own (logged, flagged in the admin view) while everything else keeps
+ * working, and their Plaid-side connections keep counting against the second team until the credentials are restored.
+ */
+export class PlaidProfileUnavailableError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "PlaidProfileUnavailableError"
+  }
+}
+
 const PAID_DISABLED = "Paid Plaid credentials are disabled in this build; re-enabling them requires a code change"
 
 /**
@@ -33,13 +46,13 @@ export function plaidCredentials(env: Env, profile: PlaidProfile) {
     if (env.PLAID_ENV !== undefined && env.PLAID_ENV !== "sandbox") throw new Error("Sandbox credentials require PLAID_ENV=sandbox")
     const clientId = env.PLAID_CLIENT_ID?.trim()
     const secret = env.PLAID_SECRET?.trim()
-    if (!clientId || !secret) throw new Error("Plaid sandbox credentials are not configured")
+    if (!clientId || !secret) throw new PlaidProfileUnavailableError("Plaid sandbox credentials are not configured")
     return { clientId, secret }
   }
   if (profile === "trial2") {
-    const clientId = env.PLAID_TRIAL2_CLIENT_ID?.trim()
-    const secret = env.PLAID_TRIAL2_SECRET?.trim()
-    if (!clientId || !secret) throw new Error("Plaid trial2 credentials are not configured")
+    const clientId = env.PLAID_TRIAL_CLIENT_ID_2?.trim()
+    const secret = env.PLAID_TRIAL_SECRET_2?.trim()
+    if (!clientId || !secret) throw new PlaidProfileUnavailableError("Plaid trial2 credentials are not configured")
     if (clientId === env.PLAID_CLIENT_ID?.trim()) throw new Error("Trial 2 must use a different Plaid team from paid")
     if (clientId === env.PLAID_TRIAL_CLIENT_ID?.trim() || secret === env.PLAID_TRIAL_SECRET?.trim()) throw new Error("Trial 2 must use a different Plaid team from Trial")
     if (env.PLAID_ENV !== "production") throw new Error("Trial 2 requires PLAID_ENV=production")
@@ -47,10 +60,21 @@ export function plaidCredentials(env: Env, profile: PlaidProfile) {
   }
   const clientId = env.PLAID_TRIAL_CLIENT_ID?.trim()
   const secret = env.PLAID_TRIAL_SECRET?.trim()
-  if (!clientId || !secret) throw new Error("Plaid trial credentials are not configured")
+  if (!clientId || !secret) throw new PlaidProfileUnavailableError("Plaid trial credentials are not configured")
   if (clientId === env.PLAID_CLIENT_ID?.trim()) throw new Error("Trial must use a different Plaid team from paid")
   if (env.PLAID_ENV !== "production") throw new Error("Trial requires PLAID_ENV=production")
   return { clientId, secret }
+}
+
+/**
+ * Profiles whose credentials may have signed an incoming webhook, in the order to try them: the profile new connections
+ * use here (sandbox outside production), then trial2 when it is configured. Paid is never consulted.
+ */
+export function verificationProfiles(env: Env): PlaidProfile[] {
+  const profiles: PlaidProfile[] = []
+  try { profiles.push(newPlaidProfile(env)) } catch { /* a disabled or invalid profile has no key to try */ }
+  if (trial2Configured(env) && !profiles.includes("trial2")) profiles.push("trial2")
+  return profiles
 }
 
 /** Whether the second Trial team is fully and validly configured. Pool 2 does not exist otherwise. */

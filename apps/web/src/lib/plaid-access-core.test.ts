@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { brokerageBlock, choosePool, firstAvailablePool, poolBudgets, productionPools, totalCapacity, isAdminEmail, productionBudgetSettings, USER_LINK_LIMIT_NOTICE, USER_PRODUCTION_LINK_LIMIT } from "./plaid-access-core.ts"
+import { brokerageBlock, choosePool, firstAvailablePool, poolBudgets, productionPools, productionPoolsChecked, totalCapacity, isAdminEmail, productionBudgetSettings, USER_LINK_LIMIT_NOTICE, USER_PRODUCTION_LINK_LIMIT } from "./plaid-access-core.ts"
 
 describe("brokerage admin and lifetime production budget settings", () => {
   it("grants no admin access unless a normalized database email is explicitly listed", () => {
@@ -82,13 +82,12 @@ describe("two Trial pools", () => {
     assert.deepEqual(totalCapacity(budgets), { limit: 20, used: 5, reserved: 0, uncertain: 0, available: 15, previouslyUsed: 0, attempts: 5 })
   })
   it("hard-caps every pool at ten whatever the env asks", () => {
-    const pools = productionPools({ ...prod, PLAID_PRODUCTION_ITEM_LIMIT: "50", PLAID_TRIAL2_ITEM_LIMIT: "50" }, true)
+    const pools = productionPools({ ...prod, PLAID_PRODUCTION_ITEM_LIMIT: "50", PLAID_TRIAL_ITEM_LIMIT_2: "50" }, true)
     assert.deepEqual(pools.map((p) => p.limit), [10, 10])
-    assert.equal(productionPools({ ...prod, PLAID_TRIAL2_ITEM_LIMIT: "3" }, true)[1]!.limit, 3)
-    assert.throws(() => productionPools({ ...prod, PLAID_TRIAL2_ITEM_LIMIT: "x" }, true), /integer/)
+    assert.equal(productionPools({ ...prod, PLAID_TRIAL_ITEM_LIMIT_2: "3" }, true)[1]!.limit, 3)
   })
   it("keeps PLAID_PRODUCTION_* semantics for pool 1 and applies pool 2 offsets separately", () => {
-    const pools = productionPools({ ...prod, PLAID_PRODUCTION_ITEMS_PREVIOUSLY_USED: "4", PLAID_TRIAL2_ITEMS_PREVIOUSLY_USED: "2" }, true)
+    const pools = productionPools({ ...prod, PLAID_PRODUCTION_ITEMS_PREVIOUSLY_USED: "4", PLAID_TRIAL_ITEMS_PREVIOUSLY_USED_2: "2" }, true)
     const budgets = poolBudgets(pools, ledger(1, 1))
     assert.deepEqual(budgets.map((b) => b.available), [5, 7])
   })
@@ -112,5 +111,23 @@ describe("two Trial pools", () => {
     const one = poolBudgets(productionPools(prod, false), ledger(2))
     assert.deepEqual(choosePool(one, 2), { ok: false, reason: "invalid" })
     assert.deepEqual(choosePool(poolBudgets(productionPools(prod, false), ledger(10)), 1), { ok: false, reason: "full" })
+  })
+})
+
+describe("misconfigured pool 2", () => {
+  const prod = { PLAID_ENV: "production" }
+  it("turns pool 2 off with a reason instead of breaking pool 1", () => {
+    for (const bad of [{ PLAID_TRIAL_ITEM_LIMIT_2: "x" }, { PLAID_TRIAL_ITEMS_PREVIOUSLY_USED_2: "-1" }, { PLAID_TRIAL_ITEM_LIMIT_2: "1e3" }]) {
+      const checked = productionPoolsChecked({ ...prod, ...bad }, true)
+      assert.deepEqual(checked.pools.map((p) => p.pool), [1])
+      assert.match(checked.pool2Error ?? "", /PLAID_TRIAL_(ITEM_LIMIT|ITEMS_PREVIOUSLY_USED)_2 must be a nonnegative/)
+    }
+  })
+  it("reports no error for a valid or absent pool 2", () => {
+    assert.equal(productionPoolsChecked(prod, true).pool2Error, null)
+    assert.equal(productionPoolsChecked({ ...prod, PLAID_TRIAL_ITEM_LIMIT_2: "x" }, false).pool2Error, null)
+  })
+  it("still rejects a malformed pool-1 setting rather than disabling its limit", () => {
+    assert.throws(() => productionPoolsChecked({ ...prod, PLAID_PRODUCTION_ITEM_LIMIT: "x" }, true), /integer/)
   })
 })

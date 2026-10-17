@@ -1,4 +1,4 @@
-import { decodePlaidToken } from "@web/lib/plaid-profile"
+import { decodePlaidToken, PlaidProfileUnavailableError } from "@web/lib/plaid-profile"
 import { and, eq, inArray, isNull, min, ne, sql } from "drizzle-orm"
 import type { AccountBase, Holding as PlaidHolding, Security as PlaidSecurity } from "plaid"
 import { db, holdings, accounts, plaidItems, portfolioSnapshots, securities, plaidInvestmentFlows } from "@web/db"
@@ -162,7 +162,9 @@ export async function syncItem(itemRowId: string, deadline = Date.now() + 90_000
     await recordSyncRun(buildSyncRun({ itemId: item.id, userId: item.userId, trigger, startedAt, finishedAt: new Date(), failed: false, metrics }))
     return result
   } catch (error) {
-    const code = error instanceof SyncValidationError ? error.code : plaidErrorCode(error)
+    const unavailable = error instanceof PlaidProfileUnavailableError
+    if (unavailable) console.error(JSON.stringify({ level: "error", event: "plaid.item_profile_unavailable", itemId: item.id, reason: error.message }))
+    const code = unavailable ? "PROFILE_UNAVAILABLE" : error instanceof SyncValidationError ? error.code : plaidErrorCode(error)
     metrics.requestId = plaidRequestId(error) ?? metrics.requestId
     await recordSyncRun(buildSyncRun({ itemId: item.id, userId: item.userId, trigger, startedAt, finishedAt: new Date(), failed: true, errorCode: code, metrics }))
     const status = isReauthRequired(code) ? "needs_reauth" : "error"
@@ -486,7 +488,13 @@ export async function syncUser(userId: string, trigger: SyncTrigger = "manual") 
       results.push({ itemId: item.id, accounts: 0, holdings: 0, status: "error", errorCode: "SYNC_DEADLINE_EXCEEDED" })
       continue
     }
-    results.push(await syncItem(item.id, deadline, trigger))
+    // One Item that cannot even start (missing row, pause race) must not abort the user's other Items.
+    try {
+      results.push(await syncItem(item.id, deadline, trigger))
+    } catch (error) {
+      console.error(JSON.stringify({ level: "error", event: "plaid.item_sync_threw", itemId: item.id, reason: error instanceof Error ? error.message : "unknown" }))
+      results.push({ itemId: item.id, accounts: 0, holdings: 0, status: "error", errorCode: "SYNC_FAILED" })
+    }
   }
 
   // Each successful Item atomically records its balances, deduplicated flows and snapshot.

@@ -38,12 +38,14 @@ export const POST = withUser<unknown>(async (userId, request) => {
   // This reservation commits independently so remote creation cannot outlive our budget accounting.
   // It also picks the Trial team; the exchange and the stored profile use that team's credentials.
   const { attemptId, profile } = await reserveProductionLinkAttempt(userId, body.publicToken, requestedPool)
-  const client = getPlaidClient(profile)
+  let client: ReturnType<typeof getPlaidClient>
   let accessToken: string
   let plaidItemId: string
   try {
     // Reservation already committed. Do not hold a DB transaction across remote creation:
     // a later commit failure could otherwise lose the successfully exchanged token.
+    // Inside the try so a missing credential marks the committed attempt uncertain rather than leaving it reserved.
+    client = getPlaidClient(profile)
     await assertBrokeragePermission(userId)
     const { data } = await client.itemPublicTokenExchange({ public_token: body.publicToken })
     accessToken = data.access_token

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
-import { decodePlaidToken, encodePlaidToken, maskClientId, newPlaidProfile, plaidCredentials, trial2Configured, trialCredentialSummary } from "./plaid-profile.ts"
+import { PlaidProfileUnavailableError, verificationProfiles, decodePlaidToken, encodePlaidToken, maskClientId, newPlaidProfile, plaidCredentials, trial2Configured, trialCredentialSummary } from "./plaid-profile.ts"
 
 const env = { PLAID_ENV: "production", PLAID_CLIENT_ID: "paid-id", PLAID_SECRET: "paid-secret", PLAID_TRIAL_CLIENT_ID: "trial-id", PLAID_TRIAL_SECRET: "trial-secret" }
 
@@ -73,7 +73,7 @@ test("accidentally copying the paid team into Trial is rejected", () => {
   assert.throws(() => plaidCredentials({ ...env, PLAID_TRIAL_CLIENT_ID: env.PLAID_CLIENT_ID }, "trial"), /different Plaid team/)
 })
 
-const env2 = { ...env, PLAID_TRIAL2_CLIENT_ID: "trial2-id-0123456789", PLAID_TRIAL2_SECRET: "trial2-secret-xyz" }
+const env2 = { ...env, PLAID_TRIAL_CLIENT_ID_2: "trial2-id-0123456789", PLAID_TRIAL_SECRET_2: "trial2-secret-xyz" }
 
 test("trial2 is never chosen by configuration, only by the budget logic", () => {
   assert.equal(newPlaidProfile(env2), "trial")
@@ -87,10 +87,10 @@ test("trial2 reads its own credentials, never the Trial or paid pair", () => {
 })
 test("trial2 needs production, its own credentials, and a different team from Trial and paid", () => {
   assert.throws(() => plaidCredentials({ ...env2, PLAID_ENV: "sandbox" }, "trial2"), /PLAID_ENV=production/)
-  assert.throws(() => plaidCredentials({ ...env2, PLAID_TRIAL2_SECRET: "" }, "trial2"), /trial2 credentials/)
-  assert.throws(() => plaidCredentials({ ...env2, PLAID_TRIAL2_CLIENT_ID: "trial-id" }, "trial2"), /different Plaid team from Trial/)
-  assert.throws(() => plaidCredentials({ ...env2, PLAID_TRIAL2_CLIENT_ID: "paid-id" }, "trial2"), /different Plaid team from paid/)
-  assert.equal(trial2Configured({ ...env2, PLAID_TRIAL2_CLIENT_ID: undefined }), false)
+  assert.throws(() => plaidCredentials({ ...env2, PLAID_TRIAL_SECRET_2: "" }, "trial2"), /trial2 credentials/)
+  assert.throws(() => plaidCredentials({ ...env2, PLAID_TRIAL_CLIENT_ID_2: "trial-id" }, "trial2"), /different Plaid team from Trial/)
+  assert.throws(() => plaidCredentials({ ...env2, PLAID_TRIAL_CLIENT_ID_2: "paid-id" }, "trial2"), /different Plaid team from paid/)
+  assert.equal(trial2Configured({ ...env2, PLAID_TRIAL_CLIENT_ID_2: undefined }), false)
   assert.equal(trial2Configured({ ...env2, PLAID_ENV: "sandbox" }), false)
 })
 test("paid stays disabled with both Trial pools configured", () => {
@@ -120,4 +120,19 @@ test("a missing pool reports nothing about credentials", () => {
   const [one, two] = trialCredentialSummary(env)
   assert.equal(one!.configured, true)
   assert.deepEqual(two, { pool: 2, profile: "trial2", configured: false })
+})
+
+test("webhook verification tries the profile new connections use, so sandbox webhooks still verify", () => {
+  assert.deepEqual(verificationProfiles({ PLAID_ENV: "sandbox", PLAID_CLIENT_ID: "sb", PLAID_SECRET: "s" }), ["sandbox"])
+  assert.deepEqual(verificationProfiles({ PLAID_CLIENT_ID: "sb", PLAID_SECRET: "s" }), ["sandbox"])
+  assert.deepEqual(verificationProfiles(env), ["trial"])
+  assert.deepEqual(verificationProfiles(env2), ["trial", "trial2"])
+  // Pool 2 credentials outside production are not valid, so they never add a profile.
+  assert.deepEqual(verificationProfiles({ ...env2, PLAID_ENV: "sandbox" }), ["sandbox"])
+})
+test("a disabled paid profile contributes no verification key lookup", () => {
+  assert.deepEqual(verificationProfiles({ ...env, PLAID_CONNECTION_PROFILE: "paid" }), [])
+})
+test("missing credentials raise a recognisable per-Item error", () => {
+  assert.throws(() => plaidCredentials({ ...env, PLAID_TRIAL_CLIENT_ID_2: undefined }, "trial2"), PlaidProfileUnavailableError)
 })

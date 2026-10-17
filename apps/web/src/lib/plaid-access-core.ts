@@ -24,20 +24,30 @@ export type PoolBudget = PoolConfig & { attempts: number; used: number; reserved
  * Pools in failover order. Pool 1 is the original Trial team and is always present; its limit and offset keep using
  * PLAID_PRODUCTION_ITEM_LIMIT / PLAID_PRODUCTION_ITEMS_PREVIOUSLY_USED, so a deployment with one Trial pair behaves exactly as before.
  * Pool 2 exists only when its credentials validate (`trial2` argument) in production, with its own optional
- * PLAID_TRIAL2_ITEM_LIMIT / PLAID_TRIAL2_ITEMS_PREVIOUSLY_USED. Every pool is hard-capped at 10.
+ * PLAID_TRIAL_ITEM_LIMIT_2 / PLAID_TRIAL_ITEMS_PREVIOUSLY_USED_2. Every pool is hard-capped at 10.
  */
-export function productionPools(env: Record<string, string | undefined>, trial2: boolean): PoolConfig[] {
+export function productionPoolsChecked(env: Record<string, string | undefined>, trial2: boolean): { pools: PoolConfig[]; pool2Error: string | null } {
   const first = productionBudgetSettings(env)
   const pools: PoolConfig[] = [{ pool: 1, profile: "trial", limit: first.limit, previouslyUsed: first.previouslyUsed }]
+  let pool2Error: string | null = null
   if (trial2 && env.PLAID_ENV === "production") {
-    pools.push({
-      pool: 2,
-      profile: "trial2",
-      limit: Math.min(POOL_ITEM_LIMIT, nonnegativeInteger(env.PLAID_TRIAL2_ITEM_LIMIT, POOL_ITEM_LIMIT, "PLAID_TRIAL2_ITEM_LIMIT")),
-      previouslyUsed: nonnegativeInteger(env.PLAID_TRIAL2_ITEMS_PREVIOUSLY_USED, 0, "PLAID_TRIAL2_ITEMS_PREVIOUSLY_USED"),
-    })
+    // A bad pool-2 setting must never take pool 1 (and with it every access check) down: pool 2 simply does not exist.
+    try {
+      pools.push({
+        pool: 2,
+        profile: "trial2",
+        limit: Math.min(POOL_ITEM_LIMIT, nonnegativeInteger(env.PLAID_TRIAL_ITEM_LIMIT_2, POOL_ITEM_LIMIT, "PLAID_TRIAL_ITEM_LIMIT_2")),
+        previouslyUsed: nonnegativeInteger(env.PLAID_TRIAL_ITEMS_PREVIOUSLY_USED_2, 0, "PLAID_TRIAL_ITEMS_PREVIOUSLY_USED_2"),
+      })
+    } catch (error) {
+      pool2Error = error instanceof Error ? error.message : "invalid pool 2 configuration"
+    }
   }
-  return pools
+  return { pools, pool2Error }
+}
+
+export function productionPools(env: Record<string, string | undefined>, trial2: boolean): PoolConfig[] {
+  return productionPoolsChecked(env, trial2).pools
 }
 
 /** Ledger counts per pool (`attempts` counts every status) joined with the configuration. */
