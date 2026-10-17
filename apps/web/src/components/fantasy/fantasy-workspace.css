@@ -45,6 +45,8 @@
 /* Panels */
 .fw-panel { background: var(--fw-panel); border: 1px solid var(--fw-hair); border-radius: var(--fw-r); box-shadow: none; min-width: 0; }
 .fw-main > .fw-panel, .fw-rail > .fw-panel { padding: 0 var(--fw-ins) 8px; }
+/* Any panel with a section head gets the same edge padding wherever it sits (a wrapper div around a card used to lose it and leave the head flush to the border). */
+.fw-panel:where(:has(> .fw-section-head)) { padding: 0 var(--fw-ins) 8px; }
 .fw-section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; padding: 14px 0; border-bottom: 1px solid var(--fw-hair); }
 .fw-section-head h2 { font: 500 16px/24px var(--fw-sans); letter-spacing: -.015em; margin: 0; }
 .fw-section-head p { font: 400 10.5px/16px var(--fw-mono); letter-spacing: .02em; color: var(--fw-fg3); text-align: right; }
@@ -682,3 +684,8 @@ button.fw-feed-row:hover p { color: var(--fw-fg); }
  .fw-invite-label-full { display: none; }
  .fw-invite-label-short { display: inline; }
 }
+
+/* League list skeleton (same pf-sk bars as News): rows reserve the real row height so the list lands without a shift */
+.fw-league-sk { min-height: 104px; }
+.fw-sk-art { width: 52px; height: 52px; border-radius: 14px; flex: none; }
+@media (max-width: 760px) { .fw-sk-art { width: 44px; height: 44px; } .fw-league-sk { min-height: 96px; } }

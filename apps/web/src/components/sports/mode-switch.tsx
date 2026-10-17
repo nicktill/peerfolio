@@ -4,8 +4,11 @@ import "@web/components/sports/mode-switch.css"
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { TickerLogo } from "@web/components/ui/ticker-logo"
-import { TeamBadge } from "@web/components/sports/team-badge"
-import { useSportsEnabled } from "@web/components/sports/use-sports-enabled"
+import dynamic from "next/dynamic"
+import { useSportsAccess, useSportsEnabled } from "@web/components/sports/use-sports-enabled"
+
+// Pulls in the team tables via TeamBadge, so it is split out of the Fantasy page's first load.
+const ArenaMatchups = dynamic(() => import("@web/components/sports/arena-matchups").then((m) => m.ArenaMatchups))
 
 export type FantasyMode = "stocks" | "sports"
 
@@ -61,8 +64,10 @@ export function useFantasyMode(): [FantasyMode, (mode: FantasyMode) => void, (mo
  */
 export function ModeSwitch({ mode, onChange }: { mode: FantasyMode; onChange: (mode: FantasyMode) => void }) {
   const refs = useRef<Record<FantasyMode, HTMLButtonElement | null>>({ stocks: null, sports: null })
-  const enabled = useSportsEnabled()
-  if (!enabled) return null
+  const access = useSportsAccess()
+  // Access still unknown (no server answer): hold the cards' exact space so nothing shifts when it arrives.
+  if (access === null) return <ModeSwitchSkeleton />
+  if (!access) return null
 
   function onKeyDown(event: React.KeyboardEvent) {
     const i = MODES.indexOf(mode)
@@ -80,7 +85,7 @@ export function ModeSwitch({ mode, onChange }: { mode: FantasyMode; onChange: (m
 
   const COPY: Record<FantasyMode, { name: string; line: string; tag: string }> = {
     stocks: { name: "Stocks", line: "Play-money portfolios. Beat your friends' returns.", tag: "The Floor" },
-    sports: { name: "Sports", line: "Pregame picks on NFL, NBA and tennis.", tag: "The Arena" },
+    sports: { name: "Sports", line: "Pregame picks on NFL, NBA, NHL, MLB, MLS and college football.", tag: "The Arena" },
   }
   return (
     <div className="sp-stage" role="tablist" aria-label="Fantasy type" data-mode={mode} onKeyDown={onKeyDown}>
@@ -110,6 +115,23 @@ export function ModeSwitch({ mode, onChange }: { mode: FantasyMode; onChange: (m
           </span>
           <span className="sp-world-dot" aria-hidden />
         </button>
+      ))}
+    </div>
+  )
+}
+
+/** The two cards at their real size with the real labels and grey bars (the News skeleton pattern). */
+function ModeSwitchSkeleton() {
+  return (
+    <div className="sp-stage" data-mode="stocks" aria-busy="true" aria-label="Loading fantasy types">
+      {MODES.map((m) => (
+        <div key={m} className="sp-world sp-world-sk" data-world={m} aria-selected={m === "stocks"}>
+          <span className="sp-world-copy">
+            <small>{m === "stocks" ? "The Floor" : "The Arena"}</small>
+            <span className="pf-sk" style={{ height: 30, width: "46%", marginTop: 6 }} />
+            <span className="pf-sk" style={{ height: 13, width: "70%", marginTop: 8 }} />
+          </span>
+        </div>
       ))}
     </div>
   )
@@ -259,47 +281,6 @@ function FloorBubbles() {
           <em className="numeric">
             <Typed text={fmt(s.pct)} />
           </em>
-        </span>
-      ))}
-    </span>
-  )
-}
-
-const MATCHUPS: { sport: string; a: string; b: string; start: [number, number]; step: number[] }[] = [
-  { sport: "nfl", a: "Philadelphia Eagles", b: "Carolina Panthers", start: [24, 17], step: [3, 7] },
-  { sport: "nba", a: "Boston Celtics", b: "New York Knicks", start: [98, 91], step: [2, 3] },
-  { sport: "nfl", a: "Kansas City Chiefs", b: "Buffalo Bills", start: [27, 24], step: [3, 7] },
-]
-
-/** Teams facing off over the Sports panel: logos, a score that changes now and then, and a gentle float. */
-function ArenaMatchups() {
-  const [scores, setScores] = useState(() => MATCHUPS.map((m) => [...m.start]))
-  const [flash, setFlash] = useState<{ i: number; side: number } | null>(null)
-  useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
-    const id = setInterval(() => {
-      const i = Math.floor(Math.random() * MATCHUPS.length)
-      const side = Math.random() < 0.5 ? 0 : 1
-      const step = MATCHUPS[i]!.step[Math.floor(Math.random() * MATCHUPS[i]!.step.length)]!
-      setScores((cur) => cur.map((s, k) => (k === i ? s.map((v, j) => (j === side ? v + step : v)) : s)))
-      setFlash({ i, side })
-      setTimeout(() => setFlash(null), 1200)
-    }, 3200)
-    return () => clearInterval(id)
-  }, [])
-  return (
-    <span className="am">
-      {MATCHUPS.map((m, i) => (
-        <span key={i} className="am-card" data-k={i}>
-          <TeamBadge sport={m.sport} name={m.a} size={28} bare />
-          <b className="numeric" data-hot={(flash?.i === i && flash.side === 0) || undefined}>
-            <Typed text={String(scores[i]![0])} />
-          </b>
-          <i>vs</i>
-          <b className="numeric" data-hot={(flash?.i === i && flash.side === 1) || undefined}>
-            <Typed text={String(scores[i]![1])} />
-          </b>
-          <TeamBadge sport={m.sport} name={m.b} size={28} bare />
         </span>
       ))}
     </span>
