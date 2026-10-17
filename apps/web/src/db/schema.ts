@@ -1292,3 +1292,57 @@ export const sportsRateLimits = pgTable(
   },
   (t) => [primaryKey({ columns: [t.key, t.bucket] })],
 )
+
+/* ------------------------------------------------------------------ *
+ * Live in-game odds (display only; see lib/sports/live)
+ *
+ * Written by the standalone live-odds worker, read by /api/sports/live/[gameId]. Deliberately separate from
+ * picks, lines, markets and settlement: nothing here is read when a pick is accepted, priced or graded, so an
+ * exchange quote can never change a payout or a result.
+ * ------------------------------------------------------------------ */
+
+/** One observation of one side of one market from one source. Probabilities are 0..1. Pruned by lib/sports/live/retention. */
+export const liveQuote = pgTable(
+  "live_quote",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => sportsEvents.id, { onDelete: "cascade" }),
+    /** "moneyline" for now. */
+    market: text("market").notNull(),
+    /** home | away */
+    selection: text("selection").notNull(),
+    /** polymarket | kalshi | espn */
+    source: text("source").notNull(),
+    bid: doublePrecision("bid"),
+    ask: doublePrecision("ask"),
+    /** Midpoint of a two-sided book (or a model's single number); null when the book was one-sided or crossed. */
+    mid: doublePrecision("mid"),
+    /** When the source says the book was true; null when it does not say. */
+    sourceTs: timestamp("source_ts", { withTimezone: true }),
+    fetchedTs: timestamp("fetched_ts", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    // Latest per key (DISTINCT ON ... ORDER BY fetched_ts DESC) and the per-event read.
+    index("live_quote_key_idx").on(t.eventId, t.market, t.selection, t.source, t.fetchedTs.desc()),
+    // Retention sweeps by age.
+    index("live_quote_fetched_idx").on(t.fetchedTs),
+  ],
+)
+
+/** Latest score/period/clock per game: one row, overwritten each poll. */
+export const liveState = pgTable("live_state", {
+  eventId: uuid("event_id")
+    .primaryKey()
+    .references(() => sportsEvents.id, { onDelete: "cascade" }),
+  /** pre | live | final | unknown, as the live feed reports it. Informational: settlement never reads it. */
+  status: text("status").notNull(),
+  homeScore: integer("home_score"),
+  awayScore: integer("away_score"),
+  period: text("period"),
+  clock: text("clock"),
+  source: text("source").notNull(),
+  sourceTs: timestamp("source_ts", { withTimezone: true }),
+  fetchedTs: timestamp("fetched_ts", { withTimezone: true }).notNull(),
+})

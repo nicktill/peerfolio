@@ -12,8 +12,9 @@ import { PlayerBadge, TeamBadge } from "@web/components/sports/team-badge"
 import { eventTitle, formatOdds, marketTitle, openPickPhase, pickSentence, SPORT_LABEL, type DisplayMarket } from "@web/lib/sports/format"
 import { teamLook } from "@web/lib/sports/teams"
 import { Avatar, initialsFor } from "@web/components/ui/avatar"
+import { LiveGameStrip } from "@web/components/sports/live-game"
 
-export type EventInfo = { sport: string; home: string; away: string; startsAt: string }
+export type EventInfo = { id?: string; sport: string; home: string; away: string; startsAt: string }
 export type PickRow = {
   id: string
   selection: string
@@ -276,7 +277,8 @@ export function PickTicket({ pick, showName }: { pick: PickRow; showName?: boole
     const t = window.setInterval(() => setNow(new Date()), 60_000)
     return () => window.clearInterval(t)
   }, [pick.status])
-  const r = pick.status === "open" && now ? { ...base, label: openPickPhase(pick.event.startsAt, now).label } : base
+  const phase = pick.status === "open" && now ? openPickPhase(pick.event.startsAt, now) : null
+  const r = phase ? { ...base, label: phase.label } : base
   const net = pick.payout == null ? null : pick.payout - pick.stake
   const side = pick.market.kind === "moneyline" || pick.market.kind === "spread" ? (pick.selection === "home" ? pick.event.home : pick.event.away) : null
   const color = side ? teamLook(pick.event.sport, side).color : undefined
@@ -304,6 +306,8 @@ export function PickTicket({ pick, showName }: { pick: PickRow; showName?: boole
           </strong>
         ) : null}
       </div>
+      {/* Only while the game is in progress. View only: the pick above keeps its accepted price and payout. */}
+      <LiveGameStrip eventId={pick.event.id} sport={pick.event.sport} home={pick.event.home} away={pick.event.away} active={phase?.phase === "in_progress"} />
     </li>
   )
 }

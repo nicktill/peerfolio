@@ -236,6 +236,7 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
     player: sportsMarkets.player,
     statKey: sportsMarkets.statKey,
     lockAt: sportsMarkets.lockAt,
+    eventId: sportsEvents.id,
     sport: sportsEvents.sport,
     home: sportsEvents.homeName,
     away: sportsEvents.awayName,
@@ -253,6 +254,7 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
     kind: string
     player: string | null
     statKey: string | null
+    eventId: string
     sport: string
     home: string
     away: string
@@ -269,7 +271,7 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
     status: p.status,
     acceptedAt: p.acceptedAt.toISOString(),
     market: { kind: p.kind, player: p.player, statKey: p.statKey },
-    event: { sport: p.sport, home: p.home, away: p.away, startsAt: p.startsAt.toISOString() },
+    event: { id: p.eventId, sport: p.sport, home: p.home, away: p.away, startsAt: p.startsAt.toISOString() },
   })
 
   const mine = await db
@@ -318,7 +320,7 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
         player: market.player,
         statKey: market.statKey,
         lockAt: market.lockAt.toISOString(),
-        event: { sport: event.sport, home: event.homeName, away: event.awayName, startsAt: event.startsAt.toISOString() },
+        event: { id: event.id, sport: event.sport, home: event.homeName, away: event.awayName, startsAt: event.startsAt.toISOString() },
         lines: lines
           .filter((l) => l.marketId === market.id)
           .map((l) => ({ id: l.id, selection: l.selection as Selection, price: l.price, point: l.point })),
@@ -406,6 +408,7 @@ async function placeOnce(db: Db, userId: string, leagueId: string, req: PickRequ
         now,
         market: { id: row.market.id, status: row.market.status, lockAt: row.market.lockAt },
         eventStatus: row.event.status,
+        eventStartsAt: row.event.startsAt,
         line: { id: row.line.id, marketId: row.line.marketId, price: row.line.price, point: row.line.point },
         member: { credits: member.credits },
         league: { startingCredits: league.startingCredits },

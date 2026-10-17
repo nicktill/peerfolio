@@ -146,8 +146,13 @@ export function planPublication(
   return { drafts, rejected: null }
 }
 
-/** Pick window check, using server time only. A client clock is never consulted. */
-export function isPickWindowOpen(market: { status: string; lockAt: Date }, eventStatus: string, now: Date): boolean {
+/**
+ * Pick window check, using server time only. A client clock is never consulted. Two independent time gates: the
+ * market's own lock, and the event's scheduled start. Whichever comes first closes it, so a market whose lock was
+ * ever set late (or never moved when a start moved earlier) still cannot take a pick once the game has begun.
+ */
+export function isPickWindowOpen(market: { status: string; lockAt: Date }, eventStatus: string, now: Date, eventStartsAt?: Date): boolean {
+  if (eventStartsAt && now.getTime() >= eventStartsAt.getTime()) return false
   return market.status === "open" && eventStatus === "scheduled" && now.getTime() < market.lockAt.getTime()
 }
 

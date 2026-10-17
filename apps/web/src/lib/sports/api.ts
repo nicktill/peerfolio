@@ -22,6 +22,14 @@ export function withSportsUser<T>(handler: (userId: string, request: Request, co
   })
 }
 
+/** Flag-gated like every sports route, but readable signed out: for public, non-personal data that a CDN may cache. */
+export function withSportsPublic<T>(handler: (request: Request, context: T) => Promise<Response>) {
+  return withPublic<T>((request, context) => {
+    assertEnabled()
+    return shape(() => handler(request, context))
+  })
+}
+
 export function withSportsCron<T>(handler: (request: Request, context: T) => Promise<Response>) {
   return withPublic<T>((request, context) => {
     assertEnabled()

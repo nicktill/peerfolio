@@ -59,6 +59,8 @@ export type PickContext = {
   now: Date
   market: { id: string; status: string; lockAt: Date }
   eventStatus: string
+  /** Scheduled kickoff. Picks are refused from this instant whatever the market's lock says. */
+  eventStartsAt: Date
   line: { id: string; marketId: string; price: number; point: number | null }
   member: { credits: number }
   league: { startingCredits: number }
@@ -79,7 +81,7 @@ export type AcceptedPick = {
 
 export function acceptPick(req: PickRequest, ctx: PickContext, limits: PickLimits = DEFAULT_LIMITS): AcceptedPick {
   if (!Number.isInteger(req.stake) || req.stake <= 0) throw new PickRejected("invalid_stake", "Stake must be a whole number")
-  if (!isPickWindowOpen(ctx.market, ctx.eventStatus, ctx.now)) throw new PickRejected("market_closed", "Picks are closed for this market")
+  if (!isPickWindowOpen(ctx.market, ctx.eventStatus, ctx.now, ctx.eventStartsAt)) throw new PickRejected("market_closed", "Picks are closed for this market")
   if (ctx.line.marketId !== ctx.market.id) throw new PickRejected("line_mismatch", "That line is not part of this market")
   if (ctx.line.price !== req.expectedPrice || ctx.line.point !== req.expectedPoint) {
     throw new PickRejected("line_mismatch", "The line changed. Review the current line and try again")

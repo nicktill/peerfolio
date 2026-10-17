@@ -131,6 +131,7 @@ describe("pick caps and snapshot", () => {
     now: NOW,
     market: { id: "m1", status: "open", lockAt: hours(2) },
     eventStatus: "scheduled",
+    eventStartsAt: hours(2.5),
     line: { id: "l1", marketId: "m1", price: -110, point: -3.5 },
     member: { credits: 1000 },
     league: { startingCredits: 1000 },
