@@ -51,6 +51,8 @@ export type OddsSnapshot = {
   notes?: string[]
   /** False when a source failed or was skipped, so absence from this snapshot proves nothing. Undefined means complete. */
   complete?: boolean
+  /** `externalId::marketKey` of published-able markets a quality gate hid this run while the game is still scheduled. The guard holds them (neither freezes nor reopens): a gate miss is not a withdrawal. */
+  held?: string[]
   /** Credits the fetch actually cost, counted from the requests made. Absent: the caller's estimate stands. */
   credits?: number
 }
@@ -74,6 +76,9 @@ export type EventResult = {
   /** Names and start time let a vendor with different ids still be matched to our event. */
   homeName?: string
   awayName?: string
+  /** The team's place or school without its nickname (ESPN `location`: "Troy" for "Troy Trojans"). Used only to match exchange titles. */
+  homeShort?: string
+  awayShort?: string
   startsAt?: Date
   status: ResultStatus
   homeScore: number | null

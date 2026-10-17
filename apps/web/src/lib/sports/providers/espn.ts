@@ -23,7 +23,7 @@ type Competitor = {
   order?: number
   score?: string
   winner?: boolean
-  team?: { displayName?: string }
+  team?: { displayName?: string; location?: string }
   athlete?: { displayName?: string }
   linescores?: { value?: number }[]
 }
@@ -86,6 +86,7 @@ export function normalizeCompetition(c: Competition, fallbackDate: string | unde
     externalId: c.id ?? "",
     homeName: home.team.displayName,
     awayName: away.team.displayName,
+    ...(home.team.location && away.team.location ? { homeShort: home.team.location, awayShort: away.team.location } : {}),
     startsAt: startsAt && !Number.isNaN(startsAt.getTime()) ? startsAt : undefined,
     status: status === "final" && !final ? "in_progress" : status,
     homeScore: final ? hs : null,

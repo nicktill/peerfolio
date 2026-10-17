@@ -37,8 +37,8 @@ export const KALSHI = "https://api.elections.kalshi.com/trade-api/v2"
 /** Polymarket Gamma series ids for a game series, from the exchange proof of concept. Tennis has no game series. */
 export const POLYMARKET_SERIES: Record<string, string> = { nfl: "12185", nba: "10345", nhl: "10346", mlb: "3", cfb: "12756", mls: "10189" }
 
-/** Gamma page size cap. A soccer game alone is up to 8 events (result, halftime, exact score, corners, props, more markets...). */
-export const GAMMA_PAGE = 100
+/** Gamma page size. Measured responses: ~200 KB per game event (a football game lists ~200 markets), so 100 events was 8 to 20 MB; 25 keeps a page near 5 MB. Gamma page size cap. A soccer game alone is up to 8 events (result, halftime, exact score, corners, props, more markets...). */
+export const GAMMA_PAGE = 25
 /**
  * Gamma events of one series whose game ends (= starts, for sports) inside [fromMs, toMs], soonest first. Ordering and filtering by
  * the game time, not the creation date, keeps a season's old events from filling the 100-event page; `offset` pages on.

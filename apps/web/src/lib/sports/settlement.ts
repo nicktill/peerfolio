@@ -36,7 +36,8 @@ export const DEFAULT_RESOLVE: ResolveConfig = {
 /**
  * Quorum policy per sport. Two independent free families exist for NHL (ESPN + the NHL's own API) and MLB (ESPN + MLB's own
  * Stats API), so those need both to agree. Every other sport has ESPN alone, so one family settles it, but behind the stricter
- * single-source safety net: a settle delay of at least SINGLE_SOURCE_SETTLE_DELAY_MS, a final that must still be the same score
+ * single-source safety net: a settle delay of at least SINGLE_SOURCE_SETTLE_DELAY_MS (a floor: while the base delay is 6h that is what
+ * applies, and the floor only bites if the base is lowered), a final that must still be the same score
  * when seen again after that delay, plausible-score checks, and review (never auto-settle) for anything odd or changed.
  */
 export const FREE_RESULT_FAMILIES: Record<Sport, number> = { nhl: 2, mlb: 2, nfl: 1, nba: 1, cfb: 1, mls: 1, tennis: 1 }

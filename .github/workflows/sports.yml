@@ -3,11 +3,12 @@ name: Sports cron
 # Vercel's free plan runs crons once a day, so GitHub calls the sports routes. GitHub's schedule is best
 # effort: runs often start 10 to 30 minutes late, so nothing here may assume an exact minute.
 #
-# Off until the repository variable SPORTS_CRON_ENABLED is "1": publishing spends Odds API credits, and
-# this must not start the moment the file is merged. Manual runs (workflow_dispatch) always work.
+# Off until the repository variable SPORTS_CRON_ENABLED is "1", so nothing starts the moment the file is merged. Publishing is
+# free by default (Polymarket/Kalshi on ESPN's schedule, no Odds API credits). Every run touches the database, so while this is on
+# the Neon compute does not sleep: leave it off (or slow the schedule) when no games are near. Manual runs (workflow_dispatch) always work.
 on:
   schedule:
-    - cron: "*/15 * * * *" # publish (the route budgets its own credits) and lock due markets
+    - cron: "*/15 * * * *" # publish (free exchange source) and lock due markets
     - cron: "7,37 * * * *" # settle
   workflow_dispatch:
     inputs:

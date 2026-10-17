@@ -221,6 +221,11 @@ describe("source-level guards: exchange data stays out of settlement, grading an
       assert.deepEqual(importsOf(f).filter((i) => /(^|\/)live(\/|$)|reprice/.test(i)), [], `${f} must not see exchange data`)
     }
   })
+  it("store.ts reads REPRICE from reprice-config.ts, not from reprice.ts (cron routes load store.ts)", () => {
+    const code = readFileSync(join(here, "store.ts"), "utf8")
+    assert.ok(/import \{ REPRICE \} from "\.\/reprice-config\.ts"/.test(code))
+    assert.ok(!/import \{[^}]*\bREPRICE\b[^}]*\} from "\.\/reprice\.ts"/.test(code))
+  })
   it("reprice.ts is pure: it imports only the odds and three-way maths and its own constants", () => {
     assert.deepEqual(importsOf("reprice.ts"), ["./odds.ts", "./reprice-config.ts", "./threeway.ts", "./threeway-exchange.ts"])
   })

@@ -75,6 +75,13 @@ async function seed() {
   console.log(`Created "Demo Sharps" with ${users.length} members and ${n} picks. Invite code ${league.inviteCode}`)
 }
 
+// Plausible finals per sport: settlement rejects scores outside each sport's range (27 goals in hockey goes to review).
+const demoScore = (sport: string) =>
+  sport === "nba" ? { home: 118, away: 109 }
+  : sport === "tennis" ? { home: 2, away: 1 }
+  : ["nhl", "mls", "mlb"].includes(sport) ? { home: 3, away: 2 }
+  : { home: 27, away: 20 }
+
 async function settleDemo() {
   // Pretend every scheduled game started 3 hours ago and its markets are locked.
   const past = new Date(Date.now() - 3 * 3600_000)
@@ -88,8 +95,8 @@ async function settleDemo() {
     for (const m of props) if (m.player && m.statKey) playerStats[m.player] = { [m.statKey]: m.statKey === "player_pass_yds" ? 262 : 31 }
     results[e.externalId] = {
       status: "final",
-      homeScore: e.sport === "nba" ? 118 : e.sport === "tennis" ? 2 : 27,
-      awayScore: e.sport === "nba" ? 109 : e.sport === "tennis" ? 1 : 20,
+      homeScore: demoScore(e.sport).home,
+      awayScore: demoScore(e.sport).away,
       playerStats,
     }
   }

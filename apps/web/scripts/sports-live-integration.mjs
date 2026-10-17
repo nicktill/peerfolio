@@ -61,7 +61,7 @@ try {
   await new Promise((resolve) => failingProvider.listen(3108, "127.0.0.1", resolve))
   server = spawn(process.execPath, [path.join(source, "node_modules/next/dist/bin/next"), "dev", "--hostname", "127.0.0.1", "--port", String(port)], {
     cwd: app, stdio: ["ignore", serverLog.fd, serverLog.fd],
-    env: { PATH: process.env.PATH, HOME: process.env.HOME, NODE_ENV: "development", DATABASE_URL: local.toString(), ENABLE_DEV_LOGIN: "true", NEXTAUTH_SECRET: randomUUID(), NEXTAUTH_URL: origin, NEXT_PUBLIC_SPORTS_ENABLED: "1", SPORTS_MOCK: "0", SPORTS_FETCH_GATE: "0", CRON_SECRET: cronSecret, PROPLINE_API_KEY: "local-test-only", PROPLINE_BASE_URL: "http://127.0.0.1:3108/v4", NEXT_TELEMETRY_DISABLED: "1" },
+    env: { PATH: process.env.PATH, HOME: process.env.HOME, NODE_ENV: "development", DATABASE_URL: local.toString(), ENABLE_DEV_LOGIN: "true", NEXTAUTH_SECRET: randomUUID(), NEXTAUTH_URL: origin, NEXT_PUBLIC_SPORTS_ENABLED: "1", SPORTS_MOCK: "0", SPORTS_ODDS_SOURCE: "odds-api", SPORTS_MIN_RESULT_SOURCES: "2", SPORTS_FETCH_GATE: "0", CRON_SECRET: cronSecret, PROPLINE_API_KEY: "local-test-only", PROPLINE_BASE_URL: "http://127.0.0.1:3108/v4", NEXT_TELEMETRY_DISABLED: "1" },
   })
   for (let i = 0; i < 90; i++) {
     if (server.exitCode != null) throw Error("Isolated test server exited; inspect server.log")

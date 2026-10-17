@@ -8,7 +8,8 @@ import { bucketOf, LIMITS, PRUNE_AFTER_WINDOWS, withinLimit, type LimitName } fr
 import { emit } from "./log.ts"
 import { acceptPick, DEFAULT_LIMITS, kickoffGateDecided, PickRejected, type PickContext, type PickRequest } from "./picks.ts"
 import { mirroredPairs } from "./report.ts"
-import { REPRICE, type Decision, type RepriceResult, type RepriceTarget } from "./reprice.ts"
+import { REPRICE } from "./reprice-config.ts"
+import { type Decision, type RepriceResult, type RepriceTarget } from "./reprice.ts"
 import { DEFAULT_RESOLVE, gradePick, needsMeteredSource, planSettlement, observeFinal, placeKey, resolveResult, resultsForEvent, type ResolveConfig, type ResolveConfigFor, type SettlementPlan } from "./settlement.ts"
 import type { EventRef, EventResult, MarketKind, OddsProvider, Outcome, ResultsProvider, Selection, Sport } from "./types.ts"
 import { hasDraw, SPORTS } from "./types.ts"
@@ -532,9 +533,23 @@ export async function workerAlive(db: Db, now: Date): Promise<boolean> {
  * market that starts within REPRICE.windowMs is frozen (one-way) rather than left on a price nobody is watching; a market
  * further out simply stops being trusted (see makeFetchGate/guardPublished) and falls back to the consensus guard.
  */
-export async function freezeUnguardedMarkets(db: Db, now: Date): Promise<{ checked: number; frozen: number; workerAlive: boolean }> {
+export const WORKER_FREEZE_REASON = "live odds worker not running"
+/** With no worker heartbeat nothing watches a published price between cron runs (30 min buckets, late runners), so markets close this long before kickoff. */
+export const NO_WORKER_EARLY_LOCK_MS = 60 * 60_000
+
+export async function freezeUnguardedMarkets(db: Db, now: Date): Promise<{ checked: number; frozen: number; reopened: number; workerAlive: boolean }> {
   const alive = await workerAlive(db, now)
-  if (alive) return { checked: 0, frozen: 0, workerAlive: true }
+  if (alive) {
+    // Reversible: this freeze says nothing about the line itself, so once the worker beats again an unstarted market reopens
+    // (the repricer re-checks it on its next pass). Other freeze reasons (a price jump, a moved start) stay closed.
+    const reopened = await db
+      .update(sportsMarkets)
+      .set({ status: "open", frozenReason: null })
+      .where(and(eq(sportsMarkets.status, "locked"), eq(sportsMarkets.frozenReason, WORKER_FREEZE_REASON), gt(sportsMarkets.lockAt, now)))
+      .returning({ id: sportsMarkets.id })
+    if (reopened.length) emit("info", "sports.markets_reopened_worker_back", { reopened: reopened.length })
+    return { checked: 0, frozen: 0, reopened: reopened.length, workerAlive: true }
+  }
   const rows = await db
     .select({ id: sportsMarkets.id, lockAt: sportsMarkets.lockAt })
     .from(sportsMarkets)
@@ -543,14 +558,16 @@ export async function freezeUnguardedMarkets(db: Db, now: Date): Promise<{ check
       and(
         eq(sportsMarkets.status, "open"),
         gt(sportsMarkets.lockAt, now),
-        sql`${sportsMarkets.exchangeOkAt} IS NOT NULL`,
-        sql`${sportsEvents.startsAt} <= ${new Date(now.getTime() + REPRICE.windowMs).toISOString()}::timestamptz`,
+        or(
+          and(sql`${sportsMarkets.exchangeOkAt} IS NOT NULL`, sql`${sportsEvents.startsAt} <= ${new Date(now.getTime() + REPRICE.windowMs).toISOString()}::timestamptz`),
+          sql`${sportsEvents.startsAt} <= ${new Date(now.getTime() + NO_WORKER_EARLY_LOCK_MS).toISOString()}::timestamptz`,
+        ),
       ),
     )
   const out = { frozen: 0 }
-  for (const r of rows) await freezeMarket(db, r.id, "live odds worker not running", r.lockAt, out)
+  for (const r of rows) await freezeMarket(db, r.id, WORKER_FREEZE_REASON, r.lockAt, out)
   if (out.frozen) emit("error", "sports.markets_frozen_worker_dead", { frozen: out.frozen, checked: rows.length })
-  return { checked: rows.length, frozen: out.frozen, workerAlive: false }
+  return { checked: rows.length, frozen: out.frozen, reopened: 0, workerAlive: false }
 }
 
 /** An exchange confirmation this recent (and a live worker heartbeat, see workerAlive) means the exchange, not a paid Odds API fetch, is guarding the market. */
@@ -601,7 +618,7 @@ export function makeFetchGate(db: Db, gameSoon: (sport: Sport, now: Date) => Pro
  * or the free schedule shows a game in the publish window. An unknown schedule (ESPN down) skips the sport this time.
  */
 export function makeExchangeGate(db: Db, gameSoon: (sport: Sport, now: Date) => Promise<boolean | null>) {
-  return async (sport: Sport, now: Date): Promise<boolean> => {
+  const gate = async (sport: Sport, now: Date): Promise<boolean> => {
     const [row] = await db
       .insert(sportsRateLimits)
       .values({ key: `fetch:exchange:${sport}`, bucket: exchangeBucket(now), count: 1 })
@@ -616,10 +633,15 @@ export function makeExchangeGate(db: Db, gameSoon: (sport: Sport, now: Date) => 
     if ((open?.n ?? 0) > 0) return true
     return (await gameSoon(sport, now)) === true
   }
+  /** Gives the 30-minute claim back when the fetch did not run or failed, so the next cron tick retries instead of waiting out the bucket. */
+  gate.release = async (sport: Sport, now: Date): Promise<void> => {
+    await db.update(sportsRateLimits).set({ count: 0 }).where(and(eq(sportsRateLimits.key, `fetch:exchange:${sport}`), eq(sportsRateLimits.bucket, exchangeBucket(now))))
+  }
+  return gate
 }
 
 /** Shared per-sport, per-UTC-day request counter for the exchange provider (every upstream request takes one). */
-export function makeDbCallCap(db: Db, perDay = 400) {
+export function makeDbCallCap(db: Db, perDay = 1000) {
   return {
     async take(sport: Sport, now: Date): Promise<boolean> {
       const [row] = await db
@@ -632,9 +654,14 @@ export function makeDbCallCap(db: Db, perDay = 400) {
   }
 }
 
-export async function publishLines(db: Db, provider: OddsProvider, sports: readonly Sport[], now: Date, cfg = DEFAULT_PUBLISH, gate?: (sport: Sport, now: Date) => Promise<boolean>) {
+export async function publishLines(db: Db, provider: OddsProvider, sports: readonly Sport[], now: Date, cfg = DEFAULT_PUBLISH, gate?: ((sport: Sport, now: Date) => Promise<boolean>) & { release?: (sport: Sport, now: Date) => Promise<void> }, deadlineAt?: number) {
   const summary: { sport: Sport; published: number; frozen: number; rescheduled: number; rejected: string | null; notes: string[] }[] = []
   for (const sport of sports) {
+    // Out of time for this run (the route's deadline): skip, and do not burn the sport's claim.
+    if (deadlineAt != null && Date.now() > deadlineAt) {
+      summary.push({ sport, published: 0, frozen: 0, rescheduled: 0, rejected: "deadline", notes: ["no fetch: the run's time budget was used up, retried next run"] })
+      continue
+    }
     if (gate && !(await gate(sport, now))) {
       summary.push({ sport, published: 0, frozen: 0, rescheduled: 0, rejected: null, notes: ["no fetch: nothing unlocked and no game in the next 24h, or this window's fetch was already taken"] })
       continue
@@ -646,6 +673,7 @@ export async function publishLines(db: Db, provider: OddsProvider, sports: reado
       // One sport's outage must not stop the others, and must never freeze or publish anything for it.
       const capped = error instanceof Error && error.name === "ExchangeCapError"
       const message = error instanceof Error ? error.message : "error"
+      await gate?.release?.(sport, now).catch(() => {})
       summary.push({ sport, published: 0, frozen: 0, rescheduled: 0, rejected: capped ? "call_cap" : "fetch_failed", notes: [capped ? `${provider.name}: skipped, call cap reached (${message})` : `${provider.name}: failed (${message})`] })
       continue
     }
@@ -714,7 +742,11 @@ export async function guardPublished(db: Db, snapshot: Awaited<ReturnType<OddsPr
     const rows = await db.select().from(sportsLines).where(inArray(sportsLines.marketId, open.map((o) => o.market.id)))
     for (const { market } of open) storedFairs.set(market.id, sortLines(rows.filter((l) => l.marketId === market.id)).map((l) => l.fairProb))
   }
+  const held = new Set(snapshot.held ?? [])
   for (const { market, event } of open) {
+    // A gate hid this market this run (thin top of book, wide spread, Kalshi disagreement) but its game is still scheduled and not live:
+    // hold it as it is. The repricer and the pick-time checks already guard it; freezing on a transient miss would close it for good.
+    if (held.has(`${event.externalId}::${market.marketKey}`)) continue
     const theirs = snapshot.events.find((e) => e.externalId === event.externalId)
     // Dropped from a trustworthy feed (event gone, prop pulled): close it. Freezing is one-way; a market that
     // comes back is not reopened, because picks taken in between were never checked against it. Existing picks settle normally.

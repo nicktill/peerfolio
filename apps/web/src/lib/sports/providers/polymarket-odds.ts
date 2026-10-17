@@ -30,8 +30,8 @@ import { EspnResultsProvider } from "./espn.ts"
 export const EXCHANGE_ODDS = {
   /** Most upstream requests (ESPN, Gamma, CLOB, Kalshi) spent on one sport per UTC day. */
   callsPerSportPerDay: 400,
-  /** Gamma pages of 100 events (an MLS game alone is up to 8 events). */
-  maxPages: 4,
+  /** Gamma pages of GAMMA_PAGE (25) events each, up to 400 events (an MLS game alone is up to 8 events). Truncation marks the snapshot incomplete. */
+  maxPages: 16,
   /** Books per CLOB request. */
   clobChunk: 100,
   retries: 2,
@@ -233,7 +233,10 @@ export function planGames(sport: Sport, schedule: EventResult[], groups: PmGameG
   let unmatched = 0
   for (const e of schedule) {
     if (!e.homeName || !e.awayName || !e.startsAt) continue
-    const m = matchGame({ homeName: e.homeName, awayName: e.awayName, startsAt: e.startsAt }, candidates)
+    let m = matchGame({ homeName: e.homeName, awayName: e.awayName, startsAt: e.startsAt }, candidates)
+    // College football: Polymarket titles carry the school only ("Troy"), ESPN's full name adds the nickname ("Troy Trojans").
+    // Retry on ESPN's school name. Same rules apply (both teams, close start, unique), so a near-miss still stays unmatched.
+    if (!m && sport === "cfb" && e.homeShort && e.awayShort) m = matchGame({ homeName: e.homeShort, awayName: e.awayShort, startsAt: e.startsAt }, candidates)
     if (!m) {
       unmatched++
       continue
@@ -293,14 +296,20 @@ export type Hidden = Record<string, number>
  * P(home) for a game (null when none / unusable). Anything that fails a gate is counted in `hidden` and left out.
  */
 export type KalshiView = { home: (g: PlannedGame) => number | null; three: (g: PlannedGame) => ThreeWayBooks | null }
-export function assemble(sport: Sport, games: PlannedGame[], books: ReadonlyMap<string, ClobBook>, kalshi: KalshiView, readAt: Date, now: Date): { events: ProviderEvent[]; hidden: Hidden } {
+export function assemble(sport: Sport, games: PlannedGame[], books: ReadonlyMap<string, ClobBook>, kalshi: KalshiView, readAt: Date, now: Date): { events: ProviderEvent[]; hidden: Hidden; held: string[] } {
   const hidden: Hidden = {}
+  /** `externalId::marketKey` of markets a gate hid THIS run on a game that is still on ESPN's schedule and not live: a transient miss, not a withdrawal. */
+  const held: string[] = []
+  let gameId = ""
   const hide = (what: string, reason: string) => {
     const k = `${what}: ${reason}`
     hidden[k] = (hidden[k] ?? 0) + 1
+    // "no market" means the exchange does not list that line at all; every other reason is a gate (spread, thin book, disagreement...).
+    if (reason !== "no market") held.push(`${gameId}::${what}|`)
   }
   const events: ProviderEvent[] = []
   for (const g of games) {
+    gameId = g.espn.externalId
     const markets: ProviderMarket[] = []
 
     if (g.moneyline) {
@@ -397,7 +406,7 @@ export function assemble(sport: Sport, games: PlannedGame[], books: ReadonlyMap<
       markets,
     })
   }
-  return { events, hidden }
+  return { events, hidden, held }
 }
 
 /* ---------------- Kalshi cross-check ---------------- */
@@ -491,7 +500,7 @@ export class ExchangeOddsProvider implements OddsProvider {
     for (let attempt = 0; attempt <= EXCHANGE_ODDS.retries; attempt++) {
       if (!(await this.cap.take(sport, now))) throw new ExchangeCapError(sport)
       try {
-        const res = await this.fetchFn(url, { ...init, signal: AbortSignal.timeout(25_000) })
+        const res = await this.fetchFn(url, { ...init, signal: AbortSignal.timeout(15_000) })
         if (res.status !== 429 && res.status < 500) return res
         last = res
       } catch (error) {
@@ -548,12 +557,15 @@ export class ExchangeOddsProvider implements OddsProvider {
     const to = now.getTime() + this.windowMs + EXCHANGE_ODDS.windowSlackMs
     let groups: PmGameGroup[] = []
     const raw: unknown[] = []
+    // Every page full: games past the last one are unseen, so their absence proves nothing (complete:false below).
+    let truncated = false
     for (let page = 0; page < EXCHANGE_ODDS.maxPages; page++) {
       const url = gammaGamesUrl(series, from, to, page * GAMMA_PAGE)
       const list = await this.getJson(sport, now, "gamma", url)
       if (!Array.isArray(list)) throw new Error("gamma returned a non-list")
       raw.push(...list)
       if (list.length < GAMMA_PAGE) break
+      if (page === EXCHANGE_ODDS.maxPages - 1) truncated = true
     }
     groups = parseGammaGroups(raw)
     const { games, unmatched } = planGames(sport, schedule, groups, now)
@@ -591,9 +603,10 @@ export class ExchangeOddsProvider implements OddsProvider {
       }
     }
 
-    const { events, hidden } = assemble(sport, games, books, { home: (g) => kalshiHomeProb(kalshi, g, now), three: (g) => kalshiThreeBooks(kalshi, g, now) }, now, now)
+    const { events, hidden, held } = assemble(sport, games, books, { home: (g) => kalshiHomeProb(kalshi, g, now), three: (g) => kalshiThreeBooks(kalshi, g, now) }, now, now)
     const hiddenText = Object.entries(hidden).map(([k, n]) => `${k} x${n}`).join("; ")
     notes.unshift(`exchange: ${events.length} of ${schedule.length} scheduled games priced${unmatched ? `, ${unmatched} not matched to an exchange game` : ""}${hiddenText ? `; hidden: ${hiddenText}` : ""}${failures ? `; ${failures} book request(s) failed` : ""}`)
-    return { ...base, events, complete: failures === 0, notes }
+    if (truncated) notes.push(`gamma: listing truncated at ${EXCHANGE_ODDS.maxPages} pages`)
+    return { ...base, events, held, complete: failures === 0 && !truncated, notes }
   }
 }

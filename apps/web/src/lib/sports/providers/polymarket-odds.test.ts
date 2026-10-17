@@ -4,9 +4,10 @@ import { dirname, join } from "node:path"
 import { describe, it } from "node:test"
 import { fileURLToPath } from "node:url"
 import { EXCHANGE_PUBLISH, planPublication } from "../lines.ts"
+import { GAMMA_PAGE } from "../live/sources.ts"
 import { americanToProb, HOUSE_MARGIN } from "../odds.ts"
 import type { Sport } from "../types.ts"
-import { EXCHANGE_ODDS, ExchangeCapError, ExchangeOddsProvider, MemoryCallCap, parseGammaGroups } from "./polymarket-odds.ts"
+import { EXCHANGE_ODDS, ExchangeCapError, ExchangeOddsProvider, MemoryCallCap, parseGammaGroups, planGames, type PmGameGroup } from "./polymarket-odds.ts"
 
 const here = dirname(fileURLToPath(import.meta.url))
 type Fixture = { sport: string; now: string; espn: { events: unknown[] }; gamma: any[]; clob: any[]; kalshi: { events: any[] } }
@@ -231,11 +232,11 @@ describe("exchange provider request hygiene", () => {
 
   it("pages Gamma until a short page, within the page limit", async () => {
     const fx = load("exchange-nba-2026-10-17.json")
-    const filler = Array.from({ length: 100 }, (_, i) => ({ slug: `nba-xxx-yyy-2026-12-${String((i % 28) + 1).padStart(2, "0")}-props`, markets: [] }))
+    const filler = Array.from({ length: GAMMA_PAGE }, (_, i) => ({ slug: `nba-xxx-yyy-2026-12-${String((i % 28) + 1).padStart(2, "0")}-props`, markets: [] }))
     const { p, calls } = provider(fx, { gammaPages: [filler, fx.gamma] })
     const snap = await p.fetchOdds("nba", at(fx))
     assert.equal(calls.filter((u) => u.includes("gamma-api")).length, 2)
-    assert.ok(calls.some((u) => u.includes("offset=100")))
+    assert.ok(calls.some((u) => u.includes(`offset=${GAMMA_PAGE}`)))
     assert.equal(snap.events.length, 3)
   })
 
@@ -357,5 +358,48 @@ describe("MLS three-way moneyline from three Yes/No markets, spreads and totals 
     const atl = snap.events.find((x) => x.homeName === "Atlanta United FC")!
     assert.ok(!atl.markets.some((m) => m.key === "moneyline"))
     assert.match(snap.notes!.join(" "), /sources disagree/)
+  })
+})
+
+describe("college football matching (Polymarket titles carry the school only)", () => {
+  const start = new Date("2026-10-17T23:00:00Z")
+  const group = (a: string, h: string): PmGameGroup => ({
+    slug: "cfb-x-2026-10-17", title: `${a} vs. ${h}`, startsAt: start, live: false, ended: false,
+    markets: [{ type: "moneyline", question: `${a} vs. ${h}`, groupTitle: "Moneyline", outcomes: [a, h], tokens: ["t1", "t2"], yesToken: null, line: null, bid: 0.3, ask: 0.31, liquidity: 9000, acceptingOrders: true, updatedAt: start }],
+  })
+  const row = (a: string, h: string, aShort?: string, hShort?: string) =>
+    ({ source: "espn", family: "espn", externalId: "1", awayName: a, homeName: h, awayShort: aShort, homeShort: hShort, startsAt: start, status: "scheduled", homeScore: null, awayScore: null }) as const
+  const now = new Date("2026-10-17T20:00:00Z")
+
+  it("matches by ESPN's school name when the full name adds a nickname, keeping ESPN's home/away", () => {
+    const r = planGames("cfb", [row("TCU Horned Frogs", "Baylor Bears", "TCU", "Baylor")], [group("TCU", "Baylor")], now)
+    assert.equal(r.games.length, 1)
+    assert.equal(r.games[0]!.homeIndex, 1)
+  })
+  it("matches Miami (FL) to ESPN's Miami, and never to Miami (OH)", () => {
+    assert.equal(planGames("cfb", [row("Florida State Seminoles", "Miami Hurricanes", "Florida State", "Miami")], [group("Florida State", "Miami (FL)")], now).games.length, 1)
+    assert.equal(planGames("cfb", [row("Akron Zips", "Miami (OH) RedHawks", "Akron", "Miami (OH)")], [group("Akron", "Miami (FL)")], now).games.length, 0)
+  })
+  it("does not use school names for other sports or accept a city-only prefix", () => {
+    assert.equal(planGames("nfl", [row("TCU Horned Frogs", "Baylor Bears", "TCU", "Baylor")], [group("TCU", "Baylor")], now).games.length, 0)
+    assert.equal(planGames("cfb", [row("Washington State Cougars", "Oregon State Beavers", "Washington State", "Oregon State")], [group("Washington", "Oregon")], now).games.length, 0)
+  })
+})
+
+describe("gate misses are held, not withdrawn", () => {
+  it("assemble reports a gate-hidden market in `held` so the guard does not freeze it", async () => {
+    const fx = load("exchange-nba-2026-10-17.json")
+    const { p } = provider(fx)
+    const snap = await p.fetchOdds("nba", at(fx))
+    assert.ok(Array.isArray(snap.held))
+    // The fixture hides a thin total on at least one game: that market is held, not silently absent.
+    assert.ok(snap.held!.some((k) => k.endsWith("::total|")), JSON.stringify(snap.held))
+  })
+  it("a truncated Gamma listing makes the snapshot incomplete", async () => {
+    const fx = load("exchange-nba-2026-10-17.json")
+    const page = Array.from({ length: GAMMA_PAGE }, () => fx.gamma[0])
+    const { p } = provider(fx, { gammaPages: Array.from({ length: EXCHANGE_ODDS.maxPages }, () => page) })
+    const snap = await p.fetchOdds("nba", at(fx))
+    assert.equal(snap.complete, false)
   })
 })

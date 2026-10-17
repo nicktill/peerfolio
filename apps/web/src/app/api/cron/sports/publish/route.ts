@@ -12,6 +12,8 @@ export const maxDuration = 120
 /** Fetch once (cached, rate-capped, merged), publish fixed lines for every league, close due markets. */
 export const GET = withSportsCron<unknown>(async () => {
   const now = new Date()
+  // Leave room under maxDuration for lock/guard/prune after the fetches: sports not reached are skipped (and their claim kept for the next run).
+  const deadlineAt = Date.now() + 90_000
   const mode = publishMode()
   const tennisTotals = process.env.SPORTS_TENNIS_TOTALS === "1"
   const sports = enabledSports(SPORTS)
@@ -33,7 +35,7 @@ export const GET = withSportsCron<unknown>(async () => {
     const espn = new EspnResultsProvider()
     gate = mode === "mock" || process.env.SPORTS_FETCH_GATE === "0" ? undefined : makeFetchGate(db, async (sport, at) => (process.env.ESPN_RESULTS_ENABLED === "1" ? espn.hasGameWithin(sport, at) : null))
   }
-  const published = await publishLines(db, provider, sports, now, cfg, gate)
+  const published = await publishLines(db, provider, sports, now, cfg, gate, deadlineAt)
   const locked = await lockDueMarkets(db, now)
   // Exchange-managed markets must not sit unguarded when the live odds worker is not beating (see store.freezeUnguardedMarkets).
   const unguarded = await freezeUnguardedMarkets(db, now)

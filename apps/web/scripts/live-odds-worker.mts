@@ -65,7 +65,8 @@ const socket = useWs ? new MarketSocket((m) => out("info", "live.ws", { msg: cli
 
 const UA = { "user-agent": "peerfolio-live-odds/0.1", accept: "application/json" }
 async function request(input: string, init?: RequestInit): Promise<unknown> {
-  const res = await fetch(input, { ...init, headers: { ...UA, ...(init?.headers ?? {}) }, signal: AbortSignal.timeout(8_000) })
+  const res = await fetch(input, { ...init, headers: { ...UA, ...(init?.headers ?? {}) }, // A Gamma games page carries every market of its events (measured 8 to 20 MB for 100 events), so it gets longer than the small CLOB/Kalshi calls.
+    signal: AbortSignal.timeout(String(input).includes("gamma-api") ? 25_000 : 8_000) })
   if (!res.ok) throw new Error(`${res.status} ${new URL(input).hostname}${new URL(input).pathname}`)
   return res.json()
 }
