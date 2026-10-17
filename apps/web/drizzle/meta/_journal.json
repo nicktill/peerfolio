@@ -215,15 +215,8 @@
     {
       "idx": 30,
       "version": "7",
-      "when": 1792259774549,
+      "when": 1792260827433,
       "tag": "0030_live_odds",
-      "breakpoints": true
-    },
-    {
-      "idx": 31,
-      "version": "7",
-      "when": 1792260407133,
-      "tag": "0031_live_worker_heartbeat",
       "breakpoints": true
     }
   ]

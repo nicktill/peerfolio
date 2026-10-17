@@ -23,6 +23,14 @@ CREATE TABLE "live_state" (
 	"fetched_ts" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "live_worker" (
+	"name" text PRIMARY KEY NOT NULL,
+	"last_cycle_at" timestamp with time zone NOT NULL,
+	"last_ok_at" timestamp with time zone,
+	"consecutive_failures" integer DEFAULT 0 NOT NULL,
+	"details" jsonb DEFAULT '{}'::jsonb NOT NULL
+);
+--> statement-breakpoint
 ALTER TABLE "live_quote" ADD CONSTRAINT "live_quote_event_id_sports_events_id_fk" FOREIGN KEY ("event_id") REFERENCES "public"."sports_events"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "live_state" ADD CONSTRAINT "live_state_event_id_sports_events_id_fk" FOREIGN KEY ("event_id") REFERENCES "public"."sports_events"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "live_quote_key_idx" ON "live_quote" USING btree ("event_id","market","selection","source","fetched_ts" DESC NULLS LAST);--> statement-breakpoint

@@ -12,7 +12,9 @@ import { drizzle } from "drizzle-orm/postgres-js"
 import postgres from "postgres"
 import * as schema from "../src/db/schema.ts"
 import { retentionCutoffs, survivors } from "../src/lib/sports/live/retention.ts"
-import { insertQuotes, loadLiveSlate, pruneLiveQuotes, readLiveView, upsertState } from "../src/lib/sports/live/store.ts"
+import { liveHealth, WORKER_NAME } from "../src/lib/sports/live/health.ts"
+import { idleSleepMs } from "../src/lib/sports/live/plan.ts"
+import { insertQuotes, loadLiveSlate, nextStartAfter, pruneLiveQuotes, readHealthInput, readLiveView, upsertState, writeHeartbeat } from "../src/lib/sports/live/store.ts"
 import { newWorkerState, runTick } from "../src/lib/sports/live/worker.ts"
 
 const url = process.env.DATABASE_URL ?? ""
@@ -84,6 +86,23 @@ console.log(`retention ok: ${all.length} rows -> ${left.length} (cutoffs ${JSON.
 // Latest per key survives even when old.
 const espn = await sql`SELECT 1 FROM live_quote WHERE event_id = ${ev.id} AND source = 'espn'`
 assert.equal(espn.length, 1)
+
+// Health: heartbeat + readHealthInput + classification against real rows.
+await writeHeartbeat(db, { name: WORKER_NAME, at: new Date(), ok: true, consecutiveFailures: 0, details: { sleepUntil: new Date(Date.now() + 10_000).toISOString(), unmatched: [] } })
+await writeHeartbeat(db, { name: WORKER_NAME, at: new Date(), ok: true, consecutiveFailures: 0, details: { sleepUntil: new Date(Date.now() + 10_000).toISOString(), unmatched: [] } }) // upsert twice
+const hin = await readHealthInput(db, WORKER_NAME, new Date())
+assert.ok(hin.worker)
+assert.ok(hin.liveGames.some((g) => g.eventId === ev.id && g.newestQuoteAt), "live game has a newest quote time")
+const hl = liveHealth(hin, new Date())
+console.log("health:", hl.status, JSON.stringify(hl.reasons))
+assert.ok(hl.games.find((g) => g.eventId === ev.id)?.quoteAgeMs != null)
+
+// Idle scheduling: the next scheduled start (a far-future event) drives the sleep.
+const [future] = await db.insert(schema.sportsEvents).values({ sport: "nfl", externalId: `it-f-${Date.now()}`, homeName: "A", awayName: "B", startsAt: new Date(Date.now() + 5 * 3600_000) }).returning()
+const next = await nextStartAfter(db, new Date())
+assert.ok(next && Math.abs(next.getTime() - future!.startsAt.getTime()) < 1000)
+console.log("idle sleep for next start in 5h:", Math.round(idleSleepMs(new Date(), next) / 60_000), "min")
+await db.delete(schema.sportsEvents).where(eq(schema.sportsEvents.id, future!.id))
 
 // Cascade: nothing in picks/lines/markets/ledger was touched.
 const [counts] = await sql<{ n: number }[]>`SELECT (SELECT count(*) FROM sports_picks) + (SELECT count(*) FROM sports_lines) + (SELECT count(*) FROM sports_ledger) AS n`
