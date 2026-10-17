@@ -681,6 +681,233 @@ export const fantasySnapshots = pgTable(
 )
 
 /* ------------------------------------------------------------------ *
+ * Fantasy seasons, rounds, drafts, recaps and notes
+ *
+ * Additive. A league with no season row is given an open-ended trading season
+ * the first time anyone loads it (see lib/fantasy-seasons.ts). Rounds are
+ * scored on percentages and ranks only; nothing here stores a balance.
+ * ------------------------------------------------------------------ */
+
+/** A run of weekly rounds. `mode` is "trading" or "draft"; `status` is "active" or "complete". */
+export const fantasySeasons = pgTable(
+  "fantasy_seasons",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    leagueId: uuid("league_id")
+      .notNull()
+      .references(() => fantasyLeagues.id, { onDelete: "cascade" }),
+    number: integer("number").notNull(),
+    mode: text("mode").notNull().default("trading"),
+    status: text("status").notNull().default("active"),
+    /** Null runs until the owner wraps it up. */
+    roundCount: integer("round_count"),
+    /** Draft seasons only: how many stocks each player picks. */
+    picksPerRound: integer("picks_per_round"),
+    /** A Monday 00:00 UTC. Round n starts n-1 weeks later. */
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("fantasy_seasons_league_number_idx").on(t.leagueId, t.number)],
+)
+
+/** One week of a season. `status` is "open", "locked" (draft picks frozen) or "settled" (results written). */
+export const fantasyRounds = pgTable(
+  "fantasy_rounds",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    seasonId: uuid("season_id")
+      .notNull()
+      .references(() => fantasySeasons.id, { onDelete: "cascade" }),
+    leagueId: uuid("league_id")
+      .notNull()
+      .references(() => fantasyLeagues.id, { onDelete: "cascade" }),
+    number: integer("number").notNull(),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    status: text("status").notNull().default("open"),
+    /** Settled on whatever data existed once the grace period ran out. */
+    late: boolean("late").notNull().default(false),
+    settledAt: timestamp("settled_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("fantasy_rounds_season_number_idx").on(t.seasonId, t.number), index("fantasy_rounds_league_idx").on(t.leagueId, t.status)],
+)
+
+/** Frozen result of a settled round, per player. Percent only. */
+export const fantasyRoundResults = pgTable(
+  "fantasy_round_results",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    roundId: uuid("round_id")
+      .notNull()
+      .references(() => fantasyRounds.id, { onDelete: "cascade" }),
+    memberId: uuid("member_id")
+      .notNull()
+      .references(() => fantasyMembers.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    returnPct: numeric("return_pct", { precision: 14, scale: 4 }).notNull(),
+    /** Worst pick of the round (draft), the tie-break. */
+    floorPct: numeric("floor_pct", { precision: 14, scale: 4 }),
+    rank: integer("rank").notNull(),
+    points: numeric("points", { precision: 8, scale: 2 }).notNull(),
+  },
+  (t) => [uniqueIndex("fantasy_round_results_unique_idx").on(t.roundId, t.memberId), index("fantasy_round_results_user_idx").on(t.userId)],
+)
+
+/** A player's stock for a draft round. Entry is captured at the lock, exit at settlement. */
+export const fantasyDraftPicks = pgTable(
+  "fantasy_draft_picks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    roundId: uuid("round_id")
+      .notNull()
+      .references(() => fantasyRounds.id, { onDelete: "cascade" }),
+    memberId: uuid("member_id")
+      .notNull()
+      .references(() => fantasyMembers.id, { onDelete: "cascade" }),
+    securityId: text("security_id")
+      .notNull()
+      .references(() => securities.id),
+    slot: integer("slot").notNull(),
+    entryPrice: numeric("entry_price", { precision: 20, scale: 6 }),
+    entryAsOf: date("entry_as_of"),
+    exitPrice: numeric("exit_price", { precision: 20, scale: 6 }),
+    exitAsOf: date("exit_as_of"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("fantasy_draft_picks_unique_idx").on(t.roundId, t.memberId, t.securityId),
+    uniqueIndex("fantasy_draft_picks_slot_idx").on(t.roundId, t.memberId, t.slot),
+    index("fantasy_draft_picks_round_idx").on(t.roundId),
+  ],
+)
+
+/** Badges. `roundNumber` is 0 for season-level ones. */
+export const fantasyTrophies = pgTable(
+  "fantasy_trophies",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    leagueId: uuid("league_id")
+      .notNull()
+      .references(() => fantasyLeagues.id, { onDelete: "cascade" }),
+    seasonId: uuid("season_id")
+      .notNull()
+      .references(() => fantasySeasons.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    roundNumber: integer("round_number").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("fantasy_trophies_unique_idx").on(t.seasonId, t.userId, t.kind, t.roundNumber), index("fantasy_trophies_user_idx").on(t.userId)],
+)
+
+/** The generated weekly recap. `shareToken` unlocks the public, percentage-only image. */
+export const fantasyRecaps = pgTable(
+  "fantasy_recaps",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    roundId: uuid("round_id")
+      .notNull()
+      .references(() => fantasyRounds.id, { onDelete: "cascade" }),
+    leagueId: uuid("league_id")
+      .notNull()
+      .references(() => fantasyLeagues.id, { onDelete: "cascade" }),
+    shareToken: text("share_token").notNull(),
+    /** False once the owner stops sharing: the public page and image then answer 404, and the token is replaced. */
+    sharing: boolean("sharing").notNull().default(true),
+    payload: jsonb("payload").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("fantasy_recaps_round_idx").on(t.roundId), uniqueIndex("fantasy_recaps_token_idx").on(t.shareToken)],
+)
+
+/**
+ * Notification-ready records: one row per thing worth telling someone about.
+ * Nothing sends them yet; a push or email worker reads rows with a null
+ * `deliveredAt`. `userId` null means the whole league. `dedupeKey` makes writes idempotent.
+ */
+export const fantasyEvents = pgTable(
+  "fantasy_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    leagueId: uuid("league_id")
+      .notNull()
+      .references(() => fantasyLeagues.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    payload: jsonb("payload").notNull(),
+    dedupeKey: text("dedupe_key").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+  },
+  (t) => [uniqueIndex("fantasy_events_dedupe_idx").on(t.dedupeKey), index("fantasy_events_user_idx").on(t.userId, t.createdAt)],
+)
+
+/** "Why I picked this": a short note on a trade, a queued order or a draft pick. */
+export const fantasyNotes = pgTable(
+  "fantasy_notes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    leagueId: uuid("league_id")
+      .notNull()
+      .references(() => fantasyLeagues.id, { onDelete: "cascade" }),
+    memberId: uuid("member_id")
+      .notNull()
+      .references(() => fantasyMembers.id, { onDelete: "cascade" }),
+    tradeId: uuid("trade_id").references(() => fantasyTrades.id, { onDelete: "cascade" }),
+    orderId: uuid("order_id").references(() => fantasyOrders.id, { onDelete: "cascade" }),
+    pickId: uuid("pick_id").references(() => fantasyDraftPicks.id, { onDelete: "cascade" }),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("fantasy_notes_trade_idx").on(t.tradeId),
+    uniqueIndex("fantasy_notes_order_idx").on(t.orderId),
+    uniqueIndex("fantasy_notes_pick_idx").on(t.pickId),
+    index("fantasy_notes_league_idx").on(t.leagueId, t.createdAt),
+  ],
+)
+
+export const fantasyNoteReplies = pgTable(
+  "fantasy_note_replies",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    noteId: uuid("note_id")
+      .notNull()
+      .references(() => fantasyNotes.id, { onDelete: "cascade" }),
+    memberId: uuid("member_id")
+      .notNull()
+      .references(() => fantasyMembers.id, { onDelete: "cascade" }),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("fantasy_note_replies_note_idx").on(t.noteId, t.createdAt)],
+)
+
+/** Same emoji set as standings reactions, pointed at a note. */
+export const fantasyNoteReactions = pgTable(
+  "fantasy_note_reactions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    noteId: uuid("note_id")
+      .notNull()
+      .references(() => fantasyNotes.id, { onDelete: "cascade" }),
+    memberId: uuid("member_id")
+      .notNull()
+      .references(() => fantasyMembers.id, { onDelete: "cascade" }),
+    emoji: text("emoji").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("fantasy_note_reactions_unique_idx").on(t.noteId, t.memberId, t.emoji)],
+)
+
+/* ------------------------------------------------------------------ *
  * Relations
  * ------------------------------------------------------------------ */
 

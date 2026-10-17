@@ -28,7 +28,9 @@ describe("close catch-up against Postgres", { skip: url ? false : "PEERFOLIO_TES
         updated_at timestamptz NOT NULL DEFAULT now(),
         close_price_as_of date, close_price_final boolean NOT NULL DEFAULT false);
       CREATE TABLE holdings (id serial PRIMARY KEY, security_id text);
-      CREATE TABLE fantasy_positions (id serial PRIMARY KEY, security_id text)`)
+      CREATE TABLE fantasy_positions (id serial PRIMARY KEY, security_id text);
+      CREATE TABLE fantasy_rounds (id text PRIMARY KEY, status text);
+      CREATE TABLE fantasy_draft_picks (id serial PRIMARY KEY, security_id text, round_id text)`)
   })
 
   after(async () => {
@@ -37,12 +39,14 @@ describe("close catch-up against Postgres", { skip: url ? false : "PEERFOLIO_TES
     await db.end()
   })
 
-  type Row = { asOf: string | null; final?: boolean; updated: string; type?: string; fantasy?: boolean }
+  type Row = { asOf: string | null; final?: boolean; updated: string; type?: string; fantasy?: boolean; draft?: "open" | "settled" }
   const seed = async (rows: Record<string, Row>) => {
-    await db.unsafe("TRUNCATE securities, holdings, fantasy_positions")
+    await db.unsafe("TRUNCATE securities, holdings, fantasy_positions, fantasy_rounds, fantasy_draft_picks")
+    await db.unsafe("INSERT INTO fantasy_rounds (id, status) VALUES ('open', 'locked'), ('settled', 'settled')")
     for (const [ticker, r] of Object.entries(rows)) {
       await db.unsafe("INSERT INTO securities (id, market_ticker, type, updated_at, close_price_as_of, close_price_final) VALUES ($1, $1, $2, $3, $4, $5)", [ticker, r.type ?? "equity", r.updated, r.asOf, r.final ?? false])
-      await db.unsafe(`INSERT INTO ${r.fantasy ? "fantasy_positions" : "holdings"} (security_id) VALUES ($1)`, [ticker])
+      if (r.draft) await db.unsafe("INSERT INTO fantasy_draft_picks (security_id, round_id) VALUES ($1, $2)", [ticker, r.draft])
+      else await db.unsafe(`INSERT INTO ${r.fantasy ? "fantasy_positions" : "holdings"} (security_id) VALUES ($1)`, [ticker])
     }
   }
 
@@ -72,6 +76,16 @@ describe("close catch-up against Postgres", { skip: url ? false : "PEERFOLIO_TES
     assert.equal(r.expectedDate, "2026-10-14")
     assert.deepEqual(r.selected, ["BEHIND", "LIVEONLY"])
     assert.equal(r.n, 2)
+  })
+
+  it("a ticker held only as a draft pick is repriced while its round is in play, and not after", async () => {
+    await seed({
+      DRAFTED: { asOf: "2026-10-13", final: true, updated: "2026-10-14T15:00:00Z", draft: "open" },
+      OLDPICK: { asOf: "2026-10-13", final: true, updated: "2026-10-14T15:00:00Z", draft: "settled" },
+    })
+    const r = await run("2026-10-14T21:00:00Z")
+    assert.deepEqual(r.selected, ["DRAFTED"])
+    assert.equal(r.n, 1)
   })
 
   it("holiday: nothing is expected for a day the market never traded", async () => {

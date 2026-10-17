@@ -24,6 +24,7 @@ describe("staleHeldSecurities", () => {
     assert.match(sql, /"updated_at" </)
     assert.match(sql, /holdings/)
     assert.match(sql, /fantasy_positions/)
+    assert.match(sql, /fantasy_draft_picks/)
     assert.ok(params.some((p) => typeof p === "string" && p.startsWith("2026-09-29T11:16:38")))
   })
 })

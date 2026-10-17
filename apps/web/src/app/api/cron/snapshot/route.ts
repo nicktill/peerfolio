@@ -6,6 +6,7 @@ import { refreshStalePrices, repricePositions, type CatchUpResult } from "@web/l
 import { pruneProviderEvents, pruneProviderStats } from "@web/lib/provider-stats"
 import { pruneSyncRuns } from "@web/lib/plaid-sync-runs"
 import { checkFantasyIntegrity, snapshotFantasy } from "@web/lib/fantasy"
+import { advanceAllLeagues } from "@web/lib/fantasy-seasons"
 
 export const maxDuration = 300
 
@@ -70,6 +71,12 @@ async function snapshot() {
     fantasy = { error: error instanceof Error ? error.message : "unknown" }
   }
 
+  // Rounds settle on tonight's snapshots; a failure here must not mark the run unhealthy.
+  const rounds = await advanceAllLeagues().catch((error) => {
+    console.error("[cron] advancing seasons failed", error)
+    return { error: error instanceof Error ? error.message : "unknown" }
+  })
+
   // After pricing and snapshots: prove the numbers behind the standings are
   // right, so we hear about an error before a player does.
   let integrity: Awaited<ReturnType<typeof checkFantasyIntegrity>> | { error: string }
@@ -82,7 +89,7 @@ async function snapshot() {
   const integrityBroken = "error" in integrity || integrity.mismatches.length > 0 || integrity.badPrices.length > 0
   if (integrityBroken) console.error("[cron] fantasy integrity problems", JSON.stringify(integrity))
 
-  console.log(`[cron] snapshot complete: ${succeeded}/${userIds.length} users`, JSON.stringify({ pricing, fantasy }))
+  console.log(`[cron] snapshot complete: ${succeeded}/${userIds.length} users`, JSON.stringify({ pricing, fantasy, rounds }))
 
   // Everything above is best-effort so one failure can't cost the others their
   // data point, but the run must not *look* healthy: a 200 here is what let
@@ -92,5 +99,5 @@ async function snapshot() {
   const pricingBroken =
     "error" in pricing || (pricing.tickers > 0 && pricing.priced === 0) || !!pricing.failed || (pricing.unconfirmed ?? 0) > 0
   const healthy = !pricingBroken && !("error" in fantasy) && !integrityBroken && failures.length === 0
-  return NextResponse.json({ healthy, pricing, fantasy, integrity, users: userIds.length, succeeded, brokenConnections, failures }, { status: healthy ? 200 : 500 })
+  return NextResponse.json({ healthy, pricing, fantasy, rounds, integrity, users: userIds.length, succeeded, brokenConnections, failures }, { status: healthy ? 200 : 500 })
 }
