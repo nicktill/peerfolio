@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { describe, it } from "node:test"
 import { fileURLToPath } from "node:url"
-import { priceTwoWay, totalReturn } from "./odds.ts"
+import { HOUSE_MARGIN, priceTwoWay, totalReturn } from "./odds.ts"
 import { acceptPick, PickRejected, type PickContext } from "./picks.ts"
 import { confirmDue, decideReprice, REPRICE, type ExchangeView, type MarketState, type RepriceInput } from "./reprice.ts"
 import { planSettlement } from "./settlement.ts"
@@ -35,13 +35,13 @@ describe("reprice decision: happy path and convention", () => {
     const d = decideReprice(input())
     assert.equal(d.action, "update")
     if (d.action === "update") {
-      assert.deepEqual(d.prices, priceTwoWay(0.58)) // same 4.5% margin, nearest-5 rounding as consensus publishing
+      assert.deepEqual(d.prices, priceTwoWay(0.58)) // same HOUSE_MARGIN and rounding as consensus publishing
       assert.equal(d.fairProbA, 0.58)
       assert.equal(d.source, "polymarket")
       assert.ok(d.prices[0] % 5 === 0 && d.prices[1] % 5 === 0)
-      // House edge unchanged: both sides' implied probabilities still sum to about 1.045.
+      // Same house edge as consensus publishing: both sides' implied probabilities sum to at least 1 + HOUSE_MARGIN.
       const imp = (a: number) => (a < 0 ? -a / (-a + 100) : 100 / (a + 100))
-      assert.ok(Math.abs(imp(d.prices[0]) + imp(d.prices[1]) - 1.045) < 0.02)
+      assert.ok(imp(d.prices[0]) + imp(d.prices[1]) >= 1 + HOUSE_MARGIN - 1e-9)
     }
   })
   it("a favourite moving the other way reprices both sides consistently", () => {

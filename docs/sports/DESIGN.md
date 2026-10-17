@@ -25,9 +25,9 @@ better price by timing, by refreshing, or by picking a league.
 
 **Consensus, not any single book.** For each two-way market: devig each book, drop books further
 than 6 points of probability from the median, require at least 3 agreeing books at the same point,
-take the median fair probability, then price the contest with one fixed margin (4.5%, about
--110/-110). Lopsided markets (a side under 10% fair) are not offered. If fewer than 3 books agree
-the market is simply not published: no line beats an inaccurate line. Prices round to the nearest 5.
+take the median fair probability, then price the contest with one fixed margin (`HOUSE_MARGIN`, 2%; it was 4.5% until October 2026, and only new and repriced lines use the new value; about
+-105/-105). Lopsided markets (a side under 10% fair) are not offered. If fewer than 3 books agree
+the market is simply not published: no line beats an inaccurate line. Prices round to a multiple of 5 against the player (down), so rounding can never create a guaranteed-profit pair of sides.
 
 **Publish late, lock early, freeze on movement.** Lines are published only within 24 hours of
 kickoff, so a fixed line is never days old. Games and props lock exactly at the scheduled start (product decision, October 2026: picks stay

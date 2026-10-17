@@ -6,8 +6,8 @@ import { priceTwoWay } from "./odds.ts"
  * a pick copies price, point and total return when it is accepted, and settlement/grading read only those copies and
  * the independent results feeds (a source-level test enforces that nothing in the money path imports exchange code).
  *
- * Price convention (unchanged from consensus publishing): `priceTwoWay(fairProb)` adds half of a 4.5% margin to each
- * side's fair probability and rounds to the nearest 5, so the house edge is the same as before. Exchange mids of the two
+ * Price convention (unchanged from consensus publishing): `priceTwoWay(fairProb)` adds half of the 2% HOUSE_MARGIN to each
+ * side's fair probability and rounds against the player to a multiple of 5, so the house edge is the same as before. Exchange mids of the two
  * outcome books already sum to about 1 (no vig), so the mid renormalised is used as the fair probability directly.
  */
 

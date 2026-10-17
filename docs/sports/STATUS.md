@@ -60,5 +60,5 @@ Stale-line window (publish within 24 h, lock 2 h, freeze on movement), start-tim
 3. **Second results source**: ESPN unofficial JSON (free, no ToS), SportsGameOdds, or BALLDONTLIE (about $40/month per sport for stats). Needed for safe auto-settlement and prop grading.
 4. **Cron schedule**: not added to `vercel.json` on purpose (would start spending credits on deploy). Suggested once keys exist: publish daily at 15:00 UTC and 2 hours before typical kickoffs on game days; settle every 30 minutes on game days.
 5. **Compliance**: credits-only is the design. Any prize, sponsorship or paid tier needs legal review (sweepstakes/gambling rules vary by state) before it is built.
-6. **Defaults to confirm**: margin 4.5%, locks 2 h before start, freeze at 1 point or 4 points of probability, caps (10 min stake, 10% max stake, 20 open picks, 60% exposure), settle delay 6 h, 48 h postponement void.
+6. **Defaults to confirm**: margin 2% (`HOUSE_MARGIN`), locks 2 h before start, freeze at 1 point or 4 points of probability, caps (10 min stake, 10% max stake, 20 open picks, 60% exposure), settle delay 6 h, 48 h postponement void.
 7. **Naming/copy** on the Sports screens, and the collusion report priority (Phase 2).
