@@ -19,7 +19,7 @@ const STAT_LABELS: Record<string, string> = {
 
 export const statLabel = (key: string | null): string => (key ? (STAT_LABELS[key] ?? key.replace(/^player_/, "").replace(/_/g, " ")) : "")
 
-export const SPORT_LABEL: Record<string, string> = { nfl: "NFL", nba: "NBA", tennis: "Tennis" }
+export const SPORT_LABEL: Record<string, string> = { nfl: "NFL", nba: "NBA", tennis: "Tennis", nhl: "NHL", mlb: "MLB", cfb: "College football", mls: "MLS" }
 
 export type DisplayEvent = { sport?: string; home: string; away: string }
 export type DisplayMarket = {
@@ -33,8 +33,13 @@ export type DisplayLine = { selection: string; point: number | null }
 /** "Bills @ Chiefs" for team sports (away at home), "Alcaraz vs Sinner" for tennis. */
 export const eventTitle = (event: DisplayEvent): string => (event.sport === "tennis" ? `${event.home} vs ${event.away}` : `${event.away} @ ${event.home}`)
 
-/** The pick's name as the user reads it: "Chiefs -2.5", "Over 47.5", "Over 275.5". */
+/** The team a moneyline or spread selection backs; null for a draw, totals and props (no team behind them). */
+export const sideTeam = (event: DisplayEvent, kind: string, selection: string): string | null =>
+  (kind === "moneyline" || kind === "spread") && selection !== "draw" ? (selection === "home" ? event.home : event.away) : null
+
+/** The pick's name as the user reads it: "Chiefs -2.5", "Over 47.5", "Over 275.5", "Draw" (soccer). */
 export function lineLabel(market: DisplayMarket, line: DisplayLine): { name: string; point: string } {
+  if (line.selection === "draw") return { name: "Draw", point: "" }
   const team = line.selection === "home" ? market.event.home : market.event.away
   switch (market.kind) {
     case "moneyline":
@@ -53,6 +58,8 @@ export function pickSentence(market: DisplayMarket, line: DisplayLine): string {
   return `${l.name} ${l.point}`.trim()
 }
 
+const TOTAL_TITLE: Record<string, string> = { tennis: "Total games", nhl: "Total goals", mls: "Total goals", mlb: "Total runs" }
+
 export function marketTitle(market: DisplayMarket): string {
   switch (market.kind) {
     case "moneyline":
@@ -60,7 +67,7 @@ export function marketTitle(market: DisplayMarket): string {
     case "spread":
       return "Spread"
     case "total":
-      return market.event.sport === "tennis" ? "Total games" : "Total points"
+      return TOTAL_TITLE[market.event.sport ?? ""] ?? "Total points"
     default:
       return `${market.player} · ${statLabel(market.statKey)}`
   }

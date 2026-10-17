@@ -1,4 +1,5 @@
 /** Team identity for the picks UI: abbreviation, brand colours, and the ESPN logo slug. Pure data. */
+import { isLeagueSport, leagueTeam } from "./teams-leagues.ts"
 
 type Team = { abbr: string; color: string; alt?: string; slug?: string }
 
@@ -72,10 +73,15 @@ const NBA: Record<string, Team> = {
 
 const NEUTRAL = "#64748b"
 
-export type TeamLook = { abbr: string; color: string; logo: string | null }
+/** `logo` suits a white square (the default badge); `logoDark` is ESPN's variant for a bare logo on a dark background. */
+export type TeamLook = { abbr: string; color: string; logo: string | null; logoDark?: string | null }
 
 /** Look up a team by sport and full name; unknown names (and tennis players) get initials on a neutral colour. */
 export function teamLook(sport: string | undefined, name: string): TeamLook {
+  if (isLeagueSport(sport)) {
+    const t = leagueTeam(sport, name)
+    if (t) return { abbr: t.abbr, color: t.color, logo: t.logo, logoDark: t.logoDark }
+  }
   const key = name.trim().toLowerCase()
   const table = sport === "nfl" ? NFL : sport === "nba" ? NBA : null
   // Full name first ("boston celtics"), then the nickname alone ("celtics"), which is how the sample league and some feeds write it.
@@ -86,6 +92,18 @@ export function teamLook(sport: string | undefined, name: string): TeamLook {
   const words = name.trim().split(/\s+/)
   const abbr = (words.length > 1 ? words[0]![0]! + words[words.length - 1]![0]! : name.slice(0, 2)).toUpperCase()
   return { abbr, color: NEUTRAL, logo: null }
+}
+
+/**
+ * The word or phrase under a win-chance bar. The last word of the name for most teams ("Celtics", "Bruins", "Sinner"),
+ * but MLS clubs often end in a bare suffix ("Inter Miami CF", "Seattle Sounders FC"), so they use the table's short name.
+ */
+export function oddsLabel(sport: string | undefined, name: string): string {
+  if (sport === "mls") {
+    const t = leagueTeam("mls", name)
+    if (t) return t.short
+  }
+  return name.trim().split(/\s+/).pop() ?? name
 }
 
 /** Readable text colour on a team colour. */

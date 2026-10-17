@@ -43,12 +43,16 @@ Stale-line window (publish within 24 h, lock 2 h, freeze on movement), start-tim
 
 | Var | Purpose |
 |---|---|
-| `NEXT_PUBLIC_SPORTS_ENABLED` | `1` enables the Sports UI and API (build-time for the client) |
-| `THE_ODDS_API_KEY` | The Odds API key (server only, never committed) |
+| `NEXT_PUBLIC_SPORTS_ENABLED` | `1` enables the Sports UI and API for everyone; `admin` enables them only for signed-in accounts in `ADMIN_EMAILS` (everyone else gets 404s and sees stocks only); anything else is off. Build-time for the client, so redeploy after changing it |
+| `SPORTS_ODDS_SOURCE` | `exchange` (default, free: Polymarket prices, Kalshi cross-check, ESPN schedule; no key, no credits) or `odds-api` (explicit opt-in to the metered vendors below) |
+| `SPORTS_ENABLED_SPORTS` | Comma list narrowing which sports the publish cron fetches (default all) |
+| `ESPN_RESULTS_ENABLED` | In exchange mode ESPN results are on unless this is `0`; in odds-api mode they are on only when `1` |
+| `THE_ODDS_API_KEY` | The Odds API key (server only, never committed); read only with `SPORTS_ODDS_SOURCE=odds-api` |
 | `THE_ODDS_API_MONTHLY_CREDITS` | Plan size for pacing, default 500 |
 | `PROPLINE_API_KEY`, `PROPLINE_BASE_URL`, `PROPLINE_MONTHLY_CREDITS` | Optional second, Odds-API-compatible source |
 | `SPORTS_PROPS_ENABLED` | `1` to fetch player props (costs more credits) |
-| `SPORTS_MIN_RESULT_SOURCES` | Override the 2-source settlement rule (default 2) |
+| `NHL_API_RESULTS_ENABLED`, `MLB_API_RESULTS_ENABLED` | The leagues' own keyless results feeds (exchange mode); on unless `0` |
+| `SPORTS_MIN_RESULT_SOURCES` | Global override of the per-sport quorum below. Unset by default; if set higher than a sport has families, that sport cannot settle |
 | `SPORTS_TENNIS_TOTALS` | `1` offers tennis total games (needs confirmed score semantics first) |
 | `SPORTS_MOCK` | `1` uses the offline mock for odds and results (local/dev only) |
 | `CRON_SECRET` | Already used by other crons; also guards sports cron and admin void |
@@ -60,5 +64,12 @@ Stale-line window (publish within 24 h, lock 2 h, freeze on movement), start-tim
 3. **Second results source**: ESPN unofficial JSON (free, no ToS), SportsGameOdds, or BALLDONTLIE (about $40/month per sport for stats). Needed for safe auto-settlement and prop grading.
 4. **Cron schedule**: not added to `vercel.json` on purpose (would start spending credits on deploy). Suggested once keys exist: publish daily at 15:00 UTC and 2 hours before typical kickoffs on game days; settle every 30 minutes on game days.
 5. **Compliance**: credits-only is the design. Any prize, sponsorship or paid tier needs legal review (sweepstakes/gambling rules vary by state) before it is built.
-6. **Defaults to confirm**: margin 4.5%, locks 2 h before start, freeze at 1 point or 4 points of probability, caps (10 min stake, 10% max stake, 20 open picks, 60% exposure), settle delay 6 h, 48 h postponement void.
+6. **Defaults to confirm**: margin 2% (`HOUSE_MARGIN`), locks 2 h before start, freeze at 1 point or 4 points of probability, caps (10 min stake, 10% max stake, 20 open picks, 60% exposure), settle delay 6 h, 48 h postponement void.
 7. **Naming/copy** on the Sports screens, and the collusion report priority (Phase 2).
+
+
+## Rollout: admin first, then everyone
+
+1. Set `NEXT_PUBLIC_SPORTS_ENABLED=admin` and make sure `ADMIN_EMAILS` (server env, comma list) contains the owner's sign-in email; redeploy.
+2. In admin mode: `/api/sports/*` user and live routes return 404 unless the caller is a signed-in admin (live responses are `private, no-store`); cron routes (`publish`, `settle`, `admin/void`) still run on `CRON_SECRET`; `/fantasy/sports/*` pages redirect non-admins to `/fantasy`; the client asks `GET /api/sports/access` (`{ enabled }`, always 200) and shows nothing until it says true. Sample/demo views and signed-out visitors see no sports.
+3. When satisfied, set `NEXT_PUBLIC_SPORTS_ENABLED=1` and redeploy to open sports to everyone.

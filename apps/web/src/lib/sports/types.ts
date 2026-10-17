@@ -5,13 +5,16 @@
  * Credits are virtual and always whole integers. Odds are American integers.
  */
 
-export type Sport = "nfl" | "nba" | "tennis"
-export const SPORTS: readonly Sport[] = ["nfl", "nba", "tennis"]
+export type Sport = "nfl" | "nba" | "tennis" | "nhl" | "mlb" | "cfb" | "mls"
+export const SPORTS: readonly Sport[] = ["nfl", "nba", "tennis", "nhl", "mlb", "cfb", "mls"]
 
 export type MarketKind = "moneyline" | "spread" | "total" | "player_prop"
 
-/** Tennis: home = first-listed player, away = second. */
-export type Selection = "home" | "away" | "over" | "under"
+/** Tennis: home = first-listed player, away = second. "draw" exists only on the three-way soccer moneyline (see hasDraw). */
+export type Selection = "home" | "away" | "over" | "under" | "draw"
+
+/** Whether a market is three-way (home / draw / away). Soccer's moneyline only; spreads and totals are two-way everywhere. */
+export const hasDraw = (sport: string | undefined, kind: string): boolean => sport === "mls" && kind === "moneyline"
 
 /* ---- provider odds (what a vendor reports) ---- */
 
@@ -48,6 +51,8 @@ export type OddsSnapshot = {
   notes?: string[]
   /** False when a source failed or was skipped, so absence from this snapshot proves nothing. Undefined means complete. */
   complete?: boolean
+  /** `externalId::marketKey` of published-able markets a quality gate hid this run while the game is still scheduled. The guard holds them (neither freezes nor reopens): a gate miss is not a withdrawal. */
+  held?: string[]
   /** Credits the fetch actually cost, counted from the requests made. Absent: the caller's estimate stands. */
   credits?: number
 }
@@ -71,10 +76,15 @@ export type EventResult = {
   /** Names and start time let a vendor with different ids still be matched to our event. */
   homeName?: string
   awayName?: string
+  /** The team's place or school without its nickname (ESPN `location`: "Troy" for "Troy Trojans"). Used only to match exchange titles. */
+  homeShort?: string
+  awayShort?: string
   startsAt?: Date
   status: ResultStatus
   homeScore: number | null
   awayScore: number | null
+  /** Soccer: the final went past 90 minutes (extra time or penalties), so the score is not the three-way result. Settlement sends it to review. */
+  beyondRegulation?: boolean
   /** player name -> stat key -> value. Present only when the source has box scores. */
   playerStats?: Record<string, Record<string, number>>
 }
@@ -85,6 +95,8 @@ export type EventRef = { externalId: string; homeName: string; awayName: string;
 export interface ResultsProvider {
   readonly name: string
   readonly family?: string
+  /** Sports this source can answer for; unset means any. Settlement counts a source toward a sport's quorum only if it covers it. */
+  readonly sports?: readonly Sport[]
   fetchResults(sport: Sport, events: EventRef[]): Promise<EventResult[]>
   /**
    * Set on sources that bill per call. Settlement asks these only when a free source already shows a final, within the

@@ -69,6 +69,29 @@ cannot both price and grade a pick.
 - Player prop results need box-score stats: ESPN box score JSON (unofficial) or BALLDONTLIE paid stats. Props with no agreed stat source are voided rather than guessed. Props are therefore Phase 3.
 - Stat corrections: settle after a delay (default 6 h post-final) and treat settlement as final; later corrections are ignored by policy (DESIGN.md).
 
+### Free settlement (exchange mode, the default)
+
+No key, no credits, no exchange code on the money path. Result sources are independent families:
+
+| Sport | Families | Quorum |
+|---|---|---|
+| NHL | ESPN + NHL official API (`api-web.nhle.com/v1/schedule`, family `nhl-api`) | 2, both must agree |
+| MLB | ESPN + MLB Stats API (`statsapi.mlb.com/api/v1/schedule`, family `mlb-statsapi`) | 2, both must agree |
+| NFL, NBA, CFB, MLS, tennis | ESPN only | 1, behind the single-source safety net |
+
+The league feeds are asked politely: one call per week (NHL) or one ranged call (MLB), cached 60 s, 8 s timeout. Events are
+matched to results by team names (accents folded, a few known aliases) plus a 3 h start window, never by exchange ids.
+
+Single-source safety net (ESPN-only sports): settle delay of at least 30 min after a final is first seen (the default 6 h
+applies unless lowered); the final must still be the same score when seen again after that delay, otherwise the game goes to
+`review`; a final that changes or is withdrawn after being seen goes to `review`; scores must be non-negative integers within a
+plausible range per sport (nfl 100, cfb 120, nba 200, nhl 20, mlb 40, mls 15, tennis 5 sets) or the game goes to `review`.
+Review never auto-settles; it refunds after the review timeout (7 days). If a second feed is switched off, its sport falls back to
+the single-source net rather than failing. The settle cron returns 503 only when no results source is configured at all.
+MLS playoffs: a game can go to extra time or penalties, and the three-way market grades the 90-minute result, which ESPN's final score does not give then. ESPN reports these as STATUS_FINAL_AET / STATUS_FINAL_PEN; the provider flags them (`beyondRegulation`) and settlement sends such a game to `review` (refund after the review timeout) instead of grading a draw or a winner. Other status names for the same case are not known, so a playoff game should still be glanced at.
+
+Residual risk: for ESPN-only sports a wrong-but-stable ESPN final would settle, and nothing independent checks it.
+
 ## Terms of use for displaying odds
 
 **All [U].** I could not read any provider's terms. Things to check: (a) is display to end users of

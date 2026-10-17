@@ -25,15 +25,17 @@ better price by timing, by refreshing, or by picking a league.
 
 **Consensus, not any single book.** For each two-way market: devig each book, drop books further
 than 6 points of probability from the median, require at least 3 agreeing books at the same point,
-take the median fair probability, then price the contest with one fixed margin (4.5%, about
--110/-110). Lopsided markets (a side under 10% fair) are not offered. If fewer than 3 books agree
-the market is simply not published: no line beats an inaccurate line. Prices round to the nearest 5.
+take the median fair probability, then price the contest with one fixed margin (`HOUSE_MARGIN`, 2%; it was 4.5% until October 2026, and only new and repriced lines use the new value; about
+-105/-105). Lopsided markets (a side under 10% fair) are not offered. If fewer than 3 books agree
+the market is simply not published: no line beats an inaccurate line. Prices round to a multiple of 5 against the player (down), so rounding can never create a guaranteed-profit pair of sides.
 
 **Publish late, lock early, freeze on movement.** Lines are published only within 24 hours of
-kickoff, so a fixed line is never days old. Games and props lock 2 hours before start: NFL
-inactives post about 90 minutes before kickoff, so no pick can land after that news. The tradeoff is
-a shorter pick window (about 22 hours); we chose it over a tighter lock because early lock is the
-only guard that does not depend on cron timing or provider credits. As a second guard, every
+kickoff, so a fixed line is never days old. Games and props lock exactly at the scheduled start (product decision, October 2026: picks stay
+open until kickoff; it was 2 hours before). The server refuses any pick at or after the scheduled
+start independently of the market lock, so a late or missing lock job cannot keep a market open. The
+tradeoff is that NFL inactives (about 90 minutes before kickoff) land while picks are open; the
+guard for that is repricing and the freeze below, not a cushion. A market is only published while at least an hour
+of pick window remains (`minOpenMs`). As a second guard, every
 publish cron compares the fresh consensus with each open market and **freezes** it (no new picks
 at the old price) when fair probability moved 4 points or the point moved 1 or more. Picks already
 accepted keep their line. Start times are synced every fetch: a start that moves earlier pulls the
@@ -162,3 +164,8 @@ slip and pick history in the rail. All built on the existing `fw-*` tokens and c
 2. Real keys in staging; verify provider facts (PROVIDERS.md checklist); add second results source (ESPN or SportsGameOdds); line-move auto-void; settlement admin screen for `review` events; leaderboard across leagues; vercel.json crons.
 3. Props at scale (box-score source), NBA/tennis tuning, notifications for settled picks.
 4. Collusion report, rate limits per user, legal/compliance review before any prize or sponsor idea.
+
+**Pregame repricing (October 2026).** Offered lines are no longer fixed until they freeze: for markets with an exchange
+match (Polymarket, Kalshi) the line is repriced from the exchange mid until kickoff, under the exclusive market
+lock, with every price kept in `sports_line_history` and accepted picks keeping their price, point and total
+return. Details, thresholds and the credit impact are in LIVE-ODDS.md ("Pregame repricing").

@@ -1,0 +1,205 @@
+{
+ "recordedFrom": "https://statsapi.mlb.com/api/v1/schedule?sportId=1&startDate=2026-10-14&endDate=2026-10-18 (trimmed)",
+ "dates": [
+  {
+   "date": "2026-10-14",
+   "games": [
+    {
+     "gamePk": 849811,
+     "gameType": "L",
+     "gameDate": "2026-10-15T00:00:00Z",
+     "officialDate": "2026-10-14",
+     "status": {
+      "abstractGameState": "Final",
+      "codedGameState": "F",
+      "detailedState": "Final",
+      "statusCode": "F",
+      "startTimeTBD": false,
+      "abstractGameCode": "F"
+     },
+     "teams": {
+      "away": {
+       "team": {
+        "id": 158,
+        "name": "Milwaukee Brewers"
+       },
+       "score": 6
+      },
+      "home": {
+       "team": {
+        "id": 119,
+        "name": "Los Angeles Dodgers"
+       },
+       "score": 2
+      }
+     }
+    }
+   ]
+  },
+  {
+   "date": "2026-10-15",
+   "games": [
+    {
+     "gamePk": 849818,
+     "gameType": "L",
+     "gameDate": "2026-10-15T17:00:00Z",
+     "officialDate": "2026-10-15",
+     "status": {
+      "abstractGameState": "Final",
+      "codedGameState": "F",
+      "detailedState": "Final",
+      "statusCode": "F",
+      "startTimeTBD": false,
+      "abstractGameCode": "F"
+     },
+     "teams": {
+      "away": {
+       "team": {
+        "id": 139,
+        "name": "Tampa Bay Rays"
+       },
+       "score": 2
+      },
+      "home": {
+       "team": {
+        "id": 114,
+        "name": "Cleveland Guardians"
+       },
+       "score": 3
+      }
+     }
+    },
+    {
+     "gamePk": 849810,
+     "gameType": "L",
+     "gameDate": "2026-10-16T00:00:00Z",
+     "officialDate": "2026-10-15",
+     "status": {
+      "abstractGameState": "Final",
+      "codedGameState": "F",
+      "detailedState": "Final",
+      "statusCode": "F",
+      "startTimeTBD": false,
+      "abstractGameCode": "F"
+     },
+     "teams": {
+      "away": {
+       "team": {
+        "id": 158,
+        "name": "Milwaukee Brewers"
+       },
+       "score": 6
+      },
+      "home": {
+       "team": {
+        "id": 119,
+        "name": "Los Angeles Dodgers"
+       },
+       "score": 4
+      }
+     }
+    }
+   ]
+  },
+  {
+   "date": "2026-10-16",
+   "games": [
+    {
+     "gamePk": 849817,
+     "gameType": "L",
+     "gameDate": "2026-10-17T00:00:00Z",
+     "officialDate": "2026-10-18",
+     "status": {
+      "abstractGameState": "Final",
+      "codedGameState": "D",
+      "detailedState": "Postponed",
+      "statusCode": "DR",
+      "startTimeTBD": false,
+      "reason": "Rain",
+      "abstractGameCode": "F"
+     },
+     "teams": {
+      "away": {
+       "team": {
+        "id": 139,
+        "name": "Tampa Bay Rays"
+       }
+      },
+      "home": {
+       "team": {
+        "id": 114,
+        "name": "Cleveland Guardians"
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "date": "2026-10-17",
+   "games": [
+    {
+     "gamePk": 849816,
+     "gameType": "L",
+     "gameDate": "2026-10-18T00:08:00Z",
+     "officialDate": "2026-10-17",
+     "status": {
+      "abstractGameState": "Preview",
+      "codedGameState": "P",
+      "detailedState": "Pre-Game",
+      "statusCode": "P",
+      "startTimeTBD": false,
+      "abstractGameCode": "P"
+     },
+     "teams": {
+      "away": {
+       "team": {
+        "id": 139,
+        "name": "Tampa Bay Rays"
+       }
+      },
+      "home": {
+       "team": {
+        "id": 114,
+        "name": "Cleveland Guardians"
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "date": "2026-10-18",
+   "games": [
+    {
+     "gamePk": 849817,
+     "gameType": "L",
+     "gameDate": "2026-10-18T21:08:00Z",
+     "officialDate": "2026-10-18",
+     "status": {
+      "abstractGameState": "Preview",
+      "codedGameState": "S",
+      "detailedState": "Scheduled",
+      "statusCode": "S",
+      "startTimeTBD": false,
+      "abstractGameCode": "P"
+     },
+     "teams": {
+      "away": {
+       "team": {
+        "id": 139,
+        "name": "Tampa Bay Rays"
+       }
+      },
+      "home": {
+       "team": {
+        "id": 114,
+        "name": "Cleveland Guardians"
+       }
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

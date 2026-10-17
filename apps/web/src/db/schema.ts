@@ -1196,12 +1196,21 @@ export const sportsMarkets = pgTable(
     pointA: doublePrecision("point_a"),
     /** Why a market was closed to new picks before its lock time (line moved, start moved earlier). */
     frozenReason: text("frozen_reason"),
+    /** Pregame repricing from exchange mids (lib/sports/reprice.ts): when the offered line last changed, and how often. */
+    repricedAt: timestamp("repriced_at", { withTimezone: true }),
+    repriceCount: integer("reprice_count").notNull().default(0),
+    /** Last time an exchange check confirmed or moved the line. Null = never exchange-managed (consensus + freeze only). */
+    exchangeOkAt: timestamp("exchange_ok_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("sports_markets_event_key_idx").on(t.eventId, t.marketKey), index("sports_markets_status_idx").on(t.status, t.lockAt)],
 )
 
-/** Immutable. A price change is a new market (after a void), never an UPDATE. */
+/**
+ * The line currently offered for one side of a market. Picks copy price, point and total return when they are accepted
+ * and never read this row again, so repricing updates it in place (under the exclusive market lock, bumping `version`)
+ * while every earlier price stays in `sports_line_history` and in the picks that took it.
+ */
 export const sportsLines = pgTable(
   "sports_lines",
   {
@@ -1214,8 +1223,37 @@ export const sportsLines = pgTable(
     price: integer("price").notNull(),
     point: doublePrecision("point"),
     publishedAt: timestamp("published_at", { withTimezone: true }).notNull().defaultNow(),
+    /** 1 at publish; +1 per repricing. */
+    version: integer("version").notNull().default(1),
+    /** Fair probability of this side behind the current price (null before the first repricing). */
+    fairProb: doublePrecision("fair_prob"),
+    repricedAt: timestamp("repriced_at", { withTimezone: true }),
   },
   (t) => [uniqueIndex("sports_lines_market_sel_idx").on(t.marketId, t.selection)],
+)
+
+/** Append-only record of every price a line has had, with where it came from. Never updated or deleted by the app. */
+export const sportsLineHistory = pgTable(
+  "sports_line_history",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    lineId: uuid("line_id")
+      .notNull()
+      .references(() => sportsLines.id, { onDelete: "cascade" }),
+    marketId: uuid("market_id")
+      .notNull()
+      .references(() => sportsMarkets.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    price: integer("price").notNull(),
+    point: doublePrecision("point"),
+    fairProb: doublePrecision("fair_prob"),
+    /** polymarket | kalshi | consensus */
+    source: text("source").notNull(),
+    spread: doublePrecision("spread"),
+    ageMs: integer("age_ms"),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("sports_line_history_market_idx").on(t.marketId, t.at)],
 )
 
 export const sportsPicks = pgTable(
@@ -1313,3 +1351,68 @@ export const sportsRateLimits = pgTable(
   },
   (t) => [primaryKey({ columns: [t.key, t.bucket] })],
 )
+
+/* ------------------------------------------------------------------ *
+ * Live in-game odds (display only; see lib/sports/live)
+ *
+ * Written by the standalone live-odds worker, read by /api/sports/live/[gameId]. Deliberately separate from
+ * picks, lines, markets and settlement: nothing here is read when a pick is accepted, priced or graded, so an
+ * exchange quote can never change a payout or a result.
+ * ------------------------------------------------------------------ */
+
+/** One observation of one side of one market from one source. Probabilities are 0..1. Pruned by lib/sports/live/retention. */
+export const liveQuote = pgTable(
+  "live_quote",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => sportsEvents.id, { onDelete: "cascade" }),
+    /** "moneyline" for now. */
+    market: text("market").notNull(),
+    /** home | away */
+    selection: text("selection").notNull(),
+    /** polymarket | kalshi | espn */
+    source: text("source").notNull(),
+    bid: doublePrecision("bid"),
+    ask: doublePrecision("ask"),
+    /** Midpoint of a two-sided book (or a model's single number); null when the book was one-sided or crossed. */
+    mid: doublePrecision("mid"),
+    /** When the source says the book was true; null when it does not say. */
+    sourceTs: timestamp("source_ts", { withTimezone: true }),
+    fetchedTs: timestamp("fetched_ts", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    // Latest per key (DISTINCT ON ... ORDER BY fetched_ts DESC) and the per-event read.
+    index("live_quote_key_idx").on(t.eventId, t.market, t.selection, t.source, t.fetchedTs.desc()),
+    // Retention sweeps by age.
+    index("live_quote_fetched_idx").on(t.fetchedTs),
+  ],
+)
+
+/** Worker heartbeat: one row per worker name, overwritten each cycle, so health can be checked without logs. */
+export const liveWorker = pgTable("live_worker", {
+  name: text("name").primaryKey(),
+  lastCycleAt: timestamp("last_cycle_at", { withTimezone: true }).notNull(),
+  /** Last cycle in which at least one upstream call (or an idle slate) succeeded. */
+  lastOkAt: timestamp("last_ok_at", { withTimezone: true }),
+  consecutiveFailures: integer("consecutive_failures").notNull().default(0),
+  /** Short summary of the last cycle: games, per-source counts, unmatched games and reasons. Never raw payloads. */
+  details: jsonb("details").$type<Record<string, unknown>>().notNull().default({}),
+})
+
+/** Latest score/period/clock per game: one row, overwritten each poll. */
+export const liveState = pgTable("live_state", {
+  eventId: uuid("event_id")
+    .primaryKey()
+    .references(() => sportsEvents.id, { onDelete: "cascade" }),
+  /** pre | live | final | unknown, as the live feed reports it. Informational: settlement never reads it. */
+  status: text("status").notNull(),
+  homeScore: integer("home_score"),
+  awayScore: integer("away_score"),
+  period: text("period"),
+  clock: text("clock"),
+  source: text("source").notNull(),
+  sourceTs: timestamp("source_ts", { withTimezone: true }),
+  fetchedTs: timestamp("fetched_ts", { withTimezone: true }).notNull(),
+})

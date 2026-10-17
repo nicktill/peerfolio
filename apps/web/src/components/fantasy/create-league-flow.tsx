@@ -30,6 +30,10 @@ const SPORTS = [
   { key: "nfl", label: "NFL", note: "Sundays, Mondays, Thursdays", team: "Kansas City Chiefs" },
   { key: "nba", label: "NBA", note: "Nightly in season", team: "Boston Celtics" },
   { key: "tennis", label: "Tennis", note: "Match winners and totals", team: "Carlos Alcaraz" },
+  { key: "nhl", label: "NHL", note: "Nightly in season", team: "Boston Bruins" },
+  { key: "mlb", label: "MLB", note: "Nearly every day, spring to fall", team: "New York Yankees" },
+  { key: "cfb", label: "College football", note: "Saturdays in the fall", team: "Georgia Bulldogs" },
+  { key: "mls", label: "MLS", note: "Moneyline, spreads and totals", team: "Inter Miami CF" },
 ] as const
 const CREDIT_STOPS = [250, 500, 1_000, 2_500, 5_000, 10_000, 25_000, 50_000]
 

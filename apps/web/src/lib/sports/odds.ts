@@ -107,14 +107,22 @@ export function consensusTwoWay(
   return { fairProbA: median(kept), point: modal, booksUsed: kept.length }
 }
 
+/**
+ * The house margin on every offered line: the two sides' implied probabilities sum to at least 1 + HOUSE_MARGIN.
+ * 2% total (1% per side) is about -105/-105 on an even game. It is a free play-money game, so the edge is kept small
+ * so that heavy players are not punished. Applies to newly published and repriced lines only: an accepted pick keeps
+ * the price it was given.
+ */
+export const HOUSE_MARGIN = 0.02
+
 export type PricingConfig = {
-  /** Total overround spread across both sides, e.g. 0.045 is about -110/-110. */
+  /** Total overround spread across both sides, e.g. 0.02 is about -105/-105. */
   margin: number
   /** Refuse lines where either side is rarer than this fair probability. */
   minFairProb: number
 }
 
-export const DEFAULT_PRICING: PricingConfig = { margin: 0.045, minFairProb: 0.1 }
+export const DEFAULT_PRICING: PricingConfig = { margin: HOUSE_MARGIN, minFairProb: 0.1 }
 
 /**
  * Prices both sides of a market for the contest. Each side's implied
@@ -122,11 +130,24 @@ export const DEFAULT_PRICING: PricingConfig = { margin: 0.045, minFairProb: 0.1 
  * sum to 1 + margin. Returns null for lopsided markets, where a huge favourite
  * pays almost nothing and the longshot is easy to mis-price.
  */
+/** Unrounded American odds for a probability (probToAmerican without its integer rounding). */
+export const rawAmerican = (prob: number): number => (prob >= 0.5 ? -(prob / (1 - prob)) * 100 : ((1 - prob) / prob) * 100)
+
+/**
+ * Rounds AGAINST the player to a multiple of 5: floor, for both signs (-104.3 becomes -105, +143.9 becomes +140). Either way
+ * the payout can only shrink, so rounding never lets the two sides' implied probabilities fall below 1 + margin, and a
+ * player can never take both sides for a guaranteed profit. An unrounded value is never inside -100..+100 here (a
+ * probability at or above one half gives -100 or lower, below one half gives +100 or higher), so the floor stays outside it.
+ */
+export function tidyAgainstPlayer(rawAmericanOdds: number): number {
+  return Math.floor(rawAmericanOdds / 5) * 5
+}
+
 export function priceTwoWay(fairProbA: number, cfg: PricingConfig = DEFAULT_PRICING): [number, number] | null {
   const fairB = 1 - fairProbA
   if (fairProbA < cfg.minFairProb || fairB < cfg.minFairProb) return null
   const half = cfg.margin / 2
-  return [tidyAmerican(probToAmerican(fairProbA + half)), tidyAmerican(probToAmerican(fairB + half))]
+  return [tidyAgainstPlayer(rawAmerican(fairProbA + half)), tidyAgainstPlayer(rawAmerican(fairB + half))]
 }
 
 /** Total return (stake included) for a winning pick, floored to whole credits. */

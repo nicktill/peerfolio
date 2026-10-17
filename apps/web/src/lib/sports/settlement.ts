@@ -1,4 +1,4 @@
-import type { EventResult, MarketKind, Outcome, PickStatus, Selection } from "./types.ts"
+import { hasDraw, type EventResult, type MarketKind, type Outcome, type PickStatus, type Selection, type Sport } from "./types.ts"
 
 /**
  * Settlement. Pure and idempotent.
@@ -33,6 +33,56 @@ export const DEFAULT_RESOLVE: ResolveConfig = {
   reviewTimeoutMs: 7 * 24 * 3600_000,
 }
 
+/**
+ * Quorum policy per sport. Two independent free families exist for NHL (ESPN + the NHL's own API) and MLB (ESPN + MLB's own
+ * Stats API), so those need both to agree. Every other sport has ESPN alone, so one family settles it, but behind the stricter
+ * single-source safety net: a settle delay of at least SINGLE_SOURCE_SETTLE_DELAY_MS (a floor: while the base delay is 6h that is what
+ * applies, and the floor only bites if the base is lowered), a final that must still be the same score
+ * when seen again after that delay, plausible-score checks, and review (never auto-settle) for anything odd or changed.
+ */
+export const FREE_RESULT_FAMILIES: Record<Sport, number> = { nhl: 2, mlb: 2, nfl: 1, nba: 1, cfb: 1, mls: 1, tennis: 1 }
+export const SINGLE_SOURCE_SETTLE_DELAY_MS = 30 * 60_000
+export type ResolveConfigFor = (sport: Sport) => ResolveConfig
+
+/** The config for one sport given how many independent families can answer for it. Never asks for more families than exist. */
+export function resolveConfigForSport(base: ResolveConfig, sport: Sport, availableFamilies: number): ResolveConfig {
+  const minSources = Math.max(1, Math.min(FREE_RESULT_FAMILIES[sport], availableFamilies))
+  return minSources >= 2 ? { ...base, minSources } : { ...base, minSources, settleDelayMs: Math.max(base.settleDelayMs, SINGLE_SOURCE_SETTLE_DELAY_MS) }
+}
+
+/** Highest believable final score per sport (tennis is sets won). Anything above it, negative or fractional is held for review. */
+export const MAX_PLAUSIBLE_SCORE: Record<Sport, number> = { nfl: 100, cfb: 120, nba: 200, nhl: 20, mlb: 40, mls: 15, tennis: 5 }
+
+/** Why a final score cannot be trusted, or null. Null scores are "no final", not a problem. */
+export function scoreProblem(sport: Sport | undefined, home: number | null, away: number | null): string | null {
+  for (const n of [home, away]) {
+    if (n == null) continue
+    if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) return `invalid score ${n}`
+    if (sport && n > MAX_PLAUSIBLE_SCORE[sport]) return `implausible score ${n} for ${sport}`
+  }
+  return null
+}
+
+export const scoreKey = (r: Pick<EventResult, "homeScore" | "awayScore">) => `${r.homeScore}-${r.awayScore}`
+
+/**
+ * What settlement remembers about an event's final between runs: when it was first seen, and the score it had then.
+ * `changed` says the stored values need writing. A legacy event (first seen, no score yet) learns its score without
+ * restarting the clock.
+ */
+export function observeFinal(
+  mine: EventResult[],
+  seen: { firstSeen: Date | null; firstSeenScore: string | null },
+  now: Date,
+): { firstSeen: Date | null; firstSeenScore: string | null; changed: boolean } {
+  if (!mine.some((r) => r.status === "final")) return { ...seen, changed: false }
+  const scores = new Set(mine.filter((r) => r.status === "final" && r.homeScore != null && r.awayScore != null).map(scoreKey))
+  const score = scores.size === 1 ? [...scores][0]! : null
+  const firstSeen = seen.firstSeen ?? now
+  const firstSeenScore = seen.firstSeenScore ?? score
+  return { firstSeen, firstSeenScore, changed: !seen.firstSeen || firstSeenScore !== seen.firstSeenScore }
+}
+
 export type Resolution =
   | { kind: "wait"; reason: string }
   | { kind: "review"; reason: string }
@@ -48,6 +98,10 @@ export type ResolveContext = {
   finalFirstSeenAt: Date | null
   /** How many results sources answered this run without error. Unknown (undefined) counts as answered. A failed fetch is NOT "no result". */
   sourcesAnswered?: number
+  /** Sport, for the plausible-score check. */
+  sport?: Sport
+  /** The score ("home-away") recorded when a final was first seen. If it is set and the final now differs or is gone, the game goes to review. */
+  firstSeenScore?: string | null
 }
 
 const STUCK_WAITS: ReadonlySet<string> = new Set(["void report without quorum", "waiting for a second source"])
@@ -65,10 +119,22 @@ export function resolveResult(results: EventResult[], ctx: ResolveContext, cfg: 
 }
 
 function resolveCore(results: EventResult[], ctx: ResolveContext, cfg: ResolveConfig): Resolution {
-  const finals = results.filter((r) => r.status === "final" && validScore(r.homeScore) && validScore(r.awayScore))
+  const reported = results.filter((r) => r.status === "final")
+  for (const r of reported) {
+    const problem = scoreProblem(ctx.sport, r.homeScore, r.awayScore)
+    if (problem) return { kind: "review", reason: `${problem} from ${r.source}` }
+  }
+  // Soccer after extra time or penalties: the 90-minute (three-way) result is not what the feed's score says. A person looks.
+  if (reported.some((r) => r.beyondRegulation)) return { kind: "review", reason: "final went to extra time or penalties" }
+  const finals = reported.filter((r) => validScore(r.homeScore) && validScore(r.awayScore))
   const groups = new Map<string, EventResult[]>()
   for (const r of finals) groups.set(`${r.homeScore}-${r.awayScore}`, [...(groups.get(`${r.homeScore}-${r.awayScore}`) ?? []), r])
   if (groups.size > 1) return { kind: "review", reason: "sources disagree on the score" }
+  if (ctx.firstSeenScore) {
+    // A final that was seen and then moved or vanished is not trusted: a person looks.
+    if (groups.size === 1 && !groups.has(ctx.firstSeenScore)) return { kind: "review", reason: "final score changed after it was first seen" }
+    if (groups.size === 0 && results.some((r) => r.status === "in_progress" || r.status === "scheduled")) return { kind: "review", reason: "final was withdrawn after it was first seen" }
+  }
   const agreeing = [...groups.values()][0] ?? []
   const finalQuorum = new Set(agreeing.map(familyOf)).size >= cfg.minSources
 
@@ -129,7 +195,24 @@ export function needsMeteredSource(
   return event.finalFirstSeenAt != null && now.getTime() - event.finalFirstSeenAt.getTime() >= cfg.settleDelayMs
 }
 
-const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "")
+/** Names the free feeds write differently from one another, folded to one key. Keys and values are already normalised. */
+const NAME_ALIASES: Record<string, string> = {
+  utahhockeyclub: "utahmammoth",
+  utahhc: "utahmammoth",
+  oaklandathletics: "athletics",
+  sacramentoathletics: "athletics",
+  lasvegasathletics: "athletics",
+  oaklandas: "athletics",
+  arizonadbacks: "arizonadiamondbacks",
+  arizonadiamondbacks: "arizonadiamondbacks",
+  clevelandindians: "clevelandguardians",
+  montrealimpact: "cfmontreal",
+}
+/** Accents folded and punctuation dropped ("Montréal" and "Montreal", "St. Louis" and "St Louis" agree), then known aliases. */
+const norm = (s: string) => {
+  const n = s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "")
+  return NAME_ALIASES[n] ?? n
+}
 const WINDOW_MS = 3 * 3600_000
 
 /**
@@ -145,9 +228,9 @@ export function resultsForEvent(
   event: { externalId: string; homeName: string; awayName: string; startsAt: Date; aliases?: Record<string, string> },
   all: EventResult[],
 ): { results: EventResult[]; matched: Record<string, string> } {
-  const results: EventResult[] = []
-  const matched: Record<string, string> = {}
   const family = event.aliases?._family
+  type Hit = { r: EventResult; swapped: boolean; byId: boolean }
+  const hits: Hit[] = []
   for (const r of all) {
     const inWindow = !r.startsAt || Math.abs(r.startsAt.getTime() - event.startsAt.getTime()) <= WINDOW_MS
     const byOwnId = r.externalId === event.externalId && (!family || (r.family ?? r.source) === family) && inWindow
@@ -156,10 +239,33 @@ export function resultsForEvent(
     const swapped = !!r.homeName && !!r.awayName && norm(r.homeName) === norm(event.awayName) && norm(r.awayName) === norm(event.homeName)
     const byName = !!r.startsAt && inWindow && (sameOrder || swapped)
     if (!byOwnId && !byAlias && !byName) continue
+    hits.push({ r, swapped, byId: byOwnId || byAlias })
+  }
+  // Doubleheaders and series: two games of the same teams inside the window. An id or alias match settles it; with names alone the
+  // closest start time wins, and a tie matches neither (the game waits rather than taking another game's score).
+  const kept = hits.filter((h) => {
+    if (h.byId) return true
+    const rivals = hits.filter((o) => o !== h && o.r.source === h.r.source)
+    if (rivals.some((o) => o.byId)) return false
+    if (rivals.length === 0) return true
+    const gap = (x: Hit) => Math.abs(x.r.startsAt!.getTime() - event.startsAt.getTime())
+    return rivals.every((o) => gap(h) < gap(o))
+  })
+  const results: EventResult[] = []
+  const matched: Record<string, string> = {}
+  for (const { r, swapped, byId } of kept) {
     results.push(swapped ? { ...r, homeScore: r.awayScore, awayScore: r.homeScore } : r)
-    if (!byOwnId && event.aliases?.[r.source] !== r.externalId) matched[r.source] = r.externalId
+    if (!byId) matched[r.source] = r.externalId
   }
   return { results, matched }
+}
+
+/** Final-score grading of a three-way market. A draw is a real outcome, never a push. Invalid scores or selection: void (refund). */
+export function gradeThreeWay(selection: string, homeScore: number | null, awayScore: number | null): Outcome {
+  if (!validScore(homeScore) || !validScore(awayScore)) return "void"
+  if (selection !== "home" && selection !== "draw" && selection !== "away") return "void"
+  const result = homeScore > awayScore ? "home" : homeScore < awayScore ? "away" : "draw"
+  return result === selection ? "win" : "loss"
 }
 
 export type GradableLine = {
@@ -178,8 +284,13 @@ export function gradePick(line: GradableLine, result: EventResult): Outcome {
   const { homeScore: h, awayScore: a } = result
 
   if (line.kind === "moneyline") {
-    // NFL ties refund. Tennis and NBA cannot tie, so an equal score means the feed is wrong: refund via void.
-    if (h === a) return line.sport === "nfl" || line.sport === undefined ? "push" : "void"
+    // Soccer (MLS): home / draw / away. An equal score is the draw side winning, never a void or a push.
+    if (hasDraw(line.sport, "moneyline")) return gradeThreeWay(line.selection, h, a)
+    // A draw line exists only on a three-way market; anywhere else it cannot be graded.
+    if (line.selection === "draw") return "void"
+    // NFL (and college football) ties refund as a push. Tennis, NBA, NHL and MLB cannot tie in a final result, so an
+    // equal score means the feed is wrong: refund via void.
+    if (h === a) return line.sport === "nfl" || line.sport === "cfb" || line.sport === undefined ? "push" : "void"
     return (h > a) === (line.selection === "home") ? "win" : "loss"
   }
 

@@ -13,12 +13,24 @@ const TEAMS: Record<Sport, [string, string][]> = {
   nfl: [["Kansas City Chiefs", "Buffalo Bills"], ["Philadelphia Eagles", "Dallas Cowboys"], ["San Francisco 49ers", "Detroit Lions"]],
   nba: [["Boston Celtics", "New York Knicks"], ["Denver Nuggets", "Phoenix Suns"], ["Milwaukee Bucks", "Miami Heat"]],
   tennis: [["Carlos Alcaraz", "Jannik Sinner"], ["Iga Swiatek", "Aryna Sabalenka"], ["Novak Djokovic", "Daniil Medvedev"]],
+  nhl: [["Boston Bruins", "Toronto Maple Leafs"], ["Colorado Avalanche", "Vegas Golden Knights"], ["New York Rangers", "Edmonton Oilers"]],
+  mlb: [["New York Yankees", "Boston Red Sox"], ["Los Angeles Dodgers", "San Francisco Giants"], ["Atlanta Braves", "Houston Astros"]],
+  cfb: [["Georgia Bulldogs", "Alabama Crimson Tide"], ["Ohio State Buckeyes", "Michigan Wolverines"], ["Texas Longhorns", "Oregon Ducks"]],
+  mls: [["Inter Miami CF", "LA Galaxy"], ["Seattle Sounders FC", "Portland Timbers"], ["New York City FC", "Atlanta United FC"]],
 }
 const PLAYERS: Record<Sport, string[]> = {
   nfl: ["Patrick Mahomes", "Jalen Hurts", "Brock Purdy"],
   nba: ["Jayson Tatum", "Nikola Jokic", "Giannis Antetokounmpo"],
   tennis: ["", "", ""],
+  nhl: ["", "", ""],
+  mlb: ["", "", ""],
+  cfb: ["", "", ""],
+  mls: ["", "", ""],
 }
+
+/** Total line per sport. */
+const TOTAL: Record<Sport, number> = { nfl: 44.5, nba: 224.5, tennis: 22.5, nhl: 6.5, mlb: 8.5, cfb: 55.5, mls: 2.5 }
+const SPREAD: Record<Sport, number> = { nfl: -3.5, nba: -3.5, tennis: -1.5, nhl: -1.5, mlb: -1.5, cfb: -7.5, mls: -0.5 }
 
 export function mockEvent(sport: Sport, n: number, startsAt: Date): ProviderEvent {
   const id = `mock-${sport}-${n}`
@@ -35,21 +47,33 @@ export function mockEvent(sport: Sport, n: number, startsAt: Date): ProviderEven
       key: "total",
       kind: "total",
       outcomes: [
-        { selection: "over", quotes: quotes([-110, -108, -112, -110], sport === "nba" ? 224.5 : sport === "tennis" ? 22.5 : 44.5) },
-        { selection: "under", quotes: quotes([-110, -112, -108, -110], sport === "nba" ? 224.5 : sport === "tennis" ? 22.5 : 44.5) },
+        { selection: "over", quotes: quotes([-110, -108, -112, -110], TOTAL[sport]) },
+        { selection: "under", quotes: quotes([-110, -112, -108, -110], TOTAL[sport]) },
       ],
     },
   ]
+  if (sport === "mls") {
+    // Soccer's moneyline is three-way: home / draw / away.
+    markets[0] = {
+      key: "moneyline",
+      kind: "moneyline",
+      outcomes: [
+        { selection: "home", quotes: quotes([135, 140, 130, 135]) },
+        { selection: "draw", quotes: quotes([240, 235, 245, 240]) },
+        { selection: "away", quotes: quotes([200, 205, 195, 200]) },
+      ],
+    }
+  }
   if (sport !== "tennis") {
     markets.push({
       key: "spread",
       kind: "spread",
       outcomes: [
-        { selection: "home", quotes: quotes([-110, -110, -108, -112], -3.5) },
-        { selection: "away", quotes: quotes([-110, -110, -112, -108], 3.5) },
+        { selection: "home", quotes: quotes([-110, -110, -108, -112], SPREAD[sport]) },
+        { selection: "away", quotes: quotes([-110, -110, -112, -108], -SPREAD[sport]) },
       ],
     })
-    markets.push({
+    if (sport === "nfl" || sport === "nba") markets.push({
       key: sport === "nfl" ? "player_pass_yds" : "player_points",
       kind: "player_prop",
       player: PLAYERS[sport][(n - 1) % 3],

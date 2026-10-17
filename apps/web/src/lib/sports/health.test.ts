@@ -18,3 +18,19 @@ describe("sports publish job health", () => {
     assert.equal(h.httpStatus, 200)
   })
 })
+
+describe("exchange publish health", () => {
+  it("one sport's failed fetch is degraded, all of them failing is down, an unfetched sport is neither", () => {
+    const failed = { rejected: "fetch_failed", notes: ["exchange: failed (gamma 502)"] }
+    const fine = { rejected: null, notes: ["exchange: 5 of 5 scheduled games priced"] }
+    const skipped = { rejected: null, notes: ["no fetch: nothing unlocked and no game in the next 24h, or this window's fetch was already taken"] }
+    assert.equal(publicationHealth([failed, fine, skipped]).status, "degraded")
+    assert.equal(publicationHealth([failed, failed, skipped]).httpStatus, 503)
+    assert.equal(publicationHealth([skipped, skipped]).status, "ok")
+  })
+  it("a reached call cap is a visible budget limit, not a failure", () => {
+    const h = publicationHealth([{ rejected: "call_cap", notes: ["exchange: skipped, call cap reached (call cap reached for nba)"] }])
+    assert.equal(h.status, "budget_limited")
+    assert.equal(h.httpStatus, 200)
+  })
+})

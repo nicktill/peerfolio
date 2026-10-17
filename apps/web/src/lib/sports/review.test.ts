@@ -34,8 +34,8 @@ test("lines are not published days before kickoff (stale-line window)", () => {
   assert.equal(plan.drafts.length, 0, "6-day-out markets get a line that is frozen for ~6 days")
 })
 
-test("NFL props lock before inactives are announced (90 min before kickoff)", () => {
+test("props lock at kickoff, with inactives (about 90 min before) landing while picks are open", () => {
+  // Product decision: picks stay open until kickoff. Inactives news is handled by the line-move freeze, not a cushion.
   const start = new Date("2026-10-18T17:00:00Z")
-  const lock = lockAtFor(start, "player_prop")
-  assert.ok(start.getTime() - lock.getTime() >= 100 * 60_000, "prop lock is only 60 min before kickoff, after inactives")
+  assert.equal(lockAtFor(start, "player_prop").getTime(), start.getTime())
 })

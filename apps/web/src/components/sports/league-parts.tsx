@@ -9,11 +9,12 @@ import { EmptyScene } from "@web/components/ui/empty-scene"
 import { InfoTip } from "@web/components/ui/tip"
 import { Stat } from "@web/components/fantasy/balance-cards"
 import { PlayerBadge, TeamBadge } from "@web/components/sports/team-badge"
-import { eventTitle, formatOdds, marketTitle, openPickPhase, pickSentence, SPORT_LABEL, type DisplayMarket } from "@web/lib/sports/format"
+import { eventTitle, formatOdds, marketTitle, openPickPhase, pickSentence, sideTeam, SPORT_LABEL, type DisplayMarket } from "@web/lib/sports/format"
 import { teamLook } from "@web/lib/sports/teams"
 import { Avatar, initialsFor } from "@web/components/ui/avatar"
+import { LiveGameStrip } from "@web/components/sports/live-game"
 
-export type EventInfo = { sport: string; home: string; away: string; startsAt: string }
+export type EventInfo = { id?: string; sport: string; home: string; away: string; startsAt: string }
 export type PickRow = {
   id: string
   selection: string
@@ -105,7 +106,7 @@ export function LeagueHero({
             <h1>{league.name}</h1>
           </div>
         </div>
-        <ul className="fw-meta" aria-label="League rules">
+        <ul className="fw-meta fw-meta-sports" aria-label="League rules">
           <li className="fw-meta-status">{status}</li>
           <li>
             {standings.length} {standings.length === 1 ? "player" : "players"}
@@ -276,9 +277,10 @@ export function PickTicket({ pick, showName }: { pick: PickRow; showName?: boole
     const t = window.setInterval(() => setNow(new Date()), 60_000)
     return () => window.clearInterval(t)
   }, [pick.status])
-  const r = pick.status === "open" && now ? { ...base, label: openPickPhase(pick.event.startsAt, now).label } : base
+  const phase = pick.status === "open" && now ? openPickPhase(pick.event.startsAt, now) : null
+  const r = phase ? { ...base, label: phase.label } : base
   const net = pick.payout == null ? null : pick.payout - pick.stake
-  const side = pick.market.kind === "moneyline" || pick.market.kind === "spread" ? (pick.selection === "home" ? pick.event.home : pick.event.away) : null
+  const side = sideTeam(pick.event, pick.market.kind, pick.selection)
   const color = side ? teamLook(pick.event.sport, side).color : undefined
   return (
     <li className="sl-ticket" data-status={pick.status} data-celebrate={celebrate || undefined} style={color ? ({ "--tc": color } as React.CSSProperties) : undefined}>
@@ -304,6 +306,8 @@ export function PickTicket({ pick, showName }: { pick: PickRow; showName?: boole
           </strong>
         ) : null}
       </div>
+      {/* Only while the game is in progress. View only: the pick above keeps its accepted price and payout. */}
+      <LiveGameStrip eventId={pick.event.id} sport={pick.event.sport} home={pick.event.home} away={pick.event.away} active={phase?.phase === "in_progress"} />
     </li>
   )
 }
@@ -348,7 +352,7 @@ export function PickFeed({ picks, empty, showName }: { picks: PickRow[]; empty: 
 
 /** The mark for a pick: the team it backs, the player it is on, or a target. */
 function PickMark({ pick, size }: { pick: PickRow; size: number }) {
-  const side = pick.market.kind === "moneyline" || pick.market.kind === "spread" ? (pick.selection === "home" ? pick.event.home : pick.event.away) : null
+  const side = sideTeam(pick.event, pick.market.kind, pick.selection)
   if (side) return <TeamBadge sport={pick.event.sport} name={side} size={size} />
   if (pick.market.player) return <PlayerBadge sport={pick.event.sport} name={pick.market.player} size={size} />
   return <span className="sl-prop" style={{ width: size, height: size }}><Target aria-hidden /></span>

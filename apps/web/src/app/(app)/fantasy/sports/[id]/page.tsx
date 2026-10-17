@@ -12,9 +12,9 @@ import { revealStyle } from "@web/components/motion/reveal"
 import { LeaguePageSkeleton } from "@web/components/skeletons"
 import { useToast } from "@web/components/ui/toast"
 import { useFantasyMode } from "@web/components/sports/mode-switch"
-import { eventTitle, formatOdds, lineLabel, lockLabel, marketTitle, pickSentence, SPORT_LABEL, winOn100, type DisplayLine, type DisplayMarket } from "@web/lib/sports/format"
+import { eventTitle, formatOdds, lineLabel, lockLabel, marketTitle, pickSentence, sideTeam, SPORT_LABEL, winOn100, type DisplayLine, type DisplayMarket } from "@web/lib/sports/format"
 import { americanToDecimal } from "@web/lib/sports/odds"
-import { onColor, teamLook } from "@web/lib/sports/teams"
+import { onColor, oddsLabel, teamLook } from "@web/lib/sports/teams"
 import { InfoTip, Tip } from "@web/components/ui/tip"
 import { LeagueHero, LeaguePulse, Leaderboard, NextGames, PickFeed } from "@web/components/sports/league-parts"
 import { PickLockEffect, type PickLockFx } from "@web/components/sports/pick-lock-effect"
@@ -54,7 +54,14 @@ type Detail = {
   leaguePicks: (PickRow & { name: string })[]
 }
 
-const SPORT_COLOR: Record<string, string> = { nfl: "#c8102e", nba: "#f58426", tennis: "#a6c738" }
+/** The freshly fetched market and line for what the user selected (same ids; the line row is updated in place on a reprice). */
+function resolveSelected(markets: Market[], sel: { market: Market; line: Line }): { market: Market; line: Line } | null {
+  const market = markets.find((m) => m.id === sel.market.id)
+  const line = market?.lines.find((l) => l.id === sel.line.id)
+  return market && line ? { market, line } : null
+}
+
+const SPORT_COLOR: Record<string, string> = { nfl: "#c8102e", nba: "#f58426", tennis: "#a6c738", nhl: "#1d4ed8", mlb: "#bf0d3e", cfb: "#7c3aed", mls: "#0e7c66" }
 const dayOf = (iso: string) => new Date(iso).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })
 const timeOf = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
 const credits = (n: number) => n.toLocaleString()
@@ -65,7 +72,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
   // Landing here means Sports is the side you're on; "Fantasy leagues" then returns to it.
   useEffect(() => visit("sports"), [visit])
 
-  const { data, error, loading, refetch } = useApi<Detail>(`/api/sports/leagues/${id}`, [], { refreshMs: 60_000 })
+  const { data, error, loading, refetch } = useApi<Detail>(`/api/sports/leagues/${id}`, [], { refreshMs: 20_000 })
   const [selected, setSelected] = useState<{ market: Market; line: Line } | null>(null)
   const [sport, setSport] = useState<string>("all")
   const [demo, setDemo] = useState<string | null>(null)
@@ -85,6 +92,11 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
   if (!data) return <p className="text-sm text-muted-foreground">{error ?? "Couldn't load this league."}</p>
 
   const { league, you, standings, markets, picks, leaguePicks } = data
+  // Prices can be refreshed until kickoff, so the slip always shows the price from the latest fetch. A line or market that has
+  // since closed drops out and the slip clears; the price you are shown is the price sent, and the server refuses a stale one.
+  const current = selected ? resolveSelected(markets, selected) : null
+  // The market closed (frozen, locked or gone) while it was on the slip: keep the slip, say so, and block submitting.
+  const gone = !!selected && !current
   const atRisk = picks.filter((p) => p.status === "open").reduce((sum, p) => sum + p.stake, 0)
   const ended = !!league.endsAt && new Date(league.endsAt).getTime() < Date.now()
   const status = ended ? "Final standings" : league.endsAt ? timeLeft(league.endsAt) : "No end"
@@ -111,8 +123,8 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
         <div className="fw-main">
           <section className="fw-panel reveal" style={revealStyle(2)} aria-labelledby="sp-markets-title">
             <div className="fw-section-head">
-              <h2 id="sp-markets-title">Open lines<InfoTip side="bottom" label="How lines work" text={<>Everyone gets the same line and it never changes once you lock a pick. <b>+125</b> means 100 cash wins 125. <b>-110</b> means risking 110 wins 100. On a <b>spread</b>, your team must win by more than the number (or lose by less).</>} /></h2>
-              <p>Fixed contest lines, not live odds</p>
+              <h2 id="sp-markets-title">Open lines<InfoTip side="bottom" label="How lines work" text={<>Everyone gets the same line, and it can update until kickoff. Once you lock a pick, your price never changes. <b>+125</b> means 100 cash wins 125. <b>-110</b> means risking 110 wins 100. On a <b>spread</b>, your team must win by more than the number (or lose by less).</>} /></h2>
+              <p>Prices refresh until kickoff</p>
             </div>
             {league.sports.length > 1 ? (
               <div className="sp-filter fw-choices" role="group" aria-label="Filter by sport">
@@ -126,7 +138,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
                 ))}
               </div>
             ) : null}
-            <Markets markets={shown} selected={selected} onSelect={(market, line) => setSelected({ market, line })} disabled={ended} />
+            <Markets markets={shown} selected={current} onSelect={(market, line) => setSelected({ market, line })} disabled={ended} />
           </section>
 
           <section className="fw-panel reveal" style={revealStyle(3)} aria-labelledby="sp-standings-title">
@@ -144,7 +156,9 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
           <PickLockEffect fx={lockFx} onDone={clearLockFx} />
           <Slip
             leagueId={league.id}
-            selected={selected}
+            selected={current ?? selected}
+            gone={gone}
+            onStale={() => void refetch()}
             balance={you.credits}
             limits={data.limits}
             closed={ended}
@@ -243,9 +257,14 @@ function Slip({
   onClear,
   onLock,
   onPlaced,
+  onStale,
+  gone,
 }: {
   leagueId: string
   selected: { market: Market; line: Line } | null
+  onStale: () => void
+  /** The selected market is no longer open to picks. */
+  gone: boolean
   balance: number
   limits: Detail["limits"]
   closed: boolean
@@ -259,6 +278,9 @@ function Slip({
   const dragStart = useRef<number | null>(null)
   const dragged = useRef(false)
   const [pending, setPending] = useState(false)
+  // The price the user has seen and agreed to. If the line moves under them, locking stays disabled until they accept the new price.
+  const [agreed, setAgreed] = useState<{ id: string; price: number } | null>(null)
+  const moved = !gone && selected && agreed && agreed.id === selected.line.id && agreed.price !== selected.line.price ? agreed.price : null
   // One key per slip: a double tap or a retry after a dropped response places a single pick.
   const newKey = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`)
   const [requestId, setRequestId] = useState(newKey)
@@ -268,12 +290,14 @@ function Slip({
     setStake("")
     setDragY(0)
     setRequestId(newKey())
+    setAgreed(lineId && selected ? { id: lineId, price: selected.line.price } : null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- a different line starts a fresh slip; price moves on the same line must not reset it
   }, [lineId])
 
   const cap = Math.min(limits.maxStake, balance)
   const amount = Math.floor(Number(stake.replace(/[^\d]/g, "")) || 0)
   const winnings = selected ? Math.floor(amount * americanToDecimal(selected.line.price)) - amount : 0
-  const slipSide = selected && (selected.market.kind === "moneyline" || selected.market.kind === "spread") ? (selected.line.selection === "home" ? selected.market.event.home : selected.market.event.away) : null
+  const slipSide = selected ? sideTeam(selected.market.event, selected.market.kind, selected.line.selection) : null
   // The slip wears the colour of what you picked: the team, or the sport for totals and props.
   const slipColor = selected ? (slipSide ? teamLook(selected.market.event.sport, slipSide).color : SPORT_COLOR[selected.market.event.sport] ?? "#64748b") : null
   const problem =
@@ -281,7 +305,7 @@ function Slip({
 
   async function submit(event: React.FormEvent) {
     event.preventDefault()
-    if (!selected || amount === 0 || problem) return
+    if (!selected || amount === 0 || problem || gone || moved != null) return
     setPending(true)
     try {
       await mutate(`/api/sports/leagues/${leagueId}/picks`, {
@@ -291,7 +315,10 @@ function Slip({
       toast("Pick locked in.", "success")
       onPlaced()
     } catch (e) {
-      toast(e instanceof Error ? e.message : "Couldn't place that pick.", "error")
+      const message = e instanceof Error ? e.message : "Couldn't place that pick."
+      toast(message, "error")
+      // A moved line: pull the new price so the slip shows it, and let the user decide again.
+      if (/line moved|line changed/i.test(message)) onStale()
     } finally {
       setPending(false)
     }
@@ -386,13 +413,27 @@ function Slip({
               </button>
             ))}
           </div>
+          {/* Always in the DOM so screen readers announce the change; empty (and collapsed) until a price moves. */}
+          <p className="sp-slip-moved" role="status" aria-live="polite">
+            {moved != null ? `Price updated from ${formatOdds(moved)} to ${formatOdds(selected!.line.price)}. Accept the new price to lock this pick.` : null}
+          </p>
+          {moved != null ? (
+            <button type="button" className="fw-btn" data-solid onClick={() => setAgreed({ id: selected!.line.id, price: selected!.line.price })}>
+              Accept new price {formatOdds(selected!.line.price)}
+            </button>
+          ) : null}
+          {gone ? (
+            <p className="sp-slip-moved" role="alert">
+              This market just closed to new picks (it was frozen because its line moved, or it locked). <button type="button" className="fw-link" onClick={onClear}>Dismiss</button>
+            </p>
+          ) : null}
           <div className="sp-slip-return" aria-live="polite">
             <span className="fw-label" style={{ margin: 0 }}>
               To win
             </span>
             {amount > 0 && !problem ? <b>{credits(winnings)}</b> : <span className="sp-slip-hint">Enter a stake</span>}
           </div>
-          <button type="submit" className="fw-submit" disabled={pending || closed || amount === 0 || !!problem} aria-busy={pending || undefined}>
+          <button type="submit" className="fw-submit" disabled={pending || closed || gone || moved != null || amount === 0 || !!problem} aria-busy={pending || undefined}>
             {pending ? <span className="spin" aria-hidden /> : null}
             {pending ? "Locking in…" : "Lock in pick"}
           </button>
@@ -432,14 +473,22 @@ function MirrorReport({ leagueId }: { leagueId: string }) {
 }
 
 /** Chance each side wins, from the moneyline prices with the bookmaker's margin taken out. */
-function winChances(lines: Line[]): Record<string, number> | null {
+function winChances(lines: Line[]): { home: number; away: number; draw: number | null } | null {
   const home = lines.find((l) => l.selection === "home")
   const away = lines.find((l) => l.selection === "away")
+  const draw = lines.find((l) => l.selection === "draw")
   if (!home || !away) return null
+  // Soccer has a third line; a market that lists a draw line but is missing it is not shown as a two-way split.
+  if (lines.length === 3 && !draw) return null
   const ph = 1 / americanToDecimal(home.price)
   const pa = 1 / americanToDecimal(away.price)
-  return { home: ph / (ph + pa), away: pa / (ph + pa) }
+  const pd = draw ? 1 / americanToDecimal(draw.price) : 0
+  const sum = ph + pa + pd
+  return { home: ph / sum, away: pa / sum, draw: draw ? pd / sum : null }
 }
+
+/** Left to right on a winner row: away, draw, home (as the matchup reads "away @ home"); tennis lists the first player first. */
+const ORDER: Record<string, Record<string, number>> = { teams: { away: 0, draw: 1, home: 2 }, tennis: { home: 0, away: 1, draw: 2 } }
 
 function GameCard({ game, selected, onSelect, disabled }: { game: { key: string; event: EventInfo; markets: Market[] }; selected: { line: Line } | null; onSelect: (m: Market, l: Line) => void; disabled: boolean }) {
   const { event } = game
@@ -482,15 +531,17 @@ function GameCard({ game, selected, onSelect, disabled }: { game: { key: string;
       </div>
 
       {chances ? (
-        <Tip block text="Implied win chance from the line. These are fixed contest lines, not live odds.">
-        <div className="sp-odds-bar" role="img" aria-label={`Win chance: ${event.away} ${Math.round(chances.away * 100)} percent, ${event.home} ${Math.round(chances.home * 100)} percent`}>
+        <Tip block text="Implied win chance from the line. Prices can update until kickoff; a locked pick keeps its price.">
+        <div className="sp-odds-bar" role="img" aria-label={`Win chance: ${event.away} ${Math.round(chances.away * 100)} percent, ${chances.draw != null ? `draw ${Math.round(chances.draw * 100)} percent, ` : ""}${event.home} ${Math.round(chances.home * 100)} percent`}>
           <div className="sp-odds-track">
             <i style={{ width: `${(tennis ? chances.home : chances.away) * 100}%`, background: firstColor }} />
+            {chances.draw != null ? <i style={{ width: `${chances.draw * 100}%`, background: "var(--fw-fg3)" }} /> : null}
             <i style={{ flex: 1, background: secondColor }} />
           </div>
           <div className="sp-odds-labels">
-            <span>{Math.round((tennis ? chances.home : chances.away) * 100)}% <small>{first.split(" ").pop()}</small></span>
-            <span><small>{second.split(" ").pop()}</small> {Math.round((tennis ? chances.away : chances.home) * 100)}%</span>
+            <span>{Math.round((tennis ? chances.home : chances.away) * 100)}% <small>{oddsLabel(event.sport, first)}</small></span>
+            {chances.draw != null ? <span>{Math.round(chances.draw * 100)}% <small>Draw</small></span> : null}
+            <span><small>{oddsLabel(event.sport, second)}</small> {Math.round((tennis ? chances.away : chances.home) * 100)}%</span>
           </div>
         </div>
         </Tip>
@@ -511,9 +562,9 @@ function GameCard({ game, selected, onSelect, disabled }: { game: { key: string;
           {active.markets.map((m) => (
             <div key={m.id} className="sp-market">
               {active.key === "props" ? <div className="sp-market-head"><span className="sp-market-title">{marketTitle(m)}</span></div> : null}
-              <div className={`sp-lines${m.kind === "moneyline" ? " sp-team-lines" : ""}`}>
-                {(m.kind === "moneyline" ? [...m.lines].sort((x, y) => (x.selection === (tennis ? "home" : "away") ? -1 : 1) - (y.selection === (tennis ? "home" : "away") ? -1 : 1)) : m.lines).map((l) => (
-                  <LineButton key={l.id} market={m} line={l} selected={selected} onSelect={onSelect} disabled={disabled} team={m.kind === "moneyline"} />
+              <div className={`sp-lines${m.kind === "moneyline" ? " sp-team-lines" : ""}`} data-three={m.lines.length === 3 || undefined}>
+                {(m.kind === "moneyline" ? [...m.lines].sort((x, y) => ORDER[tennis ? "tennis" : "teams"]![x.selection]! - ORDER[tennis ? "tennis" : "teams"]![y.selection]!) : m.lines).map((l) => (
+                  <LineButton key={l.id} market={m} line={l} selected={selected} onSelect={onSelect} disabled={disabled} team={m.kind === "moneyline" && l.selection !== "draw"} />
                 ))}
               </div>
             </div>
@@ -527,7 +578,7 @@ function GameCard({ game, selected, onSelect, disabled }: { game: { key: string;
 function LineButton({ market: m, line: l, selected, onSelect, disabled, team }: { market: Market; line: Line; selected: { line: Line } | null; onSelect: (m: Market, l: Line) => void; disabled: boolean; team?: boolean }) {
   const label = lineLabel(m, l)
   const mine = m.picked?.selection === l.selection
-  const side = m.kind === "moneyline" || m.kind === "spread" ? (l.selection === "home" ? m.event.home : m.event.away) : null
+  const side = sideTeam(m.event, m.kind, l.selection)
   const look = side ? teamLook(m.event.sport, side) : null
   return (
     <button

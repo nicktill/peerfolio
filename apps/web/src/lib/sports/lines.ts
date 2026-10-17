@@ -1,5 +1,6 @@
 import { consensusTwoWay, DEFAULT_CONSENSUS, DEFAULT_PRICING, priceTwoWay, type ConsensusOptions, type PricingConfig } from "./odds.ts"
-import type { MarketKind, OddsSnapshot, ProviderEvent, ProviderMarket, Selection, Sport } from "./types.ts"
+import { consensusThreeWay, DEFAULT_THREEWAY_PRICING, priceThreeWay } from "./threeway.ts"
+import { hasDraw, type MarketKind, type OddsSnapshot, type ProviderEvent, type ProviderMarket, type Selection, type Sport } from "./types.ts"
 
 /**
  * Line publishing: turns one cached provider snapshot into fixed contest lines.
@@ -13,12 +14,13 @@ export type PublishConfig = {
   /** Reject a snapshot older than this: never price off stale data. */
   maxSnapshotAgeMs: number
   /**
-   * Picks close this long before start (games). Two hours, because NFL inactives
-   * post about 90 minutes before kickoff and NBA/tennis lineup news lands in the
-   * same window: no one should be able to pick after it.
+   * Picks close this long before start (games). Zero: markets stay open until kickoff, and the server also refuses any
+   * pick at or after the scheduled start (see isPickWindowOpen), so this value is never the only guard. The price of
+   * a late lock is that inactives/lineup news (NFL about 90 minutes before kickoff) lands while picks are open; the
+   * line-move freeze (moveProb/movePoint) and the sentinel are what answer that, not a cushion.
    */
   gameLockMs: number
-  /** Props lock at least as early as games. */
+  /** Props lock no later than games. */
   propLockMs: number
   /** Don't publish a market that would be open for less than this. */
   minOpenMs: number
@@ -39,8 +41,8 @@ export const DEFAULT_PUBLISH: PublishConfig = {
   pricing: DEFAULT_PRICING,
   consensus: DEFAULT_CONSENSUS,
   maxSnapshotAgeMs: 10 * 60_000,
-  gameLockMs: 2 * 3600_000,
-  propLockMs: 2 * 3600_000,
+  gameLockMs: 0,
+  propLockMs: 0,
   minOpenMs: 60 * 60_000,
   publishWindowMs: 24 * 3600_000,
   moveProb: 0.04,
@@ -48,11 +50,22 @@ export const DEFAULT_PUBLISH: PublishConfig = {
   tennisTotals: false,
 }
 
+/**
+ * Exchange mode (no sportsbook consensus): the exchange book is the only "book", so one is enough here. The accuracy gates
+ * (spread, resting size, freshness, Kalshi cross-check) live in providers/polymarket-odds.ts, before a market is offered at all.
+ */
+export const EXCHANGE_PUBLISH: PublishConfig = { ...DEFAULT_PUBLISH, consensus: { ...DEFAULT_CONSENSUS, minBooks: 1 } }
+
 /** Which market kinds each sport offers. Tennis has no props (no provider evidence). */
 export const SPORT_KINDS: Record<Sport, readonly MarketKind[]> = {
   nfl: ["moneyline", "spread", "total", "player_prop"],
   nba: ["moneyline", "spread", "total", "player_prop"],
   tennis: ["moneyline", "total"],
+  nhl: ["moneyline", "spread", "total"],
+  mlb: ["moneyline", "spread", "total"],
+  cfb: ["moneyline", "spread", "total"],
+  // Soccer moneyline is three-way (home / draw / away): see draftMarket.
+  mls: ["moneyline", "spread", "total"],
 }
 
 export const kindsFor = (sport: Sport, cfg: PublishConfig): readonly MarketKind[] =>
@@ -68,10 +81,13 @@ export type MarketDraft = {
   player: string | null
   statKey: string | null
   lockAt: Date
-  lines: [LineDraft, LineDraft]
+  /** Two lines, or three for the soccer moneyline in the order [home, draw, away]. */
+  lines: LineDraft[]
   booksUsed: number
   /** Consensus fair probability of the first line's side, kept to detect later movement. */
   fairProbA: number
+  /** Fair probability behind each line, in the same order as `lines`. */
+  fairs: number[]
 }
 
 export const marketKeyOf = (m: Pick<ProviderMarket, "key" | "player">) => `${m.key}|${m.player ?? ""}`
@@ -79,7 +95,35 @@ export const marketKeyOf = (m: Pick<ProviderMarket, "key" | "player">) => `${m.k
 export const lockAtFor = (startsAt: Date, kind: MarketKind, cfg: PublishConfig = DEFAULT_PUBLISH): Date =>
   new Date(startsAt.getTime() - (kind === "player_prop" ? cfg.propLockMs : cfg.gameLockMs))
 
+/** The soccer moneyline: home / draw / away, priced from books that quote all three. A market without a draw outcome is never priced as two-way. */
+function draftThreeWay(event: ProviderEvent, market: ProviderMarket, cfg: PublishConfig, now: Date): MarketDraft | null {
+  const quotes = (sel: string) => market.outcomes.find((o) => o.selection === sel)?.quotes ?? []
+  const q = { home: quotes("home"), draw: quotes("draw"), away: quotes("away") }
+  if (!q.home.length || !q.draw.length || !q.away.length) return null
+  const consensus = consensusThreeWay(q, { ...cfg.consensus, now })
+  if (!consensus) return null
+  const prices = priceThreeWay(consensus.fair, { ...DEFAULT_THREEWAY_PRICING, margin: cfg.pricing.margin })
+  if (!prices) return null
+  return {
+    externalEventId: event.externalId,
+    marketKey: marketKeyOf(market),
+    kind: "moneyline",
+    player: null,
+    statKey: null,
+    lockAt: lockAtFor(event.startsAt, "moneyline", cfg),
+    lines: [
+      { selection: "home", price: prices[0], point: null },
+      { selection: "draw", price: prices[1], point: null },
+      { selection: "away", price: prices[2], point: null },
+    ],
+    booksUsed: consensus.booksUsed,
+    fairProbA: consensus.fair[0],
+    fairs: consensus.fair,
+  }
+}
+
 export function draftMarket(event: ProviderEvent, market: ProviderMarket, cfg: PublishConfig, now: Date): MarketDraft | null {
+  if (hasDraw(event.sport, market.kind)) return draftThreeWay(event, market, cfg, now)
   const [first, second] = market.kind === "total" || market.kind === "player_prop" ? ["over", "under"] : ["home", "away"]
   const a = market.outcomes.find((o) => o.selection === first)
   const b = market.outcomes.find((o) => o.selection === second)
@@ -108,6 +152,7 @@ export function draftMarket(event: ProviderEvent, market: ProviderMarket, cfg: P
     ],
     booksUsed: consensus.booksUsed,
     fairProbA: consensus.fairProbA,
+    fairs: [consensus.fairProbA, 1 - consensus.fairProbA],
   }
 }
 
@@ -146,8 +191,13 @@ export function planPublication(
   return { drafts, rejected: null }
 }
 
-/** Pick window check, using server time only. A client clock is never consulted. */
-export function isPickWindowOpen(market: { status: string; lockAt: Date }, eventStatus: string, now: Date): boolean {
+/**
+ * Pick window check, using server time only. A client clock is never consulted. Two independent time gates: the
+ * market's own lock, and the event's scheduled start. Whichever comes first closes it, so a market whose lock was
+ * ever set late (or never moved when a start moved earlier) still cannot take a pick once the game has begun.
+ */
+export function isPickWindowOpen(market: { status: string; lockAt: Date }, eventStatus: string, now: Date, eventStartsAt?: Date): boolean {
+  if (eventStartsAt && now.getTime() >= eventStartsAt.getTime()) return false
   return market.status === "open" && eventStatus === "scheduled" && now.getTime() < market.lockAt.getTime()
 }
 
@@ -161,6 +211,8 @@ export type StoredMarket = {
   kind: MarketKind
   lockAt: Date
   fairProbA: number | null
+  /** Fair probability behind each line (home, draw, away for soccer), where stored. Any side moving counts. */
+  fairs?: (number | null)[] | null
   /** Point of the first line (null for moneylines). */
   pointA: number | null
 }
@@ -170,8 +222,10 @@ export type StoredMarket = {
  * freeze the market (no new picks at that price) when the true line has moved
  * past the threshold, or null. Existing picks keep the line they were given.
  */
-export function detectMove(stored: StoredMarket, fresh: Pick<MarketDraft, "fairProbA" | "lines">, cfg: PublishConfig = DEFAULT_PUBLISH): string | null {
+export function detectMove(stored: StoredMarket, fresh: Pick<MarketDraft, "fairProbA" | "lines"> & { fairs?: number[] }, cfg: PublishConfig = DEFAULT_PUBLISH): string | null {
   if (stored.fairProbA != null && Math.abs(fresh.fairProbA - stored.fairProbA) >= cfg.moveProb) return "line moved"
+  // Every side, not only the first: a three-way market can move on the draw alone.
+  if (stored.fairs && fresh.fairs && stored.fairs.length === fresh.fairs.length && fresh.fairs.some((f, i) => stored.fairs![i] != null && Math.abs(f - stored.fairs![i]!) >= cfg.moveProb)) return "line moved"
   const pointA = fresh.lines[0].point
   if (stored.pointA != null && pointA != null && Math.abs(pointA - stored.pointA) >= cfg.movePoint) return "line moved"
   return null
@@ -220,6 +274,10 @@ export function missingReason(snapshot: OddsSnapshot, now: Date, externalId: str
 }
 
 /* ---- when to spend credits on a fetch ---- */
+
+/** Exchange mode costs no credits, so the only pacing is politeness: a sport is fetched at most once per bucket (see makeExchangeGate). */
+export const EXCHANGE_BUCKET_MS = 30 * 60_000
+export const exchangeBucket = (now: Date): number => Math.floor(now.getTime() / EXCHANGE_BUCKET_MS)
 
 export const GUARD_BUCKET_MS = 2 * 3600_000
 export const DISCOVER_BUCKET_MS = 12 * 3600_000

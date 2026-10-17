@@ -1,0 +1,5933 @@
+{
+ "sport": "mls",
+ "now": "2026-10-17T20:22:07.452Z",
+ "espn": {
+  "events": [
+   {
+    "id": "761876",
+    "date": "2026-10-17T20:30Z",
+    "status": {
+     "type": {
+      "name": "STATUS_SCHEDULED",
+      "state": "pre",
+      "completed": false
+     }
+    },
+    "competitions": [
+     {
+      "id": "761876",
+      "date": "2026-10-17T20:30Z",
+      "status": {
+       "type": {
+        "name": "STATUS_SCHEDULED",
+        "state": "pre",
+        "completed": false
+       }
+      },
+      "competitors": [
+       {
+        "homeAway": "home",
+        "score": "0",
+        "team": {
+         "displayName": "Minnesota United FC"
+        }
+       },
+       {
+        "homeAway": "away",
+        "score": "0",
+        "team": {
+         "displayName": "St. Louis CITY SC"
+        }
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "id": "761880",
+    "date": "2026-10-17T23:30Z",
+    "status": {
+     "type": {
+      "name": "STATUS_SCHEDULED",
+      "state": "pre",
+      "completed": false
+     }
+    },
+    "competitions": [
+     {
+      "id": "761880",
+      "date": "2026-10-17T23:30Z",
+      "status": {
+       "type": {
+        "name": "STATUS_SCHEDULED",
+        "state": "pre",
+        "completed": false
+       }
+      },
+      "competitors": [
+       {
+        "homeAway": "home",
+        "score": "0",
+        "team": {
+         "displayName": "Atlanta United FC"
+        }
+       },
+       {
+        "homeAway": "away",
+        "score": "0",
+        "team": {
+         "displayName": "Inter Miami CF"
+        }
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "id": "761881",
+    "date": "2026-10-17T23:30Z",
+    "status": {
+     "type": {
+      "name": "STATUS_SCHEDULED",
+      "state": "pre",
+      "completed": false
+     }
+    },
+    "competitions": [
+     {
+      "id": "761881",
+      "date": "2026-10-17T23:30Z",
+      "status": {
+       "type": {
+        "name": "STATUS_SCHEDULED",
+        "state": "pre",
+        "completed": false
+       }
+      },
+      "competitors": [
+       {
+        "homeAway": "home",
+        "score": "0",
+        "team": {
+         "displayName": "Orlando City SC"
+        }
+       },
+       {
+        "homeAway": "away",
+        "score": "0",
+        "team": {
+         "displayName": "D.C. United"
+        }
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "id": "761878",
+    "date": "2026-10-17T23:30Z",
+    "status": {
+     "type": {
+      "name": "STATUS_SCHEDULED",
+      "state": "pre",
+      "completed": false
+     }
+    },
+    "competitions": [
+     {
+      "id": "761878",
+      "date": "2026-10-17T23:30Z",
+      "status": {
+       "type": {
+        "name": "STATUS_SCHEDULED",
+        "state": "pre",
+        "completed": false
+       }
+      },
+      "competitors": [
+       {
+        "homeAway": "home",
+        "score": "0",
+        "team": {
+         "displayName": "Red Bull New York"
+        }
+       },
+       {
+        "homeAway": "away",
+        "score": "0",
+        "team": {
+         "displayName": "Toronto FC"
+        }
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "gamma": [
+  {
+   "slug": "mls-min-stl-2026-10-17",
+   "title": "Minnesota United FC vs. St. Louis City SC",
+   "startTime": "2026-10-17T20:30:00Z",
+   "markets": [
+    {
+     "question": "Will Minnesota United FC win on 2026-10-17?",
+     "groupItemTitle": "Minnesota United FC",
+     "sportsMarketType": "moneyline",
+     "outcomes": "[\"Yes\", \"No\"]",
+     "outcomePrices": "[\"0.405\", \"0.595\"]",
+     "clobTokenIds": "[\"79430662263339843930135429117880053188785154813610640630063150862538000319414\", \"33430822815362268029174817801951969337589093973558371960977339200432892370855\"]",
+     "bestBid": 0.4,
+     "bestAsk": 0.41,
+     "liquidityNum": 105400.8613,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Will Minnesota United FC vs. St. Louis City SC end in a draw?",
+     "groupItemTitle": "Draw (Minnesota United FC vs. St. Louis City SC)",
+     "sportsMarketType": "moneyline",
+     "outcomes": "[\"Yes\", \"No\"]",
+     "outcomePrices": "[\"0.245\", \"0.755\"]",
+     "clobTokenIds": "[\"63326718344904706121419664768810088817313706779896653496223148918919292664632\", \"104822643226716111279593460704597650419199578993140387676889263467304510811630\"]",
+     "bestBid": 0.24,
+     "bestAsk": 0.25,
+     "liquidityNum": 81490.5104,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Will St. Louis City SC win on 2026-10-17?",
+     "groupItemTitle": "St. Louis City SC",
+     "sportsMarketType": "moneyline",
+     "outcomes": "[\"Yes\", \"No\"]",
+     "outcomePrices": "[\"0.345\", \"0.655\"]",
+     "clobTokenIds": "[\"91517570603324440233188949009251482113299260506331759125108887701224938144170\", \"42626843682807849124932090336929668408512130771766177778664618551013987557251\"]",
+     "bestBid": 0.34,
+     "bestAsk": 0.35,
+     "liquidityNum": 96093.3578,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    }
+   ]
+  },
+  {
+   "slug": "mls-min-stl-2026-10-17-more-markets",
+   "title": "Minnesota United FC vs. St. Louis City SC - More Markets",
+   "startTime": "2026-10-17T20:30:00Z",
+   "markets": [
+    {
+     "question": "Spread: Minnesota United FC (-1.5)",
+     "groupItemTitle": "Minnesota United FC (-1.5)",
+     "sportsMarketType": "spreads",
+     "outcomes": "[\"Minnesota United FC\", \"St. Louis City SC\"]",
+     "outcomePrices": "[\"0.205\", \"0.795\"]",
+     "clobTokenIds": "[\"6349673847374996734649979668807744886614877667068998667663956825764368697752\", \"100086277783829804480495003310577862283089076771271759961401505421992369923185\"]",
+     "line": -1.5,
+     "bestBid": 0.2,
+     "bestAsk": 0.21,
+     "liquidityNum": 34503.2334,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Spread: St. Louis City SC (-1.5)",
+     "groupItemTitle": "St. Louis City SC (-1.5)",
+     "sportsMarketType": "spreads",
+     "outcomes": "[\"St. Louis City SC\", \"Minnesota United FC\"]",
+     "outcomePrices": "[\"0.165\", \"0.835\"]",
+     "clobTokenIds": "[\"66892083930250357139107303858130998956270958489234881612318394084250492562412\", \"79892869402602255046546411173820651478887405434752464381121775561454992834108\"]",
+     "line": -1.5,
+     "bestBid": 0.16,
+     "bestAsk": 0.17,
+     "liquidityNum": 22537.2307,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Spread: Minnesota United FC (-2.5)",
+     "groupItemTitle": "Minnesota United FC (-2.5)",
+     "sportsMarketType": "spreads",
+     "outcomes": "[\"Minnesota United FC\", \"St. Louis City SC\"]",
+     "outcomePrices": "[\"0.08\", \"0.92\"]",
+     "clobTokenIds": "[\"41358580913296010131734688075230510389623605696835011276534442392249108330534\", \"46589881717303436118993721081305890832531920206600702753021314538971543618029\"]",
+     "line": -2.5,
+     "bestBid": 0.07,
+     "bestAsk": 0.09,
+     "liquidityNum": 24099.8546,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Spread: St. Louis City SC (-2.5)",
+     "groupItemTitle": "St. Louis City SC (-2.5)",
+     "sportsMarketType": "spreads",
+     "outcomes": "[\"St. Louis City SC\", \"Minnesota United FC\"]",
+     "outcomePrices": "[\"0.06\", \"0.94\"]",
+     "clobTokenIds": "[\"13820268828552923851336125758750967248089165056278458102720032869267716945092\", \"37078813424366219600118428834560317930219868426537102876574425277165557792513\"]",
+     "line": -2.5,
+     "bestBid": 0.05,
+     "bestAsk": 0.07,
+     "liquidityNum": 23878.8948,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Spread: Minnesota United FC (-3.5)",
+     "groupItemTitle": "Minnesota United FC (-3.5)",
+     "sportsMarketType": "spreads",
+     "outcomes": "[\"Minnesota United FC\", \"St. Louis City SC\"]",
+     "outcomePrices": "[\"0.03\", \"0.97\"]",
+     "clobTokenIds": "[\"1673055969601910672793553099295308978087160744967865972603934324510301397322\", \"47068541269782618193379859271651531353073648668678586232017614224220429192682\"]",
+     "line": -3.5,
+     "bestBid": 0.025,
+     "bestAsk": 0.035,
+     "liquidityNum": 19004.27454,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Spread: St. Louis City SC (-3.5)",
+     "groupItemTitle": "St. Louis City SC (-3.5)",
+     "sportsMarketType": "spreads",
+     "outcomes": "[\"St. Louis City SC\", \"Minnesota United FC\"]",
+     "outcomePrices": "[\"0.02\", \"0.98\"]",
+     "clobTokenIds": "[\"101491921886275567964964186235902458592542506864372290630529293901995933114355\", \"100338559440387769767613681279178132116353959921078630205265676992372971757268\"]",
+     "line": -3.5,
+     "bestBid": 0.015,
+     "bestAsk": 0.025,
+     "liquidityNum": 19670.23796,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Spread: Minnesota United FC (-4.5)",
+     "groupItemTitle": "Minnesota United FC (-4.5)",
+     "sportsMarketType": "spreads",
+     "outcomes": "[\"Minnesota United FC\", \"St. Louis City SC\"]",
+     "outcomePrices": "[\"0.12\", \"0.88\"]",
+     "clobTokenIds": "[\"92208821122632764424191386141320338112953138193476876605386738598058813725143\", \"15231851566732511178365883905186376759699601541854293781669658715867481897919\"]",
+     "line": -4.5,
+     "bestAsk": 0.24,
+     "liquidityNum": 11187.829,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Spread: St. Louis City SC (-4.5)",
+     "groupItemTitle": "St. Louis City SC (-4.5)",
+     "sportsMarketType": "spreads",
+     "outcomes": "[\"St. Louis City SC\", \"Minnesota United FC\"]",
+     "outcomePrices": "[\"0.12\", \"0.88\"]",
+     "clobTokenIds": "[\"87500350798517225897166054010696648308220240611490752368079790707881109724289\", \"60014706347021499556432192367221641547869065558859154947946326184817529684251\"]",
+     "line": -4.5,
+     "bestAsk": 0.24,
+     "liquidityNum": 11372.9698,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Spread: Minnesota United FC (-5.5)",
+     "groupItemTitle": "Minnesota United FC (-5.5)",
+     "sportsMarketType": "spreads",
+     "outcomes": "[\"Minnesota United FC\", \"St. Louis City SC\"]",
+     "outcomePrices": "[\"0.115\", \"0.885\"]",
+     "clobTokenIds": "[\"23171323771928025066958339648243066562778218343522395039141470550210939206037\", \"11539878062058145241703294206591053951545548938086987932385801499888519090480\"]",
+     "line": -5.5,
+     "bestAsk": 0.23,
+     "liquidityNum": 11791.9992,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Spread: St. Louis City SC (-5.5)",
+     "groupItemTitle": "St. Louis City SC (-5.5)",
+     "sportsMarketType": "spreads",
+     "outcomes": "[\"St. Louis City SC\", \"Minnesota United FC\"]",
+     "outcomePrices": "[\"0.115\", \"0.885\"]",
+     "clobTokenIds": "[\"103041442631544400917526244978855257693610389782150299713839630514457599346128\", \"52061108733793883769724983336147060484184457397005660245237144269559550319227\"]",
+     "line": -5.5,
+     "bestAsk": 0.23,
+     "liquidityNum": 11790.5792,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Minnesota United FC vs. St. Louis City SC: O/U 0.5",
+     "groupItemTitle": "O/U 0.5",
+     "sportsMarketType": "totals",
+     "outcomes": "[\"Over\", \"Under\"]",
+     "outcomePrices": "[\"0.96\", \"0.04\"]",
+     "clobTokenIds": "[\"87014440768506716028748874551852543229076053906580230751868605494175677063129\", \"67612534200178223756587077683994910127615531253502241894960802442149291772786\"]",
+     "line": 0.5,
+     "bestBid": 0.956,
+     "bestAsk": 0.964,
+     "liquidityNum": 24938.40124,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Minnesota United FC vs. St. Louis City SC: O/U 1.5",
+     "groupItemTitle": "O/U 1.5",
+     "sportsMarketType": "totals",
+     "outcomes": "[\"Over\", \"Under\"]",
+     "outcomePrices": "[\"0.845\", \"0.155\"]",
+     "clobTokenIds": "[\"26369326293872440751135017436781470559510851682974507177326168472350730588957\", \"81842014458675211532996771568599503481482005502774617399472742280060175395373\"]",
+     "line": 1.5,
+     "bestBid": 0.84,
+     "bestAsk": 0.85,
+     "liquidityNum": 52754.3795,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Minnesota United FC vs. St. Louis City SC: O/U 2.5",
+     "groupItemTitle": "O/U 2.5",
+     "sportsMarketType": "totals",
+     "outcomes": "[\"Over\", \"Under\"]",
+     "outcomePrices": "[\"0.625\", \"0.375\"]",
+     "clobTokenIds": "[\"14424755566658687490867912590675649614281821205896339279561417972925127143336\", \"109719723741386015356389314169518707738660008687564329041255995507237207186454\"]",
+     "line": 2.5,
+     "bestBid": 0.62,
+     "bestAsk": 0.63,
+     "liquidityNum": 42233.4656,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Minnesota United FC vs. St. Louis City SC: O/U 3.5",
+     "groupItemTitle": "O/U 3.5",
+     "sportsMarketType": "totals",
+     "outcomes": "[\"Over\", \"Under\"]",
+     "outcomePrices": "[\"0.395\", \"0.605\"]",
+     "clobTokenIds": "[\"44931756846345037923969423193797190879545612319066130430930062407479325499727\", \"67310958041909705268352975849546712671285936998116831151371187706129874743135\"]",
+     "line": 3.5,
+     "bestBid": 0.39,
+     "bestAsk": 0.4,
+     "liquidityNum": 50211.1098,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Minnesota United FC vs. St. Louis City SC: O/U 4.5",
+     "groupItemTitle": "O/U 4.5",
+     "sportsMarketType": "totals",
+     "outcomes": "[\"Over\", \"Under\"]",
+     "outcomePrices": "[\"0.225\", \"0.775\"]",
+     "clobTokenIds": "[\"1662682812045141754862451572406927236737793256330228959684124296165614660845\", \"102415564122085369280101075538303455605861532795860154366647165232279400804129\"]",
+     "line": 4.5,
+     "bestBid": 0.22,
+     "bestAsk": 0.23,
+     "liquidityNum": 42310.5773,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Minnesota United FC vs. St. Louis City SC: O/U 5.5",
+     "groupItemTitle": "O/U 5.5",
+     "sportsMarketType": "totals",
+     "outcomes": "[\"Over\", \"Under\"]",
+     "outcomePrices": "[\"0.105\", \"0.895\"]",
+     "clobTokenIds": "[\"44572166848853446563262840005992317336541322885247889539689668903284870521343\", \"2132348392563701320636122745777833019382005193784437250788627170554268979250\"]",
+     "line": 5.5,
+     "bestBid": 0.1,
+     "bestAsk": 0.11,
+     "liquidityNum": 59947.0301,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Minnesota United FC vs. St. Louis City SC: O/U 6.5",
+     "groupItemTitle": "O/U 6.5",
+     "sportsMarketType": "totals",
+     "outcomes": "[\"Over\", \"Under\"]",
+     "outcomePrices": "[\"0.043\", \"0.957\"]",
+     "clobTokenIds": "[\"66436692510792456922016693794407910445615643267508424925991535068579897442719\", \"99560751788602991621400982018993318805816634911573856287952770823548934247363\"]",
+     "line": 6.5,
+     "bestBid": 0.039,
+     "bestAsk": 0.047,
+     "liquidityNum": 27238.02079,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Minnesota United FC vs. St. Louis City SC: O/U 7.5",
+     "groupItemTitle": "O/U 7.5",
+     "sportsMarketType": "totals",
+     "outcomes": "[\"Over\", \"Under\"]",
+     "outcomePrices": "[\"0.0165\", \"0.9835\"]",
+     "clobTokenIds": "[\"23512513562669465339601184084711073988920844558007495001370196861959523458553\", \"115590329506367842750796017685456417133060812617563595354784720652859319522089\"]",
+     "line": 7.5,
+     "bestBid": 0.013,
+     "bestAsk": 0.02,
+     "liquidityNum": 24343.88435,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Minnesota United FC vs. St. Louis City SC: O/U 8.5",
+     "groupItemTitle": "O/U 8.5",
+     "sportsMarketType": "totals",
+     "outcomes": "[\"Over\", \"Under\"]",
+     "outcomePrices": "[\"0.006\", \"0.994\"]",
+     "clobTokenIds": "[\"114839626308060605164961028203340512578181663277300127731911277520403115324926\", \"33202041265597135697224855186305179087583776372076900694928774373913215149823\"]",
+     "line": 8.5,
+     "bestBid": 0.002,
+     "bestAsk": 0.01,
+     "liquidityNum": 19604.77912,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    }
+   ]
+  },
+  {
+   "slug": "mls-atl-mia-2026-10-17",
+   "title": "Atlanta United FC vs. Inter Miami CF",
+   "startTime": "2026-10-17T23:30:00Z",
+   "markets": [
+    {
+     "question": "Will Atlanta United FC win on 2026-10-17?",
+     "groupItemTitle": "Atlanta United FC",
+     "sportsMarketType": "moneyline",
+     "outcomes": "[\"Yes\", \"No\"]",
+     "outcomePrices": "[\"0.285\", \"0.715\"]",
+     "clobTokenIds": "[\"39935070050257182819286667457689835288973368839283789210908252514365068199437\", \"29988216053947745596726220526319091247886078382555210136590358212994743381096\"]",
+     "bestBid": 0.28,
+     "bestAsk": 0.29,
+     "liquidityNum": 85848.2565,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Will Atlanta United FC vs. Inter Miami CF end in a draw?",
+     "groupItemTitle": "Draw (Atlanta United FC vs. Inter Miami CF)",
+     "sportsMarketType": "moneyline",
+     "outcomes": "[\"Yes\", \"No\"]",
+     "outcomePrices": "[\"0.215\", \"0.785\"]",
+     "clobTokenIds": "[\"94618244623127410773877417877774156292362734128639813973328220120730962340517\", \"89652067631933295152587898115109766338130502610657971558522291537871656446708\"]",
+     "bestBid": 0.21,
+     "bestAsk": 0.22,
+     "liquidityNum": 85890.7548,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Will Inter Miami CF win on 2026-10-17?",
+     "groupItemTitle": "Inter Miami CF",
+     "sportsMarketType": "moneyline",
+     "outcomes": "[\"Yes\", \"No\"]",
+     "outcomePrices": "[\"0.505\", \"0.495\"]",
+     "clobTokenIds": "[\"110001127388629107065919469588657311952923878601380327898284461045265667878564\", \"47239708450962266044796332997704755124889712212359073125804522850908668034839\"]",
+     "bestBid": 0.5,
+     "bestAsk": 0.51,
+     "liquidityNum": 86098.8292,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    }
+   ]
+  },
+  {
+   "slug": "mls-nyr-tor-2026-10-17",
+   "title": "New York Red Bulls vs. Toronto FC",
+   "startTime": "2026-10-17T23:30:00Z",
+   "markets": [
+    {
+     "question": "Will New York Red Bulls win on 2026-10-17?",
+     "groupItemTitle": "New York Red Bulls",
+     "sportsMarketType": "moneyline",
+     "outcomes": "[\"Yes\", \"No\"]",
+     "outcomePrices": "[\"0.575\", \"0.425\"]",
+     "clobTokenIds": "[\"71362893080249772475333323050042498541883982637795402018092442188326298867509\", \"85997828987476228845610090996293603107713097866046515401407384524939716038101\"]",
+     "bestBid": 0.57,
+     "bestAsk": 0.58,
+     "liquidityNum": 126698.8416,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Will New York Red Bulls vs. Toronto FC end in a draw?",
+     "groupItemTitle": "Draw (New York Red Bulls vs. Toronto FC)",
+     "sportsMarketType": "moneyline",
+     "outcomes": "[\"Yes\", \"No\"]",
+     "outcomePrices": "[\"0.205\", \"0.795\"]",
+     "clobTokenIds": "[\"4682491225119085012492818030467291546441193825446592531083465713632102318942\", \"80594676288143715043804444881181848299782906621976220184043165042064623457801\"]",
+     "bestBid": 0.2,
+     "bestAsk": 0.21,
+     "liquidityNum": 124078.1706,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Will Toronto FC win on 2026-10-17?",
+     "groupItemTitle": "Toronto FC",
+     "sportsMarketType": "moneyline",
+     "outcomes": "[\"Yes\", \"No\"]",
+     "outcomePrices": "[\"0.225\", \"0.775\"]",
+     "clobTokenIds": "[\"33366722950299195425140748510858910470045191010615995864440850072787793562405\", \"84904838938681446466236633232044836956819154342591433720337813183415989536813\"]",
+     "bestBid": 0.22,
+     "bestAsk": 0.23,
+     "liquidityNum": 141012.3714,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    }
+   ]
+  },
+  {
+   "slug": "mls-nyr-tor-2026-10-17-more-markets",
+   "title": "New York Red Bulls vs. Toronto FC - More Markets",
+   "startTime": "2026-10-17T23:30:00Z",
+   "markets": [
+    {
+     "question": "Spread: New York Red Bulls (-1.5)",
+     "groupItemTitle": "New York Red Bulls (-1.5)",
+     "sportsMarketType": "spreads",
+     "outcomes": "[\"New York Red Bulls\", \"Toronto FC\"]",
+     "outcomePrices": "[\"0.355\", \"0.645\"]",
+     "clobTokenIds": "[\"73582934388987939192917620421891483917137068577682352731781110177761020277255\", \"84659589639097759737345755852044064317748110346034053142642602468659324347233\"]",
+     "line": -1.5,
+     "bestBid": 0.35,
+     "bestAsk": 0.36,
+     "liquidityNum": 41347.6095,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Spread: Toronto FC (-1.5)",
+     "groupItemTitle": "Toronto FC (-1.5)",
+     "sportsMarketType": "spreads",
+     "outcomes": "[\"Toronto FC\", \"New York Red Bulls\"]",
+     "outcomePrices": "[\"0.095\", \"0.905\"]",
+     "clobTokenIds": "[\"11176152003098048223400244644832344662698810443040887798790350995977237045645\", \"28869622237306849763025958969096203360528736610904485136585405535093951309985\"]",
+     "line": -1.5,
+     "bestBid": 0.09,
+     "bestAsk": 0.1,
+     "liquidityNum": 13738.3758,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Spread: New York Red Bulls (-2.5)",
+     "groupItemTitle": "New York Red Bulls (-2.5)",
+     "sportsMarketType": "spreads",
+     "outcomes": "[\"New York Red Bulls\", \"Toronto FC\"]",
+     "outcomePrices": "[\"0.195\", \"0.805\"]",
+     "clobTokenIds": "[\"16575051598516172191087635516922574842799699849523596627569713434293433709313\", \"16592375740768685876159381458576088906918140437203567044646189817678272547420\"]",
+     "line": -2.5,
+     "bestBid": 0.19,
+     "bestAsk": 0.2,
+     "liquidityNum": 13194.3794,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Spread: Toronto FC (-2.5)",
+     "groupItemTitle": "Toronto FC (-2.5)",
+     "sportsMarketType": "spreads",
+     "outcomes": "[\"Toronto FC\", \"New York Red Bulls\"]",
+     "outcomePrices": "[\"0.0345\", \"0.9655\"]",
+     "clobTokenIds": "[\"97268385161985899427852169669109846129228141770534871512345845533169784844148\", \"51963659983913914256745823341710336244253685303006797970709061086005753758886\"]",
+     "line": -2.5,
+     "bestBid": 0.034,
+     "bestAsk": 0.035,
+     "liquidityNum": 12501.48481,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:19:15.206708Z"
+    },
+    {
+     "question": "Spread: New York Red Bulls (-3.5)",
+     "groupItemTitle": "New York Red Bulls (-3.5)",
+     "sportsMarketType": "spreads",
+     "outcomes": "[\"New York Red Bulls\", \"Toronto FC\"]",
+     "outcomePrices": "[\"0.088\", \"0.912\"]",
+     "clobTokenIds": "[\"57687663773713939926676643289870471858111217248970646413927333958073436456025\", \"26995013724341318427085353089501385837599922982950074979338618882005874209887\"]",
+     "line": -3.5,
+     "bestBid": 0.086,
+     "bestAsk": 0.09,
+     "liquidityNum": 9358.24588,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:19:15.206708Z"
+    },
+    {
+     "question": "Spread: Toronto FC (-3.5)",
+     "groupItemTitle": "Toronto FC (-3.5)",
+     "sportsMarketType": "spreads",
+     "outcomes": "[\"Toronto FC\", \"New York Red Bulls\"]",
+     "outcomePrices": "[\"0.0125\", \"0.9875\"]",
+     "clobTokenIds": "[\"76859941487294624210139704392341316096108531734719707274300074371454140020745\", \"95840454506891649263500473860831666851679294623806397209631078613023387769800\"]",
+     "line": -3.5,
+     "bestBid": 0.01,
+     "bestAsk": 0.015,
+     "liquidityNum": 6921.37651,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Spread: New York Red Bulls (-4.5)",
+     "groupItemTitle": "New York Red Bulls (-4.5)",
+     "sportsMarketType": "spreads",
+     "outcomes": "[\"New York Red Bulls\", \"Toronto FC\"]",
+     "outcomePrices": "[\"0.055\", \"0.945\"]",
+     "clobTokenIds": "[\"31176074522813194733496378873508631830722758289705127097853512426629791037817\", \"40169267410012275985263806957904245772867077854849550847301956451355516805873\"]",
+     "line": -4.5,
+     "bestBid": 0.01,
+     "bestAsk": 0.1,
+     "liquidityNum": 2892.1791,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Spread: Toronto FC (-4.5)",
+     "groupItemTitle": "Toronto FC (-4.5)",
+     "sportsMarketType": "spreads",
+     "outcomes": "[\"Toronto FC\", \"New York Red Bulls\"]",
+     "outcomePrices": "[\"0.125\", \"0.875\"]",
+     "clobTokenIds": "[\"115074282844789846361547616871444108050445715392955551628735111054890529518521\", \"9925315959869055859838074945099520202876289221588097045022628271857812722571\"]",
+     "line": -4.5,
+     "bestAsk": 0.25,
+     "liquidityNum": 15.9599,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:15:15.372711Z"
+    },
+    {
+     "question": "Spread: New York Red Bulls (-5.5)",
+     "groupItemTitle": "New York Red Bulls (-5.5)",
+     "sportsMarketType": "spreads",
+     "outcomes": "[\"New York Red Bulls\", \"Toronto FC\"]",
+     "outcomePrices": "[\"0.11\", \"0.89\"]",
+     "clobTokenIds": "[\"102086846779369833963672073565749663614953591368235892979322772642899318891856\", \"57176188841627094116167897035663034745600176839715580963652413265637848931375\"]",
+     "line": -5.5,
+     "bestAsk": 0.22,
+     "liquidityNum": 2121.4099,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:19:15.206708Z"
+    },
+    {
+     "question": "Spread: Toronto FC (-5.5)",
+     "groupItemTitle": "Toronto FC (-5.5)",
+     "sportsMarketType": "spreads",
+     "outcomes": "[\"Toronto FC\", \"New York Red Bulls\"]",
+     "outcomePrices": "[\"0.12\", \"0.88\"]",
+     "clobTokenIds": "[\"1326452919103667053004525573816266170996963624554470998619386574774292224724\", \"45680489429124535195258777410115643437015666586773562179635403910403186130732\"]",
+     "line": -5.5,
+     "bestAsk": 0.24,
+     "liquidityNum": 2094.1392,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "New York Red Bulls vs. Toronto FC: O/U 0.5",
+     "groupItemTitle": "O/U 0.5",
+     "sportsMarketType": "totals",
+     "outcomes": "[\"Over\", \"Under\"]",
+     "outcomePrices": "[\"0.974\", \"0.026\"]",
+     "clobTokenIds": "[\"45365978788553774303507935266169030003193655318216753597315953977319947314559\", \"101680473604299634735902753358417333556326140862192475350621831031933675463029\"]",
+     "line": 0.5,
+     "bestBid": 0.971,
+     "bestAsk": 0.977,
+     "liquidityNum": 13219.92577,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:19:15.206708Z"
+    },
+    {
+     "question": "New York Red Bulls vs. Toronto FC: O/U 1.5",
+     "groupItemTitle": "O/U 1.5",
+     "sportsMarketType": "totals",
+     "outcomes": "[\"Over\", \"Under\"]",
+     "outcomePrices": "[\"0.885\", \"0.115\"]",
+     "clobTokenIds": "[\"108611430145506510777697815868256530770262481711013942849096931993740942021655\", \"85058218625718484364831045813002666824764737241298806083567845537437684054921\"]",
+     "line": 1.5,
+     "bestBid": 0.88,
+     "bestAsk": 0.89,
+     "liquidityNum": 44172.9351,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "New York Red Bulls vs. Toronto FC: O/U 2.5",
+     "groupItemTitle": "O/U 2.5",
+     "sportsMarketType": "totals",
+     "outcomes": "[\"Over\", \"Under\"]",
+     "outcomePrices": "[\"0.72\", \"0.28\"]",
+     "clobTokenIds": "[\"98580423821673304547798137278169104605301108167936308141293457745443406196075\", \"89356258916019865351656007090731514917492904593482797706783021451448398792379\"]",
+     "line": 2.5,
+     "bestBid": 0.71,
+     "bestAsk": 0.73,
+     "liquidityNum": 38221.5704,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "New York Red Bulls vs. Toronto FC: O/U 3.5",
+     "groupItemTitle": "O/U 3.5",
+     "sportsMarketType": "totals",
+     "outcomes": "[\"Over\", \"Under\"]",
+     "outcomePrices": "[\"0.505\", \"0.495\"]",
+     "clobTokenIds": "[\"87543728849783402804862379138745164456133724525392980552289346780179472815928\", \"102644981025455297430982641070978194413567154197440071340146056615570598409936\"]",
+     "line": 3.5,
+     "bestBid": 0.5,
+     "bestAsk": 0.51,
+     "liquidityNum": 49111.0739,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "New York Red Bulls vs. Toronto FC: O/U 4.5",
+     "groupItemTitle": "O/U 4.5",
+     "sportsMarketType": "totals",
+     "outcomes": "[\"Over\", \"Under\"]",
+     "outcomePrices": "[\"0.315\", \"0.685\"]",
+     "clobTokenIds": "[\"10494106153677982614274743581463086250726428960695581607757092241528107538092\", \"101598292157122187752088152565556198981980093099167110739886186878370979715341\"]",
+     "line": 4.5,
+     "bestBid": 0.31,
+     "bestAsk": 0.32,
+     "liquidityNum": 25818.9189,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "New York Red Bulls vs. Toronto FC: O/U 5.5",
+     "groupItemTitle": "O/U 5.5",
+     "sportsMarketType": "totals",
+     "outcomes": "[\"Over\", \"Under\"]",
+     "outcomePrices": "[\"0.165\", \"0.835\"]",
+     "clobTokenIds": "[\"81880731197291132612892509115821179087468106224697996345559568214223421570833\", \"76490744824274549121341900964382791825864281939060429968734906044882959549379\"]",
+     "line": 5.5,
+     "bestBid": 0.16,
+     "bestAsk": 0.17,
+     "liquidityNum": 39765.2467,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:19:15.206708Z"
+    },
+    {
+     "question": "New York Red Bulls vs. Toronto FC: O/U 6.5",
+     "groupItemTitle": "O/U 6.5",
+     "sportsMarketType": "totals",
+     "outcomes": "[\"Over\", \"Under\"]",
+     "outcomePrices": "[\"0.08\", \"0.92\"]",
+     "clobTokenIds": "[\"41125631511495736011041495176166821766853655798763383105296424376236414730031\", \"109294186190123896159293876753906263458762670468078867436008134630135396448183\"]",
+     "line": 6.5,
+     "bestBid": 0.07,
+     "bestAsk": 0.09,
+     "liquidityNum": 8899.4274,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:19:15.206708Z"
+    },
+    {
+     "question": "New York Red Bulls vs. Toronto FC: O/U 7.5",
+     "groupItemTitle": "O/U 7.5",
+     "sportsMarketType": "totals",
+     "outcomes": "[\"Over\", \"Under\"]",
+     "outcomePrices": "[\"0.0325\", \"0.9675\"]",
+     "clobTokenIds": "[\"65085504282430060642291803108907873912147957876524285425493610481753757436556\", \"69609990727362817757442072791696047794284349660358349299385405928373221515824\"]",
+     "line": 7.5,
+     "bestBid": 0.028,
+     "bestAsk": 0.037,
+     "liquidityNum": 9839.62569,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "New York Red Bulls vs. Toronto FC: O/U 8.5",
+     "groupItemTitle": "O/U 8.5",
+     "sportsMarketType": "totals",
+     "outcomes": "[\"Over\", \"Under\"]",
+     "outcomePrices": "[\"0.009\", \"0.991\"]",
+     "clobTokenIds": "[\"74973324857037445979447511294665921313798384568294775221795533680164581779954\", \"63981152161523767880706698219195902343157901207526886627365221550712630346000\"]",
+     "line": 8.5,
+     "bestBid": 0.001,
+     "bestAsk": 0.017,
+     "liquidityNum": 7404.71737,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    }
+   ]
+  },
+  {
+   "slug": "mls-atl-mia-2026-10-17-more-markets",
+   "title": "Atlanta United FC vs. Inter Miami CF - More Markets",
+   "startTime": "2026-10-17T23:30:00Z",
+   "markets": [
+    {
+     "question": "Spread: Atlanta United FC (-1.5)",
+     "groupItemTitle": "Atlanta United FC (-1.5)",
+     "sportsMarketType": "spreads",
+     "outcomes": "[\"Atlanta United FC\", \"Inter Miami CF\"]",
+     "outcomePrices": "[\"0.135\", \"0.865\"]",
+     "clobTokenIds": "[\"70333382813592584817928665155381300171700277140910748163814933880201896297935\", \"114801469054025591736277589602973544854063175750412501821986267793699788516917\"]",
+     "line": -1.5,
+     "bestBid": 0.13,
+     "bestAsk": 0.14,
+     "liquidityNum": 14573.2111,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Spread: Inter Miami CF (-1.5)",
+     "groupItemTitle": "Inter Miami CF (-1.5)",
+     "sportsMarketType": "spreads",
+     "outcomes": "[\"Inter Miami CF\", \"Atlanta United FC\"]",
+     "outcomePrices": "[\"0.305\", \"0.695\"]",
+     "clobTokenIds": "[\"61540076148945924241064773774056902038463380784846449429575456262974428981899\", \"53396550200582219770373470241351469084659882259116464379299271924911445198309\"]",
+     "line": -1.5,
+     "bestBid": 0.3,
+     "bestAsk": 0.31,
+     "liquidityNum": 40549.184,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Spread: Atlanta United FC (-2.5)",
+     "groupItemTitle": "Atlanta United FC (-2.5)",
+     "sportsMarketType": "spreads",
+     "outcomes": "[\"Atlanta United FC\", \"Inter Miami CF\"]",
+     "outcomePrices": "[\"0.056\", \"0.944\"]",
+     "clobTokenIds": "[\"110168540987874715346925798867406142771529143987385139020001453865545150235146\", \"68864266177361953412977762582214116689414560192945904449035545114883474459763\"]",
+     "line": -2.5,
+     "bestBid": 0.055,
+     "bestAsk": 0.057,
+     "liquidityNum": 14098.14093,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Spread: Inter Miami CF (-2.5)",
+     "groupItemTitle": "Inter Miami CF (-2.5)",
+     "sportsMarketType": "spreads",
+     "outcomes": "[\"Inter Miami CF\", \"Atlanta United FC\"]",
+     "outcomePrices": "[\"0.155\", \"0.845\"]",
+     "clobTokenIds": "[\"13854993126324736022711157142143825886971762641527099121607632840372997752310\", \"61558415468350400298797813297114357603836558877940051086458588583617491795309\"]",
+     "line": -2.5,
+     "bestBid": 0.15,
+     "bestAsk": 0.16,
+     "liquidityNum": 10136.9251,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Spread: Atlanta United FC (-3.5)",
+     "groupItemTitle": "Atlanta United FC (-3.5)",
+     "sportsMarketType": "spreads",
+     "outcomes": "[\"Atlanta United FC\", \"Inter Miami CF\"]",
+     "outcomePrices": "[\"0.0115\", \"0.9885\"]",
+     "clobTokenIds": "[\"8408936535573605101353970828514725147746800828226207626168141890904183580501\", \"17212826445497975563073441700286086466917839414948462067018663996293869991570\"]",
+     "line": -3.5,
+     "bestBid": 0.004,
+     "bestAsk": 0.019,
+     "liquidityNum": 8345.9373,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:11:16.205683Z"
+    },
+    {
+     "question": "Spread: Inter Miami CF (-3.5)",
+     "groupItemTitle": "Inter Miami CF (-3.5)",
+     "sportsMarketType": "spreads",
+     "outcomes": "[\"Inter Miami CF\", \"Atlanta United FC\"]",
+     "outcomePrices": "[\"0.065\", \"0.935\"]",
+     "clobTokenIds": "[\"99411466040250770621395032643020876881523004189604226798056488498754914754216\", \"82455878901969752466099735733453410144364731551818814904840476789888607730151\"]",
+     "line": -3.5,
+     "bestBid": 0.06,
+     "bestAsk": 0.07,
+     "liquidityNum": 5086.0281,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Spread: Atlanta United FC (-4.5)",
+     "groupItemTitle": "Atlanta United FC (-4.5)",
+     "sportsMarketType": "spreads",
+     "outcomes": "[\"Atlanta United FC\", \"Inter Miami CF\"]",
+     "outcomePrices": "[\"0.11\", \"0.89\"]",
+     "clobTokenIds": "[\"97341792888463447233131368882355592093078586629994265223373401907049933667457\", \"55707738596686581623737231624118614067606002325632672256592668424544286649771\"]",
+     "line": -4.5,
+     "bestAsk": 0.22,
+     "liquidityNum": 1277.3043,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Spread: Inter Miami CF (-4.5)",
+     "groupItemTitle": "Inter Miami CF (-4.5)",
+     "sportsMarketType": "spreads",
+     "outcomes": "[\"Inter Miami CF\", \"Atlanta United FC\"]",
+     "outcomePrices": "[\"0.0265\", \"0.9735\"]",
+     "clobTokenIds": "[\"95502298475567476947637159972992972075424656059152776395060246978523390288069\", \"6450481413622845231921375764242720447443035160516403493117158964409779909584\"]",
+     "line": -4.5,
+     "bestBid": 0.002,
+     "bestAsk": 0.051,
+     "liquidityNum": 2924.15208,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:17:14.607237Z"
+    },
+    {
+     "question": "Spread: Atlanta United FC (-5.5)",
+     "groupItemTitle": "Atlanta United FC (-5.5)",
+     "sportsMarketType": "spreads",
+     "outcomes": "[\"Atlanta United FC\", \"Inter Miami CF\"]",
+     "outcomePrices": "[\"0.12\", \"0.88\"]",
+     "clobTokenIds": "[\"65592731047559634676820046728165189973201661523825186100234978732250962208117\", \"7101987468654456410518287897226572953659495876404390705252900580014085795841\"]",
+     "line": -5.5,
+     "bestAsk": 0.24,
+     "liquidityNum": 1353.0328,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Spread: Inter Miami CF (-5.5)",
+     "groupItemTitle": "Inter Miami CF (-5.5)",
+     "sportsMarketType": "spreads",
+     "outcomes": "[\"Inter Miami CF\", \"Atlanta United FC\"]",
+     "outcomePrices": "[\"0.125\", \"0.875\"]",
+     "clobTokenIds": "[\"58488300152139670666867725150950116150205058304257788496323509708536264716388\", \"88751491631262385388224781291543536137189826339756702803619469954248332972934\"]",
+     "line": -5.5,
+     "bestAsk": 0.25,
+     "liquidityNum": 1171.509,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Atlanta United FC vs. Inter Miami CF: O/U 0.5",
+     "groupItemTitle": "O/U 0.5",
+     "sportsMarketType": "totals",
+     "outcomes": "[\"Over\", \"Under\"]",
+     "outcomePrices": "[\"0.977\", \"0.023\"]",
+     "clobTokenIds": "[\"86941334162708648375828686147137210267982390298743036142076514092634860621454\", \"105742529117996255277145025228908316622329236592761017756721741625604645094103\"]",
+     "line": 0.5,
+     "bestBid": 0.975,
+     "bestAsk": 0.979,
+     "liquidityNum": 10509.02904,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Atlanta United FC vs. Inter Miami CF: O/U 1.5",
+     "groupItemTitle": "O/U 1.5",
+     "sportsMarketType": "totals",
+     "outcomes": "[\"Over\", \"Under\"]",
+     "outcomePrices": "[\"0.9\", \"0.1\"]",
+     "clobTokenIds": "[\"18649682007338278579157079749323663447602517608176723551413121187344802467117\", \"61011786701885839175744378947053098945823758214671052450552927825571198886170\"]",
+     "line": 1.5,
+     "bestBid": 0.89,
+     "bestAsk": 0.91,
+     "liquidityNum": 10005.3997,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Atlanta United FC vs. Inter Miami CF: O/U 2.5",
+     "groupItemTitle": "O/U 2.5",
+     "sportsMarketType": "totals",
+     "outcomes": "[\"Over\", \"Under\"]",
+     "outcomePrices": "[\"0.745\", \"0.255\"]",
+     "clobTokenIds": "[\"48280685571613951538874353010037075947564612220905242560350025139468633463040\", \"112819537806202539933627775069240308764456624074399774061830053628859821232499\"]",
+     "line": 2.5,
+     "bestBid": 0.74,
+     "bestAsk": 0.75,
+     "liquidityNum": 47418.78,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Atlanta United FC vs. Inter Miami CF: O/U 3.5",
+     "groupItemTitle": "O/U 3.5",
+     "sportsMarketType": "totals",
+     "outcomes": "[\"Over\", \"Under\"]",
+     "outcomePrices": "[\"0.535\", \"0.465\"]",
+     "clobTokenIds": "[\"111683203145425207997639515788190418863098832567251452615876519537416891703399\", \"30170784679488924829060615047497548788023165195725660066383550765567348747397\"]",
+     "line": 3.5,
+     "bestBid": 0.53,
+     "bestAsk": 0.54,
+     "liquidityNum": 54599.8169,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Atlanta United FC vs. Inter Miami CF: O/U 4.5",
+     "groupItemTitle": "O/U 4.5",
+     "sportsMarketType": "totals",
+     "outcomes": "[\"Over\", \"Under\"]",
+     "outcomePrices": "[\"0.335\", \"0.665\"]",
+     "clobTokenIds": "[\"106280848413727296082413421918953134215910709474048018975601287470118855081493\", \"78444824443614430039424613712841287406207490462858417987737691353061277196666\"]",
+     "line": 4.5,
+     "bestBid": 0.33,
+     "bestAsk": 0.34,
+     "liquidityNum": 29149.1685,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Atlanta United FC vs. Inter Miami CF: O/U 5.5",
+     "groupItemTitle": "O/U 5.5",
+     "sportsMarketType": "totals",
+     "outcomes": "[\"Over\", \"Under\"]",
+     "outcomePrices": "[\"0.19\", \"0.81\"]",
+     "clobTokenIds": "[\"16938436958245222098542492872385529881593076495253609113257434152926983774617\", \"67248962271289503161271358762716589159485777285874719823081779009172675531807\"]",
+     "line": 5.5,
+     "bestBid": 0.18,
+     "bestAsk": 0.2,
+     "liquidityNum": 30683.5995,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Atlanta United FC vs. Inter Miami CF: O/U 6.5",
+     "groupItemTitle": "O/U 6.5",
+     "sportsMarketType": "totals",
+     "outcomes": "[\"Over\", \"Under\"]",
+     "outcomePrices": "[\"0.09\", \"0.91\"]",
+     "clobTokenIds": "[\"42830734508973358906218881892790039359674222055978436212048221674135754236704\", \"39768845597509086388686517352441246208142372143210312139307777539877469977749\"]",
+     "line": 6.5,
+     "bestBid": 0.08,
+     "bestAsk": 0.1,
+     "liquidityNum": 8813.1966,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Atlanta United FC vs. Inter Miami CF: O/U 7.5",
+     "groupItemTitle": "O/U 7.5",
+     "sportsMarketType": "totals",
+     "outcomes": "[\"Over\", \"Under\"]",
+     "outcomePrices": "[\"0.0375\", \"0.9625\"]",
+     "clobTokenIds": "[\"22827870289288180105940101724902655650656591904287804834892730942758375773477\", \"114510251127199370808072875601969430801996511403638282046585344158077116753002\"]",
+     "line": 7.5,
+     "bestBid": 0.035,
+     "bestAsk": 0.04,
+     "liquidityNum": 8964.45107,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    },
+    {
+     "question": "Atlanta United FC vs. Inter Miami CF: O/U 8.5",
+     "groupItemTitle": "O/U 8.5",
+     "sportsMarketType": "totals",
+     "outcomes": "[\"Over\", \"Under\"]",
+     "outcomePrices": "[\"0.0135\", \"0.9865\"]",
+     "clobTokenIds": "[\"20279515272204154808801371025235111082907551600787309834319370762874190547324\", \"75152445860571486476601290296956879726847459952475480260283717884546489881301\"]",
+     "line": 8.5,
+     "bestBid": 0.008,
+     "bestAsk": 0.019,
+     "liquidityNum": 7697.94406,
+     "acceptingOrders": true,
+     "updatedAt": "2026-10-17T20:21:15.823655Z"
+    }
+   ]
+  }
+ ],
+ "clob": [
+  {
+   "asset_id": "33366722950299195425140748510858910470045191010615995864440850072787793562405",
+   "timestamp": "1792268514585",
+   "bids": [
+    {
+     "price": "0.01",
+     "size": "7182.48"
+    },
+    {
+     "price": "0.02",
+     "size": "7561.2"
+    },
+    {
+     "price": "0.03",
+     "size": "766.6"
+    },
+    {
+     "price": "0.04",
+     "size": "3320"
+    },
+    {
+     "price": "0.05",
+     "size": "407.22"
+    },
+    {
+     "price": "0.06",
+     "size": "2369.3"
+    },
+    {
+     "price": "0.07",
+     "size": "3025.7"
+    },
+    {
+     "price": "0.08",
+     "size": "10"
+    },
+    {
+     "price": "0.09",
+     "size": "5897.12"
+    },
+    {
+     "price": "0.1",
+     "size": "2968.62"
+    },
+    {
+     "price": "0.11",
+     "size": "437.27"
+    },
+    {
+     "price": "0.12",
+     "size": "3409.95"
+    },
+    {
+     "price": "0.13",
+     "size": "7740.18"
+    },
+    {
+     "price": "0.14",
+     "size": "1988.95"
+    },
+    {
+     "price": "0.15",
+     "size": "1860"
+    },
+    {
+     "price": "0.16",
+     "size": "3208.5"
+    },
+    {
+     "price": "0.17",
+     "size": "3403"
+    },
+    {
+     "price": "0.18",
+     "size": "16795.59"
+    },
+    {
+     "price": "0.19",
+     "size": "32772.76"
+    },
+    {
+     "price": "0.2",
+     "size": "8739.11"
+    },
+    {
+     "price": "0.21",
+     "size": "14410.47"
+    },
+    {
+     "price": "0.22",
+     "size": "7.67"
+    }
+   ],
+   "asks": [
+    {
+     "price": "0.99",
+     "size": "5677"
+    },
+    {
+     "price": "0.98",
+     "size": "6561.5"
+    },
+    {
+     "price": "0.97",
+     "size": "100"
+    },
+    {
+     "price": "0.96",
+     "size": "2320"
+    },
+    {
+     "price": "0.95",
+     "size": "11.77"
+    },
+    {
+     "price": "0.93",
+     "size": "2740"
+    },
+    {
+     "price": "0.88",
+     "size": "1620"
+    },
+    {
+     "price": "0.86",
+     "size": "71.42"
+    },
+    {
+     "price": "0.83",
+     "size": "340"
+    },
+    {
+     "price": "0.82",
+     "size": "5.6"
+    },
+    {
+     "price": "0.77",
+     "size": "240"
+    },
+    {
+     "price": "0.7",
+     "size": "180"
+    },
+    {
+     "price": "0.68",
+     "size": "624.35"
+    },
+    {
+     "price": "0.67",
+     "size": "1608.3"
+    },
+    {
+     "price": "0.66",
+     "size": "870.18"
+    },
+    {
+     "price": "0.61",
+     "size": "140"
+    },
+    {
+     "price": "0.59",
+     "size": "584.76"
+    },
+    {
+     "price": "0.57",
+     "size": "2306.79"
+    },
+    {
+     "price": "0.56",
+     "size": "2120"
+    },
+    {
+     "price": "0.5",
+     "size": "120"
+    },
+    {
+     "price": "0.42",
+     "size": "5000"
+    },
+    {
+     "price": "0.39",
+     "size": "5000"
+    },
+    {
+     "price": "0.38",
+     "size": "502"
+    },
+    {
+     "price": "0.37",
+     "size": "501"
+    },
+    {
+     "price": "0.36",
+     "size": "5000"
+    },
+    {
+     "price": "0.34",
+     "size": "8787.86"
+    },
+    {
+     "price": "0.33",
+     "size": "5125"
+    },
+    {
+     "price": "0.32",
+     "size": "5599.99"
+    },
+    {
+     "price": "0.31",
+     "size": "5000"
+    },
+    {
+     "price": "0.3",
+     "size": "5085"
+    },
+    {
+     "price": "0.29",
+     "size": "6259.47"
+    },
+    {
+     "price": "0.28",
+     "size": "20105.81"
+    },
+    {
+     "price": "0.27",
+     "size": "2012"
+    },
+    {
+     "price": "0.26",
+     "size": "17999.66"
+    },
+    {
+     "price": "0.25",
+     "size": "32707.5"
+    },
+    {
+     "price": "0.24",
+     "size": "29555.54"
+    },
+    {
+     "price": "0.23",
+     "size": "22773.11"
+    }
+   ]
+  },
+  {
+   "asset_id": "10494106153677982614274743581463086250726428960695581607757092241528107538092",
+   "timestamp": "1792268494533",
+   "bids": [
+    {
+     "price": "0.01",
+     "size": "4424.7"
+    },
+    {
+     "price": "0.02",
+     "size": "4845"
+    },
+    {
+     "price": "0.03",
+     "size": "11.44"
+    },
+    {
+     "price": "0.04",
+     "size": "2320"
+    },
+    {
+     "price": "0.06",
+     "size": "10"
+    },
+    {
+     "price": "0.07",
+     "size": "2750"
+    },
+    {
+     "price": "0.08",
+     "size": "15.24"
+    },
+    {
+     "price": "0.1",
+     "size": "10"
+    },
+    {
+     "price": "0.11",
+     "size": "10"
+    },
+    {
+     "price": "0.12",
+     "size": "1620"
+    },
+    {
+     "price": "0.13",
+     "size": "2154.93"
+    },
+    {
+     "price": "0.14",
+     "size": "2609.04"
+    },
+    {
+     "price": "0.15",
+     "size": "1283.44"
+    },
+    {
+     "price": "0.16",
+     "size": "1990.28"
+    },
+    {
+     "price": "0.17",
+     "size": "523.57"
+    },
+    {
+     "price": "0.18",
+     "size": "492.61"
+    },
+    {
+     "price": "0.21",
+     "size": "100"
+    },
+    {
+     "price": "0.23",
+     "size": "80"
+    },
+    {
+     "price": "0.24",
+     "size": "619"
+    },
+    {
+     "price": "0.25",
+     "size": "561"
+    },
+    {
+     "price": "0.26",
+     "size": "812"
+    },
+    {
+     "price": "0.27",
+     "size": "806"
+    },
+    {
+     "price": "0.28",
+     "size": "2624"
+    },
+    {
+     "price": "0.29",
+     "size": "5079.47"
+    },
+    {
+     "price": "0.3",
+     "size": "4908.04"
+    },
+    {
+     "price": "0.31",
+     "size": "1025"
+    }
+   ],
+   "asks": [
+    {
+     "price": "0.99",
+     "size": "4424.79"
+    },
+    {
+     "price": "0.98",
+     "size": "4845"
+    },
+    {
+     "price": "0.97",
+     "size": "6.35"
+    },
+    {
+     "price": "0.96",
+     "size": "2320"
+    },
+    {
+     "price": "0.93",
+     "size": "2740"
+    },
+    {
+     "price": "0.92",
+     "size": "7.77"
+    },
+    {
+     "price": "0.88",
+     "size": "1620"
+    },
+    {
+     "price": "0.83",
+     "size": "340"
+    },
+    {
+     "price": "0.77",
+     "size": "240"
+    },
+    {
+     "price": "0.73",
+     "size": "96.31"
+    },
+    {
+     "price": "0.72",
+     "size": "263.89"
+    },
+    {
+     "price": "0.7",
+     "size": "1557.66"
+    },
+    {
+     "price": "0.66",
+     "size": "522.11"
+    },
+    {
+     "price": "0.65",
+     "size": "909.84"
+    },
+    {
+     "price": "0.64",
+     "size": "2147"
+    },
+    {
+     "price": "0.62",
+     "size": "315.46"
+    },
+    {
+     "price": "0.61",
+     "size": "140"
+    },
+    {
+     "price": "0.53",
+     "size": "100"
+    },
+    {
+     "price": "0.45",
+     "size": "1250"
+    },
+    {
+     "price": "0.42",
+     "size": "750"
+    },
+    {
+     "price": "0.41",
+     "size": "100"
+    },
+    {
+     "price": "0.4",
+     "size": "500"
+    },
+    {
+     "price": "0.39",
+     "size": "80"
+    },
+    {
+     "price": "0.38",
+     "size": "505"
+    },
+    {
+     "price": "0.37",
+     "size": "1467.99"
+    },
+    {
+     "price": "0.36",
+     "size": "827"
+    },
+    {
+     "price": "0.35",
+     "size": "13560.17"
+    },
+    {
+     "price": "0.34",
+     "size": "1244.5"
+    },
+    {
+     "price": "0.33",
+     "size": "2239.17"
+    },
+    {
+     "price": "0.32",
+     "size": "2013.65"
+    }
+   ]
+  },
+  {
+   "asset_id": "71362893080249772475333323050042498541883982637795402018092442188326298867509",
+   "timestamp": "1792268519497",
+   "bids": [
+    {
+     "price": "0.01",
+     "size": "5682.54"
+    },
+    {
+     "price": "0.02",
+     "size": "16556.61"
+    },
+    {
+     "price": "0.03",
+     "size": "100"
+    },
+    {
+     "price": "0.04",
+     "size": "11070"
+    },
+    {
+     "price": "0.07",
+     "size": "9454.26"
+    },
+    {
+     "price": "0.08",
+     "size": "5.65"
+    },
+    {
+     "price": "0.1",
+     "size": "1000"
+    },
+    {
+     "price": "0.11",
+     "size": "10"
+    },
+    {
+     "price": "0.12",
+     "size": "4119.99"
+    },
+    {
+     "price": "0.14",
+     "size": "10"
+    },
+    {
+     "price": "0.15",
+     "size": "800"
+    },
+    {
+     "price": "0.16",
+     "size": "322.5"
+    },
+    {
+     "price": "0.17",
+     "size": "340"
+    },
+    {
+     "price": "0.19",
+     "size": "10"
+    },
+    {
+     "price": "0.22",
+     "size": "10"
+    },
+    {
+     "price": "0.23",
+     "size": "1108.67"
+    },
+    {
+     "price": "0.24",
+     "size": "2211.42"
+    },
+    {
+     "price": "0.25",
+     "size": "1183.45"
+    },
+    {
+     "price": "0.27",
+     "size": "887.97"
+    },
+    {
+     "price": "0.29",
+     "size": "2196.17"
+    },
+    {
+     "price": "0.3",
+     "size": "1363.45"
+    },
+    {
+     "price": "0.31",
+     "size": "2014"
+    },
+    {
+     "price": "0.46",
+     "size": "5000"
+    },
+    {
+     "price": "0.47",
+     "size": "323"
+    },
+    {
+     "price": "0.48",
+     "size": "18761.9"
+    },
+    {
+     "price": "0.49",
+     "size": "3128"
+    },
+    {
+     "price": "0.5",
+     "size": "145"
+    },
+    {
+     "price": "0.51",
+     "size": "3752.9"
+    },
+    {
+     "price": "0.52",
+     "size": "5965.5"
+    },
+    {
+     "price": "0.53",
+     "size": "32394.74"
+    },
+    {
+     "price": "0.54",
+     "size": "1686"
+    },
+    {
+     "price": "0.55",
+     "size": "10659.82"
+    },
+    {
+     "price": "0.56",
+     "size": "22667.12"
+    },
+    {
+     "price": "0.57",
+     "size": "20470.66"
+    }
+   ],
+   "asks": [
+    {
+     "price": "0.99",
+     "size": "5691.17"
+    },
+    {
+     "price": "0.98",
+     "size": "14055.63"
+    },
+    {
+     "price": "0.97",
+     "size": "106.92"
+    },
+    {
+     "price": "0.96",
+     "size": "4820"
+    },
+    {
+     "price": "0.95",
+     "size": "6.14"
+    },
+    {
+     "price": "0.93",
+     "size": "10168.56"
+    },
+    {
+     "price": "0.92",
+     "size": "5.62"
+    },
+    {
+     "price": "0.9",
+     "size": "6000"
+    },
+    {
+     "price": "0.88",
+     "size": "1703.34"
+    },
+    {
+     "price": "0.87",
+     "size": "5769.23"
+    },
+    {
+     "price": "0.86",
+     "size": "5.01"
+    },
+    {
+     "price": "0.84",
+     "size": "5000"
+    },
+    {
+     "price": "0.83",
+     "size": "3462"
+    },
+    {
+     "price": "0.82",
+     "size": "1643.68"
+    },
+    {
+     "price": "0.81",
+     "size": "5000"
+    },
+    {
+     "price": "0.79",
+     "size": "951.39"
+    },
+    {
+     "price": "0.78",
+     "size": "5000"
+    },
+    {
+     "price": "0.77",
+     "size": "300.86"
+    },
+    {
+     "price": "0.76",
+     "size": "4133.01"
+    },
+    {
+     "price": "0.75",
+     "size": "7963.01"
+    },
+    {
+     "price": "0.73",
+     "size": "539.03"
+    },
+    {
+     "price": "0.72",
+     "size": "5501"
+    },
+    {
+     "price": "0.7",
+     "size": "7000"
+    },
+    {
+     "price": "0.69",
+     "size": "5000"
+    },
+    {
+     "price": "0.68",
+     "size": "143.75"
+    },
+    {
+     "price": "0.67",
+     "size": "9000"
+    },
+    {
+     "price": "0.66",
+     "size": "5099.99"
+    },
+    {
+     "price": "0.65",
+     "size": "8000"
+    },
+    {
+     "price": "0.64",
+     "size": "5819"
+    },
+    {
+     "price": "0.63",
+     "size": "8264"
+    },
+    {
+     "price": "0.62",
+     "size": "8878.33"
+    },
+    {
+     "price": "0.61",
+     "size": "6011.54"
+    },
+    {
+     "price": "0.6",
+     "size": "23672.18"
+    },
+    {
+     "price": "0.59",
+     "size": "37330.91"
+    },
+    {
+     "price": "0.58",
+     "size": "7408.46"
+    }
+   ]
+  },
+  {
+   "asset_id": "44931756846345037923969423193797190879545612319066130430930062407479325499727",
+   "timestamp": "1792268528249",
+   "bids": [
+    {
+     "price": "0.01",
+     "size": "56912.41"
+    },
+    {
+     "price": "0.02",
+     "size": "24215"
+    },
+    {
+     "price": "0.03",
+     "size": "5100"
+    },
+    {
+     "price": "0.04",
+     "size": "3480"
+    },
+    {
+     "price": "0.07",
+     "size": "4824.28"
+    },
+    {
+     "price": "0.08",
+     "size": "2500"
+    },
+    {
+     "price": "0.1",
+     "size": "60"
+    },
+    {
+     "price": "0.11",
+     "size": "3716"
+    },
+    {
+     "price": "0.12",
+     "size": "2440"
+    },
+    {
+     "price": "0.13",
+     "size": "12035"
+    },
+    {
+     "price": "0.15",
+     "size": "70"
+    },
+    {
+     "price": "0.17",
+     "size": "510"
+    },
+    {
+     "price": "0.18",
+     "size": "10"
+    },
+    {
+     "price": "0.19",
+     "size": "2701.03"
+    },
+    {
+     "price": "0.2",
+     "size": "110"
+    },
+    {
+     "price": "0.23",
+     "size": "745.52"
+    },
+    {
+     "price": "0.24",
+     "size": "2196.53"
+    },
+    {
+     "price": "0.25",
+     "size": "1000"
+    },
+    {
+     "price": "0.26",
+     "size": "372"
+    },
+    {
+     "price": "0.33",
+     "size": "100"
+    },
+    {
+     "price": "0.34",
+     "size": "691"
+    },
+    {
+     "price": "0.35",
+     "size": "2520"
+    },
+    {
+     "price": "0.36",
+     "size": "3640.11"
+    },
+    {
+     "price": "0.37",
+     "size": "6707.99"
+    },
+    {
+     "price": "0.38",
+     "size": "9488.42"
+    }
+   ],
+   "asks": [
+    {
+     "price": "0.99",
+     "size": "52453.78"
+    },
+    {
+     "price": "0.98",
+     "size": "36715"
+    },
+    {
+     "price": "0.97",
+     "size": "5107.63"
+    },
+    {
+     "price": "0.96",
+     "size": "3480"
+    },
+    {
+     "price": "0.93",
+     "size": "10538.56"
+    },
+    {
+     "price": "0.92",
+     "size": "2500"
+    },
+    {
+     "price": "0.88",
+     "size": "2430"
+    },
+    {
+     "price": "0.87",
+     "size": "4100.61"
+    },
+    {
+     "price": "0.83",
+     "size": "804.11"
+    },
+    {
+     "price": "0.77",
+     "size": "1513.78"
+    },
+    {
+     "price": "0.76",
+     "size": "616.38"
+    },
+    {
+     "price": "0.75",
+     "size": "12035"
+    },
+    {
+     "price": "0.74",
+     "size": "384.21"
+    },
+    {
+     "price": "0.72",
+     "size": "1137.3"
+    },
+    {
+     "price": "0.71",
+     "size": "622.12"
+    },
+    {
+     "price": "0.7",
+     "size": "270"
+    },
+    {
+     "price": "0.69",
+     "size": "2002"
+    },
+    {
+     "price": "0.68",
+     "size": "424.61"
+    },
+    {
+     "price": "0.65",
+     "size": "114.29"
+    },
+    {
+     "price": "0.61",
+     "size": "210"
+    },
+    {
+     "price": "0.52",
+     "size": "100"
+    },
+    {
+     "price": "0.51",
+     "size": "479"
+    },
+    {
+     "price": "0.5",
+     "size": "550"
+    },
+    {
+     "price": "0.49",
+     "size": "1435"
+    },
+    {
+     "price": "0.48",
+     "size": "1012"
+    },
+    {
+     "price": "0.47",
+     "size": "443"
+    },
+    {
+     "price": "0.46",
+     "size": "10288.26"
+    },
+    {
+     "price": "0.45",
+     "size": "1495"
+    },
+    {
+     "price": "0.44",
+     "size": "775.78"
+    },
+    {
+     "price": "0.43",
+     "size": "2231.43"
+    },
+    {
+     "price": "0.42",
+     "size": "8695.02"
+    },
+    {
+     "price": "0.41",
+     "size": "9888.99"
+    },
+    {
+     "price": "0.4",
+     "size": "7840.13"
+    },
+    {
+     "price": "0.39",
+     "size": "10373.84"
+    }
+   ]
+  },
+  {
+   "asset_id": "73582934388987939192917620421891483917137068577682352731781110177761020277255",
+   "timestamp": "1792268495139",
+   "bids": [
+    {
+     "price": "0.01",
+     "size": "4709.55"
+    },
+    {
+     "price": "0.02",
+     "size": "5047.24"
+    },
+    {
+     "price": "0.03",
+     "size": "100"
+    },
+    {
+     "price": "0.04",
+     "size": "2325.58"
+    },
+    {
+     "price": "0.06",
+     "size": "10"
+    },
+    {
+     "price": "0.07",
+     "size": "2740"
+    },
+    {
+     "price": "0.08",
+     "size": "16.2"
+    },
+    {
+     "price": "0.09",
+     "size": "10"
+    },
+    {
+     "price": "0.1",
+     "size": "10"
+    },
+    {
+     "price": "0.12",
+     "size": "1630"
+    },
+    {
+     "price": "0.13",
+     "size": "2036"
+    },
+    {
+     "price": "0.17",
+     "size": "340"
+    },
+    {
+     "price": "0.18",
+     "size": "100"
+    },
+    {
+     "price": "0.25",
+     "size": "100"
+    },
+    {
+     "price": "0.27",
+     "size": "80"
+    },
+    {
+     "price": "0.28",
+     "size": "543.9"
+    },
+    {
+     "price": "0.29",
+     "size": "924"
+    },
+    {
+     "price": "0.3",
+     "size": "382"
+    },
+    {
+     "price": "0.31",
+     "size": "2966"
+    },
+    {
+     "price": "0.32",
+     "size": "10858.32"
+    },
+    {
+     "price": "0.33",
+     "size": "20935.25"
+    },
+    {
+     "price": "0.34",
+     "size": "4942.12"
+    },
+    {
+     "price": "0.35",
+     "size": "2166.37"
+    }
+   ],
+   "asks": [
+    {
+     "price": "0.99",
+     "size": "4714.81"
+    },
+    {
+     "price": "0.98",
+     "size": "5040"
+    },
+    {
+     "price": "0.97",
+     "size": "106.62"
+    },
+    {
+     "price": "0.96",
+     "size": "2320"
+    },
+    {
+     "price": "0.93",
+     "size": "2740"
+    },
+    {
+     "price": "0.92",
+     "size": "7.66"
+    },
+    {
+     "price": "0.88",
+     "size": "1620"
+    },
+    {
+     "price": "0.83",
+     "size": "340"
+    },
+    {
+     "price": "0.8",
+     "size": "25"
+    },
+    {
+     "price": "0.77",
+     "size": "240"
+    },
+    {
+     "price": "0.73",
+     "size": "96.31"
+    },
+    {
+     "price": "0.72",
+     "size": "263.89"
+    },
+    {
+     "price": "0.71",
+     "size": "1425.17"
+    },
+    {
+     "price": "0.7",
+     "size": "180"
+    },
+    {
+     "price": "0.69",
+     "size": "16.13"
+    },
+    {
+     "price": "0.67",
+     "size": "537.93"
+    },
+    {
+     "price": "0.66",
+     "size": "936.6"
+    },
+    {
+     "price": "0.65",
+     "size": "2175"
+    },
+    {
+     "price": "0.62",
+     "size": "315.46"
+    },
+    {
+     "price": "0.61",
+     "size": "140"
+    },
+    {
+     "price": "0.48",
+     "size": "1750"
+    },
+    {
+     "price": "0.45",
+     "size": "1000"
+    },
+    {
+     "price": "0.44",
+     "size": "240"
+    },
+    {
+     "price": "0.43",
+     "size": "941"
+    },
+    {
+     "price": "0.42",
+     "size": "268"
+    },
+    {
+     "price": "0.41",
+     "size": "633"
+    },
+    {
+     "price": "0.4",
+     "size": "1749"
+    },
+    {
+     "price": "0.39",
+     "size": "9968.28"
+    },
+    {
+     "price": "0.38",
+     "size": "17676.38"
+    },
+    {
+     "price": "0.37",
+     "size": "5271.17"
+    },
+    {
+     "price": "0.36",
+     "size": "2768.19"
+    }
+   ]
+  },
+  {
+   "asset_id": "79430662263339843930135429117880053188785154813610640630063150862538000319414",
+   "timestamp": "1792268528282",
+   "bids": [
+    {
+     "price": "0.01",
+     "size": "67882.2"
+    },
+    {
+     "price": "0.02",
+     "size": "39226.42"
+    },
+    {
+     "price": "0.03",
+     "size": "5100"
+    },
+    {
+     "price": "0.04",
+     "size": "5980"
+    },
+    {
+     "price": "0.05",
+     "size": "9.19"
+    },
+    {
+     "price": "0.07",
+     "size": "12967.12"
+    },
+    {
+     "price": "0.09",
+     "size": "10"
+    },
+    {
+     "price": "0.1",
+     "size": "4716"
+    },
+    {
+     "price": "0.11",
+     "size": "10"
+    },
+    {
+     "price": "0.12",
+     "size": "2430"
+    },
+    {
+     "price": "0.13",
+     "size": "13184.23"
+    },
+    {
+     "price": "0.14",
+     "size": "10"
+    },
+    {
+     "price": "0.15",
+     "size": "1331.96"
+    },
+    {
+     "price": "0.16",
+     "size": "10"
+    },
+    {
+     "price": "0.17",
+     "size": "5372.36"
+    },
+    {
+     "price": "0.18",
+     "size": "1346.97"
+    },
+    {
+     "price": "0.19",
+     "size": "3357.05"
+    },
+    {
+     "price": "0.2",
+     "size": "1780.17"
+    },
+    {
+     "price": "0.21",
+     "size": "5"
+    },
+    {
+     "price": "0.22",
+     "size": "5"
+    },
+    {
+     "price": "0.23",
+     "size": "365"
+    },
+    {
+     "price": "0.24",
+     "size": "2113"
+    },
+    {
+     "price": "0.28",
+     "size": "100"
+    },
+    {
+     "price": "0.3",
+     "size": "205"
+    },
+    {
+     "price": "0.32",
+     "size": "60"
+    },
+    {
+     "price": "0.33",
+     "size": "18062.25"
+    },
+    {
+     "price": "0.34",
+     "size": "4106"
+    },
+    {
+     "price": "0.35",
+     "size": "1626"
+    },
+    {
+     "price": "0.36",
+     "size": "5511.54"
+    },
+    {
+     "price": "0.37",
+     "size": "26285.19"
+    },
+    {
+     "price": "0.38",
+     "size": "18093.75"
+    },
+    {
+     "price": "0.39",
+     "size": "14904.98"
+    },
+    {
+     "price": "0.4",
+     "size": "5611.13"
+    }
+   ],
+   "asks": [
+    {
+     "price": "0.99",
+     "size": "67897.73"
+    },
+    {
+     "price": "0.98",
+     "size": "64220"
+    },
+    {
+     "price": "0.97",
+     "size": "5107.21"
+    },
+    {
+     "price": "0.96",
+     "size": "13480"
+    },
+    {
+     "price": "0.95",
+     "size": "9.28"
+    },
+    {
+     "price": "0.93",
+     "size": "22252.81"
+    },
+    {
+     "price": "0.9",
+     "size": "3000"
+    },
+    {
+     "price": "0.88",
+     "size": "9554.99"
+    },
+    {
+     "price": "0.87",
+     "size": "7.94"
+    },
+    {
+     "price": "0.83",
+     "size": "2686.46"
+    },
+    {
+     "price": "0.82",
+     "size": "16408.77"
+    },
+    {
+     "price": "0.77",
+     "size": "360"
+    },
+    {
+     "price": "0.75",
+     "size": "2122.96"
+    },
+    {
+     "price": "0.74",
+     "size": "1137.93"
+    },
+    {
+     "price": "0.71",
+     "size": "509.59"
+    },
+    {
+     "price": "0.7",
+     "size": "443.37"
+    },
+    {
+     "price": "0.69",
+     "size": "2012"
+    },
+    {
+     "price": "0.66",
+     "size": "2917.42"
+    },
+    {
+     "price": "0.63",
+     "size": "652.97"
+    },
+    {
+     "price": "0.62",
+     "size": "5"
+    },
+    {
+     "price": "0.61",
+     "size": "5"
+    },
+    {
+     "price": "0.6",
+     "size": "5"
+    },
+    {
+     "price": "0.54",
+     "size": "502"
+    },
+    {
+     "price": "0.53",
+     "size": "501"
+    },
+    {
+     "price": "0.52",
+     "size": "125"
+    },
+    {
+     "price": "0.48",
+     "size": "1024"
+    },
+    {
+     "price": "0.47",
+     "size": "1109"
+    },
+    {
+     "price": "0.46",
+     "size": "1091"
+    },
+    {
+     "price": "0.45",
+     "size": "3058"
+    },
+    {
+     "price": "0.44",
+     "size": "24897.85"
+    },
+    {
+     "price": "0.43",
+     "size": "20667.72"
+    },
+    {
+     "price": "0.42",
+     "size": "29364.02"
+    },
+    {
+     "price": "0.41",
+     "size": "32603.41"
+    }
+   ]
+  },
+  {
+   "asset_id": "91517570603324440233188949009251482113299260506331759125108887701224938144170",
+   "timestamp": "1792268527785",
+   "bids": [
+    {
+     "price": "0.01",
+     "size": "67883.65"
+    },
+    {
+     "price": "0.02",
+     "size": "39227.02"
+    },
+    {
+     "price": "0.03",
+     "size": "5100"
+    },
+    {
+     "price": "0.04",
+     "size": "5980"
+    },
+    {
+     "price": "0.06",
+     "size": "7.21"
+    },
+    {
+     "price": "0.07",
+     "size": "7826"
+    },
+    {
+     "price": "0.08",
+     "size": "10"
+    },
+    {
+     "price": "0.09",
+     "size": "14303.88"
+    },
+    {
+     "price": "0.11",
+     "size": "10"
+    },
+    {
+     "price": "0.12",
+     "size": "2430"
+    },
+    {
+     "price": "0.13",
+     "size": "2032"
+    },
+    {
+     "price": "0.15",
+     "size": "10"
+    },
+    {
+     "price": "0.16",
+     "size": "5166.27"
+    },
+    {
+     "price": "0.17",
+     "size": "520"
+    },
+    {
+     "price": "0.18",
+     "size": "826.01"
+    },
+    {
+     "price": "0.19",
+     "size": "278.75"
+    },
+    {
+     "price": "0.2",
+     "size": "4964.61"
+    },
+    {
+     "price": "0.21",
+     "size": "5"
+    },
+    {
+     "price": "0.24",
+     "size": "1123.97"
+    },
+    {
+     "price": "0.28",
+     "size": "100"
+    },
+    {
+     "price": "0.29",
+     "size": "1921"
+    },
+    {
+     "price": "0.3",
+     "size": "5118.33"
+    },
+    {
+     "price": "0.31",
+     "size": "10682.94"
+    },
+    {
+     "price": "0.32",
+     "size": "15376.88"
+    },
+    {
+     "price": "0.33",
+     "size": "21747.05"
+    },
+    {
+     "price": "0.34",
+     "size": "15925.83"
+    }
+   ],
+   "asks": [
+    {
+     "price": "0.99",
+     "size": "97888.22"
+    },
+    {
+     "price": "0.98",
+     "size": "14228.55"
+    },
+    {
+     "price": "0.97",
+     "size": "5100"
+    },
+    {
+     "price": "0.96",
+     "size": "30986.46"
+    },
+    {
+     "price": "0.93",
+     "size": "22252.81"
+    },
+    {
+     "price": "0.92",
+     "size": "5.47"
+    },
+    {
+     "price": "0.9",
+     "size": "3000"
+    },
+    {
+     "price": "0.88",
+     "size": "9513.32"
+    },
+    {
+     "price": "0.86",
+     "size": "35.71"
+    },
+    {
+     "price": "0.84",
+     "size": "2312.5"
+    },
+    {
+     "price": "0.83",
+     "size": "515.52"
+    },
+    {
+     "price": "0.82",
+     "size": "6021.53"
+    },
+    {
+     "price": "0.77",
+     "size": "1219.92"
+    },
+    {
+     "price": "0.76",
+     "size": "216.71"
+    },
+    {
+     "price": "0.74",
+     "size": "2041.31"
+    },
+    {
+     "price": "0.73",
+     "size": "13510.78"
+    },
+    {
+     "price": "0.7",
+     "size": "270"
+    },
+    {
+     "price": "0.68",
+     "size": "749.22"
+    },
+    {
+     "price": "0.65",
+     "size": "2834.06"
+    },
+    {
+     "price": "0.63",
+     "size": "2089"
+    },
+    {
+     "price": "0.62",
+     "size": "5"
+    },
+    {
+     "price": "0.61",
+     "size": "215"
+    },
+    {
+     "price": "0.6",
+     "size": "5"
+    },
+    {
+     "price": "0.59",
+     "size": "5"
+    },
+    {
+     "price": "0.49",
+     "size": "502"
+    },
+    {
+     "price": "0.48",
+     "size": "501"
+    },
+    {
+     "price": "0.46",
+     "size": "225"
+    },
+    {
+     "price": "0.44",
+     "size": "793"
+    },
+    {
+     "price": "0.43",
+     "size": "1102"
+    },
+    {
+     "price": "0.42",
+     "size": "1290"
+    },
+    {
+     "price": "0.41",
+     "size": "2274"
+    },
+    {
+     "price": "0.4",
+     "size": "15671.35"
+    },
+    {
+     "price": "0.39",
+     "size": "10724.26"
+    },
+    {
+     "price": "0.38",
+     "size": "25919.57"
+    },
+    {
+     "price": "0.37",
+     "size": "20837.02"
+    },
+    {
+     "price": "0.36",
+     "size": "14846.3"
+    },
+    {
+     "price": "0.35",
+     "size": "3095.41"
+    }
+   ]
+  },
+  {
+   "asset_id": "110001127388629107065919469588657311952923878601380327898284461045265667878564",
+   "timestamp": "1792268508116",
+   "bids": [
+    {
+     "price": "0.01",
+     "size": "3320.67"
+    },
+    {
+     "price": "0.02",
+     "size": "4385.64"
+    },
+    {
+     "price": "0.03",
+     "size": "100"
+    },
+    {
+     "price": "0.04",
+     "size": "1160"
+    },
+    {
+     "price": "0.05",
+     "size": "9.4"
+    },
+    {
+     "price": "0.07",
+     "size": "1370"
+    },
+    {
+     "price": "0.12",
+     "size": "820"
+    },
+    {
+     "price": "0.14",
+     "size": "10"
+    },
+    {
+     "price": "0.17",
+     "size": "180"
+    },
+    {
+     "price": "0.2",
+     "size": "10"
+    },
+    {
+     "price": "0.21",
+     "size": "3936.2"
+    },
+    {
+     "price": "0.22",
+     "size": "908.16"
+    },
+    {
+     "price": "0.23",
+     "size": "130"
+    },
+    {
+     "price": "0.25",
+     "size": "709.35"
+    },
+    {
+     "price": "0.26",
+     "size": "240.05"
+    },
+    {
+     "price": "0.27",
+     "size": "3673.79"
+    },
+    {
+     "price": "0.3",
+     "size": "90"
+    },
+    {
+     "price": "0.31",
+     "size": "2012"
+    },
+    {
+     "price": "0.39",
+     "size": "5000"
+    },
+    {
+     "price": "0.4",
+     "size": "225"
+    },
+    {
+     "price": "0.42",
+     "size": "3080"
+    },
+    {
+     "price": "0.44",
+     "size": "2140"
+    },
+    {
+     "price": "0.45",
+     "size": "6836.11"
+    },
+    {
+     "price": "0.46",
+     "size": "15331.74"
+    },
+    {
+     "price": "0.47",
+     "size": "4974.93"
+    },
+    {
+     "price": "0.48",
+     "size": "22273.3"
+    },
+    {
+     "price": "0.49",
+     "size": "15711.2"
+    },
+    {
+     "price": "0.5",
+     "size": "12401.07"
+    }
+   ],
+   "asks": [
+    {
+     "price": "0.99",
+     "size": "3489.62"
+    },
+    {
+     "price": "0.98",
+     "size": "4385.35"
+    },
+    {
+     "price": "0.97",
+     "size": "100"
+    },
+    {
+     "price": "0.96",
+     "size": "1170.49"
+    },
+    {
+     "price": "0.93",
+     "size": "1370"
+    },
+    {
+     "price": "0.92",
+     "size": "5.88"
+    },
+    {
+     "price": "0.88",
+     "size": "820"
+    },
+    {
+     "price": "0.86",
+     "size": "71.42"
+    },
+    {
+     "price": "0.85",
+     "size": "15.31"
+    },
+    {
+     "price": "0.83",
+     "size": "170"
+    },
+    {
+     "price": "0.82",
+     "size": "10"
+    },
+    {
+     "price": "0.79",
+     "size": "10"
+    },
+    {
+     "price": "0.78",
+     "size": "671.74"
+    },
+    {
+     "price": "0.77",
+     "size": "3940.06"
+    },
+    {
+     "price": "0.76",
+     "size": "10"
+    },
+    {
+     "price": "0.75",
+     "size": "2735.35"
+    },
+    {
+     "price": "0.74",
+     "size": "240.05"
+    },
+    {
+     "price": "0.73",
+     "size": "3725.64"
+    },
+    {
+     "price": "0.7",
+     "size": "90"
+    },
+    {
+     "price": "0.67",
+     "size": "30.3"
+    },
+    {
+     "price": "0.64",
+     "size": "502"
+    },
+    {
+     "price": "0.63",
+     "size": "501"
+    },
+    {
+     "price": "0.62",
+     "size": "5015.78"
+    },
+    {
+     "price": "0.61",
+     "size": "125"
+    },
+    {
+     "price": "0.6",
+     "size": "100"
+    },
+    {
+     "price": "0.59",
+     "size": "3000"
+    },
+    {
+     "price": "0.58",
+     "size": "80"
+    },
+    {
+     "price": "0.57",
+     "size": "2000"
+    },
+    {
+     "price": "0.56",
+     "size": "145"
+    },
+    {
+     "price": "0.55",
+     "size": "4312.22"
+    },
+    {
+     "price": "0.54",
+     "size": "16487.98"
+    },
+    {
+     "price": "0.53",
+     "size": "8864.33"
+    },
+    {
+     "price": "0.52",
+     "size": "42897.2"
+    },
+    {
+     "price": "0.51",
+     "size": "3278.73"
+    }
+   ]
+  },
+  {
+   "asset_id": "14424755566658687490867912590675649614281821205896339279561417972925127143336",
+   "timestamp": "1792268528247",
+   "bids": [
+    {
+     "price": "0.01",
+     "size": "37106.61"
+    },
+    {
+     "price": "0.02",
+     "size": "6515"
+    },
+    {
+     "price": "0.03",
+     "size": "6.64"
+    },
+    {
+     "price": "0.04",
+     "size": "13480"
+    },
+    {
+     "price": "0.07",
+     "size": "9824.28"
+    },
+    {
+     "price": "0.08",
+     "size": "2500"
+    },
+    {
+     "price": "0.09",
+     "size": "6.82"
+    },
+    {
+     "price": "0.12",
+     "size": "2430"
+    },
+    {
+     "price": "0.15",
+     "size": "33.33"
+    },
+    {
+     "price": "0.16",
+     "size": "3716"
+    },
+    {
+     "price": "0.17",
+     "size": "510"
+    },
+    {
+     "price": "0.23",
+     "size": "360"
+    },
+    {
+     "price": "0.25",
+     "size": "295.56"
+    },
+    {
+     "price": "0.26",
+     "size": "100.02"
+    },
+    {
+     "price": "0.27",
+     "size": "982.85"
+    },
+    {
+     "price": "0.28",
+     "size": "12563.32"
+    },
+    {
+     "price": "0.3",
+     "size": "669.58"
+    },
+    {
+     "price": "0.32",
+     "size": "995.14"
+    },
+    {
+     "price": "0.33",
+     "size": "537.93"
+    },
+    {
+     "price": "0.34",
+     "size": "1134"
+    },
+    {
+     "price": "0.36",
+     "size": "100"
+    },
+    {
+     "price": "0.39",
+     "size": "210"
+    },
+    {
+     "price": "0.4",
+     "size": "375"
+    },
+    {
+     "price": "0.54",
+     "size": "100"
+    },
+    {
+     "price": "0.56",
+     "size": "699"
+    },
+    {
+     "price": "0.57",
+     "size": "635"
+    },
+    {
+     "price": "0.58",
+     "size": "2273.93"
+    },
+    {
+     "price": "0.59",
+     "size": "15098.58"
+    },
+    {
+     "price": "0.6",
+     "size": "4527.49"
+    },
+    {
+     "price": "0.61",
+     "size": "7159.49"
+    },
+    {
+     "price": "0.62",
+     "size": "313.26"
+    }
+   ],
+   "asks": [
+    {
+     "price": "0.99",
+     "size": "37147"
+    },
+    {
+     "price": "0.98",
+     "size": "6515"
+    },
+    {
+     "price": "0.97",
+     "size": "10.8"
+    },
+    {
+     "price": "0.96",
+     "size": "8480"
+    },
+    {
+     "price": "0.93",
+     "size": "6967.14"
+    },
+    {
+     "price": "0.92",
+     "size": "10"
+    },
+    {
+     "price": "0.91",
+     "size": "5.04"
+    },
+    {
+     "price": "0.9",
+     "size": "10"
+    },
+    {
+     "price": "0.89",
+     "size": "15751"
+    },
+    {
+     "price": "0.88",
+     "size": "2440"
+    },
+    {
+     "price": "0.87",
+     "size": "2000"
+    },
+    {
+     "price": "0.86",
+     "size": "110"
+    },
+    {
+     "price": "0.85",
+     "size": "1769.13"
+    },
+    {
+     "price": "0.84",
+     "size": "1558.92"
+    },
+    {
+     "price": "0.83",
+     "size": "510"
+    },
+    {
+     "price": "0.8",
+     "size": "3079.17"
+    },
+    {
+     "price": "0.77",
+     "size": "360"
+    },
+    {
+     "price": "0.74",
+     "size": "475"
+    },
+    {
+     "price": "0.72",
+     "size": "1421"
+    },
+    {
+     "price": "0.71",
+     "size": "1311"
+    },
+    {
+     "price": "0.7",
+     "size": "843"
+    },
+    {
+     "price": "0.69",
+     "size": "763"
+    },
+    {
+     "price": "0.68",
+     "size": "7384.59"
+    },
+    {
+     "price": "0.67",
+     "size": "1462.2"
+    },
+    {
+     "price": "0.66",
+     "size": "8538.48"
+    },
+    {
+     "price": "0.65",
+     "size": "6176.09"
+    },
+    {
+     "price": "0.64",
+     "size": "8062.26"
+    },
+    {
+     "price": "0.63",
+     "size": "7095.19"
+    }
+   ]
+  },
+  {
+   "asset_id": "39935070050257182819286667457689835288973368839283789210908252514365068199437",
+   "timestamp": "1792268518544",
+   "bids": [
+    {
+     "price": "0.01",
+     "size": "3183.21"
+    },
+    {
+     "price": "0.02",
+     "size": "4188.42"
+    },
+    {
+     "price": "0.04",
+     "size": "1160"
+    },
+    {
+     "price": "0.05",
+     "size": "8.19"
+    },
+    {
+     "price": "0.06",
+     "size": "2012"
+    },
+    {
+     "price": "0.07",
+     "size": "1370"
+    },
+    {
+     "price": "0.08",
+     "size": "10"
+    },
+    {
+     "price": "0.1",
+     "size": "510"
+    },
+    {
+     "price": "0.11",
+     "size": "10"
+    },
+    {
+     "price": "0.12",
+     "size": "3275.52"
+    },
+    {
+     "price": "0.13",
+     "size": "5629.5"
+    },
+    {
+     "price": "0.14",
+     "size": "1266.71"
+    },
+    {
+     "price": "0.15",
+     "size": "509.43"
+    },
+    {
+     "price": "0.16",
+     "size": "6199.52"
+    },
+    {
+     "price": "0.17",
+     "size": "470"
+    },
+    {
+     "price": "0.18",
+     "size": "180.55"
+    },
+    {
+     "price": "0.19",
+     "size": "100"
+    },
+    {
+     "price": "0.2",
+     "size": "200"
+    },
+    {
+     "price": "0.21",
+     "size": "108.57"
+    },
+    {
+     "price": "0.22",
+     "size": "285"
+    },
+    {
+     "price": "0.23",
+     "size": "2595"
+    },
+    {
+     "price": "0.24",
+     "size": "3255.5"
+    },
+    {
+     "price": "0.25",
+     "size": "14755.54"
+    },
+    {
+     "price": "0.26",
+     "size": "8294.8"
+    },
+    {
+     "price": "0.27",
+     "size": "14587.63"
+    },
+    {
+     "price": "0.28",
+     "size": "2449.43"
+    }
+   ],
+   "asks": [
+    {
+     "price": "0.99",
+     "size": "3203.02"
+    },
+    {
+     "price": "0.98",
+     "size": "4180"
+    },
+    {
+     "price": "0.97",
+     "size": "10.53"
+    },
+    {
+     "price": "0.96",
+     "size": "1160"
+    },
+    {
+     "price": "0.93",
+     "size": "1370"
+    },
+    {
+     "price": "0.92",
+     "size": "5.44"
+    },
+    {
+     "price": "0.88",
+     "size": "893.34"
+    },
+    {
+     "price": "0.83",
+     "size": "170"
+    },
+    {
+     "price": "0.82",
+     "size": "5.37"
+    },
+    {
+     "price": "0.77",
+     "size": "120"
+    },
+    {
+     "price": "0.7",
+     "size": "582.6"
+    },
+    {
+     "price": "0.69",
+     "size": "167.78"
+    },
+    {
+     "price": "0.68",
+     "size": "2583.13"
+    },
+    {
+     "price": "0.62",
+     "size": "466.68"
+    },
+    {
+     "price": "0.61",
+     "size": "230.03"
+    },
+    {
+     "price": "0.6",
+     "size": "2479.8"
+    },
+    {
+     "price": "0.59",
+     "size": "2279"
+    },
+    {
+     "price": "0.42",
+     "size": "600"
+    },
+    {
+     "price": "0.41",
+     "size": "501"
+    },
+    {
+     "price": "0.4",
+     "size": "2500"
+    },
+    {
+     "price": "0.39",
+     "size": "125"
+    },
+    {
+     "price": "0.38",
+     "size": "100"
+    },
+    {
+     "price": "0.37",
+     "size": "1250"
+    },
+    {
+     "price": "0.36",
+     "size": "80"
+    },
+    {
+     "price": "0.35",
+     "size": "1250"
+    },
+    {
+     "price": "0.34",
+     "size": "1427.86"
+    },
+    {
+     "price": "0.33",
+     "size": "1722.22"
+    },
+    {
+     "price": "0.32",
+     "size": "7533.56"
+    },
+    {
+     "price": "0.31",
+     "size": "27425.28"
+    },
+    {
+     "price": "0.3",
+     "size": "28120.31"
+    },
+    {
+     "price": "0.29",
+     "size": "24856.87"
+    }
+   ]
+  },
+  {
+   "asset_id": "63326718344904706121419664768810088817313706779896653496223148918919292664632",
+   "timestamp": "1792268527718",
+   "bids": [
+    {
+     "price": "0.01",
+     "size": "12177"
+    },
+    {
+     "price": "0.02",
+     "size": "8979.93"
+    },
+    {
+     "price": "0.03",
+     "size": "1600"
+    },
+    {
+     "price": "0.04",
+     "size": "3480"
+    },
+    {
+     "price": "0.05",
+     "size": "7.25"
+    },
+    {
+     "price": "0.06",
+     "size": "2030"
+    },
+    {
+     "price": "0.07",
+     "size": "4110"
+    },
+    {
+     "price": "0.08",
+     "size": "72.5"
+    },
+    {
+     "price": "0.09",
+     "size": "10"
+    },
+    {
+     "price": "0.1",
+     "size": "10"
+    },
+    {
+     "price": "0.11",
+     "size": "9330.9"
+    },
+    {
+     "price": "0.12",
+     "size": "2440"
+    },
+    {
+     "price": "0.13",
+     "size": "1364.15"
+    },
+    {
+     "price": "0.14",
+     "size": "7655.99"
+    },
+    {
+     "price": "0.15",
+     "size": "3716"
+    },
+    {
+     "price": "0.16",
+     "size": "100"
+    },
+    {
+     "price": "0.17",
+     "size": "12415"
+    },
+    {
+     "price": "0.18",
+     "size": "3038"
+    },
+    {
+     "price": "0.19",
+     "size": "3413"
+    },
+    {
+     "price": "0.2",
+     "size": "3232"
+    },
+    {
+     "price": "0.21",
+     "size": "7967.29"
+    },
+    {
+     "price": "0.22",
+     "size": "21781.31"
+    },
+    {
+     "price": "0.23",
+     "size": "20574.89"
+    },
+    {
+     "price": "0.24",
+     "size": "31260.43"
+    }
+   ],
+   "asks": [
+    {
+     "price": "0.99",
+     "size": "12188.57"
+    },
+    {
+     "price": "0.98",
+     "size": "8977.72"
+    },
+    {
+     "price": "0.97",
+     "size": "1600"
+    },
+    {
+     "price": "0.96",
+     "size": "3485.62"
+    },
+    {
+     "price": "0.93",
+     "size": "4110"
+    },
+    {
+     "price": "0.92",
+     "size": "5.01"
+    },
+    {
+     "price": "0.91",
+     "size": "3716"
+    },
+    {
+     "price": "0.88",
+     "size": "2430"
+    },
+    {
+     "price": "0.83",
+     "size": "510"
+    },
+    {
+     "price": "0.82",
+     "size": "5.69"
+    },
+    {
+     "price": "0.77",
+     "size": "360"
+    },
+    {
+     "price": "0.7",
+     "size": "762.6"
+    },
+    {
+     "price": "0.69",
+     "size": "167.78"
+    },
+    {
+     "price": "0.68",
+     "size": "1658.56"
+    },
+    {
+     "price": "0.67",
+     "size": "896.55"
+    },
+    {
+     "price": "0.65",
+     "size": "506.68"
+    },
+    {
+     "price": "0.64",
+     "size": "173.37"
+    },
+    {
+     "price": "0.61",
+     "size": "210"
+    },
+    {
+     "price": "0.59",
+     "size": "2419.31"
+    },
+    {
+     "price": "0.56",
+     "size": "2122"
+    },
+    {
+     "price": "0.55",
+     "size": "4000"
+    },
+    {
+     "price": "0.5",
+     "size": "5"
+    },
+    {
+     "price": "0.38",
+     "size": "501"
+    },
+    {
+     "price": "0.37",
+     "size": "501"
+    },
+    {
+     "price": "0.35",
+     "size": "225"
+    },
+    {
+     "price": "0.34",
+     "size": "1287.86"
+    },
+    {
+     "price": "0.33",
+     "size": "80"
+    },
+    {
+     "price": "0.31",
+     "size": "831"
+    },
+    {
+     "price": "0.3",
+     "size": "865"
+    },
+    {
+     "price": "0.29",
+     "size": "4330"
+    },
+    {
+     "price": "0.28",
+     "size": "14793.29"
+    },
+    {
+     "price": "0.27",
+     "size": "16906.2"
+    },
+    {
+     "price": "0.26",
+     "size": "32323.01"
+    },
+    {
+     "price": "0.25",
+     "size": "486.03"
+    }
+   ]
+  },
+  {
+   "asset_id": "4682491225119085012492818030467291546441193825446592531083465713632102318942",
+   "timestamp": "1792268488654",
+   "bids": [
+    {
+     "price": "0.01",
+     "size": "5021.69"
+    },
+    {
+     "price": "0.02",
+     "size": "6858.3"
+    },
+    {
+     "price": "0.04",
+     "size": "2320"
+    },
+    {
+     "price": "0.05",
+     "size": "8.14"
+    },
+    {
+     "price": "0.06",
+     "size": "2016"
+    },
+    {
+     "price": "0.07",
+     "size": "2750"
+    },
+    {
+     "price": "0.08",
+     "size": "135"
+    },
+    {
+     "price": "0.09",
+     "size": "11704.42"
+    },
+    {
+     "price": "0.1",
+     "size": "275"
+    },
+    {
+     "price": "0.11",
+     "size": "110"
+    },
+    {
+     "price": "0.12",
+     "size": "12203.31"
+    },
+    {
+     "price": "0.13",
+     "size": "115"
+    },
+    {
+     "price": "0.14",
+     "size": "217"
+    },
+    {
+     "price": "0.15",
+     "size": "2580"
+    },
+    {
+     "price": "0.16",
+     "size": "4534.56"
+    },
+    {
+     "price": "0.17",
+     "size": "15588.77"
+    },
+    {
+     "price": "0.18",
+     "size": "11645.8"
+    },
+    {
+     "price": "0.19",
+     "size": "10359.36"
+    },
+    {
+     "price": "0.2",
+     "size": "19287.44"
+    }
+   ],
+   "asks": [
+    {
+     "price": "0.99",
+     "size": "5186.41"
+    },
+    {
+     "price": "0.98",
+     "size": "6360.76"
+    },
+    {
+     "price": "0.96",
+     "size": "2320"
+    },
+    {
+     "price": "0.95",
+     "size": "10.9"
+    },
+    {
+     "price": "0.93",
+     "size": "2740"
+    },
+    {
+     "price": "0.88",
+     "size": "1620"
+    },
+    {
+     "price": "0.83",
+     "size": "340"
+    },
+    {
+     "price": "0.82",
+     "size": "5.92"
+    },
+    {
+     "price": "0.77",
+     "size": "240"
+    },
+    {
+     "price": "0.7",
+     "size": "180"
+    },
+    {
+     "price": "0.68",
+     "size": "1658.56"
+    },
+    {
+     "price": "0.67",
+     "size": "896.55"
+    },
+    {
+     "price": "0.65",
+     "size": "570.83"
+    },
+    {
+     "price": "0.61",
+     "size": "140"
+    },
+    {
+     "price": "0.58",
+     "size": "3750"
+    },
+    {
+     "price": "0.57",
+     "size": "557.56"
+    },
+    {
+     "price": "0.56",
+     "size": "2254.36"
+    },
+    {
+     "price": "0.55",
+     "size": "3750"
+    },
+    {
+     "price": "0.54",
+     "size": "2030"
+    },
+    {
+     "price": "0.52",
+     "size": "3750"
+    },
+    {
+     "price": "0.5",
+     "size": "125"
+    },
+    {
+     "price": "0.49",
+     "size": "3750"
+    },
+    {
+     "price": "0.46",
+     "size": "3750"
+    },
+    {
+     "price": "0.43",
+     "size": "3750"
+    },
+    {
+     "price": "0.4",
+     "size": "3750"
+    },
+    {
+     "price": "0.37",
+     "size": "3750"
+    },
+    {
+     "price": "0.35",
+     "size": "600"
+    },
+    {
+     "price": "0.34",
+     "size": "5538.86"
+    },
+    {
+     "price": "0.32",
+     "size": "6250"
+    },
+    {
+     "price": "0.31",
+     "size": "3386"
+    },
+    {
+     "price": "0.3",
+     "size": "3361"
+    },
+    {
+     "price": "0.29",
+     "size": "3261"
+    },
+    {
+     "price": "0.28",
+     "size": "3341"
+    },
+    {
+     "price": "0.27",
+     "size": "4511"
+    },
+    {
+     "price": "0.26",
+     "size": "924"
+    },
+    {
+     "price": "0.25",
+     "size": "2190.99"
+    },
+    {
+     "price": "0.24",
+     "size": "4090.1"
+    },
+    {
+     "price": "0.23",
+     "size": "29735.12"
+    },
+    {
+     "price": "0.22",
+     "size": "35307.21"
+    },
+    {
+     "price": "0.21",
+     "size": "14212.7"
+    }
+   ]
+  },
+  {
+   "asset_id": "87543728849783402804862379138745164456133724525392980552289346780179472815928",
+   "timestamp": "1792268505113",
+   "bids": [
+    {
+     "price": "0.01",
+     "size": "4720.43"
+    },
+    {
+     "price": "0.02",
+     "size": "5045"
+    },
+    {
+     "price": "0.03",
+     "size": "107.68"
+    },
+    {
+     "price": "0.04",
+     "size": "2320"
+    },
+    {
+     "price": "0.07",
+     "size": "2740"
+    },
+    {
+     "price": "0.08",
+     "size": "7.19"
+    },
+    {
+     "price": "0.1",
+     "size": "110"
+    },
+    {
+     "price": "0.12",
+     "size": "1620"
+    },
+    {
+     "price": "0.13",
+     "size": "10"
+    },
+    {
+     "price": "0.16",
+     "size": "10"
+    },
+    {
+     "price": "0.17",
+     "size": "340"
+    },
+    {
+     "price": "0.18",
+     "size": "10"
+    },
+    {
+     "price": "0.21",
+     "size": "10"
+    },
+    {
+     "price": "0.22",
+     "size": "118.21"
+    },
+    {
+     "price": "0.23",
+     "size": "2358.21"
+    },
+    {
+     "price": "0.25",
+     "size": "124.82"
+    },
+    {
+     "price": "0.26",
+     "size": "341.03"
+    },
+    {
+     "price": "0.28",
+     "size": "1771.29"
+    },
+    {
+     "price": "0.29",
+     "size": "100"
+    },
+    {
+     "price": "0.3",
+     "size": "180"
+    },
+    {
+     "price": "0.31",
+     "size": "1019"
+    },
+    {
+     "price": "0.39",
+     "size": "4000"
+    },
+    {
+     "price": "0.41",
+     "size": "100"
+    },
+    {
+     "price": "0.42",
+     "size": "2500"
+    },
+    {
+     "price": "0.43",
+     "size": "104"
+    },
+    {
+     "price": "0.44",
+     "size": "2619"
+    },
+    {
+     "price": "0.45",
+     "size": "561"
+    },
+    {
+     "price": "0.46",
+     "size": "1957"
+    },
+    {
+     "price": "0.47",
+     "size": "7598.13"
+    },
+    {
+     "price": "0.48",
+     "size": "9653"
+    },
+    {
+     "price": "0.49",
+     "size": "10708.13"
+    },
+    {
+     "price": "0.5",
+     "size": "6343.46"
+    }
+   ],
+   "asks": [
+    {
+     "price": "0.99",
+     "size": "4725.28"
+    },
+    {
+     "price": "0.98",
+     "size": "5045"
+    },
+    {
+     "price": "0.97",
+     "size": "107.65"
+    },
+    {
+     "price": "0.96",
+     "size": "2320"
+    },
+    {
+     "price": "0.93",
+     "size": "2740"
+    },
+    {
+     "price": "0.92",
+     "size": "7.22"
+    },
+    {
+     "price": "0.88",
+     "size": "1620"
+    },
+    {
+     "price": "0.83",
+     "size": "340"
+    },
+    {
+     "price": "0.8",
+     "size": "130.03"
+    },
+    {
+     "price": "0.79",
+     "size": "351.86"
+    },
+    {
+     "price": "0.78",
+     "size": "1878.64"
+    },
+    {
+     "price": "0.77",
+     "size": "240"
+    },
+    {
+     "price": "0.76",
+     "size": "2099"
+    },
+    {
+     "price": "0.75",
+     "size": "479.49"
+    },
+    {
+     "price": "0.74",
+     "size": "782.75"
+    },
+    {
+     "price": "0.73",
+     "size": "1179.42"
+    },
+    {
+     "price": "0.7",
+     "size": "180"
+    },
+    {
+     "price": "0.65",
+     "size": "28.58"
+    },
+    {
+     "price": "0.63",
+     "size": "4000"
+    },
+    {
+     "price": "0.62",
+     "size": "375"
+    },
+    {
+     "price": "0.6",
+     "size": "2600"
+    },
+    {
+     "price": "0.58",
+     "size": "2582"
+    },
+    {
+     "price": "0.57",
+     "size": "506"
+    },
+    {
+     "price": "0.56",
+     "size": "5464.09"
+    },
+    {
+     "price": "0.55",
+     "size": "3797.56"
+    },
+    {
+     "price": "0.54",
+     "size": "11243.42"
+    },
+    {
+     "price": "0.53",
+     "size": "9498.17"
+    },
+    {
+     "price": "0.52",
+     "size": "9514.51"
+    },
+    {
+     "price": "0.51",
+     "size": "105"
+    }
+   ]
+  },
+  {
+   "asset_id": "94618244623127410773877417877774156292362734128639813973328220120730962340517",
+   "timestamp": "1792268525964",
+   "bids": [
+    {
+     "price": "0.01",
+     "size": "2985.11"
+    },
+    {
+     "price": "0.02",
+     "size": "4188.14"
+    },
+    {
+     "price": "0.04",
+     "size": "1660"
+    },
+    {
+     "price": "0.05",
+     "size": "17.92"
+    },
+    {
+     "price": "0.06",
+     "size": "2012"
+    },
+    {
+     "price": "0.07",
+     "size": "1370"
+    },
+    {
+     "price": "0.08",
+     "size": "135"
+    },
+    {
+     "price": "0.09",
+     "size": "10"
+    },
+    {
+     "price": "0.1",
+     "size": "10273.97"
+    },
+    {
+     "price": "0.11",
+     "size": "552.27"
+    },
+    {
+     "price": "0.12",
+     "size": "11173.98"
+    },
+    {
+     "price": "0.14",
+     "size": "351.42"
+    },
+    {
+     "price": "0.16",
+     "size": "2053.5"
+    },
+    {
+     "price": "0.17",
+     "size": "4078.56"
+    },
+    {
+     "price": "0.18",
+     "size": "14085.41"
+    },
+    {
+     "price": "0.19",
+     "size": "14998.2"
+    },
+    {
+     "price": "0.2",
+     "size": "11134.19"
+    },
+    {
+     "price": "0.21",
+     "size": "3066.11"
+    }
+   ],
+   "asks": [
+    {
+     "price": "0.99",
+     "size": "2985.63"
+    },
+    {
+     "price": "0.98",
+     "size": "4190.83"
+    },
+    {
+     "price": "0.96",
+     "size": "1160"
+    },
+    {
+     "price": "0.95",
+     "size": "11.03"
+    },
+    {
+     "price": "0.93",
+     "size": "1370"
+    },
+    {
+     "price": "0.88",
+     "size": "810"
+    },
+    {
+     "price": "0.83",
+     "size": "170"
+    },
+    {
+     "price": "0.82",
+     "size": "5.92"
+    },
+    {
+     "price": "0.77",
+     "size": "120"
+    },
+    {
+     "price": "0.7",
+     "size": "90"
+    },
+    {
+     "price": "0.69",
+     "size": "954.39"
+    },
+    {
+     "price": "0.68",
+     "size": "1658.56"
+    },
+    {
+     "price": "0.65",
+     "size": "570.83"
+    },
+    {
+     "price": "0.61",
+     "size": "70"
+    },
+    {
+     "price": "0.59",
+     "size": "432.53"
+    },
+    {
+     "price": "0.58",
+     "size": "148.6"
+    },
+    {
+     "price": "0.57",
+     "size": "2306.79"
+    },
+    {
+     "price": "0.56",
+     "size": "2128"
+    },
+    {
+     "price": "0.5",
+     "size": "65"
+    },
+    {
+     "price": "0.36",
+     "size": "600"
+    },
+    {
+     "price": "0.35",
+     "size": "600"
+    },
+    {
+     "price": "0.34",
+     "size": "1287.86"
+    },
+    {
+     "price": "0.33",
+     "size": "2500"
+    },
+    {
+     "price": "0.32",
+     "size": "125"
+    },
+    {
+     "price": "0.31",
+     "size": "100"
+    },
+    {
+     "price": "0.29",
+     "size": "80"
+    },
+    {
+     "price": "0.28",
+     "size": "1250"
+    },
+    {
+     "price": "0.27",
+     "size": "708"
+    },
+    {
+     "price": "0.26",
+     "size": "2767.9"
+    },
+    {
+     "price": "0.25",
+     "size": "9788.55"
+    },
+    {
+     "price": "0.24",
+     "size": "36082.03"
+    },
+    {
+     "price": "0.23",
+     "size": "25544.44"
+    },
+    {
+     "price": "0.22",
+     "size": "11096.28"
+    }
+   ]
+  },
+  {
+   "asset_id": "61540076148945924241064773774056902038463380784846449429575456262974428981899",
+   "timestamp": "1792268508395",
+   "bids": [
+    {
+     "price": "0.01",
+     "size": "2706.51"
+    },
+    {
+     "price": "0.02",
+     "size": "2670"
+    },
+    {
+     "price": "0.03",
+     "size": "11.42"
+    },
+    {
+     "price": "0.04",
+     "size": "1160"
+    },
+    {
+     "price": "0.05",
+     "size": "2402"
+    },
+    {
+     "price": "0.07",
+     "size": "1380"
+    },
+    {
+     "price": "0.08",
+     "size": "5.27"
+    },
+    {
+     "price": "0.09",
+     "size": "10"
+    },
+    {
+     "price": "0.1",
+     "size": "10"
+    },
+    {
+     "price": "0.12",
+     "size": "820"
+    },
+    {
+     "price": "0.14",
+     "size": "110"
+    },
+    {
+     "price": "0.2",
+     "size": "475"
+    },
+    {
+     "price": "0.22",
+     "size": "80"
+    },
+    {
+     "price": "0.23",
+     "size": "1080"
+    },
+    {
+     "price": "0.24",
+     "size": "1015.99"
+    },
+    {
+     "price": "0.25",
+     "size": "442"
+    },
+    {
+     "price": "0.26",
+     "size": "2644"
+    },
+    {
+     "price": "0.27",
+     "size": "16237.34"
+    },
+    {
+     "price": "0.28",
+     "size": "5887.93"
+    },
+    {
+     "price": "0.29",
+     "size": "5503.91"
+    },
+    {
+     "price": "0.3",
+     "size": "228.3"
+    }
+   ],
+   "asks": [
+    {
+     "price": "0.99",
+     "size": "2701.79"
+    },
+    {
+     "price": "0.98",
+     "size": "2670"
+    },
+    {
+     "price": "0.97",
+     "size": "6.32"
+    },
+    {
+     "price": "0.96",
+     "size": "1160"
+    },
+    {
+     "price": "0.93",
+     "size": "1370"
+    },
+    {
+     "price": "0.92",
+     "size": "7.78"
+    },
+    {
+     "price": "0.88",
+     "size": "810"
+    },
+    {
+     "price": "0.83",
+     "size": "170"
+    },
+    {
+     "price": "0.77",
+     "size": "120"
+    },
+    {
+     "price": "0.72",
+     "size": "263.89"
+    },
+    {
+     "price": "0.71",
+     "size": "89.67"
+    },
+    {
+     "price": "0.7",
+     "size": "1467.66"
+    },
+    {
+     "price": "0.65",
+     "size": "253.34"
+    },
+    {
+     "price": "0.64",
+     "size": "86.68"
+    },
+    {
+     "price": "0.63",
+     "size": "2074"
+    },
+    {
+     "price": "0.62",
+     "size": "1305.16"
+    },
+    {
+     "price": "0.61",
+     "size": "70"
+    },
+    {
+     "price": "0.42",
+     "size": "2500"
+    },
+    {
+     "price": "0.4",
+     "size": "100"
+    },
+    {
+     "price": "0.39",
+     "size": "1250"
+    },
+    {
+     "price": "0.38",
+     "size": "80"
+    },
+    {
+     "price": "0.37",
+     "size": "1250"
+    },
+    {
+     "price": "0.36",
+     "size": "665"
+    },
+    {
+     "price": "0.35",
+     "size": "1728"
+    },
+    {
+     "price": "0.34",
+     "size": "2775"
+    },
+    {
+     "price": "0.33",
+     "size": "12746.14"
+    },
+    {
+     "price": "0.32",
+     "size": "14715.95"
+    },
+    {
+     "price": "0.31",
+     "size": "4720.08"
+    }
+   ]
+  },
+  {
+   "asset_id": "106280848413727296082413421918953134215910709474048018975601287470118855081493",
+   "timestamp": "1792268528102",
+   "bids": [
+    {
+     "price": "0.01",
+     "size": "2222.58"
+    },
+    {
+     "price": "0.02",
+     "size": "2675"
+    },
+    {
+     "price": "0.03",
+     "size": "10.04"
+    },
+    {
+     "price": "0.04",
+     "size": "1160"
+    },
+    {
+     "price": "0.07",
+     "size": "1380"
+    },
+    {
+     "price": "0.08",
+     "size": "6.03"
+    },
+    {
+     "price": "0.09",
+     "size": "10"
+    },
+    {
+     "price": "0.1",
+     "size": "10"
+    },
+    {
+     "price": "0.12",
+     "size": "820"
+    },
+    {
+     "price": "0.13",
+     "size": "1013"
+    },
+    {
+     "price": "0.14",
+     "size": "10"
+    },
+    {
+     "price": "0.15",
+     "size": "3421.3"
+    },
+    {
+     "price": "0.17",
+     "size": "463.57"
+    },
+    {
+     "price": "0.18",
+     "size": "3247.94"
+    },
+    {
+     "price": "0.22",
+     "size": "10"
+    },
+    {
+     "price": "0.23",
+     "size": "100"
+    },
+    {
+     "price": "0.24",
+     "size": "10"
+    },
+    {
+     "price": "0.25",
+     "size": "90"
+    },
+    {
+     "price": "0.27",
+     "size": "670"
+    },
+    {
+     "price": "0.28",
+     "size": "655"
+    },
+    {
+     "price": "0.29",
+     "size": "103"
+    },
+    {
+     "price": "0.3",
+     "size": "316"
+    },
+    {
+     "price": "0.31",
+     "size": "10504.72"
+    },
+    {
+     "price": "0.32",
+     "size": "9209.91"
+    },
+    {
+     "price": "0.33",
+     "size": "12783.49"
+    }
+   ],
+   "asks": [
+    {
+     "price": "0.99",
+     "size": "2220.09"
+    },
+    {
+     "price": "0.98",
+     "size": "2675"
+    },
+    {
+     "price": "0.97",
+     "size": "6.82"
+    },
+    {
+     "price": "0.96",
+     "size": "1160"
+    },
+    {
+     "price": "0.93",
+     "size": "1370"
+    },
+    {
+     "price": "0.92",
+     "size": "8.18"
+    },
+    {
+     "price": "0.88",
+     "size": "810"
+    },
+    {
+     "price": "0.83",
+     "size": "170"
+    },
+    {
+     "price": "0.77",
+     "size": "120"
+    },
+    {
+     "price": "0.73",
+     "size": "1530.74"
+    },
+    {
+     "price": "0.7",
+     "size": "422.98"
+    },
+    {
+     "price": "0.67",
+     "size": "268.69"
+    },
+    {
+     "price": "0.66",
+     "size": "91.78"
+    },
+    {
+     "price": "0.64",
+     "size": "1377.66"
+    },
+    {
+     "price": "0.63",
+     "size": "2082"
+    },
+    {
+     "price": "0.61",
+     "size": "70"
+    },
+    {
+     "price": "0.56",
+     "size": "100"
+    },
+    {
+     "price": "0.52",
+     "size": "10"
+    },
+    {
+     "price": "0.47",
+     "size": "1260"
+    },
+    {
+     "price": "0.45",
+     "size": "10"
+    },
+    {
+     "price": "0.44",
+     "size": "760"
+    },
+    {
+     "price": "0.42",
+     "size": "610"
+    },
+    {
+     "price": "0.4",
+     "size": "1255"
+    },
+    {
+     "price": "0.39",
+     "size": "1205"
+    },
+    {
+     "price": "0.38",
+     "size": "17749.09"
+    },
+    {
+     "price": "0.37",
+     "size": "3198.04"
+    },
+    {
+     "price": "0.36",
+     "size": "1541.29"
+    },
+    {
+     "price": "0.35",
+     "size": "1727.69"
+    },
+    {
+     "price": "0.34",
+     "size": "119.11"
+    }
+   ]
+  },
+  {
+   "asset_id": "111683203145425207997639515788190418863098832567251452615876519537416891703399",
+   "timestamp": "1792268504194",
+   "bids": [
+    {
+     "price": "0.01",
+     "size": "2707.12"
+    },
+    {
+     "price": "0.02",
+     "size": "2675"
+    },
+    {
+     "price": "0.03",
+     "size": "7.33"
+    },
+    {
+     "price": "0.04",
+     "size": "1160"
+    },
+    {
+     "price": "0.07",
+     "size": "1370"
+    },
+    {
+     "price": "0.08",
+     "size": "7.36"
+    },
+    {
+     "price": "0.1",
+     "size": "100"
+    },
+    {
+     "price": "0.12",
+     "size": "810"
+    },
+    {
+     "price": "0.17",
+     "size": "170"
+    },
+    {
+     "price": "0.21",
+     "size": "351.86"
+    },
+    {
+     "price": "0.22",
+     "size": "118.21"
+    },
+    {
+     "price": "0.23",
+     "size": "1916.95"
+    },
+    {
+     "price": "0.28",
+     "size": "428.12"
+    },
+    {
+     "price": "0.29",
+     "size": "1710.2"
+    },
+    {
+     "price": "0.3",
+     "size": "90"
+    },
+    {
+     "price": "0.31",
+     "size": "1112"
+    },
+    {
+     "price": "0.37",
+     "size": "10"
+    },
+    {
+     "price": "0.42",
+     "size": "10"
+    },
+    {
+     "price": "0.43",
+     "size": "4475"
+    },
+    {
+     "price": "0.44",
+     "size": "10"
+    },
+    {
+     "price": "0.45",
+     "size": "90"
+    },
+    {
+     "price": "0.46",
+     "size": "2500"
+    },
+    {
+     "price": "0.47",
+     "size": "2378.51"
+    },
+    {
+     "price": "0.48",
+     "size": "3028"
+    },
+    {
+     "price": "0.49",
+     "size": "5216.18"
+    },
+    {
+     "price": "0.5",
+     "size": "3452"
+    },
+    {
+     "price": "0.51",
+     "size": "4413.81"
+    },
+    {
+     "price": "0.52",
+     "size": "14420.59"
+    },
+    {
+     "price": "0.53",
+     "size": "9357.67"
+    }
+   ],
+   "asks": [
+    {
+     "price": "0.99",
+     "size": "2712.85"
+    },
+    {
+     "price": "0.98",
+     "size": "2675"
+    },
+    {
+     "price": "0.97",
+     "size": "8.1"
+    },
+    {
+     "price": "0.96",
+     "size": "1160"
+    },
+    {
+     "price": "0.93",
+     "size": "1370"
+    },
+    {
+     "price": "0.92",
+     "size": "6.98"
+    },
+    {
+     "price": "0.9",
+     "size": "10"
+    },
+    {
+     "price": "0.88",
+     "size": "810"
+    },
+    {
+     "price": "0.87",
+     "size": "10"
+    },
+    {
+     "price": "0.84",
+     "size": "10"
+    },
+    {
+     "price": "0.83",
+     "size": "170"
+    },
+    {
+     "price": "0.82",
+     "size": "10"
+    },
+    {
+     "price": "0.81",
+     "size": "2175.26"
+    },
+    {
+     "price": "0.79",
+     "size": "485.69"
+    },
+    {
+     "price": "0.77",
+     "size": "505.52"
+    },
+    {
+     "price": "0.76",
+     "size": "230.03"
+    },
+    {
+     "price": "0.75",
+     "size": "2014"
+    },
+    {
+     "price": "0.74",
+     "size": "1907.53"
+    },
+    {
+     "price": "0.72",
+     "size": "10"
+    },
+    {
+     "price": "0.7",
+     "size": "90"
+    },
+    {
+     "price": "0.67",
+     "size": "4010"
+    },
+    {
+     "price": "0.65",
+     "size": "38.58"
+    },
+    {
+     "price": "0.64",
+     "size": "2885"
+    },
+    {
+     "price": "0.62",
+     "size": "2110"
+    },
+    {
+     "price": "0.6",
+     "size": "1625"
+    },
+    {
+     "price": "0.59",
+     "size": "2611"
+    },
+    {
+     "price": "0.58",
+     "size": "2330.53"
+    },
+    {
+     "price": "0.57",
+     "size": "10852.11"
+    },
+    {
+     "price": "0.56",
+     "size": "19726.13"
+    },
+    {
+     "price": "0.55",
+     "size": "6157.89"
+    },
+    {
+     "price": "0.54",
+     "size": "9103.69"
+    }
+   ]
+  }
+ ],
+ "kalshi": {
+  "events": [
+   {
+    "event_ticker": "KXMLSGAME-26OCT17MINSTL",
+    "title": "Minnesota vs Saint Louis",
+    "markets": [
+     {
+      "ticker": "KXMLSGAME-26OCT17MINSTL-MIN",
+      "yes_sub_title": "Minnesota",
+      "yes_bid_dollars": "0.4000",
+      "yes_ask_dollars": "0.4100",
+      "expected_expiration_time": "2026-10-17T23:30:00Z",
+      "close_time": "2026-10-19T20:30:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT17MINSTL-STL",
+      "yes_sub_title": "Saint Louis",
+      "yes_bid_dollars": "0.3500",
+      "yes_ask_dollars": "0.3600",
+      "expected_expiration_time": "2026-10-17T23:30:00Z",
+      "close_time": "2026-10-19T20:30:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT17MINSTL-TIE",
+      "yes_sub_title": "Tie",
+      "yes_bid_dollars": "0.2400",
+      "yes_ask_dollars": "0.2500",
+      "expected_expiration_time": "2026-10-17T23:30:00Z",
+      "close_time": "2026-10-19T20:30:00Z"
+     }
+    ]
+   },
+   {
+    "event_ticker": "KXMLSGAME-26OCT17ATLMIA",
+    "title": "Atlanta vs Miami",
+    "markets": [
+     {
+      "ticker": "KXMLSGAME-26OCT17ATLMIA-ATL",
+      "yes_sub_title": "Atlanta",
+      "yes_bid_dollars": "0.2800",
+      "yes_ask_dollars": "0.2900",
+      "expected_expiration_time": "2026-10-18T02:30:00Z",
+      "close_time": "2026-10-19T23:30:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT17ATLMIA-MIA",
+      "yes_sub_title": "Miami",
+      "yes_bid_dollars": "0.5100",
+      "yes_ask_dollars": "0.5200",
+      "expected_expiration_time": "2026-10-18T02:30:00Z",
+      "close_time": "2026-10-19T23:30:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT17ATLMIA-TIE",
+      "yes_sub_title": "Tie",
+      "yes_bid_dollars": "0.2100",
+      "yes_ask_dollars": "0.2200",
+      "expected_expiration_time": "2026-10-18T02:30:00Z",
+      "close_time": "2026-10-19T23:30:00Z"
+     }
+    ]
+   },
+   {
+    "event_ticker": "KXMLSGAME-26OCT17NYCLAFC",
+    "title": "New York City vs Los Angeles F",
+    "markets": [
+     {
+      "ticker": "KXMLSGAME-26OCT17NYCLAFC-NYC",
+      "yes_sub_title": "New York City",
+      "yes_bid_dollars": "0.3400",
+      "yes_ask_dollars": "0.3500",
+      "expected_expiration_time": "2026-10-18T02:30:00Z",
+      "close_time": "2026-10-19T23:30:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT17NYCLAFC-LAFC",
+      "yes_sub_title": "Los Angeles F",
+      "yes_bid_dollars": "0.3800",
+      "yes_ask_dollars": "0.3900",
+      "expected_expiration_time": "2026-10-18T02:30:00Z",
+      "close_time": "2026-10-19T23:30:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT17NYCLAFC-TIE",
+      "yes_sub_title": "Tie",
+      "yes_bid_dollars": "0.2600",
+      "yes_ask_dollars": "0.2800",
+      "expected_expiration_time": "2026-10-18T02:30:00Z",
+      "close_time": "2026-10-19T23:30:00Z"
+     }
+    ]
+   },
+   {
+    "event_ticker": "KXMLSGAME-26OCT17NYRBTOR",
+    "title": "New York RB vs Toronto",
+    "markets": [
+     {
+      "ticker": "KXMLSGAME-26OCT17NYRBTOR-NYRB",
+      "yes_sub_title": "New York RB",
+      "yes_bid_dollars": "0.5600",
+      "yes_ask_dollars": "0.5700",
+      "expected_expiration_time": "2026-10-18T02:30:00Z",
+      "close_time": "2026-10-19T23:30:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT17NYRBTOR-TOR",
+      "yes_sub_title": "Toronto",
+      "yes_bid_dollars": "0.2200",
+      "yes_ask_dollars": "0.2300",
+      "expected_expiration_time": "2026-10-18T02:30:00Z",
+      "close_time": "2026-10-19T23:30:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT17NYRBTOR-TIE",
+      "yes_sub_title": "Tie",
+      "yes_bid_dollars": "0.2000",
+      "yes_ask_dollars": "0.2100",
+      "expected_expiration_time": "2026-10-18T02:30:00Z",
+      "close_time": "2026-10-19T23:30:00Z"
+     }
+    ]
+   },
+   {
+    "event_ticker": "KXMLSGAME-26OCT17ORLDCU",
+    "title": "Orlando vs DC United",
+    "markets": [
+     {
+      "ticker": "KXMLSGAME-26OCT17ORLDCU-ORL",
+      "yes_sub_title": "Orlando",
+      "yes_bid_dollars": "0.5800",
+      "yes_ask_dollars": "0.5900",
+      "expected_expiration_time": "2026-10-18T02:30:00Z",
+      "close_time": "2026-10-19T23:30:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT17ORLDCU-DCU",
+      "yes_sub_title": "DC United",
+      "yes_bid_dollars": "0.2000",
+      "yes_ask_dollars": "0.2100",
+      "expected_expiration_time": "2026-10-18T02:30:00Z",
+      "close_time": "2026-10-19T23:30:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT17ORLDCU-TIE",
+      "yes_sub_title": "Tie",
+      "yes_bid_dollars": "0.2000",
+      "yes_ask_dollars": "0.2100",
+      "expected_expiration_time": "2026-10-18T02:30:00Z",
+      "close_time": "2026-10-19T23:30:00Z"
+     }
+    ]
+   },
+   {
+    "event_ticker": "KXMLSGAME-26OCT17LAGSD",
+    "title": "Los Angeles G vs San Diego FC",
+    "markets": [
+     {
+      "ticker": "KXMLSGAME-26OCT17LAGSD-LAG",
+      "yes_sub_title": "Los Angeles G",
+      "yes_bid_dollars": "0.4300",
+      "yes_ask_dollars": "0.4400",
+      "expected_expiration_time": "2026-10-18T05:30:00Z",
+      "close_time": "2026-10-20T02:30:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT17LAGSD-SD",
+      "yes_sub_title": "San Diego FC",
+      "yes_bid_dollars": "0.3400",
+      "yes_ask_dollars": "0.3500",
+      "expected_expiration_time": "2026-10-18T05:30:00Z",
+      "close_time": "2026-10-20T02:30:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT17LAGSD-TIE",
+      "yes_sub_title": "Tie",
+      "yes_bid_dollars": "0.2300",
+      "yes_ask_dollars": "0.2400",
+      "expected_expiration_time": "2026-10-18T05:30:00Z",
+      "close_time": "2026-10-20T02:30:00Z"
+     }
+    ]
+   },
+   {
+    "event_ticker": "KXMLSGAME-26OCT21CINDCU",
+    "title": "Cincinnati vs DC United",
+    "markets": [
+     {
+      "ticker": "KXMLSGAME-26OCT21CINDCU-CIN",
+      "yes_sub_title": "Cincinnati",
+      "yes_bid_dollars": "0.5100",
+      "yes_ask_dollars": "0.5600",
+      "expected_expiration_time": "2026-10-22T02:00:00Z",
+      "close_time": "2026-10-23T23:00:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT21CINDCU-DCU",
+      "yes_sub_title": "DC United",
+      "yes_bid_dollars": "0.2300",
+      "yes_ask_dollars": "0.2600",
+      "expected_expiration_time": "2026-10-22T02:00:00Z",
+      "close_time": "2026-10-23T23:00:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT21CINDCU-TIE",
+      "yes_sub_title": "Tie",
+      "yes_bid_dollars": "0.1900",
+      "yes_ask_dollars": "0.2300",
+      "expected_expiration_time": "2026-10-22T02:00:00Z",
+      "close_time": "2026-10-23T23:00:00Z"
+     }
+    ]
+   },
+   {
+    "event_ticker": "KXMLSGAME-26OCT24CLBTOR",
+    "title": "Columbus vs Toronto",
+    "markets": [
+     {
+      "ticker": "KXMLSGAME-26OCT24CLBTOR-CLB",
+      "yes_sub_title": "Columbus",
+      "yes_bid_dollars": "0.5200",
+      "yes_ask_dollars": "0.5800",
+      "expected_expiration_time": "2026-10-24T22:30:00Z",
+      "close_time": "2026-10-26T19:30:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT24CLBTOR-TOR",
+      "yes_sub_title": "Toronto",
+      "yes_bid_dollars": "0.2100",
+      "yes_ask_dollars": "0.2700",
+      "expected_expiration_time": "2026-10-24T22:30:00Z",
+      "close_time": "2026-10-26T19:30:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT24CLBTOR-TIE",
+      "yes_sub_title": "Tie",
+      "yes_bid_dollars": "0.1900",
+      "yes_ask_dollars": "0.2500",
+      "expected_expiration_time": "2026-10-24T22:30:00Z",
+      "close_time": "2026-10-26T19:30:00Z"
+     }
+    ]
+   },
+   {
+    "event_ticker": "KXMLSGAME-26OCT24NYRBMIA",
+    "title": "New York RB vs Miami",
+    "markets": [
+     {
+      "ticker": "KXMLSGAME-26OCT24NYRBMIA-NYRB",
+      "yes_sub_title": "New York RB",
+      "yes_bid_dollars": "0.3400",
+      "yes_ask_dollars": "0.4200",
+      "expected_expiration_time": "2026-10-25T00:30:00Z",
+      "close_time": "2026-10-26T21:30:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT24NYRBMIA-MIA",
+      "yes_sub_title": "Miami",
+      "yes_bid_dollars": "0.2400",
+      "yes_ask_dollars": "0.5800",
+      "expected_expiration_time": "2026-10-25T00:30:00Z",
+      "close_time": "2026-10-26T21:30:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT24NYRBMIA-TIE",
+      "yes_sub_title": "Tie",
+      "yes_bid_dollars": "0.1800",
+      "yes_ask_dollars": "0.2600",
+      "expected_expiration_time": "2026-10-25T00:30:00Z",
+      "close_time": "2026-10-26T21:30:00Z"
+     }
+    ]
+   },
+   {
+    "event_ticker": "KXMLSGAME-26OCT24ATLCHI",
+    "title": "Atlanta vs Chicago Fire",
+    "markets": [
+     {
+      "ticker": "KXMLSGAME-26OCT24ATLCHI-ATL",
+      "yes_sub_title": "Atlanta",
+      "yes_bid_dollars": "0.3300",
+      "yes_ask_dollars": "0.4100",
+      "expected_expiration_time": "2026-10-25T02:30:00Z",
+      "close_time": "2026-10-26T23:30:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT24ATLCHI-CHI",
+      "yes_sub_title": "Chicago Fire",
+      "yes_bid_dollars": "0.3400",
+      "yes_ask_dollars": "0.4200",
+      "expected_expiration_time": "2026-10-25T02:30:00Z",
+      "close_time": "2026-10-26T23:30:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT24ATLCHI-TIE",
+      "yes_sub_title": "Tie",
+      "yes_bid_dollars": "0.2100",
+      "yes_ask_dollars": "0.2900",
+      "expected_expiration_time": "2026-10-25T02:30:00Z",
+      "close_time": "2026-10-26T23:30:00Z"
+     }
+    ]
+   },
+   {
+    "event_ticker": "KXMLSGAME-26OCT24ORLNYC",
+    "title": "Orlando vs New York City",
+    "markets": [
+     {
+      "ticker": "KXMLSGAME-26OCT24ORLNYC-ORL",
+      "yes_sub_title": "Orlando",
+      "yes_bid_dollars": "0.4600",
+      "yes_ask_dollars": "0.5700",
+      "expected_expiration_time": "2026-10-25T02:30:00Z",
+      "close_time": "2026-10-26T23:30:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT24ORLNYC-NYC",
+      "yes_sub_title": "New York City",
+      "yes_bid_dollars": "0.0700",
+      "yes_ask_dollars": "0.3800",
+      "expected_expiration_time": "2026-10-25T02:30:00Z",
+      "close_time": "2026-10-26T23:30:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT24ORLNYC-TIE",
+      "yes_sub_title": "Tie",
+      "yes_bid_dollars": "0.1900",
+      "yes_ask_dollars": "0.2700",
+      "expected_expiration_time": "2026-10-25T02:30:00Z",
+      "close_time": "2026-10-26T23:30:00Z"
+     }
+    ]
+   },
+   {
+    "event_ticker": "KXMLSGAME-26OCT24HOUMIN",
+    "title": "Houston vs Minnesota",
+    "markets": [
+     {
+      "ticker": "KXMLSGAME-26OCT24HOUMIN-HOU",
+      "yes_sub_title": "Houston",
+      "yes_bid_dollars": "0.5000",
+      "yes_ask_dollars": "0.5800",
+      "expected_expiration_time": "2026-10-25T03:30:00Z",
+      "close_time": "2026-10-27T00:30:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT24HOUMIN-MIN",
+      "yes_sub_title": "Minnesota",
+      "yes_bid_dollars": "0.0600",
+      "yes_ask_dollars": "0.2600",
+      "expected_expiration_time": "2026-10-25T03:30:00Z",
+      "close_time": "2026-10-27T00:30:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT24HOUMIN-TIE",
+      "yes_sub_title": "Tie",
+      "yes_bid_dollars": "0.2000",
+      "yes_ask_dollars": "0.2800",
+      "expected_expiration_time": "2026-10-25T03:30:00Z",
+      "close_time": "2026-10-27T00:30:00Z"
+     }
+    ]
+   },
+   {
+    "event_ticker": "KXMLSGAME-26OCT24SDSEA",
+    "title": "San Diego FC vs Seattle",
+    "markets": [
+     {
+      "ticker": "KXMLSGAME-26OCT24SDSEA-SD",
+      "yes_sub_title": "San Diego FC",
+      "yes_bid_dollars": "0.4300",
+      "yes_ask_dollars": "0.5100",
+      "expected_expiration_time": "2026-10-25T05:30:00Z",
+      "close_time": "2026-10-27T02:30:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT24SDSEA-SEA",
+      "yes_sub_title": "Seattle",
+      "yes_bid_dollars": "0.2500",
+      "yes_ask_dollars": "0.5700",
+      "expected_expiration_time": "2026-10-25T05:30:00Z",
+      "close_time": "2026-10-27T02:30:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT24SDSEA-TIE",
+      "yes_sub_title": "Tie",
+      "yes_bid_dollars": "0.2000",
+      "yes_ask_dollars": "0.2800",
+      "expected_expiration_time": "2026-10-25T05:30:00Z",
+      "close_time": "2026-10-27T02:30:00Z"
+     }
+    ]
+   },
+   {
+    "event_ticker": "KXMLSGAME-26OCT28NENYRB",
+    "title": "New England vs New York RB",
+    "markets": [
+     {
+      "ticker": "KXMLSGAME-26OCT28NENYRB-NE",
+      "yes_sub_title": "New England",
+      "yes_bid_dollars": "0.5600",
+      "yes_ask_dollars": "0.6200",
+      "expected_expiration_time": "2026-10-29T02:30:00Z",
+      "close_time": "2026-10-30T23:30:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT28NENYRB-NYRB",
+      "yes_sub_title": "New York RB",
+      "yes_bid_dollars": "0.1500",
+      "yes_ask_dollars": "0.2300",
+      "expected_expiration_time": "2026-10-29T02:30:00Z",
+      "close_time": "2026-10-30T23:30:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT28NENYRB-TIE",
+      "yes_sub_title": "Tie",
+      "yes_bid_dollars": "0.1700",
+      "yes_ask_dollars": "0.2500",
+      "expected_expiration_time": "2026-10-29T02:30:00Z",
+      "close_time": "2026-10-30T23:30:00Z"
+     }
+    ]
+   },
+   {
+    "event_ticker": "KXMLSGAME-26OCT28NYCATL",
+    "title": "New York City vs Atlanta",
+    "markets": [
+     {
+      "ticker": "KXMLSGAME-26OCT28NYCATL-NYC",
+      "yes_sub_title": "New York City",
+      "yes_bid_dollars": "0.5500",
+      "yes_ask_dollars": "0.6200",
+      "expected_expiration_time": "2026-10-29T02:30:00Z",
+      "close_time": "2026-10-30T23:30:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT28NYCATL-ATL",
+      "yes_sub_title": "Atlanta",
+      "yes_bid_dollars": "0.1500",
+      "yes_ask_dollars": "0.2300",
+      "expected_expiration_time": "2026-10-29T02:30:00Z",
+      "close_time": "2026-10-30T23:30:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT28NYCATL-TIE",
+      "yes_sub_title": "Tie",
+      "yes_bid_dollars": "0.1900",
+      "yes_ask_dollars": "0.2700",
+      "expected_expiration_time": "2026-10-29T02:30:00Z",
+      "close_time": "2026-10-30T23:30:00Z"
+     }
+    ]
+   },
+   {
+    "event_ticker": "KXMLSGAME-26OCT28TORDCU",
+    "title": "Toronto vs DC United",
+    "markets": [
+     {
+      "ticker": "KXMLSGAME-26OCT28TORDCU-TOR",
+      "yes_sub_title": "Toronto",
+      "yes_bid_dollars": "0.4800",
+      "yes_ask_dollars": "0.5600",
+      "expected_expiration_time": "2026-10-29T02:30:00Z",
+      "close_time": "2026-10-30T23:30:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT28TORDCU-DCU",
+      "yes_sub_title": "DC United",
+      "yes_bid_dollars": "0.2100",
+      "yes_ask_dollars": "0.2900",
+      "expected_expiration_time": "2026-10-29T02:30:00Z",
+      "close_time": "2026-10-30T23:30:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT28TORDCU-TIE",
+      "yes_sub_title": "Tie",
+      "yes_bid_dollars": "0.1900",
+      "yes_ask_dollars": "0.2700",
+      "expected_expiration_time": "2026-10-29T02:30:00Z",
+      "close_time": "2026-10-30T23:30:00Z"
+     }
+    ]
+   },
+   {
+    "event_ticker": "KXMLSGAME-26OCT28CHIORL",
+    "title": "Chicago Fire vs Orlando",
+    "markets": [
+     {
+      "ticker": "KXMLSGAME-26OCT28CHIORL-CHI",
+      "yes_sub_title": "Chicago Fire",
+      "yes_bid_dollars": "0.1700",
+      "yes_ask_dollars": "0.7000",
+      "expected_expiration_time": "2026-10-29T03:30:00Z",
+      "close_time": "2026-10-31T00:30:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT28CHIORL-ORL",
+      "yes_sub_title": "Orlando",
+      "yes_bid_dollars": "0.0500",
+      "yes_ask_dollars": "0.5900",
+      "expected_expiration_time": "2026-10-29T03:30:00Z",
+      "close_time": "2026-10-31T00:30:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT28CHIORL-TIE",
+      "yes_sub_title": "Tie",
+      "yes_bid_dollars": "0.0900",
+      "yes_ask_dollars": "0.6300",
+      "expected_expiration_time": "2026-10-29T03:30:00Z",
+      "close_time": "2026-10-31T00:30:00Z"
+     }
+    ]
+   },
+   {
+    "event_ticker": "KXMLSGAME-26OCT28MINSKC",
+    "title": "Minnesota vs Kansas City",
+    "markets": [
+     {
+      "ticker": "KXMLSGAME-26OCT28MINSKC-MIN",
+      "yes_sub_title": "Minnesota",
+      "yes_bid_dollars": "0.2700",
+      "yes_ask_dollars": "0.7000",
+      "expected_expiration_time": "2026-10-29T03:30:00Z",
+      "close_time": "2026-10-31T00:30:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT28MINSKC-SKC",
+      "yes_sub_title": "Kansas City",
+      "yes_bid_dollars": "0.0500",
+      "yes_ask_dollars": "0.5100",
+      "expected_expiration_time": "2026-10-29T03:30:00Z",
+      "close_time": "2026-10-31T00:30:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT28MINSKC-TIE",
+      "yes_sub_title": "Tie",
+      "yes_bid_dollars": "0.0800",
+      "yes_ask_dollars": "0.6100",
+      "expected_expiration_time": "2026-10-29T03:30:00Z",
+      "close_time": "2026-10-31T00:30:00Z"
+     }
+    ]
+   },
+   {
+    "event_ticker": "KXMLSGAME-26OCT28VANSD",
+    "title": "Vancouver vs San Diego FC",
+    "markets": [
+     {
+      "ticker": "KXMLSGAME-26OCT28VANSD-VAN",
+      "yes_sub_title": "Vancouver",
+      "yes_bid_dollars": "0.2300",
+      "yes_ask_dollars": "0.7000",
+      "expected_expiration_time": "2026-10-29T05:30:00Z",
+      "close_time": "2026-10-31T02:30:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT28VANSD-SD",
+      "yes_sub_title": "San Diego FC",
+      "yes_bid_dollars": "0.0500",
+      "yes_ask_dollars": "0.5500",
+      "expected_expiration_time": "2026-10-29T05:30:00Z",
+      "close_time": "2026-10-31T02:30:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT28VANSD-TIE",
+      "yes_sub_title": "Tie",
+      "yes_bid_dollars": "0.0800",
+      "yes_ask_dollars": "0.6900",
+      "expected_expiration_time": "2026-10-29T05:30:00Z",
+      "close_time": "2026-10-31T02:30:00Z"
+     }
+    ]
+   },
+   {
+    "event_ticker": "KXMLSGAME-26OCT31CLTORL",
+    "title": "Charlotte vs Orlando",
+    "markets": [
+     {
+      "ticker": "KXMLSGAME-26OCT31CLTORL-CLT",
+      "yes_sub_title": "Charlotte",
+      "yes_bid_dollars": "0.2100",
+      "yes_ask_dollars": "0.7000",
+      "expected_expiration_time": "2026-10-31T20:00:00Z",
+      "close_time": "2026-11-02T17:00:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT31CLTORL-ORL",
+      "yes_sub_title": "Orlando",
+      "yes_bid_dollars": "0.0500",
+      "yes_ask_dollars": "0.7000",
+      "expected_expiration_time": "2026-10-31T20:00:00Z",
+      "close_time": "2026-11-02T17:00:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT31CLTORL-TIE",
+      "yes_sub_title": "Tie",
+      "yes_bid_dollars": "0.0500",
+      "yes_ask_dollars": "0.7000",
+      "expected_expiration_time": "2026-10-31T20:00:00Z",
+      "close_time": "2026-11-02T17:00:00Z"
+     }
+    ]
+   },
+   {
+    "event_ticker": "KXMLSGAME-26OCT31CLBDCU",
+    "title": "Columbus vs DC United",
+    "markets": [
+     {
+      "ticker": "KXMLSGAME-26OCT31CLBDCU-CLB",
+      "yes_sub_title": "Columbus",
+      "yes_bid_dollars": "0.0500",
+      "yes_ask_dollars": "0.7000",
+      "expected_expiration_time": "2026-10-31T21:00:00Z",
+      "close_time": "2026-11-02T18:00:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT31CLBDCU-DCU",
+      "yes_sub_title": "DC United",
+      "yes_bid_dollars": "0.2100",
+      "yes_ask_dollars": "0.7000",
+      "expected_expiration_time": "2026-10-31T21:00:00Z",
+      "close_time": "2026-11-02T18:00:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT31CLBDCU-TIE",
+      "yes_sub_title": "Tie",
+      "yes_bid_dollars": "0.0500",
+      "yes_ask_dollars": "0.7000",
+      "expected_expiration_time": "2026-10-31T21:00:00Z",
+      "close_time": "2026-11-02T18:00:00Z"
+     }
+    ]
+   },
+   {
+    "event_ticker": "KXMLSGAME-26OCT31NYCMTL",
+    "title": "New York City vs Montreal",
+    "markets": [
+     {
+      "ticker": "KXMLSGAME-26OCT31NYCMTL-NYC",
+      "yes_sub_title": "New York City",
+      "yes_bid_dollars": "0.2600",
+      "yes_ask_dollars": "0.7000",
+      "expected_expiration_time": "2026-10-31T21:00:00Z",
+      "close_time": "2026-11-02T18:00:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT31NYCMTL-MTL",
+      "yes_sub_title": "Montreal",
+      "yes_bid_dollars": "0.0500",
+      "yes_ask_dollars": "0.7000",
+      "expected_expiration_time": "2026-10-31T21:00:00Z",
+      "close_time": "2026-11-02T18:00:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT31NYCMTL-TIE",
+      "yes_sub_title": "Tie",
+      "yes_bid_dollars": "0.0500",
+      "yes_ask_dollars": "0.7000",
+      "expected_expiration_time": "2026-10-31T21:00:00Z",
+      "close_time": "2026-11-02T18:00:00Z"
+     }
+    ]
+   },
+   {
+    "event_ticker": "KXMLSGAME-26OCT31STLSD",
+    "title": "Saint Louis vs San Diego FC",
+    "markets": [
+     {
+      "ticker": "KXMLSGAME-26OCT31STLSD-STL",
+      "yes_sub_title": "Saint Louis",
+      "yes_bid_dollars": "0.0500",
+      "yes_ask_dollars": "0.6900",
+      "expected_expiration_time": "2026-10-31T22:00:00Z",
+      "close_time": "2026-11-02T19:00:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT31STLSD-SD",
+      "yes_sub_title": "San Diego FC",
+      "yes_bid_dollars": "0.2600",
+      "yes_ask_dollars": "0.7000",
+      "expected_expiration_time": "2026-10-31T22:00:00Z",
+      "close_time": "2026-11-02T19:00:00Z"
+     },
+     {
+      "ticker": "KXMLSGAME-26OCT31STLSD-TIE",
+      "yes_sub_title": "Tie",
+      "yes_bid_dollars": "0.0500",
+      "yes_ask_dollars": "0.6900",
+      "expected_expiration_time": "2026-10-31T22:00:00Z",
+      "close_time": "2026-11-02T19:00:00Z"
+     }
+    ]
+   }
+  ]
+ }
+}

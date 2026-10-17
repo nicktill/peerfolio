@@ -33,6 +33,8 @@
 .sp-slip-pick { padding: 12px; border: 1px solid var(--fw-hair); border-radius: var(--fw-r); background: var(--fw-bg); }
 .sp-slip-pick strong { display: block; font: 500 14px/20px var(--fw-sans); }
 .sp-slip-pick span { display: block; margin-top: 2px; font: 400 10.5px/17px var(--fw-mono); color: var(--fw-fg3); }
+.sp-slip-moved:empty { display: block; min-height: 0; padding: 0; border: 0; background: none; }
+.sp-slip-moved { margin: 0; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--series-4, #e0a23f) 50%, transparent); border-radius: var(--fw-rs); background: color-mix(in srgb, var(--series-4, #e0a23f) 10%, var(--fw-bg)); font-size: 12px; line-height: 17px; color: var(--fw-fg); }
 .sp-slip-return { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .sp-slip-return b { font: 400 26px/30px var(--fw-serif); letter-spacing: -.025em; font-variant-numeric: tabular-nums lining-nums; }
 .sp-slip .fw-quick { grid-template-columns: repeat(4, 1fr); }
@@ -135,7 +137,11 @@
 .sp-line[aria-pressed="true"]:not([data-team]) { box-shadow: inset 0 0 0 1px var(--tc, var(--fw-accent)); border-color: var(--tc, var(--fw-accent)); }
 .sp-dot { display: none; }
 .sp-team-lines .sp-price { font-size: 15px; }
-@media (max-width: 700px) { .sp-matchup strong { display: none; } .sp-team-lines { grid-template-columns: 1fr; } }
+/* Soccer winner row: away, draw, home. */
+.sp-lines[data-three] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.sp-lines[data-three] .sp-line { flex-wrap: wrap; justify-content: flex-start; padding: 8px 10px; gap: 8px; }
+.sp-lines[data-three] .sp-line-odds { margin-left: auto; }
+@media (max-width: 700px) { .sp-matchup strong { display: none; } .sp-team-lines, .sp-lines[data-three] { grid-template-columns: 1fr; } }
 
 /* ---- Review pass: market tabs, lock pill, calmer lines ---- */
 .sp-tabs { display: inline-flex; gap: 2px; padding: 3px; margin-bottom: 12px; border: 1px solid var(--fw-hair); border-radius: 999px; background: var(--fw-bg); }
@@ -243,6 +249,27 @@
 .sl-chip[data-status="open"] { color: var(--gold-ink, #e0a23f); border-color: color-mix(in srgb, var(--series-4, #e0a23f) 50%, transparent); }
 .sl-chip[data-status="open"] svg { animation: sl-spin 3s linear infinite; }
 @keyframes sl-spin { to { transform: rotate(360deg); } }
+/* ======== Live game strip (view only) ======== */
+.sl-live { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 6px; padding-top: 10px; border-top: 1px dashed var(--fw-hair); }
+.sl-live-top { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; }
+.sl-live-chip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border: 1px solid var(--fw-hair); border-radius: 999px; font: 600 10.5px var(--fw-sans); color: var(--fw-fg3); }
+.sl-live-chip svg { width: 11px; height: 11px; }
+.sl-live-chip small { font: 500 10px var(--fw-mono); opacity: .8; }
+.sl-live-chip[data-tone="live"] { color: var(--gain-ink); border-color: color-mix(in srgb, var(--gain, #3fae7f) 50%, transparent); }
+.sl-live-chip[data-tone="live"] svg { animation: sl-pulse 1.6s ease-in-out infinite; }
+.sl-live-chip[data-tone="delayed"] { color: var(--gold-ink, #e0a23f); border-color: color-mix(in srgb, var(--series-4, #e0a23f) 50%, transparent); }
+.sl-live-chip[data-tone="paused"] { color: var(--fw-fg3); border-style: dashed; }
+.sl-live-score { font: 600 12.5px var(--fw-mono); font-variant-numeric: tabular-nums; }
+.sl-live-score i { font-style: normal; color: var(--fw-fg3); margin: 0 2px; }
+.sl-live-clock { font: 500 11.5px var(--fw-mono); color: var(--fw-fg2); }
+.sl-live-bar { display: flex; height: 8px; border-radius: 999px; overflow: hidden; background: var(--fw-line); gap: 2px; }
+.sl-live-bar span { display: block; height: 100%; transition: width .5s cubic-bezier(.2, .8, .2, 1); }
+.sl-live-odds { display: flex; justify-content: space-between; font: 600 11.5px var(--fw-mono); font-variant-numeric: tabular-nums; color: var(--fw-fg2); }
+.sl-live-note { margin: 0; font-size: 11.5px; line-height: 17px; color: var(--fw-fg3); }
+.sl-live-fine { margin: 0; font-size: 10.5px; line-height: 15px; color: var(--fw-fg3); opacity: .85; }
+@keyframes sl-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .sl-live-chip svg, .sl-live-bar span { animation: none; transition: none; } }
+
 @keyframes sl-fade { from { opacity: 0; transform: translateY(4px); } }
 
 /* ======== League pulse ======== */

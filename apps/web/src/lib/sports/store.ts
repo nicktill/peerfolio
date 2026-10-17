@@ -1,15 +1,18 @@
-import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm"
+import { and, asc, desc, eq, gt, inArray, isNull, lt, or, sql } from "drizzle-orm"
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js"
 import * as schema from "../../db/schema.ts"
 import { generateInviteCode } from "../crypto.ts"
 import { canSpend, type UsageStore } from "./credit-budget.ts"
-import { DEFAULT_PUBLISH, detectMove, fetchBucket, fetchKind, freshDrafts, marketsToLock, missingReason, planPublication, planSchedule } from "./lines.ts"
+import { DEFAULT_PUBLISH, detectMove, exchangeBucket, fetchBucket, fetchKind, freshDrafts, marketsToLock, missingReason, planPublication, planSchedule } from "./lines.ts"
 import { bucketOf, LIMITS, PRUNE_AFTER_WINDOWS, withinLimit, type LimitName } from "./rate-limit.ts"
-import { acceptPick, DEFAULT_LIMITS, PickRejected, type PickRequest } from "./picks.ts"
+import { emit } from "./log.ts"
+import { acceptPick, DEFAULT_LIMITS, kickoffGateDecided, PickRejected, type PickContext, type PickRequest } from "./picks.ts"
 import { mirroredPairs } from "./report.ts"
-import { DEFAULT_RESOLVE, gradePick, needsMeteredSource, planSettlement, placeKey, resolveResult, resultsForEvent, type ResolveConfig, type SettlementPlan } from "./settlement.ts"
+import { REPRICE } from "./reprice-config.ts"
+import { type Decision, type RepriceResult, type RepriceTarget } from "./reprice.ts"
+import { DEFAULT_RESOLVE, gradePick, needsMeteredSource, planSettlement, observeFinal, placeKey, resolveResult, resultsForEvent, type ResolveConfig, type ResolveConfigFor, type SettlementPlan } from "./settlement.ts"
 import type { EventRef, EventResult, MarketKind, OddsProvider, Outcome, ResultsProvider, Selection, Sport } from "./types.ts"
-import { SPORTS } from "./types.ts"
+import { hasDraw, SPORTS } from "./types.ts"
 
 /**
  * Database layer for sports leagues. Takes the drizzle client as a parameter so
@@ -71,13 +74,15 @@ export async function pruneRateLimits(db: Db, now: Date = new Date()) {
   for (const [name, { windowMs }] of Object.entries(LIMITS)) {
     await db.execute(sql`DELETE FROM sports_rate_limits WHERE key LIKE ${name + ":%"} AND bucket < ${bucketOf(new Date(now.getTime() - PRUNE_AFTER_WINDOWS * windowMs), windowMs)}`)
   }
+  await db.execute(sql`DELETE FROM sports_rate_limits WHERE key LIKE ${"fetch:exchange:%"} AND bucket < ${exchangeBucket(now) - 48}`)
+  await db.execute(sql`DELETE FROM sports_rate_limits WHERE key LIKE ${"exch-calls:%"} AND bucket < ${Math.floor(now.getTime() / 86_400_000) - PRUNE_AFTER_WINDOWS}`)
   for (const kind of ["guard", "discover"] as const) {
     await db.execute(sql`DELETE FROM sports_rate_limits WHERE key LIKE ${"fetch:" + kind + ":%"} AND bucket < ${fetchBucket(kind, now) - PRUNE_AFTER_WINDOWS}`)
   }
   return cutoff
 }
 
-const { sportsLeagues, sportsMembers, sportsEvents, sportsMarkets, sportsLines, sportsPicks, sportsLedger, sportsProviderUsage, sportsNotifications, sportsRateLimits } = schema
+const { sportsLeagues, sportsMembers, sportsEvents, sportsMarkets, sportsLines, sportsLineHistory, sportsPicks, sportsLedger, sportsProviderUsage, sportsNotifications, sportsRateLimits } = schema
 
 export const JOIN_FAILED = "That code didn't work"
 
@@ -236,6 +241,7 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
     player: sportsMarkets.player,
     statKey: sportsMarkets.statKey,
     lockAt: sportsMarkets.lockAt,
+    eventId: sportsEvents.id,
     sport: sportsEvents.sport,
     home: sportsEvents.homeName,
     away: sportsEvents.awayName,
@@ -253,6 +259,7 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
     kind: string
     player: string | null
     statKey: string | null
+    eventId: string
     sport: string
     home: string
     away: string
@@ -269,7 +276,7 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
     status: p.status,
     acceptedAt: p.acceptedAt.toISOString(),
     market: { kind: p.kind, player: p.player, statKey: p.statKey },
-    event: { sport: p.sport, home: p.home, away: p.away, startsAt: p.startsAt.toISOString() },
+    event: { id: p.eventId, sport: p.sport, home: p.home, away: p.away, startsAt: p.startsAt.toISOString() },
   })
 
   const mine = await db
@@ -318,7 +325,7 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
         player: market.player,
         statKey: market.statKey,
         lockAt: market.lockAt.toISOString(),
-        event: { sport: event.sport, home: event.homeName, away: event.awayName, startsAt: event.startsAt.toISOString() },
+        event: { id: event.id, sport: event.sport, home: event.homeName, away: event.awayName, startsAt: event.startsAt.toISOString() },
         lines: lines
           .filter((l) => l.marketId === market.id)
           .map((l) => ({ id: l.id, selection: l.selection as Selection, price: l.price, point: l.point })),
@@ -356,25 +363,50 @@ export async function getMirroredPickReport(db: Db, userId: string, leagueId: st
  * ledger row and the balance change commit together or not at all. Replaying
  * the same `requestId` returns the original pick instead of placing a second.
  */
-export function placeSportsPick(db: Db, userId: string, leagueId: string, req: PickRequest & { requestId: string }, now: Date) {
-  return withDeadlockRetry(() => placeOnce(db, userId, leagueId, req, now))
+/**
+ * `now` is for tests and scripts that pin the clock. In production the route omits it and the time is read from the database
+ * clock inside the transaction, AFTER the market and member locks are held and again on every deadlock retry, so a pick that
+ * waited behind a lock (a reprice, a freeze, another pick) is judged against the kickoff gate at the instant it can actually
+ * be accepted, not at the instant the request arrived. `acceptedAt` is that same instant.
+ */
+export async function placeSportsPick(db: Db, userId: string, leagueId: string, req: PickRequest & { requestId: string }, now?: Date) {
+  const result = await withDeadlockRetry(() => placeOnce(db, userId, leagueId, req, now))
+  // One summary per placement. Ids and money only: no names, no tokens.
+  emit("info", result.replayed ? "sports.pick_replayed" : "sports.pick_placed", {
+    pickId: result.pick.id,
+    leagueId,
+    marketId: result.pick.marketId,
+    stake: result.pick.stake,
+    price: result.pick.price,
+    point: result.pick.point,
+    totalReturn: result.pick.totalReturn,
+    acceptedAt: result.pick.acceptedAt.toISOString(),
+  })
+  return result
 }
 
-async function placeOnce(db: Db, userId: string, leagueId: string, req: PickRequest & { requestId: string }, now: Date) {
+async function placeOnce(db: Db, userId: string, leagueId: string, req: PickRequest & { requestId: string }, pinnedNow?: Date) {
   return db.transaction(async (tx) => {
     // LOCK ORDER, everywhere: market first, then member rows. voidMarket, freezing and settlement take the
     // market row exclusively before touching any member, so a pick can never hold a member and wait on a
     // market while a void holds the market and waits on that member.
+    const [lineProbe] = await tx.select({ marketId: sportsLines.marketId }).from(sportsLines).where(eq(sportsLines.id, req.lineId)).limit(1)
+    if (!lineProbe) throw new SportsError("Line not found", 404)
+    // Shared: many picks proceed together; a void/freeze/reprice (exclusive) either waits for them or runs first and is seen here.
+    const [theMarket] = await tx.select().from(sportsMarkets).where(eq(sportsMarkets.id, lineProbe.marketId)).for("share")
+    if (!theMarket) throw new SportsError("Line not found", 404)
+    // The line is read AFTER the market lock, never before: a reprice commits under the exclusive lock, so once we hold the
+    // shared lock this row is the price offered right now, and the client's expected price is checked against exactly it.
     const [theLine] = await tx.select().from(sportsLines).where(eq(sportsLines.id, req.lineId)).limit(1)
     if (!theLine) throw new SportsError("Line not found", 404)
-    // Shared: many picks proceed together; a void/freeze (exclusive) either waits for them or runs first and is seen here.
-    const [theMarket] = await tx.select().from(sportsMarkets).where(eq(sportsMarkets.id, theLine.marketId)).for("share")
-    if (!theMarket) throw new SportsError("Line not found", 404)
 
     const [member] = await tx.execute<{ id: string; credits: number }>(
       sql`SELECT id, credits FROM sports_members WHERE league_id = ${leagueId} AND user_id = ${userId} FOR UPDATE`,
     )
     if (!member) throw new SportsError("League not found", 404)
+
+    // The clock is read only now, with every lock held (see placeSportsPick).
+    const now = pinnedNow ?? new Date(String((await tx.execute<{ t: string }>(sql`SELECT clock_timestamp() AS t`))[0]!.t))
 
     const [replay] = await tx
       .select()
@@ -400,21 +432,38 @@ async function placeOnce(db: Db, userId: string, leagueId: string, req: PickRequ
       .from(sportsPicks)
       .where(and(eq(sportsPicks.memberId, member.id), eq(sportsPicks.status, "open")))
 
+    const pickCtx: PickContext = {
+      now,
+      market: { id: row.market.id, status: row.market.status, lockAt: row.market.lockAt },
+      eventStatus: row.event.status,
+      eventStartsAt: row.event.startsAt,
+      line: { id: row.line.id, marketId: row.line.marketId, price: row.line.price, point: row.line.point },
+      member: { credits: member.credits },
+      league: { startingCredits: league.startingCredits },
+      picksOnMarket: existing?.n ?? 0,
+      openPickCount: open?.n ?? 0,
+      openStakeTotal: open?.stake ?? 0,
+    }
     let accepted
     try {
-      accepted = acceptPick(req, {
-        now,
-        market: { id: row.market.id, status: row.market.status, lockAt: row.market.lockAt },
-        eventStatus: row.event.status,
-        line: { id: row.line.id, marketId: row.line.marketId, price: row.line.price, point: row.line.point },
-        member: { credits: member.credits },
-        league: { startingCredits: league.startingCredits },
-        picksOnMarket: existing?.n ?? 0,
-        openPickCount: open?.n ?? 0,
-        openStakeTotal: open?.stake ?? 0,
-      })
+      accepted = acceptPick(req, pickCtx)
     } catch (error) {
-      if (error instanceof PickRejected) throw new SportsError(error.message, error.code === "insufficient_credits" ? 402 : 409)
+      if (error instanceof PickRejected) {
+        // Rejections caused only by the kickoff gate are warnings (they mean a lock was late or a start moved); the rest are routine.
+        const kickoff = error.code === "market_closed" && kickoffGateDecided(pickCtx)
+        emit(kickoff ? "warn" : "info", kickoff ? "sports.pick_rejected_kickoff" : "sports.pick_rejected", {
+          code: error.code,
+          leagueId,
+          marketId: row.market.id,
+          eventId: row.event.id,
+          now: now.toISOString(),
+          eventStartsAt: row.event.startsAt.toISOString(),
+          lockAt: row.market.lockAt.toISOString(),
+          marketStatus: row.market.status,
+          eventStatus: row.event.status,
+        })
+        throw new SportsError(error.message, error.code === "insufficient_credits" ? 402 : 409)
+      }
       throw error
     }
 
@@ -470,6 +519,54 @@ export class DbUsageStore implements UsageStore {
   }
 }
 
+/** Row key of the live odds worker in `live_worker` (also exported from live/health.ts for the worker side). */
+const LIVE_WORKER_NAME = "live-odds"
+
+/** True while the live odds worker has beaten within REPRICE.workerDeadMs. No row at all counts as dead. */
+export async function workerAlive(db: Db, now: Date): Promise<boolean> {
+  const [w] = await db.select({ at: schema.liveWorker.lastCycleAt }).from(schema.liveWorker).where(eq(schema.liveWorker.name, LIVE_WORKER_NAME)).limit(1)
+  return !!w && now.getTime() - w.at.getTime() < REPRICE.workerDeadMs
+}
+
+/**
+ * Called by the publish cron on every run. If the worker that guards exchange-managed markets is not beating, such a
+ * market that starts within REPRICE.windowMs is frozen (one-way) rather than left on a price nobody is watching; a market
+ * further out simply stops being trusted (see makeFetchGate/guardPublished) and falls back to the consensus guard.
+ */
+export const WORKER_FREEZE_REASON = "live odds worker not running"
+/** With no worker heartbeat nothing watches a published price between cron runs (30 min buckets, late runners), so markets close this long before kickoff. */
+export const NO_WORKER_EARLY_LOCK_MS = 60 * 60_000
+
+export async function freezeUnguardedMarkets(db: Db, now: Date): Promise<{ checked: number; frozen: number; reopened: number; workerAlive: boolean }> {
+  const alive = await workerAlive(db, now)
+  if (alive) {
+    // Nothing reopens from the heartbeat alone: a market frozen for a dead worker sits on a price that may be hours old. The
+    // repricer lists such markets (see listRepriceTargets) and reopens one only after a healthy exchange read (reopenWorkerFrozen).
+    return { checked: 0, frozen: 0, reopened: 0, workerAlive: true }
+  }
+  const rows = await db
+    .select({ id: sportsMarkets.id, lockAt: sportsMarkets.lockAt })
+    .from(sportsMarkets)
+    .innerJoin(sportsEvents, eq(sportsEvents.id, sportsMarkets.eventId))
+    .where(
+      and(
+        eq(sportsMarkets.status, "open"),
+        gt(sportsMarkets.lockAt, now),
+        or(
+          and(sql`${sportsMarkets.exchangeOkAt} IS NOT NULL`, sql`${sportsEvents.startsAt} <= ${new Date(now.getTime() + REPRICE.windowMs).toISOString()}::timestamptz`),
+          sql`${sportsEvents.startsAt} <= ${new Date(now.getTime() + NO_WORKER_EARLY_LOCK_MS).toISOString()}::timestamptz`,
+        ),
+      ),
+    )
+  const out = { frozen: 0 }
+  for (const r of rows) await freezeMarket(db, r.id, WORKER_FREEZE_REASON, r.lockAt, out)
+  if (out.frozen) emit("error", "sports.markets_frozen_worker_dead", { frozen: out.frozen, checked: rows.length })
+  return { checked: rows.length, frozen: out.frozen, reopened: 0, workerAlive: false }
+}
+
+/** An exchange confirmation this recent (and a live worker heartbeat, see workerAlive) means the exchange, not a paid Odds API fetch, is guarding the market. */
+export const EXCHANGE_FRESH_MS = 5 * 60_000
+
 /** Fetches (via the provider, normally cached/composite), guards what is published, then publishes new fixed lines. Idempotent. */
 /**
  * Decides per sport whether this cron run may spend credits: an unlocked market wants a guard fetch (once per 2h), a game
@@ -478,11 +575,20 @@ export class DbUsageStore implements UsageStore {
  */
 export function makeFetchGate(db: Db, gameSoon: (sport: Sport, now: Date) => Promise<boolean | null>) {
   return async (sport: Sport, now: Date): Promise<boolean> => {
+    const alive = await workerAlive(db, now)
     const [open] = await db
       .select({ n: sql<number>`count(*)::int` })
       .from(sportsMarkets)
       .innerJoin(sportsEvents, eq(sportsEvents.id, sportsMarkets.eventId))
-      .where(and(eq(sportsMarkets.status, "open"), gt(sportsMarkets.lockAt, now), eq(sportsEvents.sport, sport)))
+      .where(
+        and(
+          eq(sportsMarkets.status, "open"),
+          gt(sportsMarkets.lockAt, now),
+          eq(sportsEvents.sport, sport),
+          // A market the exchange confirmed recently, with the worker alive, is guarded by the exchange, so it does not buy a paid guard fetch.
+          alive ? or(isNull(sportsMarkets.exchangeOkAt), lt(sportsMarkets.exchangeOkAt, new Date(now.getTime() - EXCHANGE_FRESH_MS))) : undefined,
+        ),
+      )
     const kind = fetchKind({ hasUnlockedMarket: (open?.n ?? 0) > 0, gameWithin24h: (open?.n ?? 0) > 0 ? null : await gameSoon(sport, now) })
     if (!kind) return false
     const claim = async (k: "guard" | "discover") => {
@@ -500,14 +606,71 @@ export function makeFetchGate(db: Db, gameSoon: (sport: Sport, now: Date) => Pro
   }
 }
 
-export async function publishLines(db: Db, provider: OddsProvider, sports: readonly Sport[], now: Date, cfg = DEFAULT_PUBLISH, gate?: (sport: Sport, now: Date) => Promise<boolean>) {
+/**
+ * Exchange mode gate: free sources, so no credit buckets, just politeness. A sport is looked at at most once per 30 minutes (the
+ * claim is shared by every server and any doubled run). Then it is fetched only if it has an unlocked market (to keep guarding it)
+ * or the free schedule shows a game in the publish window. An unknown schedule (ESPN down) skips the sport this time.
+ */
+export function makeExchangeGate(db: Db, gameSoon: (sport: Sport, now: Date) => Promise<boolean | null>) {
+  const gate = async (sport: Sport, now: Date): Promise<boolean> => {
+    const [row] = await db
+      .insert(sportsRateLimits)
+      .values({ key: `fetch:exchange:${sport}`, bucket: exchangeBucket(now), count: 1 })
+      .onConflictDoUpdate({ target: [sportsRateLimits.key, sportsRateLimits.bucket], set: { count: sql`${sportsRateLimits.count} + 1` } })
+      .returning({ count: sportsRateLimits.count })
+    if ((row?.count ?? 1) !== 1) return false
+    const [open] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(sportsMarkets)
+      .innerJoin(sportsEvents, eq(sportsEvents.id, sportsMarkets.eventId))
+      .where(and(eq(sportsMarkets.status, "open"), gt(sportsMarkets.lockAt, now), eq(sportsEvents.sport, sport)))
+    if ((open?.n ?? 0) > 0) return true
+    return (await gameSoon(sport, now)) === true
+  }
+  /** Gives the 30-minute claim back when the fetch did not run or failed, so the next cron tick retries instead of waiting out the bucket. */
+  gate.release = async (sport: Sport, now: Date): Promise<void> => {
+    await db.update(sportsRateLimits).set({ count: 0 }).where(and(eq(sportsRateLimits.key, `fetch:exchange:${sport}`), eq(sportsRateLimits.bucket, exchangeBucket(now))))
+  }
+  return gate
+}
+
+/** Shared per-sport, per-UTC-day request counter for the exchange provider (every upstream request takes one). */
+export function makeDbCallCap(db: Db, perDay = 1000) {
+  return {
+    async take(sport: Sport, now: Date): Promise<boolean> {
+      const [row] = await db
+        .insert(sportsRateLimits)
+        .values({ key: `exch-calls:${sport}`, bucket: Math.floor(now.getTime() / 86_400_000), count: 1 })
+        .onConflictDoUpdate({ target: [sportsRateLimits.key, sportsRateLimits.bucket], set: { count: sql`${sportsRateLimits.count} + 1` } })
+        .returning({ count: sportsRateLimits.count })
+      return (row?.count ?? 1) <= perDay
+    },
+  }
+}
+
+export async function publishLines(db: Db, provider: OddsProvider, sports: readonly Sport[], now: Date, cfg = DEFAULT_PUBLISH, gate?: ((sport: Sport, now: Date) => Promise<boolean>) & { release?: (sport: Sport, now: Date) => Promise<void> }, deadlineAt?: number) {
   const summary: { sport: Sport; published: number; frozen: number; rescheduled: number; rejected: string | null; notes: string[] }[] = []
   for (const sport of sports) {
+    // Out of time for this run (the route's deadline): skip, and do not burn the sport's claim.
+    if (deadlineAt != null && Date.now() > deadlineAt) {
+      summary.push({ sport, published: 0, frozen: 0, rescheduled: 0, rejected: "deadline", notes: ["no fetch: the run's time budget was used up, retried next run"] })
+      continue
+    }
     if (gate && !(await gate(sport, now))) {
       summary.push({ sport, published: 0, frozen: 0, rescheduled: 0, rejected: null, notes: ["no fetch: nothing unlocked and no game in the next 24h, or this window's fetch was already taken"] })
       continue
     }
-    const snapshot = await provider.fetchOdds(sport, now)
+    let snapshot: Awaited<ReturnType<OddsProvider["fetchOdds"]>>
+    try {
+      snapshot = await provider.fetchOdds(sport, now)
+    } catch (error) {
+      // One sport's outage must not stop the others, and must never freeze or publish anything for it.
+      const capped = error instanceof Error && error.name === "ExchangeCapError"
+      const message = error instanceof Error ? error.message : "error"
+      await gate?.release?.(sport, now).catch(() => {})
+      summary.push({ sport, published: 0, frozen: 0, rescheduled: 0, rejected: capped ? "call_cap" : "fetch_failed", notes: [capped ? `${provider.name}: skipped, call cap reached (${message})` : `${provider.name}: failed (${message})`] })
+      continue
+    }
     const guard = await guardPublished(db, snapshot, sport, now, cfg)
     const existing = await db
       .select({ ext: sportsEvents.externalId, key: sportsMarkets.marketKey })
@@ -541,7 +704,8 @@ export async function publishLines(db: Db, provider: OddsProvider, sports: reado
           .onConflictDoNothing()
           .returning()
         if (!market) return
-        await tx.insert(sportsLines).values(draft.lines.map((l) => ({ marketId: market.id, selection: l.selection, price: l.price, point: l.point })))
+        // Each line keeps the fair probability behind its price (the repricer's basis for a three-way market, and the move check's for any).
+        await tx.insert(sportsLines).values(draft.lines.map((l, i) => ({ marketId: market.id, selection: l.selection, price: l.price, point: l.point, fairProb: draft.fairs[i] ?? null })))
         published++
       })
     }
@@ -560,12 +724,29 @@ export async function publishLines(db: Db, provider: OddsProvider, sports: reado
 export async function guardPublished(db: Db, snapshot: Awaited<ReturnType<OddsProvider["fetchOdds"]>>, sport: Sport, now: Date, cfg = DEFAULT_PUBLISH) {
   const out = { frozen: 0, rescheduled: 0 }
   const fresh = freshDrafts(snapshot, now, cfg)
+  const guardedByWorker = await workerAlive(db, now)
   const open = await db
     .select({ market: sportsMarkets, event: sportsEvents })
     .from(sportsMarkets)
     .innerJoin(sportsEvents, eq(sportsEvents.id, sportsMarkets.eventId))
     .where(and(eq(sportsMarkets.status, "open"), eq(sportsEvents.sport, sport)))
+  // Stored fair probability per line, in the market's line order, so a move on any side (the draw too) is seen.
+  const storedFairs = new Map<string, (number | null)[]>()
+  if (open.length) {
+    const rows = await db.select().from(sportsLines).where(inArray(sportsLines.marketId, open.map((o) => o.market.id)))
+    for (const { market } of open) storedFairs.set(market.id, sortLines(rows.filter((l) => l.marketId === market.id)).map((l) => l.fairProb))
+  }
+  const held = new Set(snapshot.held ?? [])
   for (const { market, event } of open) {
+    // A gate hid this market this run (thin top of book, wide spread, Kalshi disagreement) but its game is still scheduled and not live:
+    // hold it as it is, so a transient miss does not close it for good. The hold ends when nothing has vouched for the line for
+    // staleFreezeMs: the exchange repricer freezes a market it manages, but one the exchange never confirmed (exchangeOkAt null)
+    // has no such clock, so it is measured from its last exchange confirmation, or from publication if it never had one.
+    if (held.has(`${event.externalId}::${market.marketKey}`)) {
+      const lastVouched = (market.exchangeOkAt ?? market.createdAt).getTime()
+      if (now.getTime() - lastVouched > REPRICE.staleFreezeMs) await freezeMarket(db, market.id, "price not confirmed while the guard feed was unavailable", market.lockAt, out)
+      continue
+    }
     const theirs = snapshot.events.find((e) => e.externalId === event.externalId)
     // Dropped from a trustworthy feed (event gone, prop pulled): close it. Freezing is one-way; a market that
     // comes back is not reopened, because picks taken in between were never checked against it. Existing picks settle normally.
@@ -585,8 +766,11 @@ export async function guardPublished(db: Db, snapshot: Awaited<ReturnType<OddsPr
       out.rescheduled++
     }
     const draft = fresh.get(`${event.externalId}::${market.marketKey}`)
-    if (!freeze && draft) {
-      freeze = detectMove({ kind: market.kind as MarketKind, lockAt, fairProbA: market.fairProbA, pointA: market.pointA }, draft, cfg)
+    // An exchange-managed market is guarded by the exchange (repricing, jump and staleness freezes). The consensus drift
+    // check applies only when the exchange has gone quiet, and then compares against the exchange-priced basis.
+    const exchangeGuarded = guardedByWorker && market.exchangeOkAt != null && now.getTime() - market.exchangeOkAt.getTime() < EXCHANGE_FRESH_MS
+    if (!freeze && draft && !exchangeGuarded) {
+      freeze = detectMove({ kind: market.kind as MarketKind, lockAt, fairProbA: market.fairProbA, pointA: market.pointA, fairs: storedFairs.get(market.id) ?? null }, draft, cfg)
     }
     if (freeze || lockAt !== market.lockAt) await freezeMarket(db, market.id, freeze, lockAt, out)
   }
@@ -603,6 +787,158 @@ async function freezeMarket(db: Db, marketId: string, reason: string | null, loc
       if (reason) out.frozen++
     }),
   )
+}
+
+/* ---------------- pregame repricing (exchange mids) ---------------- */
+
+/** Lines of one market in their fixed order: [home, draw, away], or the two sides with the first (home / over) first. */
+const LINE_ORDER: Record<string, number> = { home: 0, over: 0, draw: 1, away: 2, under: 2 }
+const sortLines = <T extends { selection: string }>(lines: T[]): T[] => [...lines].sort((x, y) => (LINE_ORDER[x.selection] ?? 9) - (LINE_ORDER[y.selection] ?? 9))
+
+/** Open, unlocked, not-yet-started markets with their current prices and the last hour of fair-probability history. */
+export async function listRepriceTargets(db: Db, now: Date, kinds: readonly string[] = ["moneyline"], horizonMs = 24 * 3600_000): Promise<RepriceTarget[]> {
+  const rows = await db
+    .select({ market: sportsMarkets, event: sportsEvents })
+    .from(sportsMarkets)
+    .innerJoin(sportsEvents, eq(sportsEvents.id, sportsMarkets.eventId))
+    .where(
+      and(
+        // Open markets, plus those the cron froze for a dead worker: those reopen only on a healthy exchange read (see the pass).
+        or(eq(sportsMarkets.status, "open"), and(eq(sportsMarkets.status, "locked"), eq(sportsMarkets.frozenReason, WORKER_FREEZE_REASON))),
+        gt(sportsMarkets.lockAt, now),
+        eq(sportsEvents.status, "scheduled"),
+        gt(sportsEvents.startsAt, now),
+        sql`${sportsEvents.startsAt} <= ${new Date(now.getTime() + horizonMs).toISOString()}::timestamptz`,
+        inArray(sportsMarkets.kind, [...kinds]),
+      ),
+    )
+  if (rows.length === 0) return []
+  const ids = rows.map((r) => r.market.id)
+  const lines = await db.select().from(sportsLines).where(inArray(sportsLines.marketId, ids))
+  const since = new Date(now.getTime() - REPRICE.hourMs)
+  const history = await db
+    .select({ marketId: sportsLineHistory.marketId, at: sportsLineHistory.at, fairProb: sportsLineHistory.fairProb, price: sportsLineHistory.price, lineId: sportsLineHistory.lineId })
+    .from(sportsLineHistory)
+    .where(and(inArray(sportsLineHistory.marketId, ids), gt(sportsLineHistory.at, since)))
+    .orderBy(asc(sportsLineHistory.at))
+  const out: RepriceTarget[] = []
+  for (const { market, event } of rows) {
+    const mine = sortLines(lines.filter((l) => l.marketId === market.id))
+    const three = hasDraw(event.sport, market.kind)
+    // A market must have exactly the lines its kind has: three for the soccer moneyline, two otherwise.
+    if (mine.length !== (three ? 3 : 2)) continue
+    if (three && !(mine[0]!.selection === "home" && mine[1]!.selection === "draw" && mine[2]!.selection === "away")) continue
+    const a = mine[0]!
+    const fairs = mine.map((l) => l.fairProb)
+    const sideHistory = (l: (typeof mine)[number]) => history.filter((h) => h.lineId === l.id && h.fairProb != null)
+    out.push({
+      marketId: market.id,
+      eventId: event.id,
+      sport: event.sport,
+      homeName: event.homeName,
+      awayName: event.awayName,
+      startsAt: event.startsAt,
+      eventStatus: event.status,
+      state: {
+        kind: market.kind,
+        status: market.status,
+        lockAt: market.lockAt,
+        createdAt: market.createdAt,
+        fairProbA: market.fairProbA,
+        pointA: market.pointA,
+        prices: mine.map((l) => l.price),
+        fairs: fairs.every((f): f is number => f != null) ? fairs : null,
+        repricedAt: market.repricedAt,
+        repriceCount: market.repriceCount,
+        exchangeOkAt: market.exchangeOkAt,
+        history: sideHistory(a).map((h) => ({
+          at: h.at,
+          fairProbA: h.fairProb!,
+          // Three-way: the other sides' fair probabilities written at the same instant (one reprice writes every line with one timestamp).
+          ...(three ? { fairs: mine.map((l) => sideHistory(l).find((x) => x.at.getTime() === h.at.getTime())?.fairProb ?? NaN) } : {}),
+        })).filter((h) => !h.fairs || h.fairs.every((f) => Number.isFinite(f))),
+      },
+    })
+  }
+  return out
+}
+
+/**
+ * Writes a new price version for a market, or refuses. Runs under the EXCLUSIVE market row lock, so it waits for picks being
+ * accepted (they hold the shared lock) and any pick that starts afterwards sees the new price. Everything is re-checked
+ * inside the lock on the server clock (open, not locked, not started, event still scheduled) and the write is a
+ * compare-and-set on the basis the decision was made from, so a repeat or a second worker changes nothing. Lines are
+ * updated in place and each price is appended to the history; accepted picks hold their own copies and are never touched.
+ */
+export function applyReprice(db: Db, marketId: string, expected: { basis: number | null; count: number }, d: Extract<Decision, { action: "update" }>, now: Date): Promise<RepriceResult> {
+  // Master switch: the standalone worker may be pointed at a database before its markets are meant to be live.
+  if (process.env.LIVE_ODDS_ENABLED !== "1") return Promise.resolve({ applied: false, reason: "disabled (LIVE_ODDS_ENABLED is not 1)" })
+  return withDeadlockRetry(() =>
+    db.transaction(async (tx): Promise<RepriceResult> => {
+      const [m] = await tx.select().from(sportsMarkets).where(eq(sportsMarkets.id, marketId)).for("update")
+      if (!m || m.status !== "open") return { applied: false, reason: "closed" }
+      // Defense in depth: only game-winner markets are priced from the exchange, whatever the caller decided.
+      if (m.kind !== "moneyline") return { applied: false, reason: "not a moneyline" }
+      if (m.repricedAt && now.getTime() - m.repricedAt.getTime() < REPRICE.minIntervalMs) return { applied: false, reason: "min interval" }
+      const [ev] = await tx.select().from(sportsEvents).where(eq(sportsEvents.id, m.eventId)).limit(1)
+      if (!ev || ev.status !== "scheduled") return { applied: false, reason: "event not scheduled" }
+      if (now.getTime() >= ev.startsAt.getTime()) return { applied: false, reason: "kickoff" }
+      if (now.getTime() >= m.lockAt.getTime()) return { applied: false, reason: "locked" }
+      // Compare-and-set on BOTH the basis and the version (write count): a repeat, or another worker, changes nothing.
+      const same = (m.fairProbA == null && expected.basis == null) || (m.fairProbA != null && expected.basis != null && Math.abs(m.fairProbA - expected.basis) < 1e-9)
+      if (!same || m.repriceCount !== expected.count) return { applied: false, reason: "basis changed" }
+      const lines = sortLines(await tx.select().from(sportsLines).where(eq(sportsLines.marketId, marketId)))
+      // The decision's sides must be exactly the market's lines: two, or [home, draw, away] for the soccer moneyline.
+      const three = hasDraw(ev.sport, m.kind)
+      if (lines.length !== d.prices.length || lines.length !== (three ? 3 : 2)) return { applied: false, reason: "lines missing" }
+      if (three && !(lines[0]!.selection === "home" && lines[1]!.selection === "draw" && lines[2]!.selection === "away")) return { applied: false, reason: "lines missing" }
+      const fairs = d.fairs ?? [d.fairProbA, 1 - d.fairProbA]
+      if (fairs.length !== lines.length) return { applied: false, reason: "lines missing" }
+      const a = lines[0]!
+      const oldPrices = lines.map((l) => l.price)
+      for (const [i, line] of lines.entries()) {
+        const price = d.prices[i]!
+        const fair = fairs[i]!
+        await tx.update(sportsLines).set({ price, version: line.version + 1, fairProb: fair, repricedAt: now }).where(eq(sportsLines.id, line.id))
+        await tx.insert(sportsLineHistory).values({ lineId: line.id, marketId: marketId, version: line.version + 1, price, point: line.point, fairProb: fair, source: d.source, spread: d.spread, ageMs: Math.round(d.ageMs), at: now })
+      }
+      await tx.update(sportsMarkets).set({ fairProbA: d.fairProbA, repricedAt: now, repriceCount: sql`${sportsMarkets.repriceCount} + 1`, exchangeOkAt: now }).where(eq(sportsMarkets.id, marketId))
+      return { applied: true, oldPrices, newPrices: d.prices, version: a.version + 1 }
+    }),
+  )
+}
+
+/** Stamps healthy exchange checks on markets whose price did not need to move. Cheap, no market lock needed. */
+export async function confirmExchange(db: Db, marketIds: string[], now: Date) {
+  if (marketIds.length) await db.update(sportsMarkets).set({ exchangeOkAt: now }).where(and(inArray(sportsMarkets.id, marketIds), eq(sportsMarkets.status, "open")))
+}
+
+/**
+ * Reopens a market the cron froze because the worker was down, called by the repricer only after a healthy exchange read for it.
+ * Under the market lock; refuses unless it is still locked for exactly that reason, unstarted and before its lock time. Stamps
+ * exchangeOkAt so the market counts as exchange-managed from now on. The caller then applies or confirms the fresh price.
+ */
+export async function reopenWorkerFrozen(db: Db, marketId: string, now: Date): Promise<boolean> {
+  return withDeadlockRetry(() =>
+    db.transaction(async (tx) => {
+      const [m] = await tx.select().from(sportsMarkets).where(eq(sportsMarkets.id, marketId)).for("update")
+      if (!m || m.status !== "locked" || m.frozenReason !== WORKER_FREEZE_REASON || now.getTime() >= m.lockAt.getTime()) return false
+      const [ev] = await tx.select().from(sportsEvents).where(eq(sportsEvents.id, m.eventId)).limit(1)
+      if (!ev || ev.status !== "scheduled" || now.getTime() >= ev.startsAt.getTime()) return false
+      await tx.update(sportsMarkets).set({ status: "open", frozenReason: null, exchangeOkAt: now }).where(eq(sportsMarkets.id, marketId))
+      emit("info", "sports.market_reopened_exchange_ok", { marketId })
+      return true
+    }),
+  )
+}
+
+/** One-way close for a reason (jump, wide book, stale exchange). Takes the exclusive market lock like every freeze. */
+export async function freezeForReason(db: Db, marketId: string, reason: string): Promise<boolean> {
+  const out = { frozen: 0 }
+  const [m] = await db.select({ lockAt: sportsMarkets.lockAt }).from(sportsMarkets).where(eq(sportsMarkets.id, marketId)).limit(1)
+  if (!m) return false
+  await freezeMarket(db, marketId, reason, m.lockAt, out)
+  return out.frozen > 0
 }
 
 /** Closes markets whose lock time has passed. Picks are also refused by time in `acceptPick`, so this is bookkeeping, not the guard. */
@@ -740,7 +1076,7 @@ export async function sweepVoidedMarkets(db: Db, now: Date) {
  * from the `results` providers (a different source than the odds), and an
  * event only settles when `resolveResult` says so.
  */
-export async function settleDueEvents(db: Db, results: ResultsProvider[], now: Date, cfg: ResolveConfig = DEFAULT_RESOLVE, usage?: UsageStore) {
+export async function settleDueEvents(db: Db, results: ResultsProvider[], now: Date, cfgIn: ResolveConfig | ResolveConfigFor = DEFAULT_RESOLVE, usage?: UsageStore) {
   const events = await db
     .selectDistinct({ event: sportsEvents })
     .from(sportsEvents)
@@ -763,8 +1099,9 @@ export async function settleDueEvents(db: Db, results: ResultsProvider[], now: D
   for (const sport of SPORTS) {
     const ofSport = events.map((e) => e.event).filter((e) => e.sport === sport)
     if (!ofSport.length) continue
+    const cfg = typeof cfgIn === "function" ? cfgIn(sport) : cfgIn
     const toRef = (e: (typeof ofSport)[number]): EventRef => ({ externalId: e.externalId, homeName: e.homeName, awayName: e.awayName, startsAt: e.startsAt })
-    const answers = await Promise.all(free.map((p) => ask(p, sport, ofSport.map(toRef))))
+    const answers = await Promise.all(free.filter((p) => !p.sports || p.sports.includes(sport)).map((p) => ask(p, sport, ofSport.map(toRef))))
 
     // Metered sources (Odds API /scores) only for the events a free source has already finalised, and only inside their own credit pace.
     const freeAll = answers.flatMap((a) => a.r)
@@ -793,16 +1130,18 @@ export async function settleDueEvents(db: Db, results: ResultsProvider[], now: D
     for (const event of ofSport) {
       const { results: mine, matched } = resultsForEvent(event, all)
       const learned = Object.entries(matched).filter(([src, id]) => event.aliases?.[src] !== id)
+      const knownAliases: Record<string, string> = { ...event.aliases, ...Object.fromEntries(learned) }
       if (learned.length) {
-        await db.update(sportsEvents).set({ aliases: { ...event.aliases, ...Object.fromEntries(learned) } }).where(eq(sportsEvents.id, event.id))
+        await db.update(sportsEvents).set({ aliases: knownAliases }).where(eq(sportsEvents.id, event.id))
       }
-      const sawFinal = mine.some((r) => r.status === "final")
-      let firstSeen = event.finalFirstSeenAt
-      if (sawFinal && !firstSeen) {
-        firstSeen = now
-        await db.update(sportsEvents).set({ finalFirstSeenAt: now }).where(eq(sportsEvents.id, event.id))
+      // The score at the moment a final was first seen is kept (under a reserved alias key, no schema change) so a later change is caught.
+      const seen = observeFinal(mine, { firstSeen: event.finalFirstSeenAt, firstSeenScore: knownAliases._finalScore ?? null }, now)
+      const { firstSeen, firstSeenScore } = seen
+      if (seen.changed) {
+        const aliases = { ...knownAliases, ...(firstSeenScore ? { _finalScore: firstSeenScore } : {}) }
+        await db.update(sportsEvents).set({ finalFirstSeenAt: firstSeen, aliases }).where(eq(sportsEvents.id, event.id))
       }
-      const res = resolveResult(mine, { now, startsAt: event.startsAt, finalFirstSeenAt: firstSeen, sourcesAnswered }, cfg)
+      const res = resolveResult(mine, { now, startsAt: event.startsAt, finalFirstSeenAt: firstSeen, sourcesAnswered, sport, firstSeenScore }, cfg)
       if (res.kind === "wait") out.waiting++
       else if (res.kind === "review") {
         out.review++

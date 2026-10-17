@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { americanToDecimal, americanToProb, consensusTwoWay, devigTwoWay, priceTwoWay, probToAmerican, totalReturn } from "./odds.ts"
+import { americanToDecimal, americanToProb, consensusTwoWay, DEFAULT_PRICING, devigTwoWay, HOUSE_MARGIN, priceTwoWay, probToAmerican, tidyAgainstPlayer, totalReturn } from "./odds.ts"
 import { DEFAULT_PUBLISH, isPickWindowOpen, marketsToLock, planPublication } from "./lines.ts"
 import { acceptPick, PickRejected, type PickContext, type PickRequest } from "./picks.ts"
 import { gradePick, planSettlement, resolveResult, settleKey, type SettleablePick } from "./settlement.ts"
@@ -28,6 +28,38 @@ describe("odds maths", () => {
     assert.ok(a < 0 && b < 0)
     const ev = Math.max(0.5 * americanToDecimal(a), 0.5 * americanToDecimal(b)) - 1
     assert.ok(ev < 0)
+  })
+
+  it("the margin is the single named constant, 2% total", () => {
+    assert.equal(HOUSE_MARGIN, 0.02)
+    assert.equal(DEFAULT_PRICING.margin, HOUSE_MARGIN)
+    assert.deepEqual(priceTwoWay(0.5), [-105, -105])
+  })
+
+  it("rounding is against the player: across 10.1% to 89.9% (the offered range) the two sides always imply at least 100% + margin, so no both-sides profit", () => {
+    for (let i = 101; i <= 899; i++) {
+      const p = i / 1000
+      const prices = priceTwoWay(p)
+      assert.ok(prices, `priced at ${p}`)
+      const [a, b] = prices
+      assert.ok(a % 5 === 0 && b % 5 === 0 && Math.abs(a) >= 100 && Math.abs(b) >= 100, `valid prices at ${p}: ${a}/${b}`)
+      const total = americanToProb(a) + americanToProb(b)
+      assert.ok(total >= 1 + HOUSE_MARGIN - 1e-9, `at ${p}: implied total ${total} < ${1 + HOUSE_MARGIN} (${a}/${b})`)
+      assert.ok(total < 1 + HOUSE_MARGIN + 0.04, `at ${p}: implied total ${total} unreasonably high`)
+      // Each side alone pays no better than the fair price plus its half margin.
+      assert.ok(americanToProb(a) >= p + HOUSE_MARGIN / 2 - 1e-9 && americanToProb(b) >= 1 - p + HOUSE_MARGIN / 2 - 1e-9)
+      // Staking to equalise both outcomes always loses money: the guaranteed return per credit staked is below 1.
+      const guaranteed = 1 / total
+      assert.ok(guaranteed < 1)
+    }
+  })
+
+  it("tidyAgainstPlayer never raises a payout and floors both signs", () => {
+    assert.equal(tidyAgainstPlayer(-104.2), -105)
+    assert.equal(tidyAgainstPlayer(-105), -105)
+    assert.equal(tidyAgainstPlayer(143.9), 140)
+    assert.equal(tidyAgainstPlayer(100.4), 100)
+    assert.equal(tidyAgainstPlayer(-100), -100)
   })
 
   it("refuses lopsided markets", () => {
@@ -90,7 +122,7 @@ describe("line publishing", () => {
 
   it("skips markets that would open for too little time", async () => {
     const snap = await snapshotAt(NOW)
-    snap.events[0]!.startsAt = hours(1.2)
+    snap.events[0]!.startsAt = hours(0.8)
     const plan = planPublication(snap, NOW, new Set())
     assert.ok(!plan.drafts.some((d) => d.externalEventId === snap.events[0]!.externalId))
   })
@@ -131,6 +163,7 @@ describe("pick caps and snapshot", () => {
     now: NOW,
     market: { id: "m1", status: "open", lockAt: hours(2) },
     eventStatus: "scheduled",
+    eventStartsAt: hours(2.5),
     line: { id: "l1", marketId: "m1", price: -110, point: -3.5 },
     member: { credits: 1000 },
     league: { startingCredits: 1000 },

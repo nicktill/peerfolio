@@ -42,7 +42,7 @@ export default function FantasyPage() {
   const [mode, setMode] = useState<"none" | "create" | "join">("none")
   const [side, setSide] = useFantasyMode()
 
-  // Sports sits behind the `sportsEnabled` flag; with it off `side` is always "stocks" and the switch renders nothing.
+  // Sports sits behind the sports flag (useSportsEnabled: everyone, or admins only); when it is off for this user `side` is always "stocks" and the switch renders nothing.
   if (side === "sports") {
     return (
       <div className="fw" data-world="sports">

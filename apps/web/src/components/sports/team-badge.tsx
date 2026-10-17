@@ -47,7 +47,7 @@ export function TeamBadge({ sport, name, size = 36, bare }: { sport?: string; na
   // Bare: just the team logo, floating, with no coloured disc or white square behind it.
   if (bare && src && !failed && !isPhoto) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img className="sp-logo-bare" src={src} alt="" width={size} height={size} loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(true)} title={name} style={{ width: size, height: size }} />
+    return <img className="sp-logo-bare" src={look.logoDark ?? src} alt="" width={size} height={size} loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(true)} title={name} style={{ width: size, height: size }} />
   }
   return (
     <span className="sp-badge" data-photo={isPhoto || undefined} style={{ width: size, height: size, background: look.color, color: onColor(look.color), fontSize: size * 0.34 }} aria-hidden title={name}>

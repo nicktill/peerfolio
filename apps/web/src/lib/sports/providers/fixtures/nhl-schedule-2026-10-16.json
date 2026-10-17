@@ -1,0 +1,431 @@
+{
+ "recordedFrom": "https://api-web.nhle.com/v1/schedule/2026-10-16 (trimmed)",
+ "gameWeek": [
+  {
+   "date": "2026-10-16",
+   "numberOfGames": 2,
+   "games": [
+    {
+     "id": 2026020119,
+     "gameType": 2,
+     "startTimeUTC": "2026-10-17T01:00:00Z",
+     "gameState": "OFF",
+     "gameScheduleState": "OK",
+     "awayTeam": {
+      "abbrev": "PIT",
+      "placeName": {
+       "default": "Pittsburgh"
+      },
+      "commonName": {
+       "default": "Penguins"
+      },
+      "score": 2
+     },
+     "homeTeam": {
+      "abbrev": "COL",
+      "placeName": {
+       "default": "Colorado"
+      },
+      "commonName": {
+       "default": "Avalanche"
+      },
+      "score": 5
+     }
+    },
+    {
+     "id": 2026020120,
+     "gameType": 2,
+     "startTimeUTC": "2026-10-17T02:00:00Z",
+     "gameState": "OFF",
+     "gameScheduleState": "OK",
+     "awayTeam": {
+      "abbrev": "BOS",
+      "placeName": {
+       "default": "Boston"
+      },
+      "commonName": {
+       "default": "Bruins"
+      },
+      "score": 4
+     },
+     "homeTeam": {
+      "abbrev": "ANA",
+      "placeName": {
+       "default": "Anaheim"
+      },
+      "commonName": {
+       "default": "Ducks"
+      },
+      "score": 2
+     }
+    }
+   ]
+  },
+  {
+   "date": "2026-10-17",
+   "numberOfGames": 14,
+   "games": [
+    {
+     "id": 2026020121,
+     "gameType": 2,
+     "startTimeUTC": "2026-10-17T17:00:00Z",
+     "gameState": "OFF",
+     "gameScheduleState": "OK",
+     "awayTeam": {
+      "abbrev": "NJD",
+      "placeName": {
+       "default": "New Jersey"
+      },
+      "commonName": {
+       "default": "Devils"
+      },
+      "score": 2
+     },
+     "homeTeam": {
+      "abbrev": "WSH",
+      "placeName": {
+       "default": "Washington"
+      },
+      "commonName": {
+       "default": "Capitals"
+      },
+      "score": 4
+     }
+    },
+    {
+     "id": 2026020122,
+     "gameType": 2,
+     "startTimeUTC": "2026-10-17T19:30:00Z",
+     "gameState": "LIVE",
+     "gameScheduleState": "OK",
+     "awayTeam": {
+      "abbrev": "CAR",
+      "placeName": {
+       "default": "Carolina",
+       "fr": "Caroline"
+      },
+      "commonName": {
+       "default": "Hurricanes"
+      },
+      "score": 0
+     },
+     "homeTeam": {
+      "abbrev": "WPG",
+      "placeName": {
+       "default": "Winnipeg"
+      },
+      "commonName": {
+       "default": "Jets"
+      },
+      "score": 0
+     }
+    },
+    {
+     "id": 2026020123,
+     "gameType": 2,
+     "startTimeUTC": "2026-10-17T20:00:00Z",
+     "gameState": "LIVE",
+     "gameScheduleState": "OK",
+     "awayTeam": {
+      "abbrev": "VAN",
+      "placeName": {
+       "default": "Vancouver"
+      },
+      "commonName": {
+       "default": "Canucks"
+      },
+      "score": 0
+     },
+     "homeTeam": {
+      "abbrev": "TBL",
+      "placeName": {
+       "default": "Tampa Bay"
+      },
+      "commonName": {
+       "default": "Lightning"
+      },
+      "score": 0
+     }
+    },
+    {
+     "id": 2026020124,
+     "gameType": 2,
+     "startTimeUTC": "2026-10-17T22:00:00Z",
+     "gameState": "FUT",
+     "gameScheduleState": "OK",
+     "awayTeam": {
+      "abbrev": "SEA",
+      "placeName": {
+       "default": "Seattle"
+      },
+      "commonName": {
+       "default": "Kraken"
+      }
+     },
+     "homeTeam": {
+      "abbrev": "FLA",
+      "placeName": {
+       "default": "Florida",
+       "fr": "Floride"
+      },
+      "commonName": {
+       "default": "Panthers"
+      }
+     }
+    },
+    {
+     "id": 2026020125,
+     "gameType": 2,
+     "startTimeUTC": "2026-10-17T23:00:00Z",
+     "gameState": "FUT",
+     "gameScheduleState": "OK",
+     "awayTeam": {
+      "abbrev": "NYI",
+      "placeName": {
+       "default": "New York"
+      },
+      "commonName": {
+       "default": "Islanders"
+      }
+     },
+     "homeTeam": {
+      "abbrev": "TOR",
+      "placeName": {
+       "default": "Toronto"
+      },
+      "commonName": {
+       "default": "Maple Leafs"
+      }
+     }
+    },
+    {
+     "id": 2026020126,
+     "gameType": 2,
+     "startTimeUTC": "2026-10-17T23:00:00Z",
+     "gameState": "FUT",
+     "gameScheduleState": "OK",
+     "awayTeam": {
+      "abbrev": "BUF",
+      "placeName": {
+       "default": "Buffalo"
+      },
+      "commonName": {
+       "default": "Sabres"
+      }
+     },
+     "homeTeam": {
+      "abbrev": "MTL",
+      "placeName": {
+       "default": "Montréal"
+      },
+      "commonName": {
+       "default": "Canadiens"
+      }
+     }
+    },
+    {
+     "id": 2026020127,
+     "gameType": 2,
+     "startTimeUTC": "2026-10-17T23:00:00Z",
+     "gameState": "FUT",
+     "gameScheduleState": "OK",
+     "awayTeam": {
+      "abbrev": "SJS",
+      "placeName": {
+       "default": "San Jose"
+      },
+      "commonName": {
+       "default": "Sharks"
+      }
+     },
+     "homeTeam": {
+      "abbrev": "DET",
+      "placeName": {
+       "default": "Detroit"
+      },
+      "commonName": {
+       "default": "Red Wings"
+      }
+     }
+    },
+    {
+     "id": 2026020128,
+     "gameType": 2,
+     "startTimeUTC": "2026-10-17T23:00:00Z",
+     "gameState": "FUT",
+     "gameScheduleState": "OK",
+     "awayTeam": {
+      "abbrev": "OTT",
+      "placeName": {
+       "default": "Ottawa"
+      },
+      "commonName": {
+       "default": "Senators",
+       "fr": "Sénateurs"
+      }
+     },
+     "homeTeam": {
+      "abbrev": "PHI",
+      "placeName": {
+       "default": "Philadelphia",
+       "fr": "Philadelphie"
+      },
+      "commonName": {
+       "default": "Flyers"
+      }
+     }
+    },
+    {
+     "id": 2026020129,
+     "gameType": 2,
+     "startTimeUTC": "2026-10-17T23:00:00Z",
+     "gameState": "FUT",
+     "gameScheduleState": "OK",
+     "awayTeam": {
+      "abbrev": "NYR",
+      "placeName": {
+       "default": "New York"
+      },
+      "commonName": {
+       "default": "Rangers"
+      }
+     },
+     "homeTeam": {
+      "abbrev": "CBJ",
+      "placeName": {
+       "default": "Columbus"
+      },
+      "commonName": {
+       "default": "Blue Jackets"
+      }
+     }
+    },
+    {
+     "id": 2026020130,
+     "gameType": 2,
+     "startTimeUTC": "2026-10-17T23:00:00Z",
+     "gameState": "FUT",
+     "gameScheduleState": "OK",
+     "awayTeam": {
+      "abbrev": "DAL",
+      "placeName": {
+       "default": "Dallas"
+      },
+      "commonName": {
+       "default": "Stars"
+      }
+     },
+     "homeTeam": {
+      "abbrev": "CHI",
+      "placeName": {
+       "default": "Chicago"
+      },
+      "commonName": {
+       "default": "Blackhawks"
+      }
+     }
+    },
+    {
+     "id": 2026020131,
+     "gameType": 2,
+     "startTimeUTC": "2026-10-18T00:00:00Z",
+     "gameState": "FUT",
+     "gameScheduleState": "OK",
+     "awayTeam": {
+      "abbrev": "STL",
+      "placeName": {
+       "default": "St. Louis"
+      },
+      "commonName": {
+       "default": "Blues"
+      }
+     },
+     "homeTeam": {
+      "abbrev": "NSH",
+      "placeName": {
+       "default": "Nashville"
+      },
+      "commonName": {
+       "default": "Predators"
+      }
+     }
+    },
+    {
+     "id": 2026020132,
+     "gameType": 2,
+     "startTimeUTC": "2026-10-18T01:00:00Z",
+     "gameState": "FUT",
+     "gameScheduleState": "OK",
+     "awayTeam": {
+      "abbrev": "BOS",
+      "placeName": {
+       "default": "Boston"
+      },
+      "commonName": {
+       "default": "Bruins"
+      }
+     },
+     "homeTeam": {
+      "abbrev": "LAK",
+      "placeName": {
+       "default": "Los Angeles"
+      },
+      "commonName": {
+       "default": "Kings"
+      }
+     }
+    },
+    {
+     "id": 2026020133,
+     "gameType": 2,
+     "startTimeUTC": "2026-10-18T02:00:00Z",
+     "gameState": "FUT",
+     "gameScheduleState": "OK",
+     "awayTeam": {
+      "abbrev": "EDM",
+      "placeName": {
+       "default": "Edmonton"
+      },
+      "commonName": {
+       "default": "Oilers"
+      }
+     },
+     "homeTeam": {
+      "abbrev": "UTA",
+      "placeName": {
+       "default": "Utah"
+      },
+      "commonName": {
+       "default": "Mammoth"
+      }
+     }
+    },
+    {
+     "id": 2026020134,
+     "gameType": 2,
+     "startTimeUTC": "2026-10-18T02:00:00Z",
+     "gameState": "FUT",
+     "gameScheduleState": "OK",
+     "awayTeam": {
+      "abbrev": "PIT",
+      "placeName": {
+       "default": "Pittsburgh"
+      },
+      "commonName": {
+       "default": "Penguins"
+      }
+     },
+     "homeTeam": {
+      "abbrev": "VGK",
+      "placeName": {
+       "default": "Vegas"
+      },
+      "commonName": {
+       "default": "Golden Knights"
+      }
+     }
+    }
+   ]
+  }
+ ]
+}
