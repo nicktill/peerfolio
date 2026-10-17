@@ -15,6 +15,8 @@ export const maxDuration = 120
 type Body = {
   publicToken?: string
   institution?: { name?: string; institution_id?: string }
+  /** Pool the Link session was created from (link-token response). Defaults to 1 for older clients. */
+  pool?: number
 }
 
 /**
@@ -28,16 +30,22 @@ export const POST = withUser<unknown>(async (userId, request) => {
   if (!plaidLinkingEnabled()) throw new ApiError("Brokerage linking is coming soon", 409)
   if (!body || typeof body.publicToken !== "string" || !body.publicToken.trim()) throw new ApiError("publicToken is required")
 
-  const profile = newPlaidProfile(process.env)
-  const client = getPlaidClient(profile)
+  const requestedPool = body.pool === undefined ? 1 : body.pool
+  if (requestedPool !== 1 && requestedPool !== 2) throw new ApiError("Invalid connection request")
+  // Fail on a missing pool-1 configuration before reserving anything.
+  getPlaidClient(newPlaidProfile(process.env))
 
   // This reservation commits independently so remote creation cannot outlive our budget accounting.
-  const attemptId = await reserveProductionLinkAttempt(userId, body.publicToken)
+  // It also picks the Trial team; the exchange and the stored profile use that team's credentials.
+  const { attemptId, profile } = await reserveProductionLinkAttempt(userId, body.publicToken, requestedPool)
+  let client: ReturnType<typeof getPlaidClient>
   let accessToken: string
   let plaidItemId: string
   try {
     // Reservation already committed. Do not hold a DB transaction across remote creation:
     // a later commit failure could otherwise lose the successfully exchanged token.
+    // Inside the try so a missing credential marks the committed attempt uncertain rather than leaving it reserved.
+    client = getPlaidClient(profile)
     await assertBrokeragePermission(userId)
     const { data } = await client.itemPublicTokenExchange({ public_token: body.publicToken })
     accessToken = data.access_token

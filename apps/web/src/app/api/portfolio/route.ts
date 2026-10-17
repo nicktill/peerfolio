@@ -3,7 +3,8 @@ import { hasVerifiedAccounts } from "@web/lib/plaid-verification"
 import { effectiveSecurityType } from "@web/lib/known-etfs"
 import { NextResponse } from "next/server"
 import { and, asc, eq, gte, min } from "drizzle-orm"
-import { db, holdings, accounts, plaidItems, portfolioSnapshots, securities } from "@web/db"
+import { db, holdings, accounts, plaidItems, portfolioSnapshots, productionLinkAttempts, securities } from "@web/db"
+import { plaidEnvironment } from "@web/lib/plaid-config"
 import { withUser } from "@web/lib/api"
 import { scheduleLiveRefresh } from "@web/lib/live-quotes"
 import { allTimeGain, summarizeHoldings, todayChange, type PositionInput } from "@web/lib/dashboard-math"
@@ -46,9 +47,13 @@ export const GET = withUser<unknown>(async (userId, request) => {
   scheduleLiveRefresh()
   scheduleMetadataRefresh()
 
-  const [accountRows, items, allHoldingRows] = await Promise.all([
+  const [accountRows, items, ledgerItemIds, allHoldingRows] = await Promise.all([
     db.select().from(accounts).where(eq(accounts.userId, userId)),
     db.select().from(plaidItems).where(eq(plaidItems.userId, userId)),
+    // Only production Items that consumed a ledger slot are bound by the lifetime cap (legacy and sandbox Items are not).
+    plaidEnvironment(process.env.PLAID_ENV) === "production"
+      ? db.select({ plaidItemId: productionLinkAttempts.plaidItemId }).from(productionLinkAttempts).where(eq(productionLinkAttempts.userId, userId))
+      : Promise.resolve([] as { plaidItemId: string | null }[]),
     db
       .select({
         id: holdings.id,
@@ -236,6 +241,7 @@ export const GET = withUser<unknown>(async (userId, request) => {
         status: i.status,
         errorCode: i.errorCode,
         lastSyncedAt: i.lastSyncedAt,
+        usesLinkSlot: ledgerItemIds.some((l) => l.plaidItemId === i.plaidItemId),
       })),
     allocation,
     holdings: holdingSummaries,

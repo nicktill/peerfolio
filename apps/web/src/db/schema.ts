@@ -64,7 +64,12 @@ export const users = pgTable(
      * publishable because the person deliberately published it.
      */
     isPublic: boolean("is_public").notNull().default(false),
+    /** Legacy opt-in flag; no longer read. Linking is open to everyone. */
     brokerageLinkingEnabled: boolean("brokerage_linking_enabled").notNull().default(false),
+    /** Admin kill-switch for one user. Linking is allowed unless this is true. */
+    brokerageLinkingBlocked: boolean("brokerage_linking_blocked").notNull().default(false),
+    /** Admin override of the per-user lifetime link limit (0..10). Null means the default (USER_PRODUCTION_LINK_LIMIT). */
+    brokerageLinkLimit: integer("brokerage_link_limit"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -101,10 +106,24 @@ export const productionLinkAttempts = pgTable("production_link_attempts", {
   userId: uuid("user_id").notNull(),
   publicTokenDigest: text("public_token_digest").notNull(),
   status: text("status").notNull().default("reserved"),
+  // Which free Trial team (1 or 2) this attempt used. Rows from before pools existed are pool 1.
+  pool: integer("pool").notNull().default(1),
   plaidItemId: text("plaid_item_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   completedAt: timestamp("completed_at", { withTimezone: true }),
 }, (t) => [uniqueIndex("production_link_attempts_token_idx").on(t.publicTokenDigest)])
+
+/** A user asking for more brokerage connections than they get by default. One open request per user. */
+export const brokerageLinkRequests = pgTable("brokerage_link_requests", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  note: text("note"),
+  status: text("status").notNull().default("open"),
+  /** Connections the user had used when they asked. */
+  usedAtRequest: integer("used_at_request").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+}, (t) => [uniqueIndex("brokerage_link_requests_open_idx").on(t.userId).where(sql`${t.status} = 'open'`)])
 
 export const plaidItems = pgTable(
   "plaid_items",

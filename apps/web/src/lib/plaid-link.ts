@@ -12,10 +12,12 @@ import { mutate } from "@web/lib/use-api"
 const KEY = "peerfolio:plaid-link-token"
 
 export const pendingLinkToken = {
-  save(token: string, itemId?: string, expiration?: number) {
+  save(token: string, itemId?: string, expiration?: number, pool?: number) {
     try {
       localStorage.setItem(KEY, token)
       localStorage.setItem(`${KEY}:expiration`, String(expiration ?? Date.now() + 30 * 60 * 1000))
+      if (pool) localStorage.setItem(`${KEY}:pool`, String(pool))
+      else localStorage.removeItem(`${KEY}:pool`)
       if (itemId) localStorage.setItem(`${KEY}:item`, itemId)
       else localStorage.removeItem(`${KEY}:item`)
     } catch {
@@ -37,8 +39,15 @@ export const pendingLinkToken = {
   itemId(): string | undefined {
     try { return localStorage.getItem(`${KEY}:item`) ?? undefined } catch { return undefined }
   },
+  pool(): number | undefined {
+    try {
+      const value = Number(localStorage.getItem(`${KEY}:pool`))
+      return value === 1 || value === 2 ? value : undefined
+    } catch { return undefined }
+  },
   clear() {
     try {
+      localStorage.removeItem(`${KEY}:pool`)
       localStorage.removeItem(KEY)
       localStorage.removeItem(`${KEY}:expiration`)
       localStorage.removeItem(`${KEY}:item`)
@@ -47,11 +56,12 @@ export const pendingLinkToken = {
 }
 
 /** Hands Link's public token to the server, which stores the access token encrypted. */
-export function exchangePublicToken(publicToken: string, metadata: PlaidLinkOnSuccessMetadata, itemId?: string) {
+export function exchangePublicToken(publicToken: string, metadata: PlaidLinkOnSuccessMetadata, itemId?: string, pool?: number) {
   if (itemId) return mutate<{ result: { status: string; errorCode?: string | null } }>(`/api/plaid/items/${encodeURIComponent(itemId)}`, { body: {} })
   return mutate<{ item: { status: string; errorCode?: string | null } }>("/api/plaid/exchange", {
     body: {
       publicToken,
+      pool,
       institution: metadata.institution
         ? { name: metadata.institution.name, institution_id: metadata.institution.institution_id }
         : undefined,
