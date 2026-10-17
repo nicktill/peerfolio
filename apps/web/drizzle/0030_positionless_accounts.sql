@@ -1,0 +1,1 @@
+ALTER TABLE "plaid_sync_runs" ADD COLUMN "positionless_accounts" integer DEFAULT 0 NOT NULL;

@@ -39,6 +39,7 @@ export const GET = withUser<unknown>(async (userId) => {
       currencyAssumed: run.currencyAssumed,
       missingTicker: run.securitiesMissingTicker,
       balanceWithoutHoldings: run.balanceWithoutHoldings,
+      positionlessAccounts: run.positionlessAccounts,
       concern: runConcern({ ...run, holdingsSkipped: run.holdingsSkipped as Record<string, number> }),
     })),
   })
