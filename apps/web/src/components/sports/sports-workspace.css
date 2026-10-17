@@ -137,7 +137,11 @@
 .sp-line[aria-pressed="true"]:not([data-team]) { box-shadow: inset 0 0 0 1px var(--tc, var(--fw-accent)); border-color: var(--tc, var(--fw-accent)); }
 .sp-dot { display: none; }
 .sp-team-lines .sp-price { font-size: 15px; }
-@media (max-width: 700px) { .sp-matchup strong { display: none; } .sp-team-lines { grid-template-columns: 1fr; } }
+/* Soccer winner row: away, draw, home. */
+.sp-lines[data-three] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.sp-lines[data-three] .sp-line { flex-wrap: wrap; justify-content: flex-start; padding: 8px 10px; gap: 8px; }
+.sp-lines[data-three] .sp-line-odds { margin-left: auto; }
+@media (max-width: 700px) { .sp-matchup strong { display: none; } .sp-team-lines, .sp-lines[data-three] { grid-template-columns: 1fr; } }
 
 /* ---- Review pass: market tabs, lock pill, calmer lines ---- */
 .sp-tabs { display: inline-flex; gap: 2px; padding: 3px; margin-bottom: 12px; border: 1px solid var(--fw-hair); border-radius: 999px; background: var(--fw-bg); }

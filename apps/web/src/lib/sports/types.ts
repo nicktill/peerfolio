@@ -10,8 +10,11 @@ export const SPORTS: readonly Sport[] = ["nfl", "nba", "tennis", "nhl", "mlb", "
 
 export type MarketKind = "moneyline" | "spread" | "total" | "player_prop"
 
-/** Tennis: home = first-listed player, away = second. */
-export type Selection = "home" | "away" | "over" | "under"
+/** Tennis: home = first-listed player, away = second. "draw" exists only on the three-way soccer moneyline (see hasDraw). */
+export type Selection = "home" | "away" | "over" | "under" | "draw"
+
+/** Whether a market is three-way (home / draw / away). Soccer's moneyline only; spreads and totals are two-way everywhere. */
+export const hasDraw = (sport: string | undefined, kind: string): boolean => sport === "mls" && kind === "moneyline"
 
 /* ---- provider odds (what a vendor reports) ---- */
 

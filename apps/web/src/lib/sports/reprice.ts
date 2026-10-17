@@ -1,4 +1,7 @@
 import { priceTwoWay } from "./odds.ts"
+import { REPRICE } from "./reprice-config.ts"
+import { priceThreeWay, type Triple } from "./threeway.ts"
+import type { ThreeWayExchangeResult } from "./threeway-exchange.ts"
 
 /**
  * Pregame repricing: decides, from an exchange mid, whether an OPEN market's offered line should move, stay, or freeze.
@@ -11,42 +14,7 @@ import { priceTwoWay } from "./odds.ts"
  * outcome books already sum to about 1 (no vig), so the mid renormalised is used as the fair probability directly.
  */
 
-export const REPRICE = {
-  /** Freshest read we accept: our fetch of the book must be this young. */
-  maxAgeMs: 60_000,
-  /** Widest best-bid/best-ask gap (probability points) we price from. */
-  maxSpread: 0.03,
-  /** Least size (shares) resting at BOTH best levels of BOTH outcome books; a thin top of book is cheap to move. */
-  minTopSize: 200,
-  /** Fair probabilities outside [minFair, 1 - minFair] are never repriced (a stale longshot price is the costliest): the market freezes. */
-  minFair: 0.15,
-  /** A book's own timestamp older than this is a stuck feed even if we just fetched it. */
-  maxBookTsAgeMs: 10 * 60_000,
-  /** Polymarket and Kalshi further apart than this: skip (hold the current line). */
-  disagree: 0.05,
-  /** Move the line only when the fair probability drifted at least this far from the last priced basis. */
-  minMove: 0.015,
-  /** At most one line write per market in this interval. */
-  minIntervalMs: 30_000,
-  /** One reprice may not move fair probability more than this; a bigger jump freezes the market instead. */
-  maxStep: 0.04,
-  /** Total range of fair probability over the last hour above this freezes the market. */
-  hourRange: 0.15,
-  hourMs: 3_600_000,
-  /** First exchange contact: the published (consensus) basis and the exchange may differ by this much ONLY when Polymarket and Kalshi agree; otherwise `maxStep` applies. */
-  firstContactMax: 0.12,
-  /** A market the exchange manages freezes if no good exchange read arrives for this long. */
-  staleFreezeMs: 10 * 60_000,
-  /** Re-stamp `exchange_ok_at` at most this often when nothing moved. */
-  confirmEveryMs: 2 * 60_000,
-  /** Only games starting within this window are repriced at the fast cadence (keeps a serverless DB able to sleep). */
-  windowMs: 3 * 3_600_000,
-  /** Pass cadence inside the window, and outside it (further-out games still get a slower pass while the worker is up). */
-  passMs: 30_000,
-  farPassMs: 5 * 60_000,
-  /** The publish/guard cron stops trusting an exchange-managed market, and freezes it inside `windowMs` of the start, when the worker heartbeat is older than this. */
-  workerDeadMs: 5 * 60_000,
-} as const
+export { REPRICE }
 
 export type ExchangeView = {
   /** Probability of the market's FIRST side (home for moneyline/spread, over for totals). */
@@ -76,14 +44,16 @@ export type MarketState = {
   /** Fair probability of side A behind the current prices (consensus at publish, then each exchange reprice). */
   fairProbA: number | null
   pointA: number | null
-  /** Current offered prices of the first and second side. */
-  prices: [number, number]
+  /** Current offered prices, one per side: two, or three [home, draw, away] for the soccer moneyline. */
+  prices: number[]
+  /** Fair probability behind each offered price, same order; null until known (three-way markets need it as their basis). */
+  fairs?: number[] | null
   repricedAt: Date | null
   /** Number of line writes so far; with the basis it identifies the version a decision was made from. */
   repriceCount: number
   exchangeOkAt: Date | null
   /** Fair probabilities of side A over the last hour (from line history), oldest first. */
-  history: { at: Date; fairProbA: number }[]
+  history: { at: Date; fairProbA: number; /** All sides' fair probabilities, three-way only. */ fairs?: number[] }[]
 }
 
 export type RepriceInput = {
@@ -91,13 +61,15 @@ export type RepriceInput = {
   startsAt: Date
   eventStatus: string
   market: MarketState
-  /** Null: no usable exchange read (no match, unavailable, error). */
+  /** Null: no usable exchange read (no match, unavailable, error). Two-way markets. */
   exchange: ExchangeView | null
+  /** Three-way markets: the outcome of `exchangeThreeWay` over the three YES books (it applies the same gates as below to every leg). Null: no usable read. */
+  exchange3?: ThreeWayExchangeResult | null
 }
 
 export type Decision =
   | { action: "none"; reason: string; /** Exchange was healthy: stamp `exchange_ok_at` (throttled by the caller). */ confirm: boolean }
-  | { action: "update"; prices: [number, number]; fairProbA: number; source: string; spread: number | null; ageMs: number; step: number }
+  | { action: "update"; prices: number[]; fairProbA: number; /** Fair probability per side, same order as `prices` (three-way). */ fairs?: number[]; source: string; spread: number | null; ageMs: number; step: number }
   | { action: "freeze"; reason: string }
 
 const none = (reason: string, confirm = false): Decision => ({ action: "none", reason, confirm })
@@ -112,6 +84,8 @@ export function decideReprice(input: RepriceInput): Decision {
   const lastGood = Math.max(m.exchangeOkAt?.getTime() ?? 0, m.repricedAt?.getTime() ?? 0)
   // A market the exchange has been managing must not sit on an old price when the exchange goes quiet.
   const hold = (reason: string): Decision => (managed && now.getTime() - lastGood > REPRICE.staleFreezeMs ? { action: "freeze", reason: `exchange ${reason} for over ${REPRICE.staleFreezeMs / 60_000} min` } : none(reason))
+
+  if (m.prices.length === 3) return decideThreeWay(input, hold, managed)
 
   if (!x) return hold("unavailable")
   // Game winner markets match by teams. Spreads and totals only with the exchange line at EXACTLY the offered point.
@@ -147,6 +121,37 @@ export function decideReprice(input: RepriceInput): Decision {
   return { action: "update", prices, fairProbA: x.probA, source: x.source, spread: x.spread, ageMs: x.ageMs, step }
 }
 
+/**
+ * The soccer moneyline [home, draw, away]. Same state machine as the two-way decision, over a fair triple: the gates for every
+ * leg live in `exchangeThreeWay` (spread, size, read age, timestamp, sum, cross-source disagreement, range); a gate that holds
+ * keeps the line (and the stale-freeze applies), one that freezes closes it. The step is the largest move of any side.
+ */
+function decideThreeWay(input: RepriceInput, hold: (reason: string) => Decision, managed: boolean): Decision {
+  const { now, market: m } = input
+  const x3 = input.exchange3
+  if (!x3) return hold("unavailable")
+  if (!x3.ok) return x3.action === "freeze" ? { action: "freeze", reason: x3.reason } : hold(x3.reason)
+  const v = x3.view
+  // A three-way basis comes from the stored per-side fair probabilities; without them nothing bounds the first move, so hold.
+  const basis = m.fairs && m.fairs.length === 3 ? m.fairs : null
+  if (!basis) return hold("no fair basis stored")
+  const step = Math.max(...v.fair.map((f, i) => Math.abs(f - basis[i]!)))
+  const bothAgree = v.other != null
+  const limit = managed || !bothAgree ? REPRICE.maxStep : REPRICE.firstContactMax
+  if (step > limit) return { action: "freeze", reason: managed ? "exchange jump" : "exchange and published line disagree" }
+  const recent = m.history.filter((h) => now.getTime() - h.at.getTime() <= REPRICE.hourMs && h.fairs && h.fairs.length === 3)
+  for (let i = 0; i < 3; i++) {
+    const all = [...recent.map((h) => h.fairs![i]!), v.fair[i]!]
+    if (Math.max(...all) - Math.min(...all) > REPRICE.hourRange) return { action: "freeze", reason: "exchange moved too far in an hour" }
+  }
+  const prices = priceThreeWay(v.fair as Triple)
+  if (!prices) return { action: "freeze", reason: "market too lopsided" }
+  if (step < REPRICE.minMove) return none("within threshold", true)
+  if (prices.every((p, i) => p === m.prices[i])) return none("same price", true)
+  if (m.repricedAt && now.getTime() - m.repricedAt.getTime() < REPRICE.minIntervalMs) return none("min interval")
+  return { action: "update", prices, fairProbA: v.fair[0], fairs: v.fair, source: v.source, spread: v.spread, ageMs: v.ageMs, step }
+}
+
 /** Whether a "confirm" stamp is due (throttled so unchanged markets do not write every pass). */
 export const confirmDue = (m: Pick<MarketState, "exchangeOkAt">, now: Date): boolean => !m.exchangeOkAt || now.getTime() - m.exchangeOkAt.getTime() >= REPRICE.confirmEveryMs
 
@@ -162,7 +167,7 @@ export type RepriceTarget = {
   state: MarketState
 }
 
-export type RepriceResult = { applied: boolean; reason?: string; oldPrices?: [number, number]; newPrices?: [number, number]; version?: number }
+export type RepriceResult = { applied: boolean; reason?: string; oldPrices?: number[]; newPrices?: number[]; version?: number }
 
 /** What the worker needs from the database for repricing (implemented by store.ts; injected so tests need no database). */
 export type RepriceStore = {

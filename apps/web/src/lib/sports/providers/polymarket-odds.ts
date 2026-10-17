@@ -1,8 +1,9 @@
 import { matchGame, sameTeam, type Candidate } from "../live/match.ts"
 import { normalizeQuote, pairProbability } from "../live/quote.ts"
-import { CLOB, date, GAMMA, json, KALSHI, KALSHI_SERIES, kalshiQuotes, num, parseClobBook, parseKalshiEvents, POLYMARKET_SERIES, type KalshiGame } from "../live/sources.ts"
+import { CLOB, date, gammaGamesUrl, GAMMA_PAGE, json, KALSHI, KALSHI_SERIES, kalshiQuotes, num, parseClobBook, parseKalshiEvents, POLYMARKET_SERIES, type KalshiGame } from "../live/sources.ts"
 import { rawAmerican } from "../odds.ts"
-import { REPRICE } from "../reprice.ts"
+import { REPRICE } from "../reprice-config.ts"
+import { booksFromQuotes, exchangeThreeWay, type LegQuote, type ThreeWayBooks } from "../threeway-exchange.ts"
 import type { BookQuote, EventResult, OddsProvider, OddsSnapshot, ProviderEvent, ProviderMarket, Sport } from "../types.ts"
 import { EspnResultsProvider } from "./espn.ts"
 
@@ -31,7 +32,6 @@ export const EXCHANGE_ODDS = {
   callsPerSportPerDay: 400,
   /** Gamma pages of 100 events (an MLS game alone is up to 8 events). */
   maxPages: 4,
-  pageSize: 100,
   /** Books per CLOB request. */
   clobChunk: 100,
   retries: 2,
@@ -59,6 +59,8 @@ export type PmMarket = {
   groupTitle: string
   outcomes: string[]
   tokens: string[]
+  /** Token of the "Yes" outcome when the market is a Yes/No one (soccer's per-team and draw markets); null otherwise. */
+  yesToken: string | null
   line: number | null
   /** Gamma's own best bid/ask of the first outcome: preselection only, never a price. */
   bid: number | null
@@ -123,6 +125,7 @@ export function parseGammaGroups(payload: unknown): PmGameGroup[] {
         groupTitle: String(raw.groupItemTitle ?? ""),
         outcomes: outcomes.map(String),
         tokens: tokens.map(String),
+        yesToken: outcomes.some((o) => /^no$/i.test(String(o).trim())) && outcomes.some((o) => /^yes$/i.test(String(o).trim())) ? String(tokens[outcomes.findIndex((o) => /^yes$/i.test(String(o).trim()))]) : null,
         line,
         bid: num(raw.bestBid),
         ask: num(raw.bestAsk),
@@ -136,10 +139,25 @@ export function parseGammaGroups(payload: unknown): PmGameGroup[] {
   return [...groups.values()].filter((g) => mains.has(g.slug))
 }
 
-/** The two team names of a game, in the exchange's order, from its two-outcome moneyline. Null when it has none. */
+const isYesNo = (m: PmMarket) => m.outcomes.some((o) => /^(yes|no)$/i.test(o.trim()))
+
+/** Soccer: the two team markets (in listing order) and the draw market, each a Yes/No market with a YES token. Null unless exactly that. */
+export function threeWayOf(g: PmGameGroup): { teams: [PmMarket, PmMarket]; draw: PmMarket } | null {
+  const ml = g.markets.filter((m) => m.type === "moneyline")
+  if (ml.length !== 3 || ml.some((m) => !m.yesToken)) return null
+  const isDraw = (m: PmMarket) => /^draw\b/i.test(m.groupTitle.trim()) || (!m.groupTitle && /\bdraw\b/i.test(m.question))
+  const draws = ml.filter(isDraw)
+  const sides = ml.filter((m) => !isDraw(m))
+  if (draws.length !== 1 || sides.length !== 2 || sides.some((m) => !m.groupTitle.trim())) return null
+  return { teams: [sides[0]!, sides[1]!], draw: draws[0]! }
+}
+
+/** The two team names of a game, in the exchange's order, from its two-outcome moneyline (soccer: from the team markets' titles). Null when it has none. */
 export function groupTeams(g: PmGameGroup): [string, string] | null {
-  const ml = g.markets.find((m) => m.type === "moneyline" && !m.outcomes.some((o) => /^(yes|no)$/i.test(o.trim())))
-  return ml ? [ml.outcomes[0]!, ml.outcomes[1]!] : null
+  const ml = g.markets.find((m) => m.type === "moneyline" && !isYesNo(m))
+  if (ml) return [ml.outcomes[0]!, ml.outcomes[1]!]
+  const t = threeWayOf(g)
+  return t ? [t.teams[0].groupTitle.trim(), t.teams[1].groupTitle.trim()] : null
 }
 
 /* ---------------- gates ---------------- */
@@ -188,6 +206,8 @@ export type PlannedGame = {
   teams: [string, string]
   startsAt: Date
   moneyline: PmMarket | null
+  /** Soccer: the home, draw and away YES markets. Then `moneyline` is null. */
+  three: { home: PmMarket; draw: PmMarket; away: PmMarket } | null
   spreads: LineCandidate[]
   totals: LineCandidate[]
 }
@@ -244,8 +264,11 @@ export function planGames(sport: Sport, schedule: EventResult[], groups: PmGameG
         totals.push({ market: mk, point: mk.line!, coarse: c, direct: true })
       }
     }
-    const moneyline = g.markets.find((x) => x.type === "moneyline" && !x.outcomes.some((o) => /^(yes|no)$/i.test(o.trim()))) ?? null
-    games.push({ espn: e, group: g, homeIndex: m.homeIndex, teams: m.candidate.teams, startsAt, moneyline, spreads: nearest(spreads), totals: nearest(totals) })
+    const moneyline = g.markets.find((x) => x.type === "moneyline" && !isYesNo(x)) ?? null
+    const t3 = moneyline ? null : threeWayOf(g)
+    // Team markets are in the exchange's order; ours is home = teams[homeIndex].
+    const three = t3 ? { home: t3.teams[m.homeIndex], draw: t3.draw, away: t3.teams[1 - m.homeIndex] } : null
+    games.push({ espn: e, group: g, homeIndex: m.homeIndex, teams: m.candidate.teams, startsAt, moneyline, three, spreads: nearest(spreads), totals: nearest(totals) })
   }
   return { games, unmatched }
 }
@@ -255,6 +278,7 @@ export function tokensNeeded(games: PlannedGame[]): string[] {
   const out = new Set<string>()
   for (const g of games) {
     if (g.moneyline) out.add(g.moneyline.tokens[g.homeIndex]!)
+    if (g.three) for (const mk of [g.three.home, g.three.draw, g.three.away]) out.add(mk.yesToken!)
     for (const c of [...g.spreads, ...g.totals]) out.add(c.market.tokens[0]!)
   }
   return [...out]
@@ -268,7 +292,8 @@ export type Hidden = Record<string, number>
  * Builds the provider events for planned games from the books that were read. Pure. `kalshiHome` gives the Kalshi view of
  * P(home) for a game (null when none / unusable). Anything that fails a gate is counted in `hidden` and left out.
  */
-export function assemble(sport: Sport, games: PlannedGame[], books: ReadonlyMap<string, ClobBook>, kalshiHome: (g: PlannedGame) => number | null, readAt: Date, now: Date): { events: ProviderEvent[]; hidden: Hidden } {
+export type KalshiView = { home: (g: PlannedGame) => number | null; three: (g: PlannedGame) => ThreeWayBooks | null }
+export function assemble(sport: Sport, games: PlannedGame[], books: ReadonlyMap<string, ClobBook>, kalshi: KalshiView, readAt: Date, now: Date): { events: ProviderEvent[]; hidden: Hidden } {
   const hidden: Hidden = {}
   const hide = (what: string, reason: string) => {
     const k = `${what}: ${reason}`
@@ -282,7 +307,7 @@ export function assemble(sport: Sport, games: PlannedGame[], books: ReadonlyMap<
       const r = gateBook(books.get(g.moneyline.tokens[g.homeIndex]!), readAt, now, g.moneyline)
       if (!r.ok) hide("moneyline", r.reason)
       else {
-        const k = kalshiHome(g)
+        const k = kalshi.home(g)
         if (k != null && Math.abs(k - r.mid) > REPRICE.disagree) hide("moneyline", "sources disagree")
         else
           markets.push({
@@ -291,6 +316,32 @@ export function assemble(sport: Sport, games: PlannedGame[], books: ReadonlyMap<
             outcomes: [
               { selection: "home", quotes: [quote(r.mid, null, readAt)] },
               { selection: "away", quotes: [quote(1 - r.mid, null, readAt)] },
+            ],
+          })
+      }
+    } else if (g.three) {
+      const t = g.three
+      const parts = [t.home, t.draw, t.away]
+      const gates = parts.map((mk) => ({ mk, book: books.get(mk.yesToken!) }))
+      const stale = parts.find((mk) => mk.updatedAt && now.getTime() - mk.updatedAt.getTime() > EXCHANGE_ODDS.maxUpdateAgeMs)
+      const legs: LegQuote[] = []
+      for (const [sel, { book }] of [["home", gates[0]!], ["draw", gates[1]!], ["away", gates[2]!]] as const) {
+        if (book) legs.push({ selection: sel, bid: book.bid, ask: book.ask, bidSize: book.bidSize, askSize: book.askSize, sourceTs: book.ts, fetchedTs: readAt })
+      }
+      const triple = booksFromQuotes(legs, now, false)
+      if (stale) hide("moneyline", "market not updated")
+      else if (!triple) hide("moneyline", "no book")
+      else {
+        const x = exchangeThreeWay({ source: "polymarket", books: triple, other: kalshi.three(g), gameLive: false, acceptingOrders: parts.every((mk) => mk.acceptingOrders) })
+        if (!x.ok) hide("moneyline", x.reason)
+        else
+          markets.push({
+            key: "moneyline",
+            kind: "moneyline",
+            outcomes: [
+              { selection: "home", quotes: [quote(x.view.fair[0], null, readAt)] },
+              { selection: "draw", quotes: [quote(x.view.fair[1], null, readAt)] },
+              { selection: "away", quotes: [quote(x.view.fair[2], null, readAt)] },
             ],
           })
       }
@@ -361,6 +412,14 @@ export function kalshiHomeProb(games: KalshiGame[] | null, g: Pick<PlannedGame, 
   for (const q of kalshiQuotes(m.candidate, g.espn.homeName, g.espn.awayName, now)) sides[q.selection as "home" | "away"] = normalizeQuote(q, now)
   if (!sides.home?.mid || !sides.away?.mid) return null
   return pairProbability(sides.home, sides.away)?.homeProb ?? null
+}
+
+/** Kalshi's home / draw / away contracts for a soccer game as cross-check books (sizes unknown, counted as the minimum), or null. */
+export function kalshiThreeBooks(games: KalshiGame[] | null, g: Pick<PlannedGame, "espn" | "startsAt">, now: Date): ThreeWayBooks | null {
+  if (!games || !g.espn.homeName || !g.espn.awayName) return null
+  const timed = games.filter((k) => !k.expectedEnd || (k.expectedEnd.getTime() >= g.startsAt.getTime() && k.expectedEnd.getTime() - g.startsAt.getTime() <= 36 * 3_600_000))
+  const m = matchGame({ homeName: g.espn.homeName, awayName: g.espn.awayName, startsAt: g.startsAt }, timed, { requireTime: false, loose: true })
+  return m ? booksFromQuotes(kalshiQuotes(m.candidate, g.espn.homeName, g.espn.awayName, now), now, true) : null
 }
 
 /* ---------------- the provider ---------------- */
@@ -485,16 +544,16 @@ export class ExchangeOddsProvider implements OddsProvider {
     if (schedule.length === 0) return { ...base, events: [], complete: true, notes: ["exchange: no games in the window"] }
 
     // Gamma list of the window, polite pages. Failing here fails the sport (nothing is published from a partial listing).
-    const from = new Date(now.getTime()).toISOString()
-    const to = new Date(now.getTime() + this.windowMs + EXCHANGE_ODDS.windowSlackMs).toISOString()
+    const from = now.getTime()
+    const to = now.getTime() + this.windowMs + EXCHANGE_ODDS.windowSlackMs
     let groups: PmGameGroup[] = []
     const raw: unknown[] = []
     for (let page = 0; page < EXCHANGE_ODDS.maxPages; page++) {
-      const url = `${GAMMA}/events?series_id=${series}&active=true&closed=false&limit=${EXCHANGE_ODDS.pageSize}&offset=${page * EXCHANGE_ODDS.pageSize}&order=endDate&ascending=true&end_date_min=${from}&end_date_max=${to}`
+      const url = gammaGamesUrl(series, from, to, page * GAMMA_PAGE)
       const list = await this.getJson(sport, now, "gamma", url)
       if (!Array.isArray(list)) throw new Error("gamma returned a non-list")
       raw.push(...list)
-      if (list.length < EXCHANGE_ODDS.pageSize) break
+      if (list.length < GAMMA_PAGE) break
     }
     groups = parseGammaGroups(raw)
     const { games, unmatched } = planGames(sport, schedule, groups, now)
@@ -532,7 +591,7 @@ export class ExchangeOddsProvider implements OddsProvider {
       }
     }
 
-    const { events, hidden } = assemble(sport, games, books, (g) => kalshiHomeProb(kalshi, g, now), now, now)
+    const { events, hidden } = assemble(sport, games, books, { home: (g) => kalshiHomeProb(kalshi, g, now), three: (g) => kalshiThreeBooks(kalshi, g, now) }, now, now)
     const hiddenText = Object.entries(hidden).map(([k, n]) => `${k} x${n}`).join("; ")
     notes.unshift(`exchange: ${events.length} of ${schedule.length} scheduled games priced${unmatched ? `, ${unmatched} not matched to an exchange game` : ""}${hiddenText ? `; hidden: ${hiddenText}` : ""}${failures ? `; ${failures} book request(s) failed` : ""}`)
     return { ...base, events, complete: failures === 0, notes }

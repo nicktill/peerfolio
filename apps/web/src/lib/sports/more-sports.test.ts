@@ -12,7 +12,7 @@ import { marketTitle, SPORT_LABEL } from "./format.ts"
 import { teamLook } from "./teams.ts"
 
 const final = (h: number, a: number) => ({ source: "t", externalId: "x", status: "final" as const, homeScore: h, awayScore: a })
-const ml = (sport: string, selection: "home" | "away") => ({ sport, kind: "moneyline" as const, selection, point: null, player: null, statKey: null })
+const ml = (sport: string, selection: "home" | "away" | "draw") => ({ sport, kind: "moneyline" as const, selection, point: null, player: null, statKey: null })
 
 describe("nhl, mlb, cfb, mls config", () => {
   it("lists every sport once", () => {
@@ -22,7 +22,7 @@ describe("nhl, mlb, cfb, mls config", () => {
     assert.deepEqual(kindsFor("nhl", DEFAULT_PUBLISH), ["moneyline", "spread", "total"])
     assert.deepEqual(kindsFor("mlb", DEFAULT_PUBLISH), ["moneyline", "spread", "total"])
     assert.deepEqual(kindsFor("cfb", DEFAULT_PUBLISH), ["moneyline", "spread", "total"])
-    assert.deepEqual(kindsFor("mls", DEFAULT_PUBLISH), ["spread", "total"])
+    assert.deepEqual(kindsFor("mls", DEFAULT_PUBLISH), ["moneyline", "spread", "total"])
     assert.deepEqual(kindsFor("nfl", DEFAULT_PUBLISH), ["moneyline", "spread", "total", "player_prop"])
   })
   it("has no props for the new sports and keys everywhere", () => {
@@ -42,7 +42,11 @@ describe("nhl, mlb, cfb, mls config", () => {
       const plan = planPublication(snap, now, new Set())
       const kinds = new Set(plan.drafts.map((m) => m.kind))
       for (const k of kinds) assert.ok(kindsFor(sport, DEFAULT_PUBLISH).includes(k as never), `${sport} published ${k}`)
-      if (sport === "mls") assert.ok(!kinds.has("moneyline"))
+      if (sport === "mls") {
+        // The soccer moneyline is three-way: the mock quotes a draw and the draft carries home / draw / away.
+        const ml = plan.drafts.find((m) => m.kind === "moneyline")
+        assert.deepEqual(ml?.lines.map((l) => l.selection), ["home", "draw", "away"])
+      }
     }
   })
   it("live slate window per sport", () => {
@@ -71,7 +75,12 @@ describe("nhl, mlb, cfb, mls config", () => {
 describe("grading ties", () => {
   const r = final(3, 3)
   it("nhl, mlb, nba and tennis moneyline ties void", () => {
-    for (const s of ["nhl", "mlb", "nba", "tennis", "mls"]) assert.equal(gradePick(ml(s, "home"), r), "void", s)
+    for (const s of ["nhl", "mlb", "nba", "tennis"]) assert.equal(gradePick(ml(s, "home"), r), "void", s)
+  })
+  it("mls: an equal score is the draw side winning, never a void or a push", () => {
+    assert.equal(gradePick(ml("mls", "home"), r), "loss")
+    assert.equal(gradePick(ml("mls", "away"), r), "loss")
+    assert.equal(gradePick(ml("mls", "draw"), r), "win")
   })
   it("football ties push, and no sport keeps behaving as before", () => {
     assert.equal(gradePick(ml("nfl", "home"), r), "push")

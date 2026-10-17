@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
-import { consensusThreeWay, devigThreeWay, exchangeThreeWay, gradeThreeWay, priceThreeWay, type ThreeWayBooks, type Triple, type YesBook } from "./threeway.ts"
+import { consensusThreeWay, devigThreeWay, gradeThreeWay, priceThreeWay, type Triple } from "./threeway.ts"
+import { exchangeThreeWay, type ThreeWayBooks, type YesBook } from "./threeway-exchange.ts"
 import { americanToProb } from "./odds.ts"
 
 const now = new Date("2026-10-17T12:00:00Z")

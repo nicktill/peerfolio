@@ -19,7 +19,7 @@ const { liveQuote, liveState, liveWorker, sportsEvents } = schema
 export type QuoteInsert = {
   eventId: string
   market: string
-  selection: "home" | "away"
+  selection: "home" | "away" | "draw"
   source: string
   bid: number | null
   ask: number | null
@@ -77,7 +77,7 @@ export async function loadLiveSlate(db: Db, now: Date): Promise<(SlateEvent & { 
 
 /** The served view of one game, newest row per key. Returns null for an unknown game. */
 export async function readLiveView(db: Db, eventId: string, now: Date): Promise<LiveView | null> {
-  const [event] = await db.select({ id: sportsEvents.id, status: sportsEvents.status }).from(sportsEvents).where(eq(sportsEvents.id, eventId)).limit(1)
+  const [event] = await db.select({ id: sportsEvents.id, status: sportsEvents.status, sport: sportsEvents.sport }).from(sportsEvents).where(eq(sportsEvents.id, eventId)).limit(1)
   if (!event) return null
   const since = new Date(now.getTime() - READ_WINDOW_MS)
   const quotes = await db.execute<QuoteRow>(sql`
@@ -92,6 +92,7 @@ export async function readLiveView(db: Db, eventId: string, now: Date): Promise<
     {
       eventId,
       eventStatus: event.status,
+      sport: event.sport,
       quotes: [...quotes].map((q) => ({ ...q, sourceTs: toDate(q.sourceTs), fetchedTs: toDate(q.fetchedTs)! })),
       state: state ?? null,
     },

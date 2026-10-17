@@ -1,4 +1,4 @@
-import type { EventResult, MarketKind, Outcome, PickStatus, Selection } from "./types.ts"
+import { hasDraw, type EventResult, type MarketKind, type Outcome, type PickStatus, type Selection } from "./types.ts"
 
 /**
  * Settlement. Pure and idempotent.
@@ -162,6 +162,14 @@ export function resultsForEvent(
   return { results, matched }
 }
 
+/** Final-score grading of a three-way market. A draw is a real outcome, never a push. Invalid scores or selection: void (refund). */
+export function gradeThreeWay(selection: string, homeScore: number | null, awayScore: number | null): Outcome {
+  if (!validScore(homeScore) || !validScore(awayScore)) return "void"
+  if (selection !== "home" && selection !== "draw" && selection !== "away") return "void"
+  const result = homeScore > awayScore ? "home" : homeScore < awayScore ? "away" : "draw"
+  return result === selection ? "win" : "loss"
+}
+
 export type GradableLine = {
   sport?: string
   kind: MarketKind
@@ -178,8 +186,12 @@ export function gradePick(line: GradableLine, result: EventResult): Outcome {
   const { homeScore: h, awayScore: a } = result
 
   if (line.kind === "moneyline") {
+    // Soccer (MLS): home / draw / away. An equal score is the draw side winning, never a void or a push.
+    if (hasDraw(line.sport, "moneyline")) return gradeThreeWay(line.selection, h, a)
+    // A draw line exists only on a three-way market; anywhere else it cannot be graded.
+    if (line.selection === "draw") return "void"
     // NFL (and college football) ties refund as a push. Tennis, NBA, NHL and MLB cannot tie in a final result, so an
-    // equal score means the feed is wrong: refund via void. (Soccer draws are handled by 3-way grading, not here.)
+    // equal score means the feed is wrong: refund via void.
     if (h === a) return line.sport === "nfl" || line.sport === "cfb" || line.sport === undefined ? "push" : "void"
     return (h > a) === (line.selection === "home") ? "win" : "loss"
   }

@@ -82,6 +82,31 @@ export function pairProbability(home: NormalizedQuote | undefined, away: Normali
   }
 }
 
+/**
+ * Three-way pairing for soccer: the home, draw and away YES books of ONE source become probabilities that sum to 1. All three
+ * legs need a usable mid and the three mids must sum to within MAX_OVERROUND of 1 (otherwise they are not one market).
+ * `homeProb` and `drawProb` are returned; the away probability is the remainder. Confidence is the weakest leg, age the oldest.
+ */
+export function pairProbability3(home: NormalizedQuote | undefined, draw: NormalizedQuote | undefined, away: NormalizedQuote | undefined): SourceProb | null {
+  if (home?.mid == null || draw?.mid == null || away?.mid == null) return null
+  const sum = home.mid + draw.mid + away.mid
+  if (Math.abs(sum - 1) > MAX_OVERROUND) return null
+  const parts = [home, draw, away]
+  const ageMs = Math.max(...parts.map((p) => p.ageMs))
+  const asOf = parts.reduce((o, p) => (p.asOf.getTime() < o.getTime() ? p.asOf : o), parts[0]!.asOf)
+  const spreads = parts.map((p) => p.spread).filter((x): x is number => x != null)
+  return {
+    source: home.source,
+    homeProb: home.mid / sum,
+    drawProb: draw.mid / sum,
+    asOf,
+    ageMs,
+    spread: spreads.length ? Math.max(...spreads) : null,
+    confidence: parts.map((p) => p.confidence).reduce(minConfidence),
+    freshness: freshnessOf(ageMs),
+  }
+}
+
 /** Best bid and best ask of an unsorted list of levels (Polymarket returns bids ascending, asks descending). */
 export function topOfBook(bids: { price: string | number }[], asks: { price: string | number }[]): { bid: number | null; ask: number | null } {
   const num = (l: { price: string | number }) => Number(l.price)

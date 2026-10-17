@@ -37,6 +37,15 @@ export const KALSHI = "https://api.elections.kalshi.com/trade-api/v2"
 /** Polymarket Gamma series ids for a game series, from the exchange proof of concept. Tennis has no game series. */
 export const POLYMARKET_SERIES: Record<string, string> = { nfl: "12185", nba: "10345", nhl: "10346", mlb: "3", cfb: "12756", mls: "10189" }
 
+/** Gamma page size cap. A soccer game alone is up to 8 events (result, halftime, exact score, corners, props, more markets...). */
+export const GAMMA_PAGE = 100
+/**
+ * Gamma events of one series whose game ends (= starts, for sports) inside [fromMs, toMs], soonest first. Ordering and filtering by
+ * the game time, not the creation date, keeps a season's old events from filling the 100-event page; `offset` pages on.
+ */
+export const gammaGamesUrl = (series: string, fromMs: number, toMs: number, offset = 0): string =>
+  `${GAMMA}/events?series_id=${series}&active=true&closed=false&limit=${GAMMA_PAGE}&offset=${offset}&order=endDate&ascending=true&end_date_min=${new Date(fromMs).toISOString()}&end_date_max=${new Date(toMs).toISOString()}`
+
 export type PmGame = Candidate & {
   slug: string
   live: boolean
@@ -47,9 +56,39 @@ export type PmGame = Candidate & {
   scoreRaw: string | null
   period: string | null
   elapsed: string | null
-  /** CLOB token per outcome, in the order of `teams`. */
+  /** CLOB token per outcome, in the order of `teams`. For a three-way game these are the two teams' YES tokens. */
   tokens: [string, string]
+  /** Three-way (soccer) only: the YES token of the draw market. Null for a two-outcome game. */
+  drawToken: string | null
   acceptingOrders: boolean
+}
+
+type Rec0 = Record<string, unknown>
+
+/**
+ * Soccer game winner: three binary markets (Yes/No) for "home wins", "draw", "away wins", each with its own YES token.
+ * Returns the two team names (in listing order, from the market titles), their YES tokens and the draw YES token, or null
+ * unless there are exactly two team markets and one draw market. A market not accepting orders stops the whole set.
+ */
+export function parseThreeWayMarkets(markets: Rec0[]): { teams: [string, string]; tokens: [string, string]; drawToken: string; acceptingOrders: boolean } | null {
+  const ml = markets.filter((m) => m.sportsMarketType === "moneyline")
+  if (ml.length !== 3) return null
+  const yes = (m: Rec0): string | null => {
+    const o = json<string[]>(m.outcomes)
+    const t = json<string[]>(m.clobTokenIds)
+    if (!o || !t || o.length !== 2 || t.length !== 2) return null
+    const i = o.findIndex((x) => /^yes$/i.test(String(x).trim()))
+    return i < 0 || !o.some((x) => /^no$/i.test(String(x).trim())) ? null : String(t[i])
+  }
+  const isDraw = (m: Rec0) => /^draw\b/i.test(String(m.groupItemTitle ?? "").trim()) || (!m.groupItemTitle && /\bdraw\b/i.test(String(m.question ?? "")))
+  const draws = ml.filter(isDraw)
+  const sides = ml.filter((m) => !isDraw(m))
+  if (draws.length !== 1 || sides.length !== 2) return null
+  const names = sides.map((m) => String(m.groupItemTitle ?? "").trim())
+  const toks = [yes(sides[0]!), yes(sides[1]!)]
+  const drawToken = yes(draws[0]!)
+  if (names.some((n) => !n) || toks.some((t) => !t) || !drawToken) return null
+  return { teams: [names[0]!, names[1]!], tokens: [toks[0]!, toks[1]!], drawToken, acceptingOrders: ml.every((m) => m.acceptingOrders !== false) }
 }
 
 /**
@@ -67,13 +106,15 @@ export function parseGammaEvents(payload: unknown): PmGame[] {
     const outcomes = json<string[]>(ml.outcomes)
     const tokens = json<string[]>(ml.clobTokenIds)
     if (!outcomes || !tokens || outcomes.length !== 2 || tokens.length !== 2) continue
-    if (outcomes.some((o) => /^(yes|no|over|under|draw)$/i.test(String(o).trim()))) continue
+    // Soccer: three Yes/No markets (home, draw, away) instead of one two-team market.
+    const three = outcomes.every((o) => /^(yes|no)$/i.test(String(o).trim())) ? parseThreeWayMarkets(markets) : null
+    if (!three && outcomes.some((o) => /^(yes|no|over|under|draw)$/i.test(String(o).trim()))) continue
     const startsAt = date(ev.startTime) ?? date(ml.gameStartTime)
     const m = typeof ev.score === "string" ? /^(\d+)\s*[-:]\s*(\d+)$/.exec(ev.score.trim()) : null
     out.push({
       id: String(ev.slug ?? ev.id ?? ""),
       slug: String(ev.slug ?? ""),
-      teams: [String(outcomes[0]), String(outcomes[1])],
+      teams: three ? three.teams : [String(outcomes[0]), String(outcomes[1])],
       startsAt,
       live: ev.live === true,
       ended: ev.ended === true,
@@ -81,8 +122,9 @@ export function parseGammaEvents(payload: unknown): PmGame[] {
       scoreRaw: typeof ev.score === "string" && ev.score ? ev.score.slice(0, 40) : null,
       period: typeof ev.period === "string" && ev.period ? ev.period : null,
       elapsed: typeof ev.elapsed === "string" && ev.elapsed ? ev.elapsed : null,
-      tokens: [String(tokens[0]), String(tokens[1])],
-      acceptingOrders: ml.acceptingOrders !== false,
+      tokens: three ? three.tokens : [String(tokens[0]), String(tokens[1])],
+      drawToken: three ? three.drawToken : null,
+      acceptingOrders: three ? three.acceptingOrders : ml.acceptingOrders !== false,
     })
   }
   return out.filter((g) => g.slug)
@@ -126,6 +168,10 @@ export function pmQuotes(game: PmGame, homeIndex: 0 | 1, books: unknown, fetched
   for (const [i, selection] of ([[homeIndex, "home"], [(1 - homeIndex) as 0 | 1, "away"]] as [0 | 1, LiveSelection][])) {
     const p = byAsset.get(game.tokens[i])
     if (p) out.push({ source: "polymarket", selection, bid: p.bid, ask: p.ask, bidSize: p.bidSize, askSize: p.askSize, sourceTs: p.ts, fetchedTs })
+  }
+  if (game.drawToken) {
+    const p = byAsset.get(game.drawToken)
+    if (p) out.push({ source: "polymarket", selection: "draw", bid: p.bid, ask: p.ask, bidSize: p.bidSize, askSize: p.askSize, sourceTs: p.ts, fetchedTs })
   }
   return out
 }
@@ -197,7 +243,9 @@ export function parseKalshiEvents(payload: unknown): KalshiGame[] {
       bid: num(m.yes_bid_dollars),
       ask: num(m.yes_ask_dollars),
     }))
-    if (markets.length !== 2) continue
+    // Soccer has a third contract for the draw ("Tie"); every other game has exactly the two team contracts.
+    const ties = markets.filter((m) => /^(tie|draw)$/i.test(m.team.trim()))
+    if (!(markets.length === 2 && ties.length === 0) && !(markets.length === 3 && ties.length === 1)) continue
     const m0 = (Array.isArray(ev.markets) ? (ev.markets as Record<string, unknown>[]) : [])[0] ?? {}
     out.push({
       id: String(ev.event_ticker ?? ev.title),
@@ -215,9 +263,11 @@ export function parseKalshiEvents(payload: unknown): KalshiGame[] {
 export function kalshiQuotes(game: KalshiGame, homeName: string, awayName: string, fetchedTs: Date): RawQuote[] {
   const out: RawQuote[] = []
   for (const [name, selection] of [[homeName, "home"], [awayName, "away"]] as [string, LiveSelection][]) {
-    const m = game.markets.find((x) => sameTeamLoose(x.team, name))
+    const m = game.markets.find((x) => !/^(tie|draw)$/i.test(x.team.trim()) && sameTeamLoose(x.team, name))
     if (m) out.push({ source: "kalshi", selection, bid: m.bid, ask: m.ask, sourceTs: null, fetchedTs })
   }
+  const tie = game.markets.find((x) => /^(tie|draw)$/i.test(x.team.trim()))
+  if (tie) out.push({ source: "kalshi", selection: "draw", bid: tie.bid, ask: tie.ask, sourceTs: null, fetchedTs })
   return out
 }
 

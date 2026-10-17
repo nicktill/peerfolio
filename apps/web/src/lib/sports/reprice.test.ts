@@ -221,8 +221,11 @@ describe("source-level guards: exchange data stays out of settlement, grading an
       assert.deepEqual(importsOf(f).filter((i) => /(^|\/)live(\/|$)|reprice/.test(i)), [], `${f} must not see exchange data`)
     }
   })
-  it("reprice.ts is pure: it imports only the odds maths", () => {
-    assert.deepEqual(importsOf("reprice.ts"), ["./odds.ts"])
+  it("reprice.ts is pure: it imports only the odds and three-way maths and its own constants", () => {
+    assert.deepEqual(importsOf("reprice.ts"), ["./odds.ts", "./reprice-config.ts", "./threeway.ts", "./threeway-exchange.ts"])
+  })
+  it("pricing and grading modules carry no exchange mapping: threeway.ts imports neither reprice nor threeway-exchange", () => {
+    assert.deepEqual(importsOf("threeway.ts").filter((i) => /reprice|exchange|live/.test(i)), [])
   })
   it("applyReprice re-checks inside the lock: moneyline only, minimum interval, version and basis, master switch", () => {
     const code = readFileSync(join(here, "store.ts"), "utf8")

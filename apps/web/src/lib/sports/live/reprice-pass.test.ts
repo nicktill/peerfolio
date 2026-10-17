@@ -38,7 +38,7 @@ const gamma = (live = false) => [
 const book = (id: string, mid: number, half = 0.01, size = "1000") => ({ asset_id: id, timestamp: String(NOW.getTime() - 500), bids: [{ price: String(mid - half), size }], asks: [{ price: String(mid + half), size }] })
 
 function harness(targets: RepriceTarget[], opts: { celticsMid?: number; half?: number; size?: string; live?: boolean; kalshi?: unknown } = {}) {
-  const applied: { marketId: string; basis: number | null; prices: [number, number] }[] = []
+  const applied: { marketId: string; basis: number | null; prices: number[] }[] = []
   const frozen: { marketId: string; reason: string }[] = []
   const confirmed: string[][] = []
   const lines: { level: string; ev: string; f: Record<string, unknown> }[] = []

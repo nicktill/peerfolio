@@ -12,7 +12,7 @@ import { revealStyle } from "@web/components/motion/reveal"
 import { LeaguePageSkeleton } from "@web/components/skeletons"
 import { useToast } from "@web/components/ui/toast"
 import { useFantasyMode } from "@web/components/sports/mode-switch"
-import { eventTitle, formatOdds, lineLabel, lockLabel, marketTitle, pickSentence, SPORT_LABEL, winOn100, type DisplayLine, type DisplayMarket } from "@web/lib/sports/format"
+import { eventTitle, formatOdds, lineLabel, lockLabel, marketTitle, pickSentence, sideTeam, SPORT_LABEL, winOn100, type DisplayLine, type DisplayMarket } from "@web/lib/sports/format"
 import { americanToDecimal } from "@web/lib/sports/odds"
 import { onColor, teamLook } from "@web/lib/sports/teams"
 import { InfoTip, Tip } from "@web/components/ui/tip"
@@ -297,7 +297,7 @@ function Slip({
   const cap = Math.min(limits.maxStake, balance)
   const amount = Math.floor(Number(stake.replace(/[^\d]/g, "")) || 0)
   const winnings = selected ? Math.floor(amount * americanToDecimal(selected.line.price)) - amount : 0
-  const slipSide = selected && (selected.market.kind === "moneyline" || selected.market.kind === "spread") ? (selected.line.selection === "home" ? selected.market.event.home : selected.market.event.away) : null
+  const slipSide = selected ? sideTeam(selected.market.event, selected.market.kind, selected.line.selection) : null
   // The slip wears the colour of what you picked: the team, or the sport for totals and props.
   const slipColor = selected ? (slipSide ? teamLook(selected.market.event.sport, slipSide).color : SPORT_COLOR[selected.market.event.sport] ?? "#64748b") : null
   const problem =
@@ -473,14 +473,22 @@ function MirrorReport({ leagueId }: { leagueId: string }) {
 }
 
 /** Chance each side wins, from the moneyline prices with the bookmaker's margin taken out. */
-function winChances(lines: Line[]): Record<string, number> | null {
+function winChances(lines: Line[]): { home: number; away: number; draw: number | null } | null {
   const home = lines.find((l) => l.selection === "home")
   const away = lines.find((l) => l.selection === "away")
+  const draw = lines.find((l) => l.selection === "draw")
   if (!home || !away) return null
+  // Soccer has a third line; a market that lists a draw line but is missing it is not shown as a two-way split.
+  if (lines.length === 3 && !draw) return null
   const ph = 1 / americanToDecimal(home.price)
   const pa = 1 / americanToDecimal(away.price)
-  return { home: ph / (ph + pa), away: pa / (ph + pa) }
+  const pd = draw ? 1 / americanToDecimal(draw.price) : 0
+  const sum = ph + pa + pd
+  return { home: ph / sum, away: pa / sum, draw: draw ? pd / sum : null }
 }
+
+/** Left to right on a winner row: away, draw, home (as the matchup reads "away @ home"); tennis lists the first player first. */
+const ORDER: Record<string, Record<string, number>> = { teams: { away: 0, draw: 1, home: 2 }, tennis: { home: 0, away: 1, draw: 2 } }
 
 function GameCard({ game, selected, onSelect, disabled }: { game: { key: string; event: EventInfo; markets: Market[] }; selected: { line: Line } | null; onSelect: (m: Market, l: Line) => void; disabled: boolean }) {
   const { event } = game
@@ -524,13 +532,15 @@ function GameCard({ game, selected, onSelect, disabled }: { game: { key: string;
 
       {chances ? (
         <Tip block text="Implied win chance from the line. Prices can update until kickoff; a locked pick keeps its price.">
-        <div className="sp-odds-bar" role="img" aria-label={`Win chance: ${event.away} ${Math.round(chances.away * 100)} percent, ${event.home} ${Math.round(chances.home * 100)} percent`}>
+        <div className="sp-odds-bar" role="img" aria-label={`Win chance: ${event.away} ${Math.round(chances.away * 100)} percent, ${chances.draw != null ? `draw ${Math.round(chances.draw * 100)} percent, ` : ""}${event.home} ${Math.round(chances.home * 100)} percent`}>
           <div className="sp-odds-track">
             <i style={{ width: `${(tennis ? chances.home : chances.away) * 100}%`, background: firstColor }} />
+            {chances.draw != null ? <i style={{ width: `${chances.draw * 100}%`, background: "var(--fw-fg3)" }} /> : null}
             <i style={{ flex: 1, background: secondColor }} />
           </div>
           <div className="sp-odds-labels">
             <span>{Math.round((tennis ? chances.home : chances.away) * 100)}% <small>{first.split(" ").pop()}</small></span>
+            {chances.draw != null ? <span>{Math.round(chances.draw * 100)}% <small>Draw</small></span> : null}
             <span><small>{second.split(" ").pop()}</small> {Math.round((tennis ? chances.away : chances.home) * 100)}%</span>
           </div>
         </div>
@@ -552,9 +562,9 @@ function GameCard({ game, selected, onSelect, disabled }: { game: { key: string;
           {active.markets.map((m) => (
             <div key={m.id} className="sp-market">
               {active.key === "props" ? <div className="sp-market-head"><span className="sp-market-title">{marketTitle(m)}</span></div> : null}
-              <div className={`sp-lines${m.kind === "moneyline" ? " sp-team-lines" : ""}`}>
-                {(m.kind === "moneyline" ? [...m.lines].sort((x, y) => (x.selection === (tennis ? "home" : "away") ? -1 : 1) - (y.selection === (tennis ? "home" : "away") ? -1 : 1)) : m.lines).map((l) => (
-                  <LineButton key={l.id} market={m} line={l} selected={selected} onSelect={onSelect} disabled={disabled} team={m.kind === "moneyline"} />
+              <div className={`sp-lines${m.kind === "moneyline" ? " sp-team-lines" : ""}`} data-three={m.lines.length === 3 || undefined}>
+                {(m.kind === "moneyline" ? [...m.lines].sort((x, y) => ORDER[tennis ? "tennis" : "teams"]![x.selection]! - ORDER[tennis ? "tennis" : "teams"]![y.selection]!) : m.lines).map((l) => (
+                  <LineButton key={l.id} market={m} line={l} selected={selected} onSelect={onSelect} disabled={disabled} team={m.kind === "moneyline" && l.selection !== "draw"} />
                 ))}
               </div>
             </div>
@@ -568,7 +578,7 @@ function GameCard({ game, selected, onSelect, disabled }: { game: { key: string;
 function LineButton({ market: m, line: l, selected, onSelect, disabled, team }: { market: Market; line: Line; selected: { line: Line } | null; onSelect: (m: Market, l: Line) => void; disabled: boolean; team?: boolean }) {
   const label = lineLabel(m, l)
   const mine = m.picked?.selection === l.selection
-  const side = m.kind === "moneyline" || m.kind === "spread" ? (l.selection === "home" ? m.event.home : m.event.away) : null
+  const side = sideTeam(m.event, m.kind, l.selection)
   const look = side ? teamLook(m.event.sport, side) : null
   return (
     <button

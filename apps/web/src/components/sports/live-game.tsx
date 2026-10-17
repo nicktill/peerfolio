@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { Radio } from "lucide-react"
 import { PIPELINE } from "@web/lib/sports/live/freshness"
-import { chipFor, PAUSED_REASON, splitPct, statusLine } from "@web/lib/sports/live/format"
+import { chipFor, PAUSED_REASON, splitPct, splitPct3, statusLine } from "@web/lib/sports/live/format"
 import { ageView, type LiveView } from "@web/lib/sports/live/view"
 import { teamLook } from "@web/lib/sports/teams"
 
@@ -74,7 +74,7 @@ export function LiveGameStrip({ eventId, sport, home, away, active }: { eventId?
   if (!eventId || !active) return null
   const chip = chipFor(view, elapsedMs)
   const odds = view?.odds.status === "ok" && chip.tone !== "paused" ? view.odds : null
-  const split = odds ? splitPct(odds.homeProb) : null
+  const split = odds ? (odds.drawProb != null ? splitPct3(odds.homeProb, odds.drawProb) : { ...splitPct(odds.homeProb), draw: null }) : null
   const h = teamLook(sport, home)
   const a = teamLook(sport, away)
   const line = view ? statusLine(view) : null
@@ -95,12 +95,14 @@ export function LiveGameStrip({ eventId, sport, home, away, active }: { eventId?
       </div>
       {split ? (
         <>
-          <div className="sl-live-bar" role="img" aria-label={`Win probability: ${away} ${split.away} percent, ${home} ${split.home} percent`}>
+          <div className="sl-live-bar" role="img" aria-label={`Win probability: ${away} ${split.away} percent, ${split.draw != null ? `draw ${split.draw} percent, ` : ""}${home} ${split.home} percent`}>
             <span style={{ width: `${split.away}%`, background: a.color }} />
+            {split.draw != null ? <span style={{ width: `${split.draw}%`, background: "var(--fw-fg3)" }} /> : null}
             <span style={{ width: `${split.home}%`, background: h.color }} />
           </div>
           <div className="sl-live-odds numeric">
             <span>{a.abbr} {split.away}%</span>
+            {split.draw != null ? <span>Draw {split.draw}%</span> : null}
             <span>{h.abbr} {split.home}%</span>
           </div>
           {odds && odds.confidence === "low" ? <p className="sl-live-note">{odds.mismatch ? "Sources differ, treat as rough" : "Thin market, treat as rough"}</p> : null}

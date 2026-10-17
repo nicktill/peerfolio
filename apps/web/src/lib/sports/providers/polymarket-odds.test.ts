@@ -277,3 +277,85 @@ describe("Gamma parsing", () => {
     assert.deepEqual(groups[0]!.markets.map((m) => m.type), ["moneyline", "spreads", "totals"])
   })
 })
+
+describe("MLS three-way moneyline from three Yes/No markets, spreads and totals from the more-markets event", () => {
+  const fx = () => load("exchange-mls-2026-10-17.json")
+  const run = (f: Fixture, extra: ConstructorParameters<typeof ExchangeOddsProvider>[0] = {}) => provider(f, {}, { windowMs: 86_400_000, ...extra }).p.fetchOdds("mls", at(f))
+
+  it("prices home / draw / away that add up to one, with ESPN's names and home/away", async () => {
+    const f = fx()
+    const snap = await run(f)
+    const e = snap.events.find((x) => x.homeName === "Atlanta United FC")!
+    assert.ok(e)
+    assert.equal(e.awayName, "Inter Miami CF")
+    const ml = e.markets.find((m) => m.key === "moneyline")!
+    assert.deepEqual(ml.outcomes.map((o) => o.selection), ["home", "draw", "away"])
+    const fair = ml.outcomes.map((o) => americanToProb(o.quotes[0]!.price))
+    assert.ok(Math.abs(fair[0]! + fair[1]! + fair[2]! - 1) < 1e-9)
+    // Atlanta is the weaker home side in the recorded book (about 28%), Miami about 50%.
+    assert.ok(fair[0]! < fair[2]!)
+    assert.ok(fair[1]! > 0.15 && fair[1]! < 0.3)
+  })
+
+  it("joins spreads and totals from the -more-markets event to the same game", async () => {
+    const snap = await run(fx())
+    const e = snap.events.find((x) => x.homeName === "Atlanta United FC")!
+    assert.deepEqual(e.markets.map((m) => m.key).sort(), ["moneyline", "spread", "total"])
+    const sp = e.markets.find((m) => m.key === "spread")!
+    assert.equal(sp.outcomes[0]!.quotes[0]!.point, -(sp.outcomes[1]!.quotes[0]!.point as number))
+  })
+
+  it("matches Red Bull New York to the exchange's New York Red Bulls, and hides a thin three-way moneyline while keeping the rest", async () => {
+    const snap = await run(fx())
+    const e = snap.events.find((x) => x.homeName === "Red Bull New York")!
+    assert.ok(e, "alias matches")
+    assert.ok(!e.markets.some((m) => m.key === "moneyline"))
+    assert.match(snap.notes!.join(" "), /moneyline: polymarket book too (thin|wide)/)
+  })
+
+  it("an ESPN game with no exchange game is left out; one unusable leg hides the whole moneyline", async () => {
+    const f = fx()
+    const snap = await run(f)
+    assert.match(snap.notes!.join(" "), /1 not matched/)
+    const g = clone(f)
+    const ev = g.gamma.find((x) => x.slug === "mls-atl-mia-2026-10-17")!
+    const draw = ev.markets.find((m: any) => /^Draw/.test(m.groupItemTitle))
+    draw.acceptingOrders = false
+    const after = await run(g)
+    const atl = after.events.find((x) => x.homeName === "Atlanta United FC")!
+    assert.ok(!atl.markets.some((m) => m.key === "moneyline"))
+    assert.match(after.notes!.join(" "), /not accepting orders/)
+  })
+
+  it("publishes a three-way market through the normal pipeline: 2% margin over three sides, rounded against the player", async () => {
+    const f = fx()
+    const now = at(f)
+    const snap = await run(f)
+    const plan = planPublication(snap, now, new Set(), EXCHANGE_PUBLISH)
+    const d = plan.drafts.find((x) => x.kind === "moneyline" && x.externalEventId === snap.events.find((e) => e.homeName === "Atlanta United FC")!.externalId)!
+    assert.deepEqual(d.lines.map((l) => l.selection), ["home", "draw", "away"])
+    assert.equal(d.fairs.length, 3)
+    assert.ok(Math.abs(d.fairs.reduce((a, b) => a + b, 0) - 1) < 1e-9)
+    const implied = d.lines.reduce((s, l) => s + americanToProb(l.price), 0)
+    assert.ok(implied >= 1 + HOUSE_MARGIN - 1e-9, `implied ${implied}`)
+    for (const l of d.lines) assert.equal(Math.abs(l.price) % 5, 0)
+  })
+
+  it("a Kalshi draw price far from Polymarket's hides the moneyline", async () => {
+    const f = clone(fx())
+    const k = f.kalshi.events.find((e: any) => /Atlanta/.test(e.title))!
+    // A coherent triple (adds to 1) whose draw is far from Polymarket's: a cross-check that disagrees, not one that is merely broken.
+    const set = (re: RegExp, bid: string, ask: string) => {
+      const m = k.markets.find((x: any) => re.test(x.yes_sub_title))
+      m.yes_bid_dollars = bid
+      m.yes_ask_dollars = ask
+    }
+    set(/atlanta/i, "0.2000", "0.2100")
+    set(/miami/i, "0.4400", "0.4500")
+    set(/tie/i, "0.3400", "0.3500")
+    const snap = await run(f)
+    const atl = snap.events.find((x) => x.homeName === "Atlanta United FC")!
+    assert.ok(!atl.markets.some((m) => m.key === "moneyline"))
+    assert.match(snap.notes!.join(" "), /sources disagree/)
+  })
+})

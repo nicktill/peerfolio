@@ -3,13 +3,16 @@ import { cycleFailed } from "./health.ts"
 import { clip, type Fields, type Level } from "../log.ts"
 import { explainNoMatch, matchGame } from "./match.ts"
 import { bookClock, quoteKey, shouldWrite, type BookClock, type LastWrite, type QuoteKey, type SlateEvent } from "./plan.ts"
-import { normalizeQuote, pairProbability } from "./quote.ts"
+import { hasDraw } from "../types.ts"
+import { normalizeQuote, pairProbability, pairProbability3 } from "./quote.ts"
 import { chooseLiveOdds } from "./reconcile.ts"
 import {
   CLOB,
   GAMMA,
+  GAMMA_PAGE,
   KALSHI,
   ESPN_PATH,
+  gammaGamesUrl,
   KALSHI_SERIES,
   POLYMARKET_SERIES,
   espnGameState,
@@ -114,6 +117,7 @@ export const newWorkerState = (): WorkerState => ({
 })
 
 export { CLOB, GAMMA, KALSHI }
+export { GAMMA_PAGE }
 const ESPN = "https://site.api.espn.com/apis/site/v2/sports"
 export const SLOW_MS = 30_000
 export const BACKOFF_MS = 30_000
@@ -154,6 +158,24 @@ export async function slow<T>(st: WorkerState, key: string, now: Date, load: () 
   return value
 }
 
+/** Most Gamma pages one list may take (400 events): a safety stop, a normal slate is one or two. */
+const GAMMA_MAX_PAGES = 4
+
+/**
+ * The Gamma events of one series inside a time window, paged politely. Null when the FIRST page fails (nothing known); a later page
+ * failing returns what was read, since missing games then just fail to match (and a match is never guessed).
+ */
+export async function gammaEvents(deps: WorkerDeps, st: WorkerState, now: Date, series: string, fromMs: number, toMs: number): Promise<unknown[] | null> {
+  const all: unknown[] = []
+  for (let page = 0; page < GAMMA_MAX_PAGES; page++) {
+    const res = await guarded(deps, st, now, "polymarket", () => deps.getJson(gammaGamesUrl(series, fromMs, toMs, page * GAMMA_PAGE)))
+    if (!Array.isArray(res)) return page === 0 ? null : all
+    all.push(...res)
+    if (res.length < GAMMA_PAGE) break
+  }
+  return all
+}
+
 export async function runTick(deps: WorkerDeps, st: WorkerState, now: Date): Promise<TickResult> {
   st.cycle = freshCycle()
   for (const [source, until] of st.backoffUntil) {
@@ -177,9 +199,8 @@ export async function runTick(deps: WorkerDeps, st: WorkerState, now: Date): Pro
       for (const ev of slate.filter((e) => e.sport === sport)) whyNot.set(ev.id, "no_series_for_sport")
       continue
     }
-    const list = await guarded(deps, st, now, "polymarket", () =>
-      deps.getJson(`${GAMMA}/events?series_id=${series}&active=true&closed=false&limit=100&order=startDate&ascending=true`),
-    )
+    // Games that started in the last 8 hours or start within the next hour (the live slate window).
+    const list = await gammaEvents(deps, st, now, series, now.getTime() - 8 * 3600_000, now.getTime() + 3600_000)
     if (!list) {
       for (const ev of slate.filter((e) => e.sport === sport)) whyNot.set(ev.id, "polymarket_unavailable")
       continue
@@ -215,7 +236,7 @@ export async function runTick(deps: WorkerDeps, st: WorkerState, now: Date): Pro
 
   // 2. Order books for every matched, unfinished game: WebSocket where it is fresh, otherwise one batched REST call.
   const rawByEvent = new Map<string, RawQuote[]>()
-  const wanted = [...pmFor.values()].filter((p) => !p.game.ended && p.game.acceptingOrders).flatMap((p) => p.game.tokens)
+  const wanted = [...pmFor.values()].filter((p) => !p.game.ended && p.game.acceptingOrders).flatMap((p) => (p.game.drawToken ? [...p.game.tokens, p.game.drawToken] : p.game.tokens))
   deps.wantTokens?.(wanted)
   const restTokens: string[] = []
   const fromWs = new Map<string, WsBook>()
@@ -362,13 +383,15 @@ export async function runTick(deps: WorkerDeps, st: WorkerState, now: Date): Pro
       deps.emit?.(reason === "no_series_for_sport" ? "info" : "warn", "live.no_quotes", { eventId: ev.id, game: label(ev), sport: ev.sport, reason })
       continue
     }
+    const three = hasDraw(ev.sport, "moneyline")
     const views: SourceProb[] = []
     for (const source of ["polymarket", "kalshi", "espn"] as LiveSource[]) {
       const of = raws.filter((r) => r.source === source).map((r) => normalizeQuote(r, now))
-      const pair = pairProbability(of.find((q) => q.selection === "home"), of.find((q) => q.selection === "away"))
+      const side = (s: string) => of.find((q) => q.selection === s)
+      const pair = three ? pairProbability3(side("home"), side("draw"), side("away")) : pairProbability(side("home"), side("away"))
       if (pair) views.push({ ...pair, source })
     }
-    const shown = chooseLiveOdds(views)
+    const shown = chooseLiveOdds(views, { threeWay: three })
     if (shown.status === "paused") {
       deps.emit?.("warn", "live.odds_paused", { eventId: ev.id, game: label(ev), reason: shown.reason, sources: views.map((v) => ({ s: v.source, p: round(v.homeProb), ageMs: v.ageMs, conf: v.confidence })) })
     } else if (shown.mismatch || shown.confidence === "low") {

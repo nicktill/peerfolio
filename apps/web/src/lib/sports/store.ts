@@ -11,7 +11,7 @@ import { mirroredPairs } from "./report.ts"
 import { REPRICE, type Decision, type RepriceResult, type RepriceTarget } from "./reprice.ts"
 import { DEFAULT_RESOLVE, gradePick, needsMeteredSource, planSettlement, placeKey, resolveResult, resultsForEvent, type ResolveConfig, type SettlementPlan } from "./settlement.ts"
 import type { EventRef, EventResult, MarketKind, OddsProvider, Outcome, ResultsProvider, Selection, Sport } from "./types.ts"
-import { SPORTS } from "./types.ts"
+import { hasDraw, SPORTS } from "./types.ts"
 
 /**
  * Database layer for sports leagues. Takes the drizzle client as a parameter so
@@ -682,7 +682,8 @@ export async function publishLines(db: Db, provider: OddsProvider, sports: reado
           .onConflictDoNothing()
           .returning()
         if (!market) return
-        await tx.insert(sportsLines).values(draft.lines.map((l) => ({ marketId: market.id, selection: l.selection, price: l.price, point: l.point })))
+        // Each line keeps the fair probability behind its price (the repricer's basis for a three-way market, and the move check's for any).
+        await tx.insert(sportsLines).values(draft.lines.map((l, i) => ({ marketId: market.id, selection: l.selection, price: l.price, point: l.point, fairProb: draft.fairs[i] ?? null })))
         published++
       })
     }
@@ -707,6 +708,12 @@ export async function guardPublished(db: Db, snapshot: Awaited<ReturnType<OddsPr
     .from(sportsMarkets)
     .innerJoin(sportsEvents, eq(sportsEvents.id, sportsMarkets.eventId))
     .where(and(eq(sportsMarkets.status, "open"), eq(sportsEvents.sport, sport)))
+  // Stored fair probability per line, in the market's line order, so a move on any side (the draw too) is seen.
+  const storedFairs = new Map<string, (number | null)[]>()
+  if (open.length) {
+    const rows = await db.select().from(sportsLines).where(inArray(sportsLines.marketId, open.map((o) => o.market.id)))
+    for (const { market } of open) storedFairs.set(market.id, sortLines(rows.filter((l) => l.marketId === market.id)).map((l) => l.fairProb))
+  }
   for (const { market, event } of open) {
     const theirs = snapshot.events.find((e) => e.externalId === event.externalId)
     // Dropped from a trustworthy feed (event gone, prop pulled): close it. Freezing is one-way; a market that
@@ -731,7 +738,7 @@ export async function guardPublished(db: Db, snapshot: Awaited<ReturnType<OddsPr
     // check applies only when the exchange has gone quiet, and then compares against the exchange-priced basis.
     const exchangeGuarded = guardedByWorker && market.exchangeOkAt != null && now.getTime() - market.exchangeOkAt.getTime() < EXCHANGE_FRESH_MS
     if (!freeze && draft && !exchangeGuarded) {
-      freeze = detectMove({ kind: market.kind as MarketKind, lockAt, fairProbA: market.fairProbA, pointA: market.pointA }, draft, cfg)
+      freeze = detectMove({ kind: market.kind as MarketKind, lockAt, fairProbA: market.fairProbA, pointA: market.pointA, fairs: storedFairs.get(market.id) ?? null }, draft, cfg)
     }
     if (freeze || lockAt !== market.lockAt) await freezeMarket(db, market.id, freeze, lockAt, out)
   }
@@ -751,6 +758,10 @@ async function freezeMarket(db: Db, marketId: string, reason: string | null, loc
 }
 
 /* ---------------- pregame repricing (exchange mids) ---------------- */
+
+/** Lines of one market in their fixed order: [home, draw, away], or the two sides with the first (home / over) first. */
+const LINE_ORDER: Record<string, number> = { home: 0, over: 0, draw: 1, away: 2, under: 2 }
+const sortLines = <T extends { selection: string }>(lines: T[]): T[] => [...lines].sort((x, y) => (LINE_ORDER[x.selection] ?? 9) - (LINE_ORDER[y.selection] ?? 9))
 
 /** Open, unlocked, not-yet-started markets with their current prices and the last hour of fair-probability history. */
 export async function listRepriceTargets(db: Db, now: Date, kinds: readonly string[] = ["moneyline"], horizonMs = 24 * 3600_000): Promise<RepriceTarget[]> {
@@ -777,13 +788,16 @@ export async function listRepriceTargets(db: Db, now: Date, kinds: readonly stri
     .from(sportsLineHistory)
     .where(and(inArray(sportsLineHistory.marketId, ids), gt(sportsLineHistory.at, since)))
     .orderBy(asc(sportsLineHistory.at))
-  const isFirst = (sel: string) => sel === "home" || sel === "over"
   const out: RepriceTarget[] = []
   for (const { market, event } of rows) {
-    const mine = lines.filter((l) => l.marketId === market.id)
-    const a = mine.find((l) => isFirst(l.selection))
-    const b = mine.find((l) => !isFirst(l.selection))
-    if (!a || !b) continue
+    const mine = sortLines(lines.filter((l) => l.marketId === market.id))
+    const three = hasDraw(event.sport, market.kind)
+    // A market must have exactly the lines its kind has: three for the soccer moneyline, two otherwise.
+    if (mine.length !== (three ? 3 : 2)) continue
+    if (three && !(mine[0]!.selection === "home" && mine[1]!.selection === "draw" && mine[2]!.selection === "away")) continue
+    const a = mine[0]!
+    const fairs = mine.map((l) => l.fairProb)
+    const sideHistory = (l: (typeof mine)[number]) => history.filter((h) => h.lineId === l.id && h.fairProb != null)
     out.push({
       marketId: market.id,
       eventId: event.id,
@@ -799,11 +813,17 @@ export async function listRepriceTargets(db: Db, now: Date, kinds: readonly stri
         createdAt: market.createdAt,
         fairProbA: market.fairProbA,
         pointA: market.pointA,
-        prices: [a.price, b.price],
+        prices: mine.map((l) => l.price),
+        fairs: fairs.every((f): f is number => f != null) ? fairs : null,
         repricedAt: market.repricedAt,
         repriceCount: market.repriceCount,
         exchangeOkAt: market.exchangeOkAt,
-        history: history.filter((h) => h.lineId === a.id && h.fairProb != null).map((h) => ({ at: h.at, fairProbA: h.fairProb! })),
+        history: sideHistory(a).map((h) => ({
+          at: h.at,
+          fairProbA: h.fairProb!,
+          // Three-way: the other sides' fair probabilities written at the same instant (one reprice writes every line with one timestamp).
+          ...(three ? { fairs: mine.map((l) => sideHistory(l).find((x) => x.at.getTime() === h.at.getTime())?.fairProb ?? NaN) } : {}),
+        })).filter((h) => !h.fairs || h.fairs.every((f) => Number.isFinite(f))),
       },
     })
   }
@@ -834,14 +854,20 @@ export function applyReprice(db: Db, marketId: string, expected: { basis: number
       // Compare-and-set on BOTH the basis and the version (write count): a repeat, or another worker, changes nothing.
       const same = (m.fairProbA == null && expected.basis == null) || (m.fairProbA != null && expected.basis != null && Math.abs(m.fairProbA - expected.basis) < 1e-9)
       if (!same || m.repriceCount !== expected.count) return { applied: false, reason: "basis changed" }
-      const lines = await tx.select().from(sportsLines).where(eq(sportsLines.marketId, marketId))
-      const a = lines.find((l) => l.selection === "home" || l.selection === "over")
-      const b = lines.find((l) => l !== a)
-      if (!a || !b || lines.length !== 2) return { applied: false, reason: "lines missing" }
-      const oldPrices: [number, number] = [a.price, b.price]
-      for (const [line, price, fair] of [[a, d.prices[0], d.fairProbA], [b, d.prices[1], 1 - d.fairProbA]] as const) {
+      const lines = sortLines(await tx.select().from(sportsLines).where(eq(sportsLines.marketId, marketId)))
+      // The decision's sides must be exactly the market's lines: two, or [home, draw, away] for the soccer moneyline.
+      const three = hasDraw(ev.sport, m.kind)
+      if (lines.length !== d.prices.length || lines.length !== (three ? 3 : 2)) return { applied: false, reason: "lines missing" }
+      if (three && !(lines[0]!.selection === "home" && lines[1]!.selection === "draw" && lines[2]!.selection === "away")) return { applied: false, reason: "lines missing" }
+      const fairs = d.fairs ?? [d.fairProbA, 1 - d.fairProbA]
+      if (fairs.length !== lines.length) return { applied: false, reason: "lines missing" }
+      const a = lines[0]!
+      const oldPrices = lines.map((l) => l.price)
+      for (const [i, line] of lines.entries()) {
+        const price = d.prices[i]!
+        const fair = fairs[i]!
         await tx.update(sportsLines).set({ price, version: line.version + 1, fairProb: fair, repricedAt: now }).where(eq(sportsLines.id, line.id))
-        await tx.insert(sportsLineHistory).values({ lineId: line.id, marketId, version: line.version + 1, price, point: line.point, fairProb: fair, source: d.source, spread: d.spread, ageMs: Math.round(d.ageMs), at: now })
+        await tx.insert(sportsLineHistory).values({ lineId: line.id, marketId: marketId, version: line.version + 1, price, point: line.point, fairProb: fair, source: d.source, spread: d.spread, ageMs: Math.round(d.ageMs), at: now })
       }
       await tx.update(sportsMarkets).set({ fairProbA: d.fairProbA, repricedAt: now, repriceCount: sql`${sportsMarkets.repriceCount} + 1`, exchangeOkAt: now }).where(eq(sportsMarkets.id, marketId))
       return { applied: true, oldPrices, newPrices: d.prices, version: a.version + 1 }

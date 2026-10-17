@@ -8,7 +8,8 @@
  */
 
 export type LiveSource = "polymarket" | "kalshi" | "espn"
-export type LiveSelection = "home" | "away"
+/** "draw" exists only on the three-way soccer moneyline. */
+export type LiveSelection = "home" | "away" | "draw"
 
 /** Order of trust when sources agree enough to use: an order book beats a model. */
 export const SOURCE_PRIORITY: readonly LiveSource[] = ["polymarket", "kalshi", "espn"]
@@ -51,10 +52,12 @@ export type NormalizedQuote = {
 
 export type Freshness = "live" | "delayed" | "stale"
 
-/** One source's view of P(home wins), after pairing the two outcome books. */
+/** One source's view of P(home wins), after pairing the two outcome books (or, with `drawProb`, the three: home / draw / away). */
 export type SourceProb = {
   source: LiveSource
   homeProb: number
+  /** Set only for a three-way view; the away probability is then 1 - homeProb - drawProb. */
+  drawProb?: number
   asOf: Date
   ageMs: number
   spread: number | null
@@ -84,6 +87,8 @@ export type LiveOdds =
       status: "ok"
       homeProb: number
       awayProb: number
+      /** Three-way (soccer) only; null otherwise. */
+      drawProb: number | null
       source: LiveSource
       asOf: Date
       ageMs: number

@@ -30,6 +30,13 @@ export function splitPct(homeProb: number): { home: number; away: number } {
   return { home, away: 100 - home }
 }
 
+/** Home / draw / away as whole percents that always add to 100 (each at least 1, so no segment disappears). */
+export function splitPct3(homeProb: number, drawProb: number): { home: number; draw: number; away: number } {
+  const home = Math.min(98, Math.max(1, Math.round(homeProb * 100)))
+  const draw = Math.min(99 - home, Math.max(1, Math.round(drawProb * 100)))
+  return { home, draw, away: 100 - home - draw }
+}
+
 export function statusLine(view: LiveView): string | null {
   if (view.status === "final") return "Final"
   const parts = [view.period, view.clock].filter((x): x is string => !!x)

@@ -9,7 +9,7 @@ export const MISMATCH_HIDE = 0.2
 const isBook = (s: SourceProb) => s.source !== "espn"
 
 /**
- * Chooses what to show from every source's current view of P(home wins).
+ * Chooses what to show from every source's current view of P(home wins) (and, for soccer, P(draw)).
  *
  *  1. Drop stale and confidence-"none" views (they cannot be shown).
  *  2. The primary is the highest-priority survivor (Polymarket, then Kalshi, then ESPN), so a dead primary falls
@@ -20,12 +20,15 @@ const isBook = (s: SourceProb) => s.source !== "espn"
  *
  * Pure. `gameOver` hides odds once the game is final.
  */
-export function chooseLiveOdds(views: SourceProb[], opts: { gameOver?: boolean } = {}): LiveOdds {
+export function chooseLiveOdds(views: SourceProb[], opts: { gameOver?: boolean; threeWay?: boolean } = {}): LiveOdds {
+  // Three-way (soccer): only a view that has a draw probability can be shown. A single "home wins" number from a model says nothing
+  // about the draw, so it is never turned into an away probability.
+  if (opts.threeWay) views = views.filter((v) => v.drawProb != null)
   const lastAsOf = views.length ? new Date(Math.max(...views.map((v) => v.asOf.getTime()))) : null
   if (opts.gameOver) return { status: "paused", reason: "game_over", lastAsOf }
 
   const usable = views
-    .filter((v) => v.freshness !== "stale" && v.confidence !== "none" && v.homeProb > 0 && v.homeProb < 1)
+    .filter((v) => v.freshness !== "stale" && v.confidence !== "none" && v.homeProb > 0 && v.homeProb < 1 && (v.drawProb == null || (v.drawProb > 0 && v.homeProb + v.drawProb < 1)))
     .sort((a, b) => SOURCE_PRIORITY.indexOf(a.source) - SOURCE_PRIORITY.indexOf(b.source))
   if (usable.length === 0) {
     const anyUnusableBook = views.some((v) => v.freshness !== "stale" && v.confidence === "none")
@@ -35,7 +38,7 @@ export function chooseLiveOdds(views: SourceProb[], opts: { gameOver?: boolean }
   const primary = usable[0]!
   let mismatch: { with: SourceProb["source"]; diff: number } | null = null
   for (const other of usable.slice(1)) {
-    const diff = Math.abs(primary.homeProb - other.homeProb)
+    const diff = Math.max(Math.abs(primary.homeProb - other.homeProb), primary.drawProb != null && other.drawProb != null ? Math.abs(primary.drawProb - other.drawProb) : 0)
     if (diff > MISMATCH_HIDE && isBook(primary) && isBook(other)) return { status: "paused", reason: "sources_disagree", lastAsOf }
     if (diff > MISMATCH_WARN && (!mismatch || diff > mismatch.diff)) mismatch = { with: other.source, diff }
   }
@@ -44,7 +47,8 @@ export function chooseLiveOdds(views: SourceProb[], opts: { gameOver?: boolean }
   return {
     status: "ok",
     homeProb: primary.homeProb,
-    awayProb: 1 - primary.homeProb,
+    awayProb: 1 - primary.homeProb - (primary.drawProb ?? 0),
+    drawProb: primary.drawProb ?? null,
     source: primary.source,
     asOf: primary.asOf,
     ageMs: primary.ageMs,

@@ -52,6 +52,18 @@ export function mockEvent(sport: Sport, n: number, startsAt: Date): ProviderEven
       ],
     },
   ]
+  if (sport === "mls") {
+    // Soccer's moneyline is three-way: home / draw / away.
+    markets[0] = {
+      key: "moneyline",
+      kind: "moneyline",
+      outcomes: [
+        { selection: "home", quotes: quotes([135, 140, 130, 135]) },
+        { selection: "draw", quotes: quotes([240, 235, 245, 240]) },
+        { selection: "away", quotes: quotes([200, 205, 195, 200]) },
+      ],
+    }
+  }
   if (sport !== "tennis") {
     markets.push({
       key: "spread",

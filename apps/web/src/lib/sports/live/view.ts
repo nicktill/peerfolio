@@ -1,5 +1,6 @@
 import { ageOf, freshnessOf } from "./freshness.ts"
-import { normalizeQuote, pairProbability } from "./quote.ts"
+import { hasDraw } from "../types.ts"
+import { normalizeQuote, pairProbability, pairProbability3 } from "./quote.ts"
 import { chooseLiveOdds } from "./reconcile.ts"
 import type { Freshness, LiveSelection, LiveSource, LiveStatus, NormalizedQuote, RawQuote, SourceProb } from "./types.ts"
 
@@ -46,6 +47,8 @@ export type LiveView = {
         status: "ok"
         homeProb: number
         awayProb: number
+        /** Soccer only: the draw probability, with home + draw + away = 1. Null elsewhere. */
+        drawProb: number | null
         source: LiveSource
         asOf: string
         ageMs: number
@@ -63,9 +66,10 @@ const STATUSES: readonly LiveStatus[] = ["pre", "live", "final", "unknown"]
 /** How far back a quote row is worth reading; anything older cannot be shown anyway. */
 export const READ_WINDOW_MS = 10 * 60_000
 
-export function buildLiveView(input: { eventId: string; eventStatus: string; quotes: QuoteRow[]; state: StateRow | null }, now: Date): LiveView {
+export function buildLiveView(input: { eventId: string; eventStatus: string; sport?: string; quotes: QuoteRow[]; state: StateRow | null }, now: Date): LiveView {
+  const threeWay = hasDraw(input.sport, "moneyline")
   const raws: RawQuote[] = input.quotes
-    .filter((q) => q.market === "moneyline" && (q.selection === "home" || q.selection === "away") && (SOURCES as readonly string[]).includes(q.source))
+    .filter((q) => q.market === "moneyline" && (q.selection === "home" || q.selection === "away" || (threeWay && q.selection === "draw")) && (SOURCES as readonly string[]).includes(q.source))
     .map((q) => ({
       source: q.source as LiveSource,
       selection: q.selection as LiveSelection,
@@ -84,12 +88,12 @@ export function buildLiveView(input: { eventId: string; eventStatus: string; quo
       const r = forSource.find((x) => x.selection === s)
       return r ? normalizeQuote(r, now) : undefined
     }
-    const pair = pairProbability(side("home"), side("away"))
+    const pair = threeWay ? pairProbability3(side("home"), side("draw"), side("away")) : pairProbability(side("home"), side("away"))
     if (pair) views.push({ ...pair, source })
   }
 
   const gameOver = input.eventStatus !== "scheduled" || input.state?.status === "final"
-  const odds = chooseLiveOdds(views, { gameOver })
+  const odds = chooseLiveOdds(views, { gameOver, threeWay })
 
   const st = input.state
   const stateAge = st ? ageOf(st.fetchedTs, now) : null

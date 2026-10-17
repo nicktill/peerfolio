@@ -53,6 +53,7 @@ const ALIAS: Record<string, string> = {
   galaxy: "los angeles galaxy",
   "new york rb": "new york red bulls",
   "ny red bulls": "new york red bulls",
+  "red bull new york": "new york red bulls",
   "chicago ws": "chicago white sox",
   "utah hc": "utah mammoth",
 }

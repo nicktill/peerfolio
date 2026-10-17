@@ -33,8 +33,13 @@ export type DisplayLine = { selection: string; point: number | null }
 /** "Bills @ Chiefs" for team sports (away at home), "Alcaraz vs Sinner" for tennis. */
 export const eventTitle = (event: DisplayEvent): string => (event.sport === "tennis" ? `${event.home} vs ${event.away}` : `${event.away} @ ${event.home}`)
 
-/** The pick's name as the user reads it: "Chiefs -2.5", "Over 47.5", "Over 275.5". */
+/** The team a moneyline or spread selection backs; null for a draw, totals and props (no team behind them). */
+export const sideTeam = (event: DisplayEvent, kind: string, selection: string): string | null =>
+  (kind === "moneyline" || kind === "spread") && selection !== "draw" ? (selection === "home" ? event.home : event.away) : null
+
+/** The pick's name as the user reads it: "Chiefs -2.5", "Over 47.5", "Over 275.5", "Draw" (soccer). */
 export function lineLabel(market: DisplayMarket, line: DisplayLine): { name: string; point: string } {
+  if (line.selection === "draw") return { name: "Draw", point: "" }
   const team = line.selection === "home" ? market.event.home : market.event.away
   switch (market.kind) {
     case "moneyline":
