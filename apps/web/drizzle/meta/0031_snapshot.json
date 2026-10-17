@@ -1,6 +1,6 @@
 {
-  "id": "e4a9a72a-e76c-4157-8196-24d450301ab2",
-  "prevId": "aec7c47f-bb76-4d02-8406-374fa6d2e561",
+  "id": "6d5c0412-1e5c-45f0-b5d9-25e65a427ed0",
+  "prevId": "9fafe598-e739-4bed-95e7-dfb632926917",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -864,7 +864,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'🏈'"
+          "default": "'\ud83c\udfc8'"
         },
         "accent": {
           "name": "accent",
@@ -3143,7 +3143,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'🏆'"
+          "default": "'\ud83c\udfc6'"
         },
         "accent": {
           "name": "accent",
@@ -3233,274 +3233,6 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.live_quote": {
-      "name": "live_quote",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "bigserial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "event_id": {
-          "name": "event_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "market": {
-          "name": "market",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "selection": {
-          "name": "selection",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "source": {
-          "name": "source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "bid": {
-          "name": "bid",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "ask": {
-          "name": "ask",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "mid": {
-          "name": "mid",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "source_ts": {
-          "name": "source_ts",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "fetched_ts": {
-          "name": "fetched_ts",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "live_quote_key_idx": {
-          "name": "live_quote_key_idx",
-          "columns": [
-            {
-              "expression": "event_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "market",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "selection",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "source",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "fetched_ts",
-              "isExpression": false,
-              "asc": false,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "live_quote_fetched_idx": {
-          "name": "live_quote_fetched_idx",
-          "columns": [
-            {
-              "expression": "fetched_ts",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "live_quote_event_id_sports_events_id_fk": {
-          "name": "live_quote_event_id_sports_events_id_fk",
-          "tableFrom": "live_quote",
-          "tableTo": "sports_events",
-          "columnsFrom": [
-            "event_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.live_state": {
-      "name": "live_state",
-      "schema": "",
-      "columns": {
-        "event_id": {
-          "name": "event_id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "home_score": {
-          "name": "home_score",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "away_score": {
-          "name": "away_score",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "period": {
-          "name": "period",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "clock": {
-          "name": "clock",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "source": {
-          "name": "source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "source_ts": {
-          "name": "source_ts",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "fetched_ts": {
-          "name": "fetched_ts",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "live_state_event_id_sports_events_id_fk": {
-          "name": "live_state_event_id_sports_events_id_fk",
-          "tableFrom": "live_state",
-          "tableTo": "sports_events",
-          "columnsFrom": [
-            "event_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.live_worker": {
-      "name": "live_worker",
-      "schema": "",
-      "columns": {
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "last_cycle_at": {
-          "name": "last_cycle_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "last_ok_at": {
-          "name": "last_ok_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "consecutive_failures": {
-          "name": "consecutive_failures",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "details": {
-          "name": "details",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::jsonb"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -4127,6 +3859,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "positionless_accounts": {
+          "name": "positionless_accounts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
         }
       },
       "indexes": {
@@ -5077,7 +4816,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'🏈'"
+          "default": "'\ud83c\udfc8'"
         },
         "accent": {
           "name": "accent",
@@ -5299,135 +5038,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.sports_line_history": {
-      "name": "sports_line_history",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "bigserial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "line_id": {
-          "name": "line_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "market_id": {
-          "name": "market_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "version": {
-          "name": "version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "price": {
-          "name": "price",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "point": {
-          "name": "point",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "fair_prob": {
-          "name": "fair_prob",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "source": {
-          "name": "source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "spread": {
-          "name": "spread",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "age_ms": {
-          "name": "age_ms",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "at": {
-          "name": "at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "sports_line_history_market_idx": {
-          "name": "sports_line_history_market_idx",
-          "columns": [
-            {
-              "expression": "market_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "sports_line_history_line_id_sports_lines_id_fk": {
-          "name": "sports_line_history_line_id_sports_lines_id_fk",
-          "tableFrom": "sports_line_history",
-          "tableTo": "sports_lines",
-          "columnsFrom": [
-            "line_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "sports_line_history_market_id_sports_markets_id_fk": {
-          "name": "sports_line_history_market_id_sports_markets_id_fk",
-          "tableFrom": "sports_line_history",
-          "tableTo": "sports_markets",
-          "columnsFrom": [
-            "market_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.sports_lines": {
       "name": "sports_lines",
       "schema": "",
@@ -5469,25 +5079,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "version": {
-          "name": "version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
-        },
-        "fair_prob": {
-          "name": "fair_prob",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "repriced_at": {
-          "name": "repriced_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {
@@ -5615,25 +5206,6 @@
         "frozen_reason": {
           "name": "frozen_reason",
           "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "repriced_at": {
-          "name": "repriced_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "reprice_count": {
-          "name": "reprice_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "exchange_ok_at": {
-          "name": "exchange_ok_at",
-          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
@@ -6300,6 +5872,19 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "brokerage_linking_blocked": {
+          "name": "brokerage_linking_blocked",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "brokerage_link_limit": {
+          "name": "brokerage_link_limit",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",

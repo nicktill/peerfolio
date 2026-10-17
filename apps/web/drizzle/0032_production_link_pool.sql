@@ -1,0 +1,1 @@
+ALTER TABLE "production_link_attempts" ADD COLUMN "pool" integer DEFAULT 1 NOT NULL;

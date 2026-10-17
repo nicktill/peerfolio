@@ -9,6 +9,12 @@ const run = (over: Partial<ExplainRun> = {}): ExplainRun => ({
 const partial = (over: Partial<ExplainRun> = {}) => run({ status: "partial", balanceWithoutHoldings: true, accounts: 2, received: 1, kept: 1, durationMs: 14200, ...over })
 
 describe("explainRun", () => {
+  it("notes a pension with no positions on an otherwise clean run, but still warns for a real gap", () => {
+    const e = explainRun(run({ accounts: 2, received: 1, kept: 1, positionlessAccounts: 1 }))
+    assert.equal(e.severity, "ok")
+    assert.match(e.detail, /1 pension account has no positions/)
+    assert.equal(explainRun(partial()).severity, "warn")
+  })
   it("calls a clean run clean", () => {
     const e = explainRun(run())
     assert.equal(e.severity, "ok")

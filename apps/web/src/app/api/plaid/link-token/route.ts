@@ -7,7 +7,8 @@ import { db, plaidItems } from "@web/db"
 import { decrypt } from "@web/lib/crypto"
 import { getPlaidClient, plaidErrorMessage, plaidLinkingEnabled } from "@web/lib/plaid"
 import { plaidEnvironment } from "@web/lib/plaid-config"
-import { assertBrokerageLinkingAllowed } from "@web/lib/plaid-access"
+import { assertBrokerageLinkingAllowed, nextLinkPool } from "@web/lib/plaid-access"
+import { newPlaidProfile } from "@web/lib/plaid-profile"
 import { ApiError, readJson, withUser } from "@web/lib/api"
 import { assertPlaidActive } from "@web/lib/plaid-switch"
 
@@ -48,7 +49,19 @@ export const POST = withUser<unknown>(async (userId, request) => {
     client = getPlaidClient(stored.profile)
   }
 
-  if (!body.itemId) client = getPlaidClient()
+  // New connections: the Link session must come from the same Trial team the reservation will later pick,
+  // because a public token can only be exchanged by the team that issued the link token.
+  let pool = 1
+  if (!body.itemId) {
+    let profile = newPlaidProfile(process.env)
+    if (plaidEnvironment(process.env.PLAID_ENV) === "production") {
+      const open = await nextLinkPool()
+      if (!open) throw new ApiError("Production connection limit reached", 403, { code: "PRODUCTION_ITEM_LIMIT_REACHED" })
+      pool = open.pool
+      profile = open.profile
+    }
+    client = getPlaidClient(profile)
+  }
 
   try {
     const { data } = await client!.linkTokenCreate({
@@ -69,7 +82,7 @@ export const POST = withUser<unknown>(async (userId, request) => {
       ...(process.env.PLAID_WEBHOOK_URL ? { webhook: process.env.PLAID_WEBHOOK_URL } : {}),
     })
 
-    return NextResponse.json({ linkToken: data.link_token, expiration: data.expiration })
+    return NextResponse.json({ linkToken: data.link_token, expiration: data.expiration, pool })
   } catch (error) {
     throw new ApiError(plaidErrorMessage(error), 502)
   }

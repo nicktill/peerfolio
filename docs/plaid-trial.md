@@ -9,6 +9,9 @@ Deploying this change does not enable any user.
 Keep `PLAID_CLIENT_ID` and `PLAID_SECRET` unchanged for legacy paid Items.
 Set `PLAID_ENV=production`, `PLAID_CONNECTION_PROFILE=trial`,
 `PLAID_TRIAL_CLIENT_ID`, and the secret `PLAID_TRIAL_SECRET` on the intended deployment.
+A second free Trial team (another 10 Items) can be added with `PLAID_TRIAL_CLIENT_ID_2` and `PLAID_TRIAL_SECRET_2`
+(optional `PLAID_TRIAL_ITEM_LIMIT_2`, capped at 10, and `PLAID_TRIAL_ITEMS_PREVIOUSLY_USED_2`). New connections use the
+first team until its 10 are used, then the second, but only when `PLAID_TRIAL_2_ENABLED=1` (exactly `1`); credentials alone never route a connection to it. Never unset the second pair while Items linked to it exist.
 Trial fails closed if either Trial credential is missing, or its client ID matches the paid team.
 There is no fallback to the paid team. While Trial mode is active, all paid-client calls are blocked, including legacy sync/repair/removal; disable Trial mode explicitly before managing any pre-existing paid Items. Never paste secrets into issue descriptions or logs.
 

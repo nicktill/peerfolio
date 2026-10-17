@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
-import { decodePlaidToken, encodePlaidToken, newPlaidProfile, plaidCredentials } from "./plaid-profile.ts"
+import { trial2Enabled, PlaidProfileUnavailableError, verificationProfiles, decodePlaidToken, encodePlaidToken, maskClientId, newPlaidProfile, plaidCredentials, trial2Configured, trialCredentialSummary } from "./plaid-profile.ts"
 
 const env = { PLAID_ENV: "production", PLAID_CLIENT_ID: "paid-id", PLAID_SECRET: "paid-secret", PLAID_TRIAL_CLIENT_ID: "trial-id", PLAID_TRIAL_SECRET: "trial-secret" }
 
@@ -71,4 +71,85 @@ test("Trial cannot accidentally use the Sandbox API", () => {
 })
 test("accidentally copying the paid team into Trial is rejected", () => {
   assert.throws(() => plaidCredentials({ ...env, PLAID_TRIAL_CLIENT_ID: env.PLAID_CLIENT_ID }, "trial"), /different Plaid team/)
+})
+
+const env2 = { ...env, PLAID_TRIAL_CLIENT_ID_2: "trial2-id-0123456789", PLAID_TRIAL_SECRET_2: "trial2-secret-xyz" }
+
+test("trial2 is never chosen by configuration, only by the budget logic", () => {
+  assert.equal(newPlaidProfile(env2), "trial")
+  assert.throws(() => newPlaidProfile({ ...env2, PLAID_CONNECTION_PROFILE: "trial2" }), /must be trial/)
+})
+test("trial2 reads its own credentials, never the Trial or paid pair", () => {
+  const spy = spyEnv(env2)
+  assert.deepEqual(plaidCredentials(spy.env, "trial2"), { clientId: "trial2-id-0123456789", secret: "trial2-secret-xyz" })
+  assert.ok(!spy.reads.includes("PLAID_SECRET"), "paid secret must not be read")
+  assert.equal(trial2Configured(env2), true)
+})
+test("trial2 needs production, its own credentials, and a different team from Trial and paid", () => {
+  assert.throws(() => plaidCredentials({ ...env2, PLAID_ENV: "sandbox" }, "trial2"), /PLAID_ENV=production/)
+  assert.throws(() => plaidCredentials({ ...env2, PLAID_TRIAL_SECRET_2: "" }, "trial2"), /trial2 credentials/)
+  assert.throws(() => plaidCredentials({ ...env2, PLAID_TRIAL_CLIENT_ID_2: "trial-id" }, "trial2"), /different Plaid team from Trial/)
+  assert.throws(() => plaidCredentials({ ...env2, PLAID_TRIAL_CLIENT_ID_2: "paid-id" }, "trial2"), /different Plaid team from paid/)
+  assert.equal(trial2Configured({ ...env2, PLAID_TRIAL_CLIENT_ID_2: undefined }), false)
+  assert.equal(trial2Configured({ ...env2, PLAID_ENV: "sandbox" }), false)
+})
+test("paid stays disabled with both Trial pools configured", () => {
+  assert.throws(() => plaidCredentials(env2, "paid"), /Paid Plaid credentials are disabled/)
+})
+test("stored trial2 tokens round-trip and select the trial2 credentials", () => {
+  const stored = encodePlaidToken("access-t2", "trial2")
+  const decoded = decodePlaidToken(stored, env2)
+  assert.deepEqual(decoded, { profile: "trial2", token: "access-t2" })
+  assert.equal(plaidCredentials(env2, decoded.profile).clientId, "trial2-id-0123456789")
+  assert.throws(() => decodePlaidToken(JSON.stringify({ version: 1, profile: "trial3", token: "x" }), env2), /Invalid stored/)
+})
+test("masked client ids reveal at most 8 characters and never the secret", () => {
+  assert.equal(maskClientId("1a2b3c4d5e6f7g8h9z8y"), "1a2b…9z8y")
+  for (const id of ["", "abc", "12345678", "12345678901", "1234567890123456789012345678"]) {
+    const masked = maskClientId(id)
+    assert.ok(masked.replace("…", "").length <= 8, `${id} -> ${masked}`)
+  }
+  assert.equal(maskClientId("short-id"), "••••")
+  const summary = trialCredentialSummary(env2)
+  const json = JSON.stringify(summary)
+  for (const secret of ["trial2-secret-xyz", "trial-secret", "paid-secret", "paid-id", "paid"]) assert.ok(!json.includes(secret), secret)
+  assert.deepEqual(summary.map((s) => s.configured), [true, true])
+  assert.equal(summary[1]!.clientId, "tria…6789")
+})
+test("a missing pool reports nothing about credentials", () => {
+  const [one, two] = trialCredentialSummary(env)
+  assert.equal(one!.configured, true)
+  assert.deepEqual(two, { pool: 2, profile: "trial2", configured: false, enabled: false, state: "not_set" })
+})
+
+test("webhook verification tries the profile new connections use, so sandbox webhooks still verify", () => {
+  assert.deepEqual(verificationProfiles({ PLAID_ENV: "sandbox", PLAID_CLIENT_ID: "sb", PLAID_SECRET: "s" }), ["sandbox"])
+  assert.deepEqual(verificationProfiles({ PLAID_CLIENT_ID: "sb", PLAID_SECRET: "s" }), ["sandbox"])
+  assert.deepEqual(verificationProfiles(env), ["trial"])
+  assert.deepEqual(verificationProfiles(env2), ["trial", "trial2"])
+  // Pool 2 credentials outside production are not valid, so they never add a profile.
+  assert.deepEqual(verificationProfiles({ ...env2, PLAID_ENV: "sandbox" }), ["sandbox"])
+})
+test("a disabled paid profile contributes no verification key lookup", () => {
+  assert.deepEqual(verificationProfiles({ ...env, PLAID_CONNECTION_PROFILE: "paid" }), [])
+})
+test("missing credentials raise a recognisable per-Item error", () => {
+  assert.throws(() => plaidCredentials({ ...env, PLAID_TRIAL_CLIENT_ID_2: undefined }, "trial2"), PlaidProfileUnavailableError)
+})
+
+test("pool 2 needs the explicit flag exactly 1 as well as valid credentials", () => {
+  assert.equal(trial2Enabled(env2), false)
+  for (const value of ["true", "yes", "0", "", " 1", "1 ", "on", "TRUE"]) assert.equal(trial2Enabled({ ...env2, PLAID_TRIAL_2_ENABLED: value }), false, JSON.stringify(value))
+  assert.equal(trial2Enabled({ ...env2, PLAID_TRIAL_2_ENABLED: "1" }), true)
+  assert.equal(trial2Enabled({ ...env, PLAID_TRIAL_2_ENABLED: "1" }), false)
+  assert.equal(trial2Enabled({ ...env2, PLAID_TRIAL_2_ENABLED: "1", PLAID_ENV: "sandbox" }), false)
+})
+test("the admin summary distinguishes enabled, configured but disabled, and not set", () => {
+  assert.equal(trialCredentialSummary(env2)[1]!.state, "disabled")
+  assert.equal(trialCredentialSummary({ ...env2, PLAID_TRIAL_2_ENABLED: "1" })[1]!.state, "enabled")
+  assert.equal(trialCredentialSummary(env)[1]!.state, "not_set")
+  assert.equal(trialCredentialSummary(env)[0]!.state, "enabled")
+})
+test("credentials without the flag still verify webhooks for existing pool-2 Items", () => {
+  assert.deepEqual(verificationProfiles(env2), ["trial", "trial2"])
 })

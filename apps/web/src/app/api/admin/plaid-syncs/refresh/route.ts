@@ -7,6 +7,7 @@ import { decrypt } from "@web/lib/crypto"
 import { getPlaidClient, plaidErrorCode, plaidErrorMessage } from "@web/lib/plaid"
 import { assertAdmin } from "@web/lib/plaid-access"
 import { decodePlaidToken } from "@web/lib/plaid-profile"
+import { rethrowIfProfileUnavailable } from "@web/lib/plaid-profile-errors"
 import { assertPlaidActive } from "@web/lib/plaid-switch"
 import { recordSyncRun } from "@web/lib/plaid-sync-runs"
 import { REFRESH_COOLDOWN_MS, buildSyncRun, emptyMetrics, isItemRowId, manualRunGate, plaidRequestId } from "@web/lib/plaid-sync-runs-core"
@@ -44,7 +45,8 @@ export const POST = withUser<unknown>(async (userId, request) => {
   try {
     console.info(`[plaid-sync] admin refresh ${JSON.stringify({ admin: admin.id, item: itemId })}`)
     const stored = decodePlaidToken(decrypt(item.accessToken))
-    const client = getPlaidClient(stored.profile)
+    let client: ReturnType<typeof getPlaidClient>
+    try { client = getPlaidClient(stored.profile) } catch (error) { rethrowIfProfileUnavailable(error, { itemId }); throw error }
     try {
       const response = await client.investmentsRefresh({ access_token: stored.token })
       metrics.requestId = plaidRequestId(response)

@@ -13,6 +13,8 @@ export type ExplainRun = {
   currencyAssumed: number
   missingTicker: number
   balanceWithoutHoldings: boolean
+  /** Pension-type accounts with a balance and no positions. Expected, shown as a note. */
+  positionlessAccounts?: number
 }
 
 export type Severity = "ok" | "info" | "warn" | "error"
@@ -87,7 +89,8 @@ export function explainRun(run: ExplainRun): Explanation {
   if (run.missingTicker > 0) {
     return { severity: "info", headline: "Synced, some securities have no ticker", detail: `${plural(run.missingTicker, "security")} had no ticker symbol from Plaid. They can't be priced.`, action: null }
   }
-  return { severity: "ok", headline: "Synced cleanly", detail: `${plural(run.kept, "holding")} across ${plural(run.accounts, "account")}.${slowNote}`, action: null }
+  const planNote = run.positionlessAccounts ? ` ${plural(run.positionlessAccounts, "pension account")} ${run.positionlessAccounts === 1 ? "has" : "have"} no positions, as expected for a pension.` : ""
+  return { severity: "ok", headline: "Synced cleanly", detail: `${plural(run.kept, "holding")} across ${plural(run.accounts, "account")}.${planNote}${slowNote}`, action: null }
 }
 
 export type ItemHealth = {

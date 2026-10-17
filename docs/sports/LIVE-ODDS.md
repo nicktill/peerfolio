@@ -7,7 +7,7 @@ Pregame, offered prices refresh until kickoff and picks close server-side at kic
 | Piece | Where |
 |---|---|
 | Pure logic (matching, quote normalization, freshness, source reconciliation, wire parsers, retention policy, worker cycle) | `apps/web/src/lib/sports/live/` |
-| Tables `live_quote`, `live_state` | migration `0030_live_odds.sql`, `src/db/schema.ts` |
+| Tables `live_quote`, `live_state` | migration `0034_sports_live_odds_and_reprice.sql`, `src/db/schema.ts` |
 | DB layer (insert, upsert, slate, read view, prune) | `src/lib/sports/live/store.ts` |
 | Ingest worker (standalone process) | `apps/web/scripts/live-odds-worker.mts` |
 | Read API (flag gated, cached 3s, per-IP limited) | `GET /api/sports/live/[gameId]` (`gameId` is `sports_events.id`) |
@@ -24,7 +24,7 @@ Pregame, offered prices refresh until kickoff and picks close server-side at kic
 
 ## Pregame repricing (offered odds refresh until kickoff)
 
-Offered lines used to be fixed at publish and frozen on drift. Now the same worker reprices open moneyline markets from exchange mids until the scheduled start, while every accepted pick keeps its accepted price, point and total return forever. Code: decision in `src/lib/sports/reprice.ts` (pure), fetch/match/apply in `live/reprice-pass.ts`, the write in `applyReprice` (`store.ts`), history in `sports_line_history` (migration `0031_pregame_reprice`).
+Offered lines used to be fixed at publish and frozen on drift. Now the same worker reprices open moneyline markets from exchange mids until the scheduled start, while every accepted pick keeps its accepted price, point and total return forever. Code: decision in `src/lib/sports/reprice.ts` (pure), fetch/match/apply in `live/reprice-pass.ts`, the write in `applyReprice` (`store.ts`), history in `sports_line_history` (migration `0034_sports_live_odds_and_reprice`).
 
 **Source and price convention.** Polymarket is primary (Kalshi is primary only when Polymarket has no match, and otherwise the cross-check; ESPN is never used). The fair probability is the mid of best bid and best ask of each outcome book, renormalised (never a last trade). The offered price is `priceTwoWay(fair)`, exactly as consensus publishing does it: half of the 2% `HOUSE_MARGIN` (`odds.ts`) added to each side, rounded against the player (down) to a multiple of 5, no side under 10% fair. Exchange mids carry no vig (the two mids sum to about 1), so applying the app's margin gives the same house edge as before and payouts are not systematically richer. The Odds API consensus is still what publishes new markets (and what a market falls back to when the exchange is silent).
 

@@ -6,6 +6,7 @@ import { decrypt } from "@web/lib/crypto"
 import { getPlaidClient, plaidErrorCode } from "@web/lib/plaid"
 import { investableTotal, writeDailySnapshot } from "@web/lib/plaid-sync"
 import { ApiError } from "@web/lib/api"
+import { rethrowIfProfileUnavailable } from "@web/lib/plaid-profile-errors"
 
 type Item = typeof plaidItems.$inferSelect
 
@@ -20,6 +21,7 @@ export async function disconnectItem(item: Item): Promise<void> {
     const stored = decodePlaidToken(decrypt(item.accessToken))
     await getPlaidClient(stored.profile).itemRemove({ access_token: stored.token })
   } catch (error) {
+    rethrowIfProfileUnavailable(error, { itemId: item.id })
     const code = plaidErrorCode(error)
     if (code !== "INVALID_ACCESS_TOKEN" && code !== "ITEM_NOT_FOUND") {
       throw new ApiError("Could not disconnect from Plaid. Your connection was preserved; please try again shortly.", 502)

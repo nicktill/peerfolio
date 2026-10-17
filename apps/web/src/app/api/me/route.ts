@@ -6,6 +6,7 @@ import { db, follows, leagueMembers, leagues, plaidItems, portfolioSnapshots, us
 import { ApiError, readJson, withUser } from "@web/lib/api"
 import { decrypt } from "@web/lib/crypto"
 import { getPlaidClient, plaidErrorCode } from "@web/lib/plaid"
+import { rethrowIfProfileUnavailable } from "@web/lib/plaid-profile-errors"
 
 export const maxDuration = 120
 
@@ -94,6 +95,7 @@ export const DELETE = withUser<unknown>(async (userId) => {
         const stored = decodePlaidToken(decrypt(item.accessToken))
         await getPlaidClient(stored.profile).itemRemove({ access_token: stored.token })
       } catch (error) {
+        rethrowIfProfileUnavailable(error, { itemId: item.id, userId })
         const code = plaidErrorCode(error)
         if (code !== "INVALID_ACCESS_TOKEN" && code !== "ITEM_NOT_FOUND") {
           console.error("[me] remote cleanup failed", { itemId: item.id, userId, code })

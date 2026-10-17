@@ -12,11 +12,13 @@ export type SyncRunMetrics = {
   currencyAssumed: number
   securitiesMissingTicker: number
   balanceWithoutHoldings: boolean
+  /** Pension-type accounts with a balance and no positions: expected, so not a concern. */
+  positionlessAccounts: number
   requestId: string | null
 }
 
 export const emptyMetrics = (): SyncRunMetrics => ({
-  accounts: 0, holdingsReceived: 0, holdingsKept: 0, skipped: {}, currencyAssumed: 0, securitiesMissingTicker: 0, balanceWithoutHoldings: false, requestId: null,
+  accounts: 0, holdingsReceived: 0, holdingsKept: 0, skipped: {}, currencyAssumed: 0, securitiesMissingTicker: 0, balanceWithoutHoldings: false, positionlessAccounts: 0, requestId: null,
 })
 
 /** Securities Plaid sent without a ticker symbol. */
@@ -46,6 +48,7 @@ export function buildSyncRun(input: { itemId: string; userId: string; trigger: S
     currencyAssumed: metrics.currencyAssumed,
     securitiesMissingTicker: metrics.securitiesMissingTicker,
     balanceWithoutHoldings: metrics.balanceWithoutHoldings,
+    positionlessAccounts: metrics.positionlessAccounts,
   }
 }
 
@@ -109,6 +112,7 @@ export function summarizeRun(run: RunLike) {
     kept: run.holdingsKept,
     skipped,
     awaiting: run.balanceWithoutHoldings,
+    positionless: run.positionlessAccounts,
     concern: runConcern({ ...run, holdingsSkipped: skipped }),
   }
 }
