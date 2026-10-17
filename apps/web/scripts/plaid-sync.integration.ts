@@ -570,6 +570,50 @@ try {
     process.env.PLAID_ENV = 'sandbox'
     globalThis.plaidTestUser = user!.id
   }
+  // Admin per-user link limit: overrides the default cap, never the pool.
+  {
+    const patch = (body: unknown) => updateBrokeragePermission(new Request('http://localhost/api/admin/brokerages', { method: 'PATCH', body: JSON.stringify(body) }), {})
+    const mk = async (name: string) => (await db.insert(users).values({ email: `${name}@test.peerfolio.invalid` }).returning())[0]!
+    const [o1, o2] = [await mk('override-one'), await mk('override-two')]
+    // Admin only, and strictly validated.
+    globalThis.plaidTestUser = o1.id
+    await assert.rejects(patch({ userId: o1.id, linkLimit: 10 }), /Administrator/)
+    globalThis.plaidTestUser = adminUser!.id
+    for (const bad of [11, -1, 1.5, '2', true, {}]) await assert.rejects(patch({ userId: o1.id, linkLimit: bad }), /whole number/)
+    await assert.rejects(patch({ userId: o1.id }), /Expected/)
+    assert.equal((await patch({ userId: o1.id, linkLimit: 3 })).status, 200)
+    assert.equal((await db.query.users.findFirst({ where: eq(users.id, o1.id) }))!.brokerageLinkLimit, 3)
+    const listed = await (await listAdminBrokerages(new Request('http://localhost/api/admin/brokerages'), {})).json() as { users: { id: string; effectiveLimit: number; used: number; linkLimit: number | null }[] }
+    assert.deepEqual(listed.users.find((u) => u.id === o1.id) && { limit: listed.users.find((u) => u.id === o1.id)!.effectiveLimit, used: listed.users.find((u) => u.id === o1.id)!.used }, { limit: 3, used: 0 })
+    assert.equal(listed.users.find((u) => u.id === o2.id)!.effectiveLimit, 2)
+
+    process.env.PLAID_ENV = 'production'
+    process.env.PLAID_PRODUCTION_ITEM_LIMIT = '10'
+    const attemptsNow = (await productionCapacity()).pools[0]!.attempts
+    process.env.PLAID_PRODUCTION_ITEMS_PREVIOUSLY_USED = String(10 - attemptsNow - 5)
+    assert.equal((await productionCapacity()).pools[0]!.available, 5)
+    // Five simultaneous reservations against a limit of three: exactly three win.
+    const racers = await Promise.allSettled([0, 1, 2, 3, 4].map((i) => reserveProductionLinkAttempt(o1.id, `override-${i}`, 1)))
+    assert.equal(racers.filter((r) => r.status === 'fulfilled').length, 3)
+    assert.equal(racers.filter((r) => r.status === 'rejected' && /Only 3 brokerage connections/.test(String(r.reason))).length, 2)
+    const access = await getBrokerageAccess(o1.id)
+    assert.equal(access.code, 'user_limit')
+    assert.deepEqual(access.userLimit, { used: 3, limit: 3, remaining: 0 })
+    assert.match(access.notice, /Only 3 brokerage connections/)
+    // Raising the override lets that user continue; a generous override still cannot beat the pool (2 spots left).
+    assert.equal((await patch({ userId: o2.id, linkLimit: 10 })).status, 200)
+    const o2Wins = await Promise.allSettled([0, 1, 2].map((i) => reserveProductionLinkAttempt(o2.id, `override-two-${i}`, 1)))
+    assert.equal(o2Wins.filter((r) => r.status === 'fulfilled').length, 2)
+    assert.equal(o2Wins.filter((r) => r.status === 'rejected' && /limit reached|Start a new connection/.test(String(r.reason))).length, 1)
+    assert.equal((await getBrokerageAccess(o2.id)).code, 'full')
+    // Clearing the override returns to the default of 2 (o1 has 3, so stays capped); a limit of 0 blocks new links.
+    assert.equal((await patch({ userId: o1.id, linkLimit: null })).status, 200)
+    assert.equal((await getBrokerageAccess(o1.id)).userLimit.limit, 2)
+    process.env.PLAID_PRODUCTION_ITEMS_PREVIOUSLY_USED = '0'
+    process.env.PLAID_PRODUCTION_ITEM_LIMIT = '1'
+    process.env.PLAID_ENV = 'sandbox'
+    globalThis.plaidTestUser = user!.id
+  }
   await db.insert(users).values({ email: 'denied@test.peerfolio.invalid' })
   // Explicit manual-to-linked replacement: no Plaid request or new Item is required.
   const [replacementUser] = await db.insert(users).values({ email: 'replacement@test.peerfolio.invalid' }).returning()

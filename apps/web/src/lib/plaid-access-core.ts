@@ -104,8 +104,28 @@ export function productionBudgetSettings(env: Record<string, string | undefined>
  */
 export const USER_PRODUCTION_LINK_LIMIT = 2
 
+/** Highest per-user limit an admin may set. */
+export const MAX_USER_LINK_LIMIT = 10
+
+/** The user's limit: the admin override when it is a valid whole number in range, else the default. */
+export function effectiveUserLimit(override: number | null | undefined): number {
+  return typeof override === "number" && Number.isInteger(override) && override >= 0 && override <= MAX_USER_LINK_LIMIT ? override : USER_PRODUCTION_LINK_LIMIT
+}
+
+/** Validates an admin write: a whole number 0..10, or null to clear the override. */
+export function parseLinkLimitOverride(value: unknown): { ok: true; value: number | null } | { ok: false } {
+  if (value === null) return { ok: true, value: null }
+  if (typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= MAX_USER_LINK_LIMIT) return { ok: true, value }
+  return { ok: false }
+}
+
+export function userLimitNotice(limit: number): string {
+  if (limit <= 0) return "Brokerage connections aren't available for your account right now."
+  return `Only ${limit} brokerage ${limit === 1 ? "connection" : "connections"} per account for now. More coming soon.`
+}
+
 /** Shown before linking and as the disabled-state message once a user has used every slot. */
-export const USER_LINK_LIMIT_NOTICE = `Only ${USER_PRODUCTION_LINK_LIMIT} brokerage connections per account for now. More coming soon.`
+export const USER_LINK_LIMIT_NOTICE = userLimitNotice(USER_PRODUCTION_LINK_LIMIT)
 
 export type BrokerageBlock = { code: "paused" | "off" | "unconfigured" | "user_limit" | "full"; reason: string }
 
@@ -119,12 +139,15 @@ export function brokerageBlock(input: {
   configured: boolean
   production: boolean
   userAttempts: number
+  /** The user's effective limit; defaults to USER_PRODUCTION_LINK_LIMIT. */
+  userLimit?: number
   poolAvailable: number
 }): BrokerageBlock | null {
   if (input.paused) return { code: "paused", reason: "Brokerage connections are paused" }
   if (input.userBlocked) return { code: "off", reason: "Brokerage linking has been disabled for your account" }
   if (!input.configured) return { code: "unconfigured", reason: "Brokerage linking is not configured" }
-  if (input.production && input.userAttempts >= USER_PRODUCTION_LINK_LIMIT) return { code: "user_limit", reason: USER_LINK_LIMIT_NOTICE }
+  const limit = input.userLimit ?? USER_PRODUCTION_LINK_LIMIT
+  if (input.production && input.userAttempts >= limit) return { code: "user_limit", reason: userLimitNotice(limit) }
   if (input.production && input.poolAvailable <= 0) return { code: "full", reason: "Production connection limit reached" }
   return null
 }

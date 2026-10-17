@@ -39,3 +39,17 @@ describe("pre-link heads-up", () => {
     assert.equal(preLinkNotice({ capApplies: true, used: 5, limit: 2 }), null)
   })
 })
+
+describe("copy follows the user's effective limit", () => {
+  it("uses it in the pill, caption and pre-link dialog", () => {
+    const capped = linkUnavailable("user_limit", { used: 5, limit: 5 })
+    assert.equal(capped.label, "5 of 5 connected")
+    assert.equal(capped.caption?.lead, "Only 5 brokerage connections per account for now. More coming soon.")
+    const dialog = preLinkNotice({ capApplies: true, used: 1, limit: 5 })
+    assert.match(dialog!.body, /up to 5 brokerages/)
+    assert.match(dialog!.body, /toward your 5\./)
+    assert.equal(dialog!.remaining, "You have 4 left of 5.")
+    assert.match(preLinkNotice({ capApplies: true, used: 0, limit: 1 })!.body, /up to 1 brokerage\./)
+    assert.equal(linkUnavailable("user_limit", { used: 0, limit: 0 }).label, "Linking unavailable")
+  })
+})

@@ -864,7 +864,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'🏈'"
+          "default": "'\ud83c\udfc8'"
         },
         "accent": {
           "name": "accent",
@@ -3143,7 +3143,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'🏆'"
+          "default": "'\ud83c\udfc6'"
         },
         "accent": {
           "name": "accent",
@@ -4816,7 +4816,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'🏈'"
+          "default": "'\ud83c\udfc8'"
         },
         "accent": {
           "name": "accent",
@@ -5879,6 +5879,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "brokerage_link_limit": {
+          "name": "brokerage_link_limit",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",

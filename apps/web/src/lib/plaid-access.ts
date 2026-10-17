@@ -6,7 +6,7 @@ import { decrypt } from "@web/lib/crypto"
 import { ApiError } from "@web/lib/api"
 import { plaidLinkingEnabled } from "@web/lib/plaid"
 import { plaidEnvironment } from "@web/lib/plaid-config"
-import { brokerageBlock, choosePool, firstAvailablePool, isAdminEmail, poolBudgets, productionPoolsChecked, totalCapacity, USER_LINK_LIMIT_NOTICE, USER_PRODUCTION_LINK_LIMIT } from "@web/lib/plaid-access-core"
+import { brokerageBlock, choosePool, firstAvailablePool, isAdminEmail, poolBudgets, productionPoolsChecked, totalCapacity, effectiveUserLimit, userLimitNotice } from "@web/lib/plaid-access-core"
 import { plaidPaused } from "@web/lib/plaid-switch"
 import { decodePlaidToken, newPlaidProfile, trial2Configured, trial2Enabled, type PlaidProfile } from "@web/lib/plaid-profile"
 
@@ -77,17 +77,18 @@ export async function getBrokerageAccess(userId: string) {
   const enabled = plaidLinkingEnabled()
   const paused = await plaidPaused()
   const userAttempts = production ? await userLinkAttempts(userId) : 0
-  const blocked = brokerageBlock({ paused, userBlocked: user.brokerageLinkingBlocked, configured: enabled, production, userAttempts, poolAvailable: capacity.available })
+  const blocked = brokerageBlock({ paused, userBlocked: user.brokerageLinkingBlocked, configured: enabled, production, userAttempts, userLimit: effectiveUserLimit(user.brokerageLinkLimit), poolAvailable: capacity.available })
   const admin = isAdminEmail(user.email, process.env.ADMIN_EMAILS)
   // `code` lets the button say why it's unavailable. The reason text and the budget are for the owner only.
-  const userLimit = { used: userAttempts, limit: USER_PRODUCTION_LINK_LIMIT, remaining: Math.max(0, USER_PRODUCTION_LINK_LIMIT - userAttempts) }
-  return { allowed: !blocked, admin, code: blocked?.code, capApplies: production, userLimit, notice: USER_LINK_LIMIT_NOTICE, ...(admin ? { capacity, reason: blocked?.reason } : {}) }
+  const limit = effectiveUserLimit(user.brokerageLinkLimit)
+  const userLimit = { used: userAttempts, limit, remaining: Math.max(0, limit - userAttempts) }
+  return { allowed: !blocked, admin, code: blocked?.code, capApplies: production, userLimit, notice: userLimitNotice(limit), ...(admin ? { capacity, reason: blocked?.reason } : {}) }
 }
 
 export async function assertBrokerageLinkingAllowed(userId: string) {
   const access = await getBrokerageAccess(userId)
   if (!access.allowed) {
-    if (access.code === "user_limit") throw new ApiError(USER_LINK_LIMIT_NOTICE, 403, { code: "USER_ITEM_LIMIT_REACHED" })
+    if (access.code === "user_limit") throw new ApiError(access.notice, 403, { code: "USER_ITEM_LIMIT_REACHED" })
     if (access.code === "full") throw new ApiError("Production connection limit reached", 403, { code: "PRODUCTION_ITEM_LIMIT_REACHED" })
     throw new ApiError(("reason" in access && access.reason) || "Brokerage linking unavailable", 403)
   }
@@ -110,13 +111,15 @@ export async function reserveProductionLinkAttempt(userId: string, publicToken: 
     // Reservation takes the global quota lock, then the user's permission lock.
     await store.execute(sql`select pg_advisory_xact_lock(hashtext('peerfolio-production-link-budget'))`)
     await store.execute(sql`select pg_advisory_xact_lock(hashtext(${userId}))`)
-    await assertBrokeragePermission(userId, store)
+    const user = await assertBrokeragePermission(userId, store)
     const digest = createHash("sha256").update(publicToken).digest("hex")
     const prior = await store.query.productionLinkAttempts.findFirst({ where: eq(productionLinkAttempts.publicTokenDigest, digest) })
     if (prior) throw new ApiError("This connection attempt was already processed. Start a new connection to retry.", 409, { code: "LINK_ATTEMPT_ALREADY_RESERVED" })
     const capacity = await productionCapacity(store)
     // Same transaction and locks as the insert: two simultaneous reservations at the cap cannot both pass.
-    if ((await userLinkAttempts(userId, store)) >= USER_PRODUCTION_LINK_LIMIT) throw new ApiError(USER_LINK_LIMIT_NOTICE, 403, { code: "USER_ITEM_LIMIT_REACHED" })
+    // The override only moves this user's own cap; the pool choice below still applies, so it can never exceed pool capacity.
+    const limit = effectiveUserLimit(user.brokerageLinkLimit)
+    if ((await userLinkAttempts(userId, store)) >= limit) throw new ApiError(userLimitNotice(limit), 403, { code: "USER_ITEM_LIMIT_REACHED" })
     const choice = choosePool(capacity.pools, requestedPool)
     if (!choice.ok) {
       if (choice.reason === "full") throw new ApiError("Production connection limit reached", 403, { code: "PRODUCTION_ITEM_LIMIT_REACHED" })

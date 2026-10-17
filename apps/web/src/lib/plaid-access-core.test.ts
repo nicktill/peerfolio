@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { brokerageBlock, choosePool, firstAvailablePool, poolBudgets, productionPools, productionPoolsChecked, totalCapacity, isAdminEmail, productionBudgetSettings, USER_LINK_LIMIT_NOTICE, USER_PRODUCTION_LINK_LIMIT } from "./plaid-access-core.ts"
+import { effectiveUserLimit, MAX_USER_LINK_LIMIT, parseLinkLimitOverride, userLimitNotice, brokerageBlock, choosePool, firstAvailablePool, poolBudgets, productionPools, productionPoolsChecked, totalCapacity, isAdminEmail, productionBudgetSettings, USER_LINK_LIMIT_NOTICE, USER_PRODUCTION_LINK_LIMIT } from "./plaid-access-core.ts"
 
 describe("brokerage admin and lifetime production budget settings", () => {
   it("grants no admin access unless a normalized database email is explicitly listed", () => {
@@ -129,5 +129,35 @@ describe("misconfigured pool 2", () => {
   })
   it("still rejects a malformed pool-1 setting rather than disabling its limit", () => {
     assert.throws(() => productionPoolsChecked({ ...prod, PLAID_PRODUCTION_ITEM_LIMIT: "x" }, true), /integer/)
+  })
+})
+
+describe("per-user link limit override", () => {
+  it("resolves to the override when valid, else the default", () => {
+    assert.equal(effectiveUserLimit(null), 2)
+    assert.equal(effectiveUserLimit(undefined), 2)
+    assert.equal(effectiveUserLimit(0), 0)
+    assert.equal(effectiveUserLimit(7), 7)
+    assert.equal(effectiveUserLimit(MAX_USER_LINK_LIMIT), 10)
+    for (const bad of [11, -1, 1.5, Number.NaN]) assert.equal(effectiveUserLimit(bad), 2)
+  })
+  it("validates admin writes to whole numbers 0 to 10 or null", () => {
+    assert.deepEqual(parseLinkLimitOverride(null), { ok: true, value: null })
+    assert.deepEqual(parseLinkLimitOverride(0), { ok: true, value: 0 })
+    assert.deepEqual(parseLinkLimitOverride(10), { ok: true, value: 10 })
+    for (const bad of [11, -1, 1.5, "2", true, undefined, {}, [], Number.NaN, Infinity]) assert.deepEqual(parseLinkLimitOverride(bad), { ok: false })
+  })
+  it("uses the user's limit for the cap and the notice, but never lets it beat the pool", () => {
+    const base = { paused: false, userBlocked: false, configured: true, production: true, userAttempts: 2, poolAvailable: 10 }
+    assert.equal(brokerageBlock(base)?.code, "user_limit")
+    assert.equal(brokerageBlock({ ...base, userLimit: 5 }), null)
+    assert.equal(brokerageBlock({ ...base, userAttempts: 5, userLimit: 5 })?.reason, "Only 5 brokerage connections per account for now. More coming soon.")
+    assert.equal(brokerageBlock({ ...base, userLimit: 10, poolAvailable: 0 })?.code, "full")
+    assert.equal(brokerageBlock({ ...base, userAttempts: 0, userLimit: 0 })?.code, "user_limit")
+    assert.equal(brokerageBlock({ ...base, userBlocked: true, userLimit: 10 })?.code, "off")
+  })
+  it("words the notice for one and zero", () => {
+    assert.equal(userLimitNotice(1), "Only 1 brokerage connection per account for now. More coming soon.")
+    assert.equal(userLimitNotice(0), "Brokerage connections aren't available for your account right now.")
   })
 })

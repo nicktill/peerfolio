@@ -5,7 +5,6 @@ import { AlertTriangle } from "lucide-react"
 import { Button } from "@web/components/ui/button"
 import { Dialog } from "@web/components/ui/dialog"
 import { disconnectNameMatches } from "@web/lib/disconnect-confirm"
-import { USER_PRODUCTION_LINK_LIMIT } from "@web/lib/plaid-access-core"
 
 /**
  * Disconnect confirmation. When the connection consumed a production link slot, that slot is permanently used,
@@ -55,7 +54,7 @@ export function DisconnectDialog({
             <p role="alert" className="flex gap-2 rounded-lg border border-[--series-4]/40 bg-[--series-4]/10 p-3 text-sm">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[--series-4]" aria-hidden />
               <span>
-                This connection slot is permanently used and cannot be refunded. Each account gets {USER_PRODUCTION_LINK_LIMIT} brokerage connections in total, so
+                This connection slot is permanently used and cannot be refunded. Each account has a limited number of brokerage connections in total, so
                 disconnecting does not free one up.
               </span>
             </p>

@@ -9,7 +9,7 @@ import { useToast } from "@web/components/ui/toast"
 import { cacheClear } from "@web/lib/api-cache"
 import { mutate, useApi } from "@web/lib/use-api"
 
-type BrokerageUser = { id: string; email: string; name: string | null; allowed: boolean }
+type BrokerageUser = { id: string; email: string; name: string | null; allowed: boolean; linkLimit: number | null; effectiveLimit: number; used: number }
 type AdminData = {
   users: BrokerageUser[]
   orphanedPool2Items?: number
@@ -22,6 +22,7 @@ export default function BrokerageAdminPage() {
   const [search, setSearch] = useState("")
   const [query, setQuery] = useState("")
   const [saving, setSaving] = useState<string | null>(null)
+  const [drafts, setDrafts] = useState<Record<string, string>>({})
   const { data, error, loading, refetch } = useApi<AdminData>(`/api/admin/brokerages?q=${encodeURIComponent(query)}`)
 
   useEffect(() => {
@@ -38,6 +39,21 @@ export default function BrokerageAdminPage() {
       await refetch()
     } catch (cause) {
       toast(cause instanceof Error ? cause.message : "Could not update brokerage access.", "error")
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  async function setLimit(user: BrokerageUser, linkLimit: number | null) {
+    setSaving(user.id)
+    try {
+      await mutate("/api/admin/brokerages", { method: "PATCH", body: { userId: user.id, linkLimit } })
+      cacheClear("/api/plaid/access")
+      setDrafts((prev) => Object.fromEntries(Object.entries(prev).filter(([id]) => id !== user.id)))
+      toast(`${user.email}: ${linkLimit === null ? "limit reset to the default" : `limit set to ${linkLimit}`}.`, "success")
+      await refetch()
+    } catch (cause) {
+      toast(cause instanceof Error ? cause.message : "Could not update the link limit.", "error")
     } finally {
       setSaving(null)
     }
@@ -105,6 +121,19 @@ export default function BrokerageAdminPage() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{user.name ?? user.email}</p>
                     <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="tabular-nums">{user.used} of {user.effectiveLimit} used{user.linkLimit === null ? "" : " (custom)"}</span>
+                    <label className="sr-only" htmlFor={`limit-${user.id}`}>Link limit for {user.email}</label>
+                    <input
+                      id={`limit-${user.id}`}
+                      type="number" inputMode="numeric" min={0} max={10} step={1}
+                      value={drafts[user.id] ?? String(user.effectiveLimit)}
+                      onChange={(event) => setDrafts((prev) => ({ ...prev, [user.id]: event.target.value }))}
+                      className="h-8 w-16 rounded-md border bg-background px-2 text-sm text-foreground"
+                    />
+                    <Button variant="outline" size="sm" disabled={saving !== null || drafts[user.id] === undefined || !/^\d+$/.test(drafts[user.id]!) || Number(drafts[user.id]) > 10} onClick={() => void setLimit(user, Number(drafts[user.id]))} aria-label={`Save link limit for ${user.email}`}>Save</Button>
+                    {user.linkLimit !== null ? <Button variant="ghost" size="sm" disabled={saving !== null} onClick={() => void setLimit(user, null)} aria-label={`Reset link limit for ${user.email} to the default`}>Reset</Button> : null}
                   </div>
                   <span className="text-xs text-muted-foreground">{user.allowed ? "Allowed" : "Blocked"}</span>
                   <Button variant={user.allowed ? "outline" : "default"} size="sm" disabled={saving !== null} loading={saving === user.id} onClick={() => void setAllowed(user)} aria-label={`${user.allowed ? "Block" : "Restore"} brokerage linking for ${user.email}`}>

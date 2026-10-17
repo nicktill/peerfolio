@@ -7,7 +7,7 @@ import { Button, type ButtonProps } from "@web/components/ui/button"
 import { useToast } from "@web/components/ui/toast"
 import { connectionNotice } from "@web/lib/plaid-status"
 import { exchangePublicToken, pendingLinkToken } from "@web/lib/plaid-link"
-import { USER_LINK_LIMIT_NOTICE } from "@web/lib/plaid-access-core"
+import { userLimitNotice } from "@web/lib/plaid-access-core"
 import { linkUnavailable, preLinkNotice, type PreLinkNotice } from "@web/lib/plaid-link-copy"
 import { PreLinkDialog } from "@web/components/dashboard/pre-link-dialog"
 import { CONTACT_EMAIL } from "@web/components/site-footer"
@@ -87,7 +87,7 @@ export function ConnectButton(props: Props) {
           preLink={preLinkNotice({ capApplies: data?.capApplies === true, used: data?.userLimit?.used ?? 0, limit: data?.userLimit?.limit ?? 0 })}
           onConnected={() => { props.onConnected(); refetch() }}
         />
-        {data?.capApplies ? <p className={CAPTION}>{USER_LINK_LIMIT_NOTICE}</p> : null}
+        {data?.capApplies && data.userLimit ? <p className={CAPTION}>{userLimitNotice(data.userLimit.limit)}</p> : null}
       </>
     )
   }

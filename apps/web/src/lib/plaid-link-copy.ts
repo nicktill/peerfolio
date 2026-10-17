@@ -1,4 +1,4 @@
-import { USER_LINK_LIMIT_NOTICE, USER_PRODUCTION_LINK_LIMIT } from "./plaid-access-core.ts"
+import { USER_PRODUCTION_LINK_LIMIT, userLimitNotice } from "./plaid-access-core.ts"
 
 export type LinkUnavailableCode = "paused" | "off" | "unconfigured" | "user_limit" | "full"
 
@@ -27,11 +27,12 @@ export function linkUnavailable(code: LinkUnavailableCode, userLimit?: { used: n
       }
     case "user_limit": {
       const limit = userLimit?.limit ?? USER_PRODUCTION_LINK_LIMIT
+      const notice = userLimitNotice(limit)
       return {
-        label: `${Math.min(userLimit?.used ?? limit, limit)} of ${limit} connected`,
-        title: USER_LINK_LIMIT_NOTICE,
-        tip: USER_LINK_LIMIT_NOTICE,
-        caption: { lead: USER_LINK_LIMIT_NOTICE },
+        label: limit <= 0 ? "Linking unavailable" : `${Math.min(userLimit?.used ?? limit, limit)} of ${limit} connected`,
+        title: notice,
+        tip: notice,
+        caption: { lead: notice },
       }
     }
     case "off":
@@ -56,7 +57,7 @@ export function preLinkNotice(input: { capApplies: boolean; used: number; limit:
   if (left === 0) return null
   return {
     title: PRE_LINK_TITLE,
-    body: `You can connect up to ${input.limit} brokerages. Only connect an account you plan to keep \u2014 disconnecting one still counts toward your ${input.limit}.`,
+    body: `You can connect up to ${input.limit} ${input.limit === 1 ? "brokerage" : "brokerages"}. Only connect an account you plan to keep \u2014 disconnecting ${input.limit === 1 ? "it still counts" : "one still counts"} toward your ${input.limit}.`,
     remaining: left === input.limit ? `You have ${left} left.` : `You have ${left} left of ${input.limit}.`,
     continueLabel: PRE_LINK_CONTINUE,
   }

@@ -68,6 +68,8 @@ export const users = pgTable(
     brokerageLinkingEnabled: boolean("brokerage_linking_enabled").notNull().default(false),
     /** Admin kill-switch for one user. Linking is allowed unless this is true. */
     brokerageLinkingBlocked: boolean("brokerage_linking_blocked").notNull().default(false),
+    /** Admin override of the per-user lifetime link limit (0..10). Null means the default (USER_PRODUCTION_LINK_LIMIT). */
+    brokerageLinkLimit: integer("brokerage_link_limit"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
