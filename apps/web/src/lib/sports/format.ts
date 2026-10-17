@@ -62,7 +62,7 @@ export function marketTitle(market: DisplayMarket): string {
     case "spread":
       return "Spread"
     case "total":
-      return TOTAL_TITLE[market.event.sport] ?? "Total points"
+      return TOTAL_TITLE[market.event.sport ?? ""] ?? "Total points"
     default:
       return `${market.player} · ${statLabel(market.statKey)}`
   }
