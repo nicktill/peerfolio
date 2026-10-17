@@ -67,7 +67,7 @@
 .fs-chip em { font: 500 10px var(--fw-mono); font-style: normal; font-variant-numeric: tabular-nums; }
 .fs-chip em[data-tone="up"] { color: var(--gain-ink); }
 .fs-chip em[data-tone="down"] { color: var(--loss-ink); }
-.fs-sat { font: 400 11px var(--fw-mono); color: var(--fw-fg3); }
+.fs-sat { font: 400 11px var(--fw-mono); color: var(--fw-fg3); white-space: nowrap; }
 .fs-empty { padding: 22px 0 16px; font-size: 13px; line-height: 20px; color: var(--fw-fg3); }
 .fs-empty strong { display: block; margin-bottom: 4px; font: 500 14px/20px var(--fw-sans); color: var(--fw-fg); }
 .fs-note-line { margin: 0; padding: 12px 0 4px; font: 400 11px/17px var(--fw-mono); color: var(--fw-fg3); }
