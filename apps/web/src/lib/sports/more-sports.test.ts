@@ -63,8 +63,8 @@ describe("nhl, mlb, cfb, mls config", () => {
     assert.equal(t("cfb"), "Total points")
   })
   it("team look is safe for unknown sports", () => {
-    assert.equal(teamLook("nhl", "Boston Bruins").logo, null)
-    assert.equal(teamLook("mls", "Inter Miami CF").abbr, "IC")
+    assert.equal(teamLook("nhl", "Not A Real Team").logo, null)
+    assert.equal(teamLook("mls", "Not A Real Team").abbr, "NT")
   })
 })
 

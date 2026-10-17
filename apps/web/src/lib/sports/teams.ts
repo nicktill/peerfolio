@@ -1,4 +1,5 @@
 /** Team identity for the picks UI: abbreviation, brand colours, and the ESPN logo slug. Pure data. */
+import { isLeagueSport, leagueTeam } from "./teams-leagues.ts"
 
 type Team = { abbr: string; color: string; alt?: string; slug?: string }
 
@@ -72,10 +73,15 @@ const NBA: Record<string, Team> = {
 
 const NEUTRAL = "#64748b"
 
-export type TeamLook = { abbr: string; color: string; logo: string | null }
+/** `logo` suits a white square (the default badge); `logoDark` is ESPN's variant for a bare logo on a dark background. */
+export type TeamLook = { abbr: string; color: string; logo: string | null; logoDark?: string | null }
 
 /** Look up a team by sport and full name; unknown names (and tennis players) get initials on a neutral colour. */
 export function teamLook(sport: string | undefined, name: string): TeamLook {
+  if (isLeagueSport(sport)) {
+    const t = leagueTeam(sport, name)
+    if (t) return { abbr: t.abbr, color: t.color, logo: t.logo, logoDark: t.logoDark }
+  }
   const key = name.trim().toLowerCase()
   const table = sport === "nfl" ? NFL : sport === "nba" ? NBA : null
   // Full name first ("boston celtics"), then the nickname alone ("celtics"), which is how the sample league and some feeds write it.
