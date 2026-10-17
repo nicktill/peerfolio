@@ -324,6 +324,8 @@ export const plaidSyncRuns = pgTable(
     securitiesMissingTicker: integer("securities_missing_ticker").notNull().default(0),
     /** An investment account had a balance but no position lines at all. */
     balanceWithoutHoldings: boolean("balance_without_holdings").notNull().default(false),
+    /** Pension-type accounts with a balance and no positions. Expected, kept so it stays visible. */
+    positionlessAccounts: integer("positionless_accounts").notNull().default(0),
   },
   (t) => [index("plaid_sync_runs_started_idx").on(t.startedAt), index("plaid_sync_runs_item_idx").on(t.itemId, t.startedAt)],
 )

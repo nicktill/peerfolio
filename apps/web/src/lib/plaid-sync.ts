@@ -4,7 +4,7 @@ import type { AccountBase, Holding as PlaidHolding, Security as PlaidSecurity } 
 import { db, holdings, accounts, plaidItems, portfolioSnapshots, securities, plaidInvestmentFlows } from "@web/db"
 import { decrypt } from "@web/lib/crypto"
 import { getPlaidClient, isReauthRequired, plaidErrorCode } from "@web/lib/plaid"
-import { accountsAwaitingHoldings, countByReason, flowChanges, investmentHistoryStart, investmentPages, marketTarget, mergeDuplicateHoldings, retryPlaid, securityDisplayName, splitUsableHoldings } from "@web/lib/plaid-sync-core"
+import { accountsAwaitingHoldings, countByReason, flowChanges, investmentHistoryStart, investmentPages, marketTarget, mergeDuplicateHoldings, positionlessPlanAccounts, positionlessPlansWithLines, retryPlaid, securityDisplayName, splitUsableHoldings } from "@web/lib/plaid-sync-core"
 import { keepsEntryValue } from "@web/lib/ranges"
 import { categorizeAccount, type AccountCategory } from "@web/lib/account-category"
 import { accountBalance } from "@web/lib/account-balance"
@@ -84,7 +84,7 @@ export async function syncItem(itemRowId: string, deadline = Date.now() + 90_000
       // A new Item's positions can still be loading: Plaid answers 200 with no lines for accounts that do have a balance.
       // Ask again a couple of times before settling for that.
       const awaitingNow = (d: NonNullable<typeof holdingData>) => accountsAwaitingHoldings(
-        d.accounts.map((a) => ({ account_id: a.account_id, balance: a.balances.current })),
+        d.accounts.map((a) => ({ account_id: a.account_id, balance: a.balances.current, subtype: a.subtype })),
         rawLineCounts(d.holdings),
       )
       let holdingAttempts = 1
@@ -95,6 +95,11 @@ export async function syncItem(itemRowId: string, deadline = Date.now() + 90_000
         holdingAttempts++
       }
       const awaiting = new Set(holdingData ? awaitingNow(holdingData) : [])
+      const positionAccounts = holdingData ? holdingData.accounts.map((a) => ({ account_id: a.account_id, balance: a.balances.current, subtype: a.subtype })) : []
+      const lineCounts = holdingData ? rawLineCounts(holdingData.holdings) : new Map<string, number>()
+      const positionless = positionlessPlanAccounts(positionAccounts, lineCounts)
+      const unexpectedLines = positionlessPlansWithLines(positionAccounts, lineCounts)
+      if (unexpectedLines.length) console.warn(`[plaid-sync] positionless plan type returned positions, review the pension exemption ${JSON.stringify({ item: item.id, accounts: unexpectedLines.length })}`)
       const holdingsReceived = holdingData?.holdings.length ?? 0
       // accounts/get and holdings/get may be separate cached snapshots. Use the
       // balances accompanying the holdings so values and positions agree.
@@ -114,11 +119,11 @@ export async function syncItem(itemRowId: string, deadline = Date.now() + 90_000
         // they are priced like manual positions; two Plaid securities for one ticker merge here.
         const targets = new Map(holdingData.securities.flatMap((s) => { const t = marketTarget(s); return t ? [[s.security_id, t.id] as const] : [] }))
         holdingData.holdings = mergeDuplicateHoldings(kept.map((h) => (targets.has(h.security_id) ? { ...h, security_id: targets.get(h.security_id)! } : h)))
-        Object.assign(metrics, { holdingsReceived, holdingsKept: kept.length, skipped: countByReason(skipped), currencyAssumed: assumedCurrency, securitiesMissingTicker: countMissingTicker(holdingData.securities), balanceWithoutHoldings: awaiting.size > 0 })
+        Object.assign(metrics, { holdingsReceived, holdingsKept: kept.length, skipped: countByReason(skipped), currencyAssumed: assumedCurrency, securitiesMissingTicker: countMissingTicker(holdingData.securities), balanceWithoutHoldings: awaiting.size > 0, positionlessAccounts: positionless.length })
         // One structured line per sync, so an empty Holdings view can be explained from the logs alone.
         const summary = JSON.stringify({
           item: item.id, accounts: holdingData.accounts.length, received: holdingsReceived, securities: holdingData.securities.length,
-          skipped: countByReason(skipped), currencyAssumed: assumedCurrency, missingTicker: metrics.securitiesMissingTicker, kept: kept.length, saved: holdingData.holdings.length, awaitingAccounts: awaiting.size, attempts: holdingAttempts,
+          skipped: countByReason(skipped), currencyAssumed: assumedCurrency, missingTicker: metrics.securitiesMissingTicker, kept: kept.length, saved: holdingData.holdings.length, awaitingAccounts: awaiting.size, positionless: positionless.length, attempts: holdingAttempts,
         })
         if (awaiting.size) console.warn(`[plaid-sync] holdings still loading ${summary}`)
         else console.info(`[plaid-sync] holdings ${summary}`)

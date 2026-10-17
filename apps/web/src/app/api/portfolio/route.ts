@@ -9,6 +9,7 @@ import { scheduleLiveRefresh } from "@web/lib/live-quotes"
 import { allTimeGain, summarizeHoldings, todayChange, type PositionInput } from "@web/lib/dashboard-math"
 import { refreshStalePrices, scheduleMetadataRefresh } from "@web/lib/positions"
 import { buildLeagueStandings, listLeaguesForUser } from "@web/lib/social"
+import { isPositionlessPlan } from "@web/lib/plaid-sync-core"
 import { isRange, rangeStart, timeWeightedReturn, withLivePoint, type Range } from "@web/lib/returns"
 
 const n = (v: string | null) => (v == null ? 0 : Number(v))
@@ -122,7 +123,7 @@ export const GET = withUser<unknown>(async (userId, request) => {
       itemId: account.itemId,
       holdingCount: holdingRows.filter((h) => h.accountId === account.id).length,
       // A linked investment account with a balance but no positions: the broker is still sending them.
-      holdingsPending: account.source !== "manual" && account.category === "investment" && balance > 0 && !holdingRows.some((h) => h.accountId === account.id),
+      holdingsPending: account.source !== "manual" && account.category === "investment" && !isPositionlessPlan(account.subtype) && balance > 0 && !holdingRows.some((h) => h.accountId === account.id),
       holdingPreview: holdingRows.filter((h) => h.accountId === account.id).slice(0, 4).map((h) => h.ticker ?? h.securityName ?? "Holding"),
       positions: holdingRows
         .filter((h) => h.accountId === account.id)

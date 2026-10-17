@@ -211,6 +211,13 @@
       "when": 1792251157973,
       "tag": "0029_fantasy_season_cadence",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1792259726167,
+      "tag": "0030_positionless_accounts",
+      "breakpoints": true
     }
   ]
 }

@@ -15,7 +15,7 @@ type Run = {
   id: string; item: string; owner: string | null; institution: string | null; trigger: string; startedAt: string; durationMs: number
   status: "ok" | "partial" | "failed"; errorCode: string | null; requestId: string | null
   accounts: number; received: number; kept: number; skipped: Record<string, number>
-  currencyAssumed: number; missingTicker: number; balanceWithoutHoldings: boolean; concern: string | null
+  currencyAssumed: number; missingTicker: number; balanceWithoutHoldings: boolean; positionlessAccounts: number; concern: string | null
 }
 
 type Item = { id: string; owner: string; institution: string | null; status: string; errorCode: string | null; lastSyncedAt: string | null; createdAt: string }
@@ -43,7 +43,7 @@ function ago(iso: string | null, now = Date.now()) {
   return `${Math.floor(s / 86_400)} d ago`
 }
 
-const toExplainRun = (r: Run) => ({ trigger: r.trigger, startedAt: r.startedAt, durationMs: r.durationMs, status: r.status, errorCode: r.errorCode, accounts: r.accounts, received: r.received, kept: r.kept, skipped: r.skipped, currencyAssumed: r.currencyAssumed, missingTicker: r.missingTicker, balanceWithoutHoldings: r.balanceWithoutHoldings })
+const toExplainRun = (r: Run) => ({ trigger: r.trigger, startedAt: r.startedAt, durationMs: r.durationMs, status: r.status, errorCode: r.errorCode, accounts: r.accounts, received: r.received, kept: r.kept, skipped: r.skipped, currencyAssumed: r.currencyAssumed, missingTicker: r.missingTicker, balanceWithoutHoldings: r.balanceWithoutHoldings, positionlessAccounts: r.positionlessAccounts })
 
 function Badge({ severity, children }: { severity: Severity; children: React.ReactNode }) {
   const { badge, Icon } = TONE[severity]

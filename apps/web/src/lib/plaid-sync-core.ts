@@ -94,8 +94,29 @@ export function securityDisplayName(s: { name?: string | null; ticker_symbol?: s
  * state to retry and to show, never a complete sync. Accounts whose lines were all left out on
  * purpose (crypto, shorts) are not listed: more waiting would not change them.
  */
-export function accountsAwaitingHoldings(accounts: { account_id: string; balance: number | null }[], rawLineCounts: Map<string, number>): string[] {
-  return accounts.filter((a) => a.balance != null && Number.isFinite(a.balance) && a.balance > 0 && (rawLineCounts.get(a.account_id) ?? 0) === 0).map((a) => a.account_id)
+export function accountsAwaitingHoldings(accounts: PositionAccount[], rawLineCounts: Map<string, number>): string[] {
+  return accounts.filter((a) => hasBalance(a) && !isPositionlessPlan(a.subtype) && (rawLineCounts.get(a.account_id) ?? 0) === 0).map((a) => a.account_id)
+}
+
+type PositionAccount = { account_id: string; balance: number | null; subtype?: string | null }
+const hasBalance = (a: PositionAccount) => a.balance != null && Number.isFinite(a.balance) && a.balance > 0
+
+/**
+ * Plan types that are a promised benefit, not a basket of securities: Plaid has no positions to
+ * send, so a balance with no lines is the normal state. Deliberately narrow. A 401(k), IRA or
+ * brokerage account with a balance and no lines must still read as incomplete.
+ */
+const POSITIONLESS_SUBTYPES = new Set(["pension"])
+export const isPositionlessPlan = (subtype?: string | null) => POSITIONLESS_SUBTYPES.has((subtype ?? "").toLowerCase())
+
+/** Positionless plans with a balance and no lines: expected, so counted for the admin page instead of flagged. */
+export function positionlessPlanAccounts(accounts: PositionAccount[], rawLineCounts: Map<string, number>): string[] {
+  return accounts.filter((a) => hasBalance(a) && isPositionlessPlan(a.subtype) && (rawLineCounts.get(a.account_id) ?? 0) === 0).map((a) => a.account_id)
+}
+
+/** Tripwire: a plan type we treat as positionless that Plaid now sends positions for, so the exemption may be stale. */
+export function positionlessPlansWithLines(accounts: PositionAccount[], rawLineCounts: Map<string, number>): string[] {
+  return accounts.filter((a) => isPositionlessPlan(a.subtype) && (rawLineCounts.get(a.account_id) ?? 0) > 0).map((a) => a.account_id)
 }
 
 /** Combines lines for the same security in the same account (separate lots, sub-positions) into one. */

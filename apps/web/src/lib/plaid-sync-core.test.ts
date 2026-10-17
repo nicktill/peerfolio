@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { accountsAwaitingHoldings, countByReason, marketTarget, securityDisplayName, externalFlow, flowChanges, investmentHistoryStart, investmentPages, mergeDuplicateHoldings, retryPlaid, splitUsableHoldings, type InvestmentFlow } from "./plaid-sync-core.ts"
+import { accountsAwaitingHoldings, positionlessPlanAccounts, positionlessPlansWithLines, countByReason, marketTarget, securityDisplayName, externalFlow, flowChanges, investmentHistoryStart, investmentPages, mergeDuplicateHoldings, retryPlaid, splitUsableHoldings, type InvestmentFlow } from "./plaid-sync-core.ts"
 import { timeWeightedReturn } from "./ranges.ts"
 
 const tx = (id: string, subtype: string, amount: number, account = "a"): InvestmentFlow => ({ investment_transaction_id: id, account_id: account, type: "cash", subtype, amount })
@@ -177,6 +177,17 @@ describe("holdings that are slow or odd", () => {
   it("flags accounts with a balance and no lines, but not ones whose lines were all skipped", () => {
     const accounts = [{ account_id: "401k", balance: 86000 }, { account_id: "hsa", balance: 0 }, { account_id: "crypto", balance: 500 }, { account_id: "gap", balance: null }]
     assert.deepEqual(accountsAwaitingHoldings(accounts, new Map([["crypto", 3]])), ["401k"])
+  })
+  it("does not treat a pension with a balance and no lines as awaiting, but still flags a 401(k) in the same state", () => {
+    const accounts = [{ account_id: "pension", balance: 15325, subtype: "pension" }, { account_id: "401k", balance: 99338, subtype: "401k" }, { account_id: "ira", balance: 10, subtype: "ira" }, { account_id: "brk", balance: 10, subtype: null }]
+    assert.deepEqual(accountsAwaitingHoldings(accounts, new Map()), ["401k", "ira", "brk"])
+    assert.deepEqual(positionlessPlanAccounts(accounts, new Map()), ["pension"])
+    assert.deepEqual(positionlessPlanAccounts(accounts, new Map([["pension", 1]])), [])
+  })
+  it("tripwire: a pension that starts returning lines is reported", () => {
+    const accounts = [{ account_id: "pension", balance: 15325, subtype: "Pension" }, { account_id: "401k", balance: 1, subtype: "401k" }]
+    assert.deepEqual(positionlessPlansWithLines(accounts, new Map([["pension", 2], ["401k", 5]])), ["pension"])
+    assert.deepEqual(positionlessPlansWithLines(accounts, new Map([["401k", 5]])), [])
   })
 })
 

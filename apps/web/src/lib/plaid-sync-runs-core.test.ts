@@ -17,7 +17,14 @@ describe("sync run records", () => {
     assert.equal(row.status, "ok")
     assert.equal(row.errorCode, null)
     assert.deepEqual(row.holdingsSkipped, { "not in US dollars": 2 })
-    assert.deepEqual(Object.keys(row).sort(), ["accountsReceived", "balanceWithoutHoldings", "currencyAssumed", "durationMs", "errorCode", "holdingsKept", "holdingsReceived", "holdingsSkipped", "itemId", "requestId", "securitiesMissingTicker", "startedAt", "status", "trigger", "userId"])
+    assert.deepEqual(Object.keys(row).sort(), ["accountsReceived", "balanceWithoutHoldings", "currencyAssumed", "durationMs", "errorCode", "holdingsKept", "holdingsReceived", "holdingsSkipped", "itemId", "positionlessAccounts", "requestId", "securitiesMissingTicker", "startedAt", "status", "trigger", "userId"])
+  })
+  it("records a pension-only gap as an ok run with a count, not a concern", () => {
+    const row = buildSyncRun({ ...base, failed: false, metrics: { ...emptyMetrics(), accounts: 2, holdingsReceived: 1, holdingsKept: 1, positionlessAccounts: 1 } })
+    assert.equal(row.status, "ok")
+    assert.equal(row.positionlessAccounts, 1)
+    assert.equal(runConcern(row), null)
+    assert.equal(summarizeRun(row).positionless, 1)
   })
   it("keeps the error code only for failed runs and defaults it", () => {
     assert.equal(buildSyncRun({ ...base, failed: true, metrics: emptyMetrics() }).errorCode, "SYNC_FAILED")
