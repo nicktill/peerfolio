@@ -5,7 +5,7 @@ import "@web/components/sports/mode-switch.css"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { TickerLogo } from "@web/components/ui/ticker-logo"
 import { TeamBadge } from "@web/components/sports/team-badge"
-import { sportsEnabled } from "@web/lib/sports/flag"
+import { useSportsEnabled } from "@web/components/sports/use-sports-enabled"
 
 export type FantasyMode = "stocks" | "sports"
 
@@ -21,8 +21,9 @@ export const modeTabId = (mode: FantasyMode) => `fantasy-mode-${mode}`
  */
 export function useFantasyMode(): [FantasyMode, (mode: FantasyMode) => void, (mode: FantasyMode) => void] {
   const [mode, setMode] = useState<FantasyMode>("stocks")
+  const enabled = useSportsEnabled()
   useEffect(() => {
-    if (!sportsEnabled()) return
+    if (!enabled) return
     try {
       // This tab's last side wins (so "Fantasy leagues" from a sports league lands back on Sports), then the
       // side you last picked on the switch, and a first visit is always Stocks.
@@ -32,7 +33,7 @@ export function useFantasyMode(): [FantasyMode, (mode: FantasyMode) => void, (mo
     } catch {
       /* storage blocked: stay on Stocks */
     }
-  }, [])
+  }, [enabled])
   /** An explicit pick on the switch: remembered for next time. */
   const choose = useCallback((next: FantasyMode) => {
     setMode(next)
@@ -51,7 +52,7 @@ export function useFantasyMode(): [FantasyMode, (mode: FantasyMode) => void, (mo
       /* ignore */
     }
   }, [])
-  return [sportsEnabled() ? mode : "stocks", choose, visit]
+  return [enabled ? mode : "stocks", choose, visit]
 }
 
 /**
@@ -60,7 +61,8 @@ export function useFantasyMode(): [FantasyMode, (mode: FantasyMode) => void, (mo
  */
 export function ModeSwitch({ mode, onChange }: { mode: FantasyMode; onChange: (mode: FantasyMode) => void }) {
   const refs = useRef<Record<FantasyMode, HTMLButtonElement | null>>({ stocks: null, sports: null })
-  if (!sportsEnabled()) return null
+  const enabled = useSportsEnabled()
+  if (!enabled) return null
 
   function onKeyDown(event: React.KeyboardEvent) {
     const i = MODES.indexOf(mode)
@@ -154,7 +156,8 @@ function ArenaArt() {
 
 /** The tabpanel the switch controls. With the flag off it adds nothing at all (a fragment). */
 export function ModePanel({ mode, children }: { mode: FantasyMode; children: React.ReactNode }) {
-  if (!sportsEnabled()) return <>{children}</>
+  const enabled = useSportsEnabled()
+  if (!enabled) return <>{children}</>
   return (
     <div className="fw" role="tabpanel" id={MODE_PANEL_ID} aria-labelledby={modeTabId(mode)}>
       {children}
@@ -167,7 +170,8 @@ export function ModePanel({ mode, children }: { mode: FantasyMode; children: Rea
  * sweeping stadium lights and field markings for Sports. Re-keyed on switch so it washes in from the stage.
  */
 export function WorldAmbient({ world }: { world: FantasyMode }) {
-  if (!sportsEnabled()) return null
+  const enabled = useSportsEnabled()
+  if (!enabled) return null
   return (
     <div className="wa" key={world} data-world={world} aria-hidden>
       {world === "stocks" ? (

@@ -43,7 +43,7 @@ Stale-line window (publish within 24 h, lock 2 h, freeze on movement), start-tim
 
 | Var | Purpose |
 |---|---|
-| `NEXT_PUBLIC_SPORTS_ENABLED` | `1` enables the Sports UI and API (build-time for the client) |
+| `NEXT_PUBLIC_SPORTS_ENABLED` | `1` enables the Sports UI and API for everyone; `admin` enables them only for signed-in accounts in `ADMIN_EMAILS` (everyone else gets 404s and sees stocks only); anything else is off. Build-time for the client, so redeploy after changing it |
 | `SPORTS_ODDS_SOURCE` | `exchange` (default, free: Polymarket prices, Kalshi cross-check, ESPN schedule; no key, no credits) or `odds-api` (explicit opt-in to the metered vendors below) |
 | `SPORTS_ENABLED_SPORTS` | Comma list narrowing which sports the publish cron fetches (default all) |
 | `ESPN_RESULTS_ENABLED` | In exchange mode ESPN results are on unless this is `0`; in odds-api mode they are on only when `1` |
@@ -66,3 +66,10 @@ Stale-line window (publish within 24 h, lock 2 h, freeze on movement), start-tim
 5. **Compliance**: credits-only is the design. Any prize, sponsorship or paid tier needs legal review (sweepstakes/gambling rules vary by state) before it is built.
 6. **Defaults to confirm**: margin 2% (`HOUSE_MARGIN`), locks 2 h before start, freeze at 1 point or 4 points of probability, caps (10 min stake, 10% max stake, 20 open picks, 60% exposure), settle delay 6 h, 48 h postponement void.
 7. **Naming/copy** on the Sports screens, and the collusion report priority (Phase 2).
+
+
+## Rollout: admin first, then everyone
+
+1. Set `NEXT_PUBLIC_SPORTS_ENABLED=admin` and make sure `ADMIN_EMAILS` (server env, comma list) contains the owner's sign-in email; redeploy.
+2. In admin mode: `/api/sports/*` user and live routes return 404 unless the caller is a signed-in admin (live responses are `private, no-store`); cron routes (`publish`, `settle`, `admin/void`) still run on `CRON_SECRET`; `/fantasy/sports/*` pages redirect non-admins to `/fantasy`; the client asks `GET /api/sports/access` (`{ enabled }`, always 200) and shows nothing until it says true. Sample/demo views and signed-out visitors see no sports.
+3. When satisfied, set `NEXT_PUBLIC_SPORTS_ENABLED=1` and redeploy to open sports to everyone.
