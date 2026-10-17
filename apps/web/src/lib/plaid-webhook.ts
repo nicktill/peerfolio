@@ -1,5 +1,6 @@
 import { decodeProtectedHeader } from "jose"
 import { getPlaidClient } from "@web/lib/plaid"
+import { trial2Configured, type PlaidProfile } from "@web/lib/plaid-profile"
 
 import { verifySignedWebhook, type PlaidJWK } from "@web/lib/plaid-webhook-core"
 type CachedKey = { jwk: PlaidJWK; fetchedAt: number }
@@ -35,10 +36,19 @@ async function getVerificationKey(kid: string): Promise<PlaidJWK | null> {
   if (cached && Date.now() - cached.fetchedAt < KEY_TTL_MS) return cached.jwk
 
   try {
-    const { data } = await getPlaidClient().webhookVerificationKeyGet({ key_id: kid })
-    const jwk = data.key as unknown as PlaidJWK
-    keyCache.set(kid, { jwk, fetchedAt: Date.now() })
-    return jwk
+    // The webhook may come from either Trial team, and a key id is only known to the team that sent it.
+    const profiles: PlaidProfile[] = ["trial", ...(trial2Configured(process.env) ? ["trial2" as const] : [])]
+    for (const profile of profiles) {
+      try {
+        const { data } = await getPlaidClient(profile).webhookVerificationKeyGet({ key_id: kid })
+        const jwk = data.key as unknown as PlaidJWK
+        keyCache.set(kid, { jwk, fetchedAt: Date.now() })
+        return jwk
+      } catch {
+        // Try the next team.
+      }
+    }
+    return null
   } catch {
     return null
   }

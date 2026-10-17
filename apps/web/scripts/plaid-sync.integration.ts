@@ -9,7 +9,7 @@ import * as schema from '../src/db/schema'
 import { db, plaidSyncRuns, users, plaidItems, accounts, holdings, portfolioSnapshots, plaidInvestmentFlows, accountEvents, securities } from '../src/db'
 import { finishProductionLinkAttempt, getBrokerageAccess, productionCapacity, reserveProductionLinkAttempt, userLinkAttempts } from '../src/lib/plaid-access'
 import { loadLivePoints } from '../src/lib/returns'
-import { encrypt } from '../src/lib/crypto'
+import { decrypt, encrypt } from '../src/lib/crypto'
 import { manualMutation } from '../src/lib/manual-mutation'
 import { loadSharedHoldings } from '../src/lib/social'
 import { requireManualAccount } from '../src/lib/positions'
@@ -18,6 +18,7 @@ import { revalueSecurities } from '../src/lib/positions'
 import { timeWeightedReturn } from '../src/lib/ranges'
 import { syncItem, syncTuning, investableTotal, writeDailySnapshot } from '../src/lib/plaid-sync'
 import { replaceManualAccount, restoreManualAccount } from '../src/lib/account-replacement'
+import { decodePlaidToken } from '../src/lib/plaid-profile'
 import { exchangePublicToken, pendingLinkToken } from '../src/lib/plaid-link'
 import { DELETE as deleteProfile } from '../src/app/api/me/route'
 import { DELETE as disconnect } from '../src/app/api/plaid/items/[id]/route'
@@ -366,7 +367,7 @@ try {
   assert.equal(Number((await db.select().from(portfolioSnapshots))[0]!.netFlows), beforeRemoval - 1600)
   extraAccount = false
   // Sandbox is free of production quota; concurrent production exchanges reserve once.
-  assert.equal(await reserveProductionLinkAttempt(user!.id, 'sandbox-attempt'), null)
+  assert.equal((await reserveProductionLinkAttempt(user!.id, 'sandbox-attempt')).attemptId, null)
   assert.equal((await productionCapacity()).used, 0)
   process.env.PLAID_ENV = 'production'
   // Paid keys remain set, but absent Trial keys must block new connections.
@@ -424,7 +425,7 @@ try {
     assert.equal(open.allowed, true)
     assert.equal(open.userLimit.remaining, 2)
     // One slot used, then simultaneous reservations at the cap: exactly one wins.
-    const first = await reserveProductionLinkAttempt(capUser!.id, 'cap-user-1')
+    const first = (await reserveProductionLinkAttempt(capUser!.id, 'cap-user-1')).attemptId
     assert.ok(first)
     const racers = await Promise.allSettled(['cap-user-2', 'cap-user-3', 'cap-user-4'].map((token) => reserveProductionLinkAttempt(capUser!.id, token)))
     assert.equal(racers.filter((r) => r.status === 'fulfilled').length, 1)
@@ -465,6 +466,72 @@ try {
     await db.update(users).set({ brokerageLinkingBlocked: true }).where(eq(users.id, freshUser!.id))
     assert.equal((await getBrokerageAccess(freshUser!.id)).code, 'off')
     await assert.rejects(reserveProductionLinkAttempt(freshUser!.id, 'blocked'), /been disabled/)
+    process.env.PLAID_PRODUCTION_ITEM_LIMIT = '1'
+    process.env.PLAID_ENV = 'sandbox'
+    globalThis.plaidTestUser = user!.id
+  }
+  // Two free Trial teams: pool 1 fills first, then pool 2, each capped at 10.
+  {
+    const mk = async (name: string) => (await db.insert(users).values({ email: `${name}@test.peerfolio.invalid` }).returning())[0]!
+    const [u1, u2, u3, u4] = [await mk('pool-u1'), await mk('pool-u2'), await mk('pool-u3'), await mk('pool-u4')]
+    process.env.PLAID_ENV = 'production'
+    process.env.PLAID_PRODUCTION_ITEM_LIMIT = '10'
+    // Without pool-2 credentials the app is a single pool of 10.
+    delete process.env.PLAID_TRIAL2_CLIENT_ID
+    delete process.env.PLAID_TRIAL2_SECRET
+    assert.equal((await productionCapacity()).pools.length, 1)
+    assert.equal((await productionCapacity()).limit, 10)
+    process.env.PLAID_TRIAL2_CLIENT_ID = 'trial2-test'
+    process.env.PLAID_TRIAL2_SECRET = 'trial2-test-secret'
+    const base = await productionCapacity()
+    assert.equal(base.pools.length, 2)
+    assert.equal(base.limit, 20)
+    // Leave exactly one spot in pool 1 (existing ledger rows are all pool 1).
+    process.env.PLAID_PRODUCTION_ITEMS_PREVIOUSLY_USED = String(10 - base.pools[0]!.attempts - 1)
+    assert.equal((await productionCapacity()).pools[0]!.available, 1)
+    // Pool 2 cannot be claimed while pool 1 has room.
+    await assert.rejects(reserveProductionLinkAttempt(u1.id, 'early-pool-2', 2), /Start a new connection/)
+    // Three simultaneous reservations at the boundary: exactly one takes pool 1, the others lose cleanly (nothing reserved).
+    const attemptsBefore = (await db.select().from(schema.productionLinkAttempts)).length
+    const boundary = await Promise.allSettled([u1, u2, u3].map((u, i) => reserveProductionLinkAttempt(u.id, `boundary-${i}`, 1)))
+    assert.equal(boundary.filter((r) => r.status === 'fulfilled').length, 1)
+    assert.equal(boundary.filter((r) => r.status === 'rejected' && /Start a new connection/.test(String(r.reason))).length, 2)
+    assert.equal((await db.select().from(schema.productionLinkAttempts)).length, attemptsBefore + 1)
+    const winner = boundary.find((r): r is PromiseFulfilledResult<Awaited<ReturnType<typeof reserveProductionLinkAttempt>>> => r.status === 'fulfilled')!
+    assert.equal(winner.value.profile, 'trial')
+    // Pool 1 is now full, so access is still allowed (pool 2 has room) and new Link sessions go to pool 2.
+    const afterBoundary = await productionCapacity()
+    assert.equal(afterBoundary.pools[0]!.available, 0)
+    assert.equal(afterBoundary.pools[1]!.available, 10)
+    assert.equal((await getBrokerageAccess(u4.id)).allowed, true)
+    // Failover: a pool-2 request now succeeds with the trial2 profile and is recorded as pool 2.
+    process.env.PLAID_TRIAL2_ITEM_LIMIT = '3'
+    const second = await Promise.all([u2, u3].map((u, i) => reserveProductionLinkAttempt(u.id, `pool2-${i}`, 2)))
+    assert.deepEqual(second.map((r) => r.profile), ['trial2', 'trial2'])
+    assert.equal((await productionCapacity()).pools[1]!.attempts, 2)
+    // A stale pool-1 request after failover is refused, not silently moved.
+    await assert.rejects(reserveProductionLinkAttempt(u4.id, 'stale-pool-1', 1), /Start a new connection/)
+    // Exchange through the route stores the pool-2 profile on the Item and uses its pool.
+    globalThis.plaidTestUser = u4.id
+    const t2Calls = exchangeRequests
+    assert.equal((await exchange(new Request('http://localhost/api/plaid/exchange', { method: 'POST', body: JSON.stringify({ publicToken: 'pool2-exchange', pool: 2 }) }), {})).status, 200)
+    assert.equal(exchangeRequests, t2Calls + 1)
+    const t2Item = (await db.select().from(plaidItems).where(eq(plaidItems.userId, u4.id)))[0]!
+    assert.equal(decodePlaidToken(decrypt(t2Item.accessToken)).profile, 'trial2')
+    // Pool 2 is now at its configured cap of 3: everything is full.
+    const exhausted = await getBrokerageAccess(u4.id)
+    assert.equal(exhausted.code, 'full')
+    await assert.rejects(reserveProductionLinkAttempt(u1.id, 'all-full', 2), /Production connection limit reached/)
+    // Removing pool-2 credentials returns to exactly today's single pool.
+    delete process.env.PLAID_TRIAL2_CLIENT_ID
+    delete process.env.PLAID_TRIAL2_SECRET
+    assert.equal((await productionCapacity()).pools.length, 1)
+    // Paid stays disabled even with every pool configured.
+    process.env.PLAID_CONNECTION_PROFILE = 'paid'
+    await assert.rejects(createLinkToken(new Request('http://localhost/api/plaid/link-token', { method: 'POST', body: JSON.stringify({ itemId: t2Item.id }) }), {}), /./)
+    delete process.env.PLAID_CONNECTION_PROFILE
+    delete process.env.PLAID_TRIAL2_ITEM_LIMIT
+    process.env.PLAID_PRODUCTION_ITEMS_PREVIOUSLY_USED = '0'
     process.env.PLAID_PRODUCTION_ITEM_LIMIT = '1'
     process.env.PLAID_ENV = 'sandbox'
     globalThis.plaidTestUser = user!.id

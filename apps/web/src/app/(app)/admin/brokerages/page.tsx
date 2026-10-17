@@ -12,7 +12,8 @@ import { mutate, useApi } from "@web/lib/use-api"
 type BrokerageUser = { id: string; email: string; name: string | null; allowed: boolean }
 type AdminData = {
   users: BrokerageUser[]
-  capacity: { limit: number; used: number; reserved: number; uncertain: number; available: number; previouslyUsed: number }
+  credentials?: { pool: number; configured: boolean; clientId?: string }[]
+  capacity: { limit: number; used: number; reserved: number; uncertain: number; available: number; previouslyUsed: number; pools: { pool: number; limit: number; used: number; reserved: number; uncertain: number; available: number; previouslyUsed: number }[] }
 }
 
 export default function BrokerageAdminPage() {
@@ -68,6 +69,20 @@ export default function BrokerageAdminPage() {
                   <div key={label}><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1 text-xl font-semibold tabular-nums">{value}</dd></div>
                 ))}
               </dl>
+              {data.credentials ? (
+                <ul className="space-y-1 text-xs text-muted-foreground">
+                  {data.credentials.map((c) => (
+                    <li key={c.pool}>Trial team {c.pool}: {c.configured ? `credentials set (client ID ${c.clientId})` : "credentials not set"}</li>
+                  ))}
+                </ul>
+              ) : null}
+              {data.capacity.pools.length > 1 ? (
+                <ul className="space-y-1 text-sm">
+                  {data.capacity.pools.map((pool) => (
+                    <li key={pool.pool} className="tabular-nums">Trial team {pool.pool}: {pool.used} of {pool.limit} used ({pool.available} left{pool.reserved + pool.uncertain > 0 ? `, ${pool.reserved + pool.uncertain} reserved or uncertain` : ""})</li>
+                  ))}
+                </ul>
+              ) : null}
               <p className="text-xs text-muted-foreground">Prior usage recorded: {data.capacity.previouslyUsed}. Connections made outside Peerfolio are not counted automatically. Check the <a href="https://dashboard.plaid.com" target="_blank" rel="noreferrer" className="underline">Plaid Dashboard</a> for total usage and keep the prior usage setting current.</p>
               <p className="text-xs text-muted-foreground">Each new production connection attempt consumes capacity. Disconnecting does not restore it. Reconnect repairs reuse the existing connection.</p>
             </CardContent>

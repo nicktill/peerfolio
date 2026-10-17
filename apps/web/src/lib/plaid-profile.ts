@@ -1,4 +1,8 @@
-export type PlaidProfile = "trial" | "sandbox" | "paid"
+/**
+ * `trial2` is the second free Trial team. It is never selectable by configuration: newPlaidProfile can not return it,
+ * only the production budget logic assigns it (when pool 1's Items are used up), and stored Items remember it.
+ */
+export type PlaidProfile = "trial" | "trial2" | "sandbox" | "paid"
 type Env = Record<string, string | undefined>
 
 /**
@@ -32,12 +36,46 @@ export function plaidCredentials(env: Env, profile: PlaidProfile) {
     if (!clientId || !secret) throw new Error("Plaid sandbox credentials are not configured")
     return { clientId, secret }
   }
+  if (profile === "trial2") {
+    const clientId = env.PLAID_TRIAL2_CLIENT_ID?.trim()
+    const secret = env.PLAID_TRIAL2_SECRET?.trim()
+    if (!clientId || !secret) throw new Error("Plaid trial2 credentials are not configured")
+    if (clientId === env.PLAID_CLIENT_ID?.trim()) throw new Error("Trial 2 must use a different Plaid team from paid")
+    if (clientId === env.PLAID_TRIAL_CLIENT_ID?.trim() || secret === env.PLAID_TRIAL_SECRET?.trim()) throw new Error("Trial 2 must use a different Plaid team from Trial")
+    if (env.PLAID_ENV !== "production") throw new Error("Trial 2 requires PLAID_ENV=production")
+    return { clientId, secret }
+  }
   const clientId = env.PLAID_TRIAL_CLIENT_ID?.trim()
   const secret = env.PLAID_TRIAL_SECRET?.trim()
   if (!clientId || !secret) throw new Error("Plaid trial credentials are not configured")
   if (clientId === env.PLAID_CLIENT_ID?.trim()) throw new Error("Trial must use a different Plaid team from paid")
   if (env.PLAID_ENV !== "production") throw new Error("Trial requires PLAID_ENV=production")
   return { clientId, secret }
+}
+
+/** Whether the second Trial team is fully and validly configured. Pool 2 does not exist otherwise. */
+export function trial2Configured(env: Env): boolean {
+  try { plaidCredentials(env, "trial2"); return true } catch { return false }
+}
+
+/**
+ * Admin-only hint for matching a team against the Plaid Dashboard: first 4 and last 4 characters, never more.
+ * Ids too short to hide a middle show nothing. The secret is never part of this.
+ */
+export function maskClientId(clientId: string): string {
+  const id = clientId.trim()
+  return id.length >= 12 ? `${id.slice(0, 4)}…${id.slice(-4)}` : "••••"
+}
+
+/** Which Trial pools have valid credentials and a masked client id to recognise them by. Nothing for the paid pair. */
+export function trialCredentialSummary(env: Env): { pool: 1 | 2; profile: "trial" | "trial2"; configured: boolean; clientId?: string }[] {
+  return ([[1, "trial"], [2, "trial2"]] as const).map(([pool, profile]) => {
+    try {
+      return { pool, profile, configured: true, clientId: maskClientId(plaidCredentials(env, profile).clientId) }
+    } catch {
+      return { pool, profile, configured: false }
+    }
+  })
 }
 
 /** Stored inside the existing encrypted token field; no plaintext team marker. */
@@ -50,7 +88,7 @@ export function decodePlaidToken(value: string, env: Env = process.env): { profi
   // they belong to the original paid team, which is disabled.
   if (!value.startsWith("{")) return { profile: env.PLAID_ENV === "production" ? "paid" : "sandbox", token: value }
   const data = JSON.parse(value)
-  if (data.version !== 1 || !["trial", "sandbox", "paid"].includes(data.profile) || typeof data.token !== "string" || !data.token) {
+  if (data.version !== 1 || !["trial", "trial2", "sandbox", "paid"].includes(data.profile) || typeof data.token !== "string" || !data.token) {
     throw new Error("Invalid stored Plaid credential profile")
   }
   return { profile: data.profile, token: data.token }

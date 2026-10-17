@@ -5,8 +5,9 @@ import { db, productionLinkAttempts, users } from "@web/db"
 import { ApiError } from "@web/lib/api"
 import { plaidLinkingEnabled } from "@web/lib/plaid"
 import { plaidEnvironment } from "@web/lib/plaid-config"
-import { brokerageBlock, isAdminEmail, productionBudgetSettings, USER_LINK_LIMIT_NOTICE, USER_PRODUCTION_LINK_LIMIT } from "@web/lib/plaid-access-core"
+import { brokerageBlock, choosePool, firstAvailablePool, isAdminEmail, poolBudgets, productionPools, totalCapacity, USER_LINK_LIMIT_NOTICE, USER_PRODUCTION_LINK_LIMIT } from "@web/lib/plaid-access-core"
 import { plaidPaused } from "@web/lib/plaid-switch"
+import { newPlaidProfile, trial2Configured, type PlaidProfile } from "@web/lib/plaid-profile"
 
 type Store = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0]
 
@@ -30,15 +31,24 @@ export async function userLinkAttempts(userId: string, store: Store = db) {
 }
 
 export async function productionCapacity(store: Store = db) {
-  const { limit, previouslyUsed } = productionBudgetSettings(process.env)
-  const [counts] = await store.select({
-    used: sql<number>`count(*)::int`,
+  const pools = productionPools(process.env, trial2Configured(process.env))
+  const rows = await store.select({
+    pool: productionLinkAttempts.pool,
+    attempts: sql<number>`count(*)::int`,
     reserved: sql<number>`count(*) filter (where ${productionLinkAttempts.status} = 'reserved')::int`,
     uncertain: sql<number>`count(*) filter (where ${productionLinkAttempts.status} = 'uncertain')::int`,
-  }).from(productionLinkAttempts)
-  const attempts = Number(counts?.used ?? 0)
-  const used = attempts + previouslyUsed
-  return { limit, used, reserved: Number(counts?.reserved ?? 0), uncertain: Number(counts?.uncertain ?? 0), available: Math.max(0, limit - used), previouslyUsed, attempts }
+  }).from(productionLinkAttempts).groupBy(productionLinkAttempts.pool)
+  const ledger: Record<number, { attempts: number; reserved: number; uncertain: number }> = {}
+  for (const row of rows) ledger[row.pool] = { attempts: Number(row.attempts), reserved: Number(row.reserved), uncertain: Number(row.uncertain) }
+  const budgets = poolBudgets(pools, ledger)
+  // Totals cover configured pools only; `pools` carries the per-pool breakdown for the admin view.
+  return { ...totalCapacity(budgets), pools: budgets }
+}
+
+/** Pool a new Link session should be created from: the first with room. Read-only; the reservation re-checks under lock. */
+export async function nextLinkPool(store: Store = db) {
+  const capacity = await productionCapacity(store)
+  return firstAvailablePool(capacity.pools)
 }
 
 export async function getBrokerageAccess(userId: string) {
@@ -65,12 +75,17 @@ export async function assertBrokerageLinkingAllowed(userId: string) {
   }
 }
 
-/** Commit before calling Plaid: rollback/timeout cannot replenish the lifetime budget. */
-export async function reserveProductionLinkAttempt(userId: string, publicToken: string): Promise<string | null> {
+export type LinkReservation = { attemptId: string | null; profile: PlaidProfile }
+
+/**
+ * Commit before calling Plaid: rollback/timeout cannot replenish the lifetime budget.
+ * `requestedPool` is the pool the Link session was created from (link-token response); the pool is chosen here, under the locks.
+ */
+export async function reserveProductionLinkAttempt(userId: string, publicToken: string, requestedPool = 1): Promise<LinkReservation> {
   if (!plaidLinkingEnabled()) throw new ApiError("Brokerage linking is not configured", 503)
   if (plaidEnvironment(process.env.PLAID_ENV) !== "production") {
     await assertBrokeragePermission(userId)
-    return null
+    return { attemptId: null, profile: newPlaidProfile(process.env) }
   }
   return db.transaction(async (store) => {
     await store.execute(sql`set local lock_timeout = '10s'`)
@@ -84,9 +99,14 @@ export async function reserveProductionLinkAttempt(userId: string, publicToken: 
     const capacity = await productionCapacity(store)
     // Same transaction and locks as the insert: two simultaneous reservations at the cap cannot both pass.
     if ((await userLinkAttempts(userId, store)) >= USER_PRODUCTION_LINK_LIMIT) throw new ApiError(USER_LINK_LIMIT_NOTICE, 403, { code: "USER_ITEM_LIMIT_REACHED" })
-    if (capacity.available === 0) throw new ApiError("Production connection limit reached", 403, { code: "PRODUCTION_ITEM_LIMIT_REACHED" })
-    const [attempt] = await store.insert(productionLinkAttempts).values({ userId, publicTokenDigest: digest }).returning({ id: productionLinkAttempts.id })
-    return attempt!.id
+    const choice = choosePool(capacity.pools, requestedPool)
+    if (!choice.ok) {
+      if (choice.reason === "full") throw new ApiError("Production connection limit reached", 403, { code: "PRODUCTION_ITEM_LIMIT_REACHED" })
+      // The pool this Link session came from filled (or is not the open one). Nothing was reserved or sent to Plaid.
+      throw new ApiError("Another connection just took the last spot in that group. Start a new connection and try again.", 409, { code: "LINK_POOL_CHANGED" })
+    }
+    const [attempt] = await store.insert(productionLinkAttempts).values({ userId, publicTokenDigest: digest, pool: choice.budget.pool }).returning({ id: productionLinkAttempts.id })
+    return { attemptId: attempt!.id, profile: choice.budget.profile }
   })
 }
 

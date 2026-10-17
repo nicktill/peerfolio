@@ -104,6 +104,8 @@ export const productionLinkAttempts = pgTable("production_link_attempts", {
   userId: uuid("user_id").notNull(),
   publicTokenDigest: text("public_token_digest").notNull(),
   status: text("status").notNull().default("reserved"),
+  // Which free Trial team (1 or 2) this attempt used. Rows from before pools existed are pool 1.
+  pool: integer("pool").notNull().default(1),
   plaidItemId: text("plaid_item_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   completedAt: timestamp("completed_at", { withTimezone: true }),

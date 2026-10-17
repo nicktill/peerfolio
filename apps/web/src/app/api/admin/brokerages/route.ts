@@ -4,6 +4,7 @@ import { z } from "zod"
 import { db, users } from "@web/db"
 import { ApiError, readJson, withUser } from "@web/lib/api"
 import { assertAdmin, productionCapacity } from "@web/lib/plaid-access"
+import { trialCredentialSummary } from "@web/lib/plaid-profile"
 
 export const GET = withUser<unknown>(async (userId, request) => {
   await assertAdmin(userId)
@@ -14,7 +15,7 @@ export const GET = withUser<unknown>(async (userId, request) => {
       .orderBy(desc(users.createdAt)).limit(50),
     productionCapacity(),
   ])
-  return NextResponse.json({ users: list, capacity })
+  return NextResponse.json({ users: list, capacity, credentials: trialCredentialSummary(process.env) })
 })
 
 const UpdateAccess = z.object({ userId: z.string().uuid(), allowed: z.boolean() }).strict()

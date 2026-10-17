@@ -96,6 +96,8 @@ function PlaidConnectButton({ onConnected, itemId, children, ...buttonProps }: P
   const [unavailable, setUnavailable] = useState(false)
   const [attempt, setAttempt] = useState(0)
   const [expiration, setExpiration] = useState<number>(0)
+  // Which Trial team issued the Link session; the exchange must be reserved against the same one.
+  const [pool, setPool] = useState<number | undefined>(undefined)
   const exchangeInFlight = useRef(false)
 
   useEffect(() => {
@@ -103,11 +105,12 @@ function PlaidConnectButton({ onConnected, itemId, children, ...buttonProps }: P
     setUnavailable(false)
     setLinkToken(null)
 
-    mutate<{ linkToken: string; expiration: string }>("/api/plaid/link-token", { body: itemId ? { itemId } : {} })
+    mutate<{ linkToken: string; expiration: string; pool?: number }>("/api/plaid/link-token", { body: itemId ? { itemId } : {} })
       .then((data) => {
         if (!cancelled) {
           setLinkToken(data.linkToken)
           setExpiration(Date.parse(data.expiration))
+          setPool(data.pool)
         }
       })
       .catch(() => {
@@ -126,7 +129,7 @@ function PlaidConnectButton({ onConnected, itemId, children, ...buttonProps }: P
       pendingLinkToken.clear()
       setExchanging(true)
       try {
-        const result = await exchangePublicToken(publicToken, metadata, itemId)
+        const result = await exchangePublicToken(publicToken, metadata, itemId, pool)
         const notice = connectionNotice("item" in result ? result.item : result.result)
         toast(notice.message, notice.tone)
         onConnected()
@@ -138,7 +141,7 @@ function PlaidConnectButton({ onConnected, itemId, children, ...buttonProps }: P
         setAttempt((value) => value + 1)
       }
     },
-    [onConnected, toast, itemId],
+    [onConnected, toast, itemId, pool],
   )
 
   const { open, ready } = usePlaidLink({
@@ -172,7 +175,7 @@ function PlaidConnectButton({ onConnected, itemId, children, ...buttonProps }: P
           return
         }
         // Kept for /oauth-return in case an OAuth bank takes the user away.
-        pendingLinkToken.save(linkToken!, itemId, expiration)
+        pendingLinkToken.save(linkToken!, itemId, expiration, pool)
         open()
       }}
       disabled={!ready || !linkToken || exchanging} loading={exchanging}>

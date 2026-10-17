@@ -45,9 +45,10 @@ export default function OAuthReturnPage() {
       if (completing.current) return
       completing.current = true
       const itemId = pendingLinkToken.itemId()
+      const pool = pendingLinkToken.pool()
       pendingLinkToken.clear()
       try {
-        const result = await exchangePublicToken(publicToken, metadata, itemId)
+        const result = await exchangePublicToken(publicToken, metadata, itemId, pool)
         const notice = connectionNotice("item" in result ? result.item : result.result)
         toast(notice.message, notice.tone)
       } catch (error) {

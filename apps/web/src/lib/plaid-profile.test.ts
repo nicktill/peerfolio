@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
-import { decodePlaidToken, encodePlaidToken, newPlaidProfile, plaidCredentials } from "./plaid-profile.ts"
+import { decodePlaidToken, encodePlaidToken, maskClientId, newPlaidProfile, plaidCredentials, trial2Configured, trialCredentialSummary } from "./plaid-profile.ts"
 
 const env = { PLAID_ENV: "production", PLAID_CLIENT_ID: "paid-id", PLAID_SECRET: "paid-secret", PLAID_TRIAL_CLIENT_ID: "trial-id", PLAID_TRIAL_SECRET: "trial-secret" }
 
@@ -71,4 +71,53 @@ test("Trial cannot accidentally use the Sandbox API", () => {
 })
 test("accidentally copying the paid team into Trial is rejected", () => {
   assert.throws(() => plaidCredentials({ ...env, PLAID_TRIAL_CLIENT_ID: env.PLAID_CLIENT_ID }, "trial"), /different Plaid team/)
+})
+
+const env2 = { ...env, PLAID_TRIAL2_CLIENT_ID: "trial2-id-0123456789", PLAID_TRIAL2_SECRET: "trial2-secret-xyz" }
+
+test("trial2 is never chosen by configuration, only by the budget logic", () => {
+  assert.equal(newPlaidProfile(env2), "trial")
+  assert.throws(() => newPlaidProfile({ ...env2, PLAID_CONNECTION_PROFILE: "trial2" }), /must be trial/)
+})
+test("trial2 reads its own credentials, never the Trial or paid pair", () => {
+  const spy = spyEnv(env2)
+  assert.deepEqual(plaidCredentials(spy.env, "trial2"), { clientId: "trial2-id-0123456789", secret: "trial2-secret-xyz" })
+  assert.ok(!spy.reads.includes("PLAID_SECRET"), "paid secret must not be read")
+  assert.equal(trial2Configured(env2), true)
+})
+test("trial2 needs production, its own credentials, and a different team from Trial and paid", () => {
+  assert.throws(() => plaidCredentials({ ...env2, PLAID_ENV: "sandbox" }, "trial2"), /PLAID_ENV=production/)
+  assert.throws(() => plaidCredentials({ ...env2, PLAID_TRIAL2_SECRET: "" }, "trial2"), /trial2 credentials/)
+  assert.throws(() => plaidCredentials({ ...env2, PLAID_TRIAL2_CLIENT_ID: "trial-id" }, "trial2"), /different Plaid team from Trial/)
+  assert.throws(() => plaidCredentials({ ...env2, PLAID_TRIAL2_CLIENT_ID: "paid-id" }, "trial2"), /different Plaid team from paid/)
+  assert.equal(trial2Configured({ ...env2, PLAID_TRIAL2_CLIENT_ID: undefined }), false)
+  assert.equal(trial2Configured({ ...env2, PLAID_ENV: "sandbox" }), false)
+})
+test("paid stays disabled with both Trial pools configured", () => {
+  assert.throws(() => plaidCredentials(env2, "paid"), /Paid Plaid credentials are disabled/)
+})
+test("stored trial2 tokens round-trip and select the trial2 credentials", () => {
+  const stored = encodePlaidToken("access-t2", "trial2")
+  const decoded = decodePlaidToken(stored, env2)
+  assert.deepEqual(decoded, { profile: "trial2", token: "access-t2" })
+  assert.equal(plaidCredentials(env2, decoded.profile).clientId, "trial2-id-0123456789")
+  assert.throws(() => decodePlaidToken(JSON.stringify({ version: 1, profile: "trial3", token: "x" }), env2), /Invalid stored/)
+})
+test("masked client ids reveal at most 8 characters and never the secret", () => {
+  assert.equal(maskClientId("1a2b3c4d5e6f7g8h9z8y"), "1a2b…9z8y")
+  for (const id of ["", "abc", "12345678", "12345678901", "1234567890123456789012345678"]) {
+    const masked = maskClientId(id)
+    assert.ok(masked.replace("…", "").length <= 8, `${id} -> ${masked}`)
+  }
+  assert.equal(maskClientId("short-id"), "••••")
+  const summary = trialCredentialSummary(env2)
+  const json = JSON.stringify(summary)
+  for (const secret of ["trial2-secret-xyz", "trial-secret", "paid-secret", "paid-id", "paid"]) assert.ok(!json.includes(secret), secret)
+  assert.deepEqual(summary.map((s) => s.configured), [true, true])
+  assert.equal(summary[1]!.clientId, "tria…6789")
+})
+test("a missing pool reports nothing about credentials", () => {
+  const [one, two] = trialCredentialSummary(env)
+  assert.equal(one!.configured, true)
+  assert.deepEqual(two, { pool: 2, profile: "trial2", configured: false })
 })

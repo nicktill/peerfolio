@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { brokerageBlock, isAdminEmail, productionBudgetSettings, USER_LINK_LIMIT_NOTICE, USER_PRODUCTION_LINK_LIMIT } from "./plaid-access-core.ts"
+import { brokerageBlock, choosePool, firstAvailablePool, poolBudgets, productionPools, totalCapacity, isAdminEmail, productionBudgetSettings, USER_LINK_LIMIT_NOTICE, USER_PRODUCTION_LINK_LIMIT } from "./plaid-access-core.ts"
 
 describe("brokerage admin and lifetime production budget settings", () => {
   it("grants no admin access unless a normalized database email is explicitly listed", () => {
@@ -61,5 +61,56 @@ describe("brokerage access gating matrix", () => {
   it("never refunds: the decision depends only on lifetime attempts, not on live connections", () => {
     // Disconnecting changes nothing here: the input is the attempt ledger count, which only grows.
     assert.equal(code({ userAttempts: 2 }), "user_limit")
+  })
+})
+
+describe("two Trial pools", () => {
+  const prod = { PLAID_ENV: "production" }
+  const ledger = (one: number, two = 0) => ({ 1: { attempts: one, reserved: 0, uncertain: 0 }, 2: { attempts: two, reserved: 0, uncertain: 0 } })
+
+  it("is exactly today's single pool of ten when pool-2 credentials are missing", () => {
+    const pools = productionPools(prod, false)
+    assert.deepEqual(pools, [{ pool: 1, profile: "trial", limit: 10, previouslyUsed: 0 }])
+    const budgets = poolBudgets(pools, ledger(3, 9))
+    assert.equal(totalCapacity(budgets).limit, 10)
+    assert.equal(totalCapacity(budgets).used, 3)
+  })
+  it("adds a second pool of ten only in production with credentials, and sums capacity", () => {
+    assert.equal(productionPools({ PLAID_ENV: "sandbox" }, true).length, 1)
+    const budgets = poolBudgets(productionPools(prod, true), ledger(4, 1))
+    assert.equal(budgets.length, 2)
+    assert.deepEqual(totalCapacity(budgets), { limit: 20, used: 5, reserved: 0, uncertain: 0, available: 15, previouslyUsed: 0, attempts: 5 })
+  })
+  it("hard-caps every pool at ten whatever the env asks", () => {
+    const pools = productionPools({ ...prod, PLAID_PRODUCTION_ITEM_LIMIT: "50", PLAID_TRIAL2_ITEM_LIMIT: "50" }, true)
+    assert.deepEqual(pools.map((p) => p.limit), [10, 10])
+    assert.equal(productionPools({ ...prod, PLAID_TRIAL2_ITEM_LIMIT: "3" }, true)[1]!.limit, 3)
+    assert.throws(() => productionPools({ ...prod, PLAID_TRIAL2_ITEM_LIMIT: "x" }, true), /integer/)
+  })
+  it("keeps PLAID_PRODUCTION_* semantics for pool 1 and applies pool 2 offsets separately", () => {
+    const pools = productionPools({ ...prod, PLAID_PRODUCTION_ITEMS_PREVIOUSLY_USED: "4", PLAID_TRIAL2_ITEMS_PREVIOUSLY_USED: "2" }, true)
+    const budgets = poolBudgets(pools, ledger(1, 1))
+    assert.deepEqual(budgets.map((b) => b.available), [5, 7])
+  })
+  it("fails over to pool 2 only after pool 1's ten are used", () => {
+    const budgets = (one: number, two = 0) => poolBudgets(productionPools(prod, true), ledger(one, two))
+    assert.equal(firstAvailablePool(budgets(9))?.pool, 1)
+    assert.equal(firstAvailablePool(budgets(10))?.pool, 2)
+    assert.equal(firstAvailablePool(budgets(10, 10)), null)
+  })
+  it("chooses the requested pool only when it is the open one", () => {
+    const at = (one: number, two = 0) => poolBudgets(productionPools(prod, true), ledger(one, two))
+    assert.deepEqual(choosePool(at(9), 1).ok, true)
+    assert.deepEqual(choosePool(at(9), 2), { ok: false, reason: "invalid" })
+    assert.deepEqual(choosePool(at(10), 1), { ok: false, reason: "pool_filled" })
+    const second = choosePool(at(10), 2)
+    assert.ok(second.ok && second.budget.profile === "trial2")
+    assert.deepEqual(choosePool(at(10, 10), 2), { ok: false, reason: "full" })
+    assert.deepEqual(choosePool(at(0), 3), { ok: false, reason: "invalid" })
+  })
+  it("with one pool configured a pool-2 request is invalid", () => {
+    const one = poolBudgets(productionPools(prod, false), ledger(2))
+    assert.deepEqual(choosePool(one, 2), { ok: false, reason: "invalid" })
+    assert.deepEqual(choosePool(poolBudgets(productionPools(prod, false), ledger(10)), 1), { ok: false, reason: "full" })
   })
 })
