@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useTheme } from "next-themes"
 import { onColor, teamLook } from "@web/lib/sports/teams"
 
 // Portraits already looked up this session, by name (null = none found).
@@ -38,22 +39,26 @@ function usePlayerPhoto(name: string, sport: string, enabled: boolean): string |
 }
 
 /** A team's mark: its logo when it loads, a tennis player's portrait, otherwise initials on the team colour. */
-export function TeamBadge({ sport, name, size = 36, bare }: { sport?: string; name: string; size?: number; bare?: boolean }) {
+export function TeamBadge({ sport, name, size = 36, bare = true }: { sport?: string; name: string; size?: number; bare?: boolean }) {
   const look = teamLook(sport, name)
-  const [failed, setFailed] = useState(false)
+  const { resolvedTheme } = useTheme()
+  const [failedSrc, setFailedSrc] = useState<string | null>(null)
+  const [failedDarkSrc, setFailedDarkSrc] = useState<string | null>(null)
   const photo = usePlayerPhoto(name, sport ?? "tennis", sport === "tennis")
   const src = sport === "tennis" ? photo : look.logo
   const isPhoto = sport === "tennis"
+  const failed = src != null && failedSrc === src
+  const darkSrc = resolvedTheme === "dark" && look.logoDark && failedDarkSrc !== look.logoDark ? look.logoDark : null
   // Bare: just the team logo, floating, with no coloured disc or white square behind it.
   if (bare && src && !failed && !isPhoto) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img className="sp-logo-bare" src={look.logoDark ?? src} alt="" width={size} height={size} loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(true)} title={name} style={{ width: size, height: size }} />
+    return <img className="sp-logo-bare" src={darkSrc ?? src} alt="" width={size} height={size} loading="lazy" referrerPolicy="no-referrer" onError={() => darkSrc ? setFailedDarkSrc(darkSrc) : setFailedSrc(src)} title={name} style={{ width: size, height: size }} />
   }
   return (
     <span className="sp-badge" data-photo={isPhoto || undefined} style={{ width: size, height: size, background: look.color, color: onColor(look.color), fontSize: size * 0.34 }} aria-hidden title={name}>
       {src && !failed ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={src} alt="" width={size} height={size} loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(true)} style={isPhoto ? undefined : { background: "#fff" }} />
+        <img src={src} alt="" width={size} height={size} loading="lazy" referrerPolicy="no-referrer" onError={() => setFailedSrc(src)} style={isPhoto ? undefined : { background: "#fff" }} />
       ) : (
         look.abbr
       )}

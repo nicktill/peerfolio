@@ -8,6 +8,11 @@ import Link from "next/link"
 import { ArrowLeft, Check, Link2, Lock, X } from "lucide-react"
 import { Choice } from "@web/components/fantasy/choice"
 import { timeLeft } from "@web/components/fantasy/time-left"
+import { ScoreboardGames } from "@web/components/sports/scoreboard-games"
+import { scoreboardMatch, type ScoreGame } from "@web/lib/sports/scoreboard"
+import { matchupColors } from "@web/lib/sports/matchup-colors"
+import { freshnessOf, agoLabel } from "@web/lib/sports/live/freshness"
+import { LeagueBrand } from "@web/components/sports/league-brand"
 import { revealStyle } from "@web/components/motion/reveal"
 import { LeaguePageSkeleton } from "@web/components/skeletons"
 import { useToast } from "@web/components/ui/toast"
@@ -23,10 +28,11 @@ import { plural } from "@web/lib/plural"
 import { mutate, useApi } from "@web/lib/use-api"
 
 type Line = DisplayLine & { id: string; price: number }
-type EventInfo = { sport: string; home: string; away: string; startsAt: string }
+type EventInfo = { sport: string; home: string; away: string; startsAt: string; homeRecord?: string | null; awayRecord?: string | null }
 type Market = DisplayMarket & {
   id: string
   lockAt: string
+  exchangeOkAt?: string | null
   picked: { selection: string; stake: number } | null
   event: EventInfo
   lines: Line[]
@@ -49,6 +55,7 @@ type Detail = {
   you: { credits: number }
   limits: { minStake: number; maxStake: number; maxOpenPicks: number }
   standings: { name: string; credits: number; isYou: boolean }[]
+  liveEvents?: (EventInfo & { id: string })[]
   markets: Market[]
   picks: PickRow[]
   leaguePicks: (PickRow & { name: string })[]
@@ -75,6 +82,11 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
   const { data, error, loading, refetch } = useApi<Detail>(`/api/sports/leagues/${id}`, [], { refreshMs: 20_000 })
   const [selected, setSelected] = useState<{ market: Market; line: Line } | null>(null)
   const [sport, setSport] = useState<string>("all")
+  const [view, setView] = useState<"upcoming" | "live">("upcoming")
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 5000); return () => clearInterval(timer) }, [])
+  const sportsKey = data?.league.sports.slice().sort().join(",")
+  const scores = useApi<{games: ScoreGame[]; failedSports: string[]}>(sportsKey ? `/api/sports/scoreboard?sports=${sportsKey}` : null, [], { refreshMs: 30_000 })
   const [demo, setDemo] = useState<string | null>(null)
   useEffect(() => setDemo(new URLSearchParams(window.location.search).get("demo")), [])
   const [lockFx, setLockFx] = useState<PickLockFx | null>(null)
@@ -100,7 +112,13 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
   const atRisk = picks.filter((p) => p.status === "open").reduce((sum, p) => sum + p.stake, 0)
   const ended = !!league.endsAt && new Date(league.endsAt).getTime() < Date.now()
   const status = ended ? "Final standings" : league.endsAt ? timeLeft(league.endsAt) : "No end"
-  const shown = sport === "all" ? markets : markets.filter((m) => m.event.sport === sport)
+  const scoreGames = scores.data?.games ?? []
+  const shown = markets.filter(m => (sport === "all" || m.event.sport === sport) && Date.parse(m.lockAt) > now && Date.parse(m.event.startsAt) > now).map(m => {
+    const meta = scoreboardMatch(m.event, scoreGames)
+    return meta ? { ...m, event: { ...m.event, homeRecord: meta.homeRecord, awayRecord: meta.awayRecord } } : m
+  })
+  const liveGames = scoreGames.filter(g => sport === "all" || g.sport === sport)
+  const scoresFailed = !!scores.error || (scores.data?.failedSports ?? []).some(s => sport === "all" || s === sport)
 
   return (
     <div className="fw fw-play-space" data-play-world="sports" data-accent={league.accent}>
@@ -121,10 +139,13 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
 
       <div className="fw-grid">
         <div className="fw-main">
-          <section className="fw-panel reveal" style={revealStyle(2)} aria-labelledby="sp-markets-title">
+          <section className="fw-panel sp-open-lines reveal" style={revealStyle(2)} aria-labelledby="sp-markets-title">
             <div className="fw-section-head">
-              <h2 id="sp-markets-title">Open lines<InfoTip side="bottom" label="How lines work" text={<>Everyone gets the same line, and it can update until kickoff. Once you lock a pick, your price never changes. <b>+125</b> means 100 cash wins 125. <b>-110</b> means risking 110 wins 100. On a <b>spread</b>, your team must win by more than the number (or lose by less).</>} /></h2>
-              <p>Prices refresh until kickoff</p>
+              <div className="sp-title-copy"><h2 id="sp-markets-title">Open lines<InfoTip side="bottom" label="How lines work" text={<>Everyone gets the same line, and it can update until kickoff. Once you lock a pick, your price never changes. <b>+125</b> means 100 cash wins 125. <b>-110</b> means risking 110 wins 100. On a <b>spread</b>, your team must win by more than the number (or lose by less).</>} /></h2><p>{view === "upcoming" ? "Picks lock at kickoff" : "Live tracking · picks locked"}</p></div>
+              <div className="sp-view-switch" role="group" aria-label="Game status">
+                <button type="button" aria-pressed={view === "upcoming"} onClick={() => setView("upcoming")}>Upcoming</button>
+                <button type="button" aria-pressed={view === "live"} onClick={() => setView("live")}>Live</button>
+              </div>
             </div>
             {league.sports.length > 1 ? (
               <div className="sp-filter fw-choices" role="group" aria-label="Filter by sport">
@@ -133,12 +154,12 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
                 </Choice>
                 {league.sports.map((s) => (
                   <Choice key={s} active={sport === s} onClick={() => setSport(s)}>
-                    {SPORT_LABEL[s] ?? s}
+                    <LeagueBrand sport={s} />
                   </Choice>
                 ))}
               </div>
             ) : null}
-            <Markets markets={shown} selected={current} onSelect={(market, line) => setSelected({ market, line })} disabled={ended} />
+            {view === "upcoming" ? <Markets markets={shown} selected={current} onSelect={(market, line) => setSelected({ market, line })} disabled={ended} now={now} /> : <ScoreboardGames games={liveGames} tracked={data.liveEvents ?? []} now={now} loading={scores.loading} failed={scoresFailed} />}
           </section>
 
           <section className="fw-panel reveal" style={revealStyle(3)} aria-labelledby="sp-standings-title">
@@ -215,7 +236,7 @@ function InviteButton({ code }: { code: string }) {
   )
 }
 
-function Markets({ markets, selected, onSelect, disabled }: { markets: Market[]; selected: { line: Line } | null; onSelect: (m: Market, l: Line) => void; disabled: boolean }) {
+function Markets({ markets, selected, onSelect, disabled, now }: { markets: Market[]; selected: { line: Line } | null; onSelect: (m: Market, l: Line) => void; disabled: boolean; now: number }) {
   // Group by game, then by day, in kickoff order (the API already sorts by start).
   const games = useMemo(() => {
     const byEvent = new Map<string, { key: string; event: EventInfo; markets: Market[] }>()
@@ -240,7 +261,7 @@ function Markets({ markets, selected, onSelect, disabled }: { markets: Market[];
         return (
           <li key={g.key}>
             {heading ? <h3 className="sp-day">{heading}</h3> : null}
-            <GameCard game={g} selected={selected} onSelect={onSelect} disabled={disabled} />
+            <GameCard game={g} selected={selected} onSelect={onSelect} disabled={disabled} now={now} />
           </li>
         )
       })}
@@ -371,7 +392,7 @@ function Slip({
           <div className="sp-slip-pick">
             <div className="sp-slip-top">
               {slipSide ? (
-                <TeamBadge sport={selected.market.event.sport} name={slipSide} size={48} />
+                <TeamBadge sport={selected.market.event.sport} name={slipSide} size={48} bare={false} />
               ) : selected.market.kind === "player_prop" && selected.market.player ? (
                 <PlayerBadge sport={selected.market.event.sport} name={selected.market.player} size={48} />
               ) : (
@@ -490,7 +511,7 @@ function winChances(lines: Line[]): { home: number; away: number; draw: number |
 /** Left to right on a winner row: away, draw, home (as the matchup reads "away @ home"); tennis lists the first player first. */
 const ORDER: Record<string, Record<string, number>> = { teams: { away: 0, draw: 1, home: 2 }, tennis: { home: 0, away: 1, draw: 2 } }
 
-function GameCard({ game, selected, onSelect, disabled }: { game: { key: string; event: EventInfo; markets: Market[] }; selected: { line: Line } | null; onSelect: (m: Market, l: Line) => void; disabled: boolean }) {
+function GameCard({ game, selected, onSelect, disabled, now }: { game: { key: string; event: EventInfo; markets: Market[] }; selected: { line: Line } | null; onSelect: (m: Market, l: Line) => void; disabled: boolean; now: number }) {
   const { event } = game
   const tennis = event.sport === "tennis"
   const groups = (
@@ -506,27 +527,26 @@ function GameCard({ game, selected, onSelect, disabled }: { game: { key: string;
   const [tab, setTab] = useState<string>(groups[0]?.key ?? "winner")
   const active = groups.find((g) => g.key === tab) ?? groups[0]
   const winner = game.markets.find((m) => m.kind === "moneyline")
-  const lock = game.markets[0]?.lockAt
   const chances = winner ? winChances(winner.lines) : null
-  const home = teamLook(event.sport, event.home)
-  const away = teamLook(event.sport, event.away)
   const first = tennis ? event.home : event.away
   const second = tennis ? event.away : event.home
-  const firstColor = tennis ? home.color : away.color
-  const secondColor = tennis ? away.color : home.color
+  const [firstColor, secondColor] = matchupColors(event.sport, first, second)
+  const pricedAt = active?.markets.every(m => m.exchangeOkAt) ? active.markets.map(m => m.exchangeOkAt!).sort()[0] : null
+  const quoteAge = pricedAt ? now - Date.parse(pricedAt) : null
+  const fresh = quoteAge != null && freshnessOf(quoteAge) === "live"
 
   return (
     <div className="sp-event sp-game">
       <div className="sp-game-head">
         <div className="sp-matchup">
-          <TeamBadge sport={event.sport} name={first} />
-          <span className="sp-at">{tennis ? "vs" : "@"}</span>
-          <TeamBadge sport={event.sport} name={second} />
           <strong>{eventTitle(event)}</strong>
         </div>
         <span className="sp-game-meta">
-          <b>{SPORT_LABEL[event.sport] ?? event.sport}</b> · {timeOf(event.startsAt)}
-          {lock ? <span className="sp-lockpill"><Lock aria-hidden /> {lockLabel(lock)}</span> : null}
+          <b><LeagueBrand sport={event.sport} /></b> · {timeOf(event.startsAt)}
+          {quoteAge != null ? <span className="sp-feed-chip" data-live={fresh || undefined} title={`Exchange checked ${agoLabel(quoteAge)}`}><i />{fresh ? "Live odds" : `Updated ${agoLabel(quoteAge)}`}</span> : null}
+          <select className="sp-market-select" aria-label={`Market for ${eventTitle(event)}`} value={active?.key ?? ""} onChange={e => setTab(e.target.value)}>
+            {groups.map(g => <option key={g.key} value={g.key}>{g.label}</option>)}
+          </select>
         </span>
       </div>
 
@@ -547,24 +567,14 @@ function GameCard({ game, selected, onSelect, disabled }: { game: { key: string;
         </Tip>
       ) : null}
 
-      {groups.length > 1 ? (
-        <div className="sp-tabs" role="tablist" aria-label="Markets">
-          {groups.map((g) => (
-            <button key={g.key} type="button" role="tab" aria-selected={active?.key === g.key} onClick={() => setTab(g.key)}>
-              {g.label}
-            </button>
-          ))}
-        </div>
-      ) : null}
-
       {active ? (
-        <div key={active.key} className="sp-panel" role="tabpanel">
+        <div key={active.key} className="sp-panel" role="group" aria-label={`${active.label} markets`}>
           {active.markets.map((m) => (
             <div key={m.id} className="sp-market">
               {active.key === "props" ? <div className="sp-market-head"><span className="sp-market-title">{marketTitle(m)}</span></div> : null}
               <div className={`sp-lines${m.kind === "moneyline" ? " sp-team-lines" : ""}`} data-three={m.lines.length === 3 || undefined}>
                 {(m.kind === "moneyline" ? [...m.lines].sort((x, y) => ORDER[tennis ? "tennis" : "teams"]![x.selection]! - ORDER[tennis ? "tennis" : "teams"]![y.selection]!) : m.lines).map((l) => (
-                  <LineButton key={l.id} market={m} line={l} selected={selected} onSelect={onSelect} disabled={disabled} team={m.kind === "moneyline" && l.selection !== "draw"} />
+                  <LineButton key={l.id} market={m} line={l} selected={selected} onSelect={onSelect} disabled={disabled} team={m.kind === "moneyline" && l.selection !== "draw"} color={l.selection === (tennis ? "home" : "away") ? firstColor : secondColor} />
                 ))}
               </div>
             </div>
@@ -575,7 +585,7 @@ function GameCard({ game, selected, onSelect, disabled }: { game: { key: string;
   )
 }
 
-function LineButton({ market: m, line: l, selected, onSelect, disabled, team }: { market: Market; line: Line; selected: { line: Line } | null; onSelect: (m: Market, l: Line) => void; disabled: boolean; team?: boolean }) {
+function LineButton({ market: m, line: l, selected, onSelect, disabled, team, color }: { market: Market; line: Line; selected: { line: Line } | null; onSelect: (m: Market, l: Line) => void; disabled: boolean; team?: boolean; color?: string }) {
   const label = lineLabel(m, l)
   const mine = m.picked?.selection === l.selection
   const side = sideTeam(m.event, m.kind, l.selection)
@@ -588,13 +598,15 @@ function LineButton({ market: m, line: l, selected, onSelect, disabled, team }: 
       aria-pressed={selected?.line.id === l.id || mine}
       data-picked={mine || undefined}
       disabled={disabled || !!m.picked}
-      style={look ? ({ "--tc": look.color, "--tc-ink": onColor(look.color) } as React.CSSProperties) : undefined}
+      style={look ? ({ "--tc": color ?? look.color, "--tc-ink": onColor(color ?? look.color) } as React.CSSProperties) : undefined}
       aria-label={`${pickSentence(m, l)}, ${formatOdds(l.price)}, 100 cash wins ${winOn100(l.price)}${mine ? `, your pick, ${credits(m.picked!.stake)}` : ""}`}
       onClick={() => onSelect(m, l)}
     >
-      {team && side ? <TeamBadge sport={m.event.sport} name={side} size={32} /> : m.kind === "player_prop" && m.player ? <PlayerBadge sport={m.event.sport} name={m.player} size={32} /> : look ? <i className="sp-dot" aria-hidden /> : null}
+      {team && side ? <TeamBadge sport={m.event.sport} name={side} size={40} /> : m.kind === "player_prop" && m.player ? <PlayerBadge sport={m.event.sport} name={m.player} size={32} /> : look ? <i className="sp-dot" aria-hidden /> : null}
       <span className="sp-line-name">
         {label.name}
+        {team && side ? <small className="sp-team-record">{(l.selection === "home" ? m.event.homeRecord : m.event.awayRecord) ? ` (${l.selection === "home" ? m.event.homeRecord : m.event.awayRecord})` : null}</small> : null}
+        {selected?.line.id === l.id && !mine ? <Check className="sp-selected-check" aria-label="Selected"/> : null}
         {label.point ? <small>{label.point}</small> : null}
         {mine ? (
           <em className="sp-line-tag">
@@ -604,7 +616,7 @@ function LineButton({ market: m, line: l, selected, onSelect, disabled, team }: 
       </span>
       <span className="sp-line-odds">
         <span className="sp-price">{formatOdds(l.price)}</span>
-        <small>100 wins {winOn100(l.price)}</small>
+        <small>$100 wins ${winOn100(l.price)}</small>
       </span>
     </button>
   )

@@ -156,6 +156,13 @@ export function sampleResponse(url: string, pathname: string | null): unknown {
 }
 
 function sampleResponseRaw(url: string, pathname: string | null): unknown {
+  if (pathname && inSampleView(pathname) && url.startsWith("/api/sports/scoreboard?")) {
+    const unique = [...new Map(SPORTS_LEAGUE.markets.map(m => [JSON.stringify(m.event), m.event])).values()]
+    return { games: [
+      ...unique.map((event,i) => ({ ...event, id: `sample-score-${i}`, status: "upcoming", homeRecord: null, awayRecord: null, homeScore: null, awayScore: null, detail: "Sample game", fetchedAt: new Date().toISOString() })),
+      { id: "sample-live", sport: "nfl", home: "Minnesota Vikings", away: "Green Bay Packers", startsAt: new Date(Date.now() - 75 * 60_000).toISOString(), homeRecord: "4-1", awayRecord: "3-2", homeScore: "10", awayScore: "14", status: "live", detail: "Q3 · 08:42 · Sample game", fetchedAt: new Date().toISOString() },
+    ], failedSports: [] }
+  }
   if (/^\/api\/fantasy\/sample\/season(\?|$)/.test(url)) return SEASON
   if (/^\/api\/fantasy\/sample(\?|$)/.test(url)) return fantasyView(FANTASY_LEAGUE)
   if (/^\/api\/sports\/leagues\/sample(\?|$)/.test(url)) return sportsView(SPORTS_LEAGUE)
