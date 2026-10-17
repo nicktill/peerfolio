@@ -12,7 +12,7 @@ import { revealStyle } from "@web/components/motion/reveal"
 import { LeaguePageSkeleton } from "@web/components/skeletons"
 import { useToast } from "@web/components/ui/toast"
 import { useFantasyMode } from "@web/components/sports/mode-switch"
-import { eventTitle, formatOdds, lineLabel, lockLabel, marketTitle, pickSentence, sideTeam, SPORT_LABEL, winOn100, type DisplayLine, type DisplayMarket } from "@web/lib/sports/format"
+import { eventTitle, formatCredits, formatOdds, lineLabel, lockLabel, marketTitle, pickSentence, sideTeam, SPORT_LABEL, winOn100, type DisplayLine, type DisplayMarket } from "@web/lib/sports/format"
 import { americanToDecimal } from "@web/lib/sports/odds"
 import { onColor, oddsLabel, teamLook } from "@web/lib/sports/teams"
 import { InfoTip, Tip } from "@web/components/ui/tip"
@@ -64,7 +64,7 @@ function resolveSelected(markets: Market[], sel: { market: Market; line: Line })
 const SPORT_COLOR: Record<string, string> = { nfl: "#c8102e", nba: "#f58426", tennis: "#a6c738", nhl: "#1d4ed8", mlb: "#bf0d3e", cfb: "#7c3aed", mls: "#0e7c66" }
 const dayOf = (iso: string) => new Date(iso).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })
 const timeOf = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
-const credits = (n: number) => n.toLocaleString()
+const credits = formatCredits
 
 export default function SportsLeaguePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -301,7 +301,7 @@ function Slip({
   // The slip wears the colour of what you picked: the team, or the sport for totals and props.
   const slipColor = selected ? (slipSide ? teamLook(selected.market.event.sport, slipSide).color : SPORT_COLOR[selected.market.event.sport] ?? "#64748b") : null
   const problem =
-    amount === 0 ? null : amount < limits.minStake ? `Minimum is ${limits.minStake}` : amount > limits.maxStake ? `Maximum per pick is ${credits(limits.maxStake)}` : amount > balance ? "Not enough cash" : null
+    amount === 0 ? null : amount < limits.minStake ? `Minimum is ${credits(limits.minStake)}` : amount > limits.maxStake ? `Maximum per pick is ${credits(limits.maxStake)}` : amount > balance ? "Not enough cash" : null
 
   async function submit(event: React.FormEvent) {
     event.preventDefault()
@@ -398,7 +398,7 @@ function Slip({
               autoComplete="off"
               value={stake}
               onChange={(e) => setStake(e.target.value)}
-              placeholder={`${limits.minStake} to ${credits(limits.maxStake)}`}
+              placeholder={`${credits(limits.minStake)} to ${credits(limits.maxStake)}`}
               aria-describedby="sp-stake-hint"
               aria-invalid={problem ? true : undefined}
             />
@@ -589,7 +589,7 @@ function LineButton({ market: m, line: l, selected, onSelect, disabled, team }: 
       data-picked={mine || undefined}
       disabled={disabled || !!m.picked}
       style={look ? ({ "--tc": look.color, "--tc-ink": onColor(look.color) } as React.CSSProperties) : undefined}
-      aria-label={`${pickSentence(m, l)}, ${formatOdds(l.price)}, 100 cash wins ${winOn100(l.price)}${mine ? `, your pick, ${m.picked!.stake} cash` : ""}`}
+      aria-label={`${pickSentence(m, l)}, ${formatOdds(l.price)}, 100 cash wins ${winOn100(l.price)}${mine ? `, your pick, ${credits(m.picked!.stake)}` : ""}`}
       onClick={() => onSelect(m, l)}
     >
       {team && side ? <TeamBadge sport={m.event.sport} name={side} size={32} /> : m.kind === "player_prop" && m.player ? <PlayerBadge sport={m.event.sport} name={m.player} size={32} /> : look ? <i className="sp-dot" aria-hidden /> : null}

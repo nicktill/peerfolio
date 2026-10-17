@@ -255,3 +255,37 @@
 @media (prefers-reduced-motion: reduce) { .roll, .sp-world[data-world="stocks"] .fb-logo { animation: none !important; } }
 
 @media (min-width: 761px) { .sp-world[aria-selected="true"] .fb-bubble[data-k="3"] { left: auto; right: 2%; } }
+
+/* ---- Compact, balanced hero cards (the skeleton uses the same classes, so it is the same size) ---- */
+@media (min-width: 761px) {
+  .sp-stage { height: 138px; gap: 12px; }
+  .sp-world[data-world] { padding: 16px 20px; border-radius: 18px; }
+  .sp-world[aria-selected="true"] { flex-grow: 1.25; }
+  .sp-world[data-world] .sp-world-copy { padding-bottom: 0; gap: 2px; }
+  .sp-world-copy strong { font-size: 30px; line-height: 34px; margin-bottom: 0; }
+  .sp-world-copy em { font-size: 12.5px; line-height: 17px; max-width: 340px; }
+  .sp-world[aria-selected="true"] .sp-world-copy em { max-height: 36px; }
+  .sp-world-dot { top: 16px; right: 18px; }
+  .fa-chart { bottom: 14px; height: 62%; }
+  .ar-field { height: 80%; }
+  .sp-world .fb-bubble, .sp-world .am-card { zoom: .86; }
+  .sp-world[aria-selected="true"] .fb-bubble[data-k="0"] { left: 40%; top: 9%; }
+  .sp-world[aria-selected="true"] .fb-bubble[data-k="1"] { left: auto; right: 5%; top: 24%; }
+  .sp-world[aria-selected="true"] .fb-bubble[data-k="2"] { left: 50%; top: 44%; }
+  .sp-world[aria-selected="true"] .fb-bubble[data-k="3"] { display: none; }
+  .am-card[data-k="0"] { top: 8%; }
+  .am-card[data-k="1"] { top: 34%; }
+  .am-card[data-k="2"] { display: none; }
+  .sp-world:not([aria-selected="true"]) .fb-bubble[data-k="1"] { top: 44%; }
+  .sp-world:not([aria-selected="true"]) .am-card[data-k="1"] { top: 44%; }
+}
+@media (max-width: 760px) {
+  .sp-stage .sp-world[data-world] { aspect-ratio: 1 / .8; max-height: 150px; padding: 12px; }
+  .sp-stage .fa-chart { bottom: 40px; height: 44%; }
+  .sp-stage .ar-field { bottom: 36px; height: 46%; }
+  .sp-world-copy strong { font-size: 24px; line-height: 26px; }
+}
+@media (max-width: 380px) { .sp-world-copy strong { font-size: 22px; line-height: 24px; } }
+.sp-world-sk .sp-world-copy .pf-sk { max-width: 100%; }
+/* Light theme used to leave the collapsed card's one-liner showing (clipped at the edge). */
+:root:not(.dark) .sp-world:not([aria-selected="true"]) .sp-world-copy em { opacity: 0; visibility: hidden; }

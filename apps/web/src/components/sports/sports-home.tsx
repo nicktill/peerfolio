@@ -15,7 +15,7 @@ import { EmptyScene } from "@web/components/ui/empty-scene"
 import { LeagueMark } from "@web/components/league/league-mark"
 import { CreateLeagueFlow } from "@web/components/fantasy/create-league-flow"
 import { timeLeft } from "@web/components/fantasy/time-left"
-import { SPORT_LABEL } from "@web/lib/sports/format"
+import { formatCredits, SPORT_LABEL } from "@web/lib/sports/format"
 import { mutate, useApi } from "@web/lib/use-api"
 
 type SportsSummary = {
@@ -43,7 +43,7 @@ export function SportsHome() {
         <div>
           <span className="fw-eyebrow">Pregame picks. Play money.</span>
           <h1>Sports leagues</h1>
-          <p className="fw-lede">Everyone starts with the same play cash. Back your picks on NFL, NBA and tennis, and climb the standings. Lines are fixed contest lines, not live odds. No real money, ever.</p>
+          <p className="fw-lede">Everyone starts with the same play cash. Back your picks on NFL, NBA, NHL, MLB, MLS and college football, and climb the standings. Lines are fixed contest lines, not live odds. No real money, ever.</p>
         </div>
         <div className="fw-actions">
           <span className="fw-pill">Play money</span>
@@ -95,7 +95,7 @@ export function SportsHome() {
                   </p>
                 </div>
                 <div className="fw-league-return">
-                  <strong>{league.credits.toLocaleString()}</strong>
+                  <strong>{formatCredits(league.credits)}</strong>
                   <span className="fw-note">Cash</span>
                 </div>
                 <ArrowRight aria-hidden />

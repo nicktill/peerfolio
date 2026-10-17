@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react"
 import { createPortal } from "react-dom"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { Lock } from "lucide-react"
+import { formatCredits } from "@web/lib/sports/format"
 import { AnimatedNumber } from "@web/components/ui/animated-number"
 
 export type PickLockFx = {
@@ -22,7 +23,7 @@ export type PickLockFx = {
 }
 
 const TOTAL_MS = 1500
-const fmt = (n: number) => Math.round(n).toLocaleString()
+const fmt = formatCredits
 
 /**
  * The moment a pick locks: the ticket drops in, gets stamped in the team's colour with a ripple and a

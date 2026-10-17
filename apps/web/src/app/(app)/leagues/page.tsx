@@ -11,12 +11,14 @@ import Link from "next/link"
 import { ArrowUpRight, Plus, Users } from "lucide-react"
 import { Button } from "@web/components/ui/button"
 import { Card } from "@web/components/ui/card"
-import { Skeleton } from "@web/components/ui/skeleton"
 import { revealStyle } from "@web/components/motion/reveal"
-import { CreateLeagueFlow } from "@web/components/fantasy/create-league-flow"
+import dynamic from "next/dynamic"
 import { useToast } from "@web/components/ui/toast"
 import { mutate, useApi } from "@web/lib/use-api"
 import { cn } from "@web/lib/utils"
+
+// Only opened on click, and it carries the team tables (via TeamBadge), so it loads on demand.
+const CreateLeagueFlow = dynamic(() => import("@web/components/fantasy/create-league-flow").then((m) => m.CreateLeagueFlow), { ssr: false })
 
 type LeagueSummary = {
   id: string
@@ -71,8 +73,13 @@ export default function LeaguesPage() {
 
       {loading && !data ? (
         <div className="grid gap-4 [&>*]:min-w-0 sm:grid-cols-2 xl:grid-cols-3">
-          <Skeleton className="h-28 rounded-xl" />
-          <Skeleton className="h-28 rounded-xl" />
+          {[0, 1].map((i) => (
+            <div key={i} className="min-h-40 rounded-xl border bg-card p-6" aria-busy="true" aria-label="Loading leagues">
+              <span className="pf-sk" style={{ height: 11, width: "40%" }} />
+              <span className="pf-sk" style={{ height: 22, width: "62%", marginTop: 16 }} />
+              <span className="pf-sk" style={{ height: 13, width: "78%", marginTop: 14 }} />
+            </div>
+          ))}
         </div>
       ) : data && data.leagues.length > 0 ? (
         <div className="grid gap-4 [&>*]:min-w-0 sm:grid-cols-2 xl:grid-cols-3">

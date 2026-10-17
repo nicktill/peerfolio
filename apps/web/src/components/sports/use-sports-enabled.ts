@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { createContext, createElement, useContext, useEffect, useState } from "react"
 import { sportsMode } from "@web/lib/sports/flag"
 import { sampleActive } from "@web/lib/sample/fixtures"
 
@@ -19,28 +19,40 @@ function ask(): Promise<boolean> {
   return pending
 }
 
+/** A server page that already decided (session + admin allowlist) hands the answer down here, so first paint is right and no fetch is needed. */
+const ServerAnswer = createContext<boolean | null>(null)
+export function SportsAccessProvider({ enabled, children }: { enabled: boolean | null; children: React.ReactNode }) {
+  return createElement(ServerAnswer.Provider, { value: enabled }, children)
+}
+
 /**
- * Whether to show any Sports UI. Mode "1" is on for everyone (build-time, as before) and off is off. In admin mode the
- * client never guesses: it defaults to hidden and asks /api/sports/access, which decides from the server-side admin
- * allowlist. Sample/demo views and signed-out visitors get false there.
+ * Whether to show any Sports UI, or null while that is still unknown (admin mode, no server answer yet). Mode "1" is on
+ * for everyone (build-time, as before) and off is off. In admin mode the client never guesses: a server page's answer
+ * wins, otherwise it asks /api/sports/access, which decides from the server-side admin allowlist. Sample/demo views get false.
  */
-export function useSportsEnabled(): boolean {
+export function useSportsAccess(): boolean | null {
   const mode = sportsMode()
-  const [enabled, setEnabled] = useState<boolean>(mode === "all" || (mode === "admin" && answer === true))
+  const fromServer = useContext(ServerAnswer)
+  const [asked, setAsked] = useState<boolean | null>(mode === "admin" ? answer : null)
   useEffect(() => {
-    if (mode !== "admin") return
+    if (mode !== "admin" || fromServer !== null) return
     if (sampleActive()) {
-      setEnabled(false)
+      setAsked(false)
       return
     }
     let live = true
-    if (answer !== null) setEnabled(answer)
-    else void ask().then((value) => live && setEnabled(value))
+    if (answer !== null) setAsked(answer)
+    else void ask().then((value) => live && setAsked(value))
     return () => {
       live = false
     }
-  }, [mode])
+  }, [mode, fromServer])
   if (mode === "off") return false
   if (mode === "all") return true
-  return enabled && !sampleActive()
+  return fromServer !== null ? fromServer : asked === null ? null : asked && !sampleActive()
+}
+
+/** Whether to show any Sports UI (false while unknown). */
+export function useSportsEnabled(): boolean {
+  return useSportsAccess() === true
 }

@@ -1,5 +1,6 @@
 "use client"
 
+import { formatCredits } from "@web/lib/sports/format"
 import "@web/components/fantasy/season/fantasy-season.css"
 
 import { CalendarDays, Crown, Lock, PenLine, Swords, TrendingUp, Trophy } from "lucide-react"
@@ -123,7 +124,7 @@ export function SportsStandings({ leaders, total }: { leaders: { name: string; i
         tip="Ranked on credits, counting picks that are still riding."
         you={rank}
         total={total}
-        people={leaders.map((l) => ({ name: l.name, image: l.image, value: l.credits.toLocaleString(), isYou: l.isYou }))}
+        people={leaders.map((l) => ({ name: l.name, image: l.image, value: formatCredits(l.credits), isYou: l.isYou }))}
       />
     </div>
   )

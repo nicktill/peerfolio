@@ -2,6 +2,18 @@
 
 import { americanToDecimal } from "./odds.ts"
 
+/** Sports play-money as dollars, whole units, the one formatter for every sports balance, stake, payout and standing. Negatives use a true minus. */
+export const formatCredits = (n: number): string => {
+  const r = Math.round(n)
+  return `${r < 0 ? "\u2212" : ""}$${Math.abs(r).toLocaleString("en-US")}`
+}
+
+/** Always-signed change: "+$250", "\u2212$100", "$0". */
+export const signedCredits = (n: number): string => {
+  const r = Math.round(n)
+  return r > 0 ? `+${formatCredits(r)}` : r < 0 ? formatCredits(r) : "$0"
+}
+
 export const formatOdds = (american: number): string => (american > 0 ? `+${american}` : `${american}`)
 
 export const formatPoint = (point: number | null): string => (point == null ? "" : point > 0 ? `+${point}` : `${point}`)
