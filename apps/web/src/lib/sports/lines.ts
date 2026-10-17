@@ -49,6 +49,12 @@ export const DEFAULT_PUBLISH: PublishConfig = {
   tennisTotals: false,
 }
 
+/**
+ * Exchange mode (no sportsbook consensus): the exchange book is the only "book", so one is enough here. The accuracy gates
+ * (spread, resting size, freshness, Kalshi cross-check) live in providers/polymarket-odds.ts, before a market is offered at all.
+ */
+export const EXCHANGE_PUBLISH: PublishConfig = { ...DEFAULT_PUBLISH, consensus: { ...DEFAULT_CONSENSUS, minBooks: 1 } }
+
 /** Which market kinds each sport offers. Tennis has no props (no provider evidence). */
 export const SPORT_KINDS: Record<Sport, readonly MarketKind[]> = {
   nfl: ["moneyline", "spread", "total", "player_prop"],
@@ -231,6 +237,10 @@ export function missingReason(snapshot: OddsSnapshot, now: Date, externalId: str
 }
 
 /* ---- when to spend credits on a fetch ---- */
+
+/** Exchange mode costs no credits, so the only pacing is politeness: a sport is fetched at most once per bucket (see makeExchangeGate). */
+export const EXCHANGE_BUCKET_MS = 30 * 60_000
+export const exchangeBucket = (now: Date): number => Math.floor(now.getTime() / EXCHANGE_BUCKET_MS)
 
 export const GUARD_BUCKET_MS = 2 * 3600_000
 export const DISCOVER_BUCKET_MS = 12 * 3600_000

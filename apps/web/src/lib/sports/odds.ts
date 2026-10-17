@@ -131,7 +131,7 @@ export const DEFAULT_PRICING: PricingConfig = { margin: HOUSE_MARGIN, minFairPro
  * pays almost nothing and the longshot is easy to mis-price.
  */
 /** Unrounded American odds for a probability (probToAmerican without its integer rounding). */
-const rawAmerican = (prob: number): number => (prob >= 0.5 ? -(prob / (1 - prob)) * 100 : ((1 - prob) / prob) * 100)
+export const rawAmerican = (prob: number): number => (prob >= 0.5 ? -(prob / (1 - prob)) * 100 : ((1 - prob) / prob) * 100)
 
 /**
  * Rounds AGAINST the player to a multiple of 5: floor, for both signs (-104.3 becomes -105, +143.9 becomes +140). Either way

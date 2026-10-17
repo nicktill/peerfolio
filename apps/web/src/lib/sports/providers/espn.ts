@@ -119,11 +119,37 @@ export class EspnResultsProvider implements ResultsProvider {
     this.baseUrl = baseUrl
   }
 
+  /**
+   * Games ESPN lists as not started, with a start in (now, now + ms]. Asks one scoreboard per US Eastern day the window touches
+   * (2 to 3 calls), not the wider range settlement uses. Throws when ESPN cannot answer.
+   */
+  async schedule(sport: Sport, now: Date, ms = 86_400_000): Promise<EventResult[]> {
+    const days = new Set<string>()
+    // ESPN dates games by their US Eastern day (UTC-4/-5): shift back 5 hours, and add the window's own end, so DST cannot drop a day.
+    for (let t = now.getTime() - 6 * 3_600_000; t <= now.getTime() + ms + 3_600_000; t += 6 * 3_600_000) days.add(day(new Date(t - 5 * 3_600_000)))
+    days.add(day(new Date(now.getTime() + ms - 4 * 3_600_000)))
+    const seen = new Set<string>()
+    const out: EventResult[] = []
+    for (const league of LEAGUES[sport]) {
+      // Tennis returns the whole tournament week for any date.
+      const dates = sport === "tennis" ? [[...days][0]!] : [...days]
+      for (const d of dates) {
+        const res = await this.fetchFn(`${this.baseUrl}/${league}/scoreboard?dates=${d}&limit=300`, { signal: AbortSignal.timeout(8_000) })
+        if (!res.ok) throw new Error(`espn ${league} scoreboard failed with ${res.status}`)
+        for (const r of normalizeScoreboard((await res.json()) as EspnScoreboard, sport)) {
+          if (seen.has(r.externalId)) continue
+          seen.add(r.externalId)
+          out.push(r)
+        }
+      }
+    }
+    return out.filter((r) => r.status === "scheduled" && r.startsAt != null && r.startsAt.getTime() > now.getTime() && r.startsAt.getTime() <= now.getTime() + ms)
+  }
+
   /** Free schedule check: does ESPN list a game for this sport starting within `ms` from now? null when ESPN cannot say. */
   async hasGameWithin(sport: Sport, now: Date, ms = 86_400_000): Promise<boolean | null> {
     try {
-      const rows = await this.fetchResults(sport, [{ externalId: "", homeName: "", awayName: "", startsAt: now }, { externalId: "", homeName: "", awayName: "", startsAt: new Date(now.getTime() + ms) }])
-      return rows.some((r) => r.status === "scheduled" && r.startsAt != null && r.startsAt.getTime() > now.getTime() && r.startsAt.getTime() <= now.getTime() + ms)
+      return (await this.schedule(sport, now, ms)).length > 0
     } catch {
       return null
     }

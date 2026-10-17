@@ -7,17 +7,17 @@ import type { LiveGameState, LiveSelection, LiveStatus, RawQuote } from "./types
  * payloads in tests and are shared by the worker (REST and WebSocket) and any fallback reader.
  */
 
-const num = (x: unknown): number | null => {
+export const num = (x: unknown): number | null => {
   if (x === null || x === undefined || x === "") return null
   const n = Number(x)
   return Number.isFinite(n) ? n : null
 }
-const date = (x: unknown): Date | null => {
+export const date = (x: unknown): Date | null => {
   if (x === null || x === undefined || x === "") return null
   const d = typeof x === "number" || /^\d+$/.test(String(x)) ? new Date(Number(x)) : new Date(String(x).replace(" ", "T"))
   return Number.isNaN(d.getTime()) ? null : d
 }
-const json = <T>(x: unknown): T | null => {
+export const json = <T>(x: unknown): T | null => {
   if (Array.isArray(x)) return x as T
   if (typeof x !== "string") return null
   try {
@@ -26,6 +26,11 @@ const json = <T>(x: unknown): T | null => {
     return null
   }
 }
+
+/** Public, keyless endpoints of the exchanges. Shared by the live worker and the exchange-first odds provider. */
+export const GAMMA = "https://gamma-api.polymarket.com"
+export const CLOB = "https://clob.polymarket.com"
+export const KALSHI = "https://api.elections.kalshi.com/trade-api/v2"
 
 /* ---------------- Polymarket ---------------- */
 

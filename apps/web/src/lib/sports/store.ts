@@ -3,7 +3,7 @@ import type { PostgresJsDatabase } from "drizzle-orm/postgres-js"
 import * as schema from "../../db/schema.ts"
 import { generateInviteCode } from "../crypto.ts"
 import { canSpend, type UsageStore } from "./credit-budget.ts"
-import { DEFAULT_PUBLISH, detectMove, fetchBucket, fetchKind, freshDrafts, marketsToLock, missingReason, planPublication, planSchedule } from "./lines.ts"
+import { DEFAULT_PUBLISH, detectMove, exchangeBucket, fetchBucket, fetchKind, freshDrafts, marketsToLock, missingReason, planPublication, planSchedule } from "./lines.ts"
 import { bucketOf, LIMITS, PRUNE_AFTER_WINDOWS, withinLimit, type LimitName } from "./rate-limit.ts"
 import { emit } from "./log.ts"
 import { acceptPick, DEFAULT_LIMITS, kickoffGateDecided, PickRejected, type PickContext, type PickRequest } from "./picks.ts"
@@ -73,6 +73,8 @@ export async function pruneRateLimits(db: Db, now: Date = new Date()) {
   for (const [name, { windowMs }] of Object.entries(LIMITS)) {
     await db.execute(sql`DELETE FROM sports_rate_limits WHERE key LIKE ${name + ":%"} AND bucket < ${bucketOf(new Date(now.getTime() - PRUNE_AFTER_WINDOWS * windowMs), windowMs)}`)
   }
+  await db.execute(sql`DELETE FROM sports_rate_limits WHERE key LIKE ${"fetch:exchange:%"} AND bucket < ${exchangeBucket(now) - 48}`)
+  await db.execute(sql`DELETE FROM sports_rate_limits WHERE key LIKE ${"exch-calls:%"} AND bucket < ${Math.floor(now.getTime() / 86_400_000) - PRUNE_AFTER_WINDOWS}`)
   for (const kind of ["guard", "discover"] as const) {
     await db.execute(sql`DELETE FROM sports_rate_limits WHERE key LIKE ${"fetch:" + kind + ":%"} AND bucket < ${fetchBucket(kind, now) - PRUNE_AFTER_WINDOWS}`)
   }
@@ -593,6 +595,43 @@ export function makeFetchGate(db: Db, gameSoon: (sport: Sport, now: Date) => Pro
   }
 }
 
+/**
+ * Exchange mode gate: free sources, so no credit buckets, just politeness. A sport is looked at at most once per 30 minutes (the
+ * claim is shared by every server and any doubled run). Then it is fetched only if it has an unlocked market (to keep guarding it)
+ * or the free schedule shows a game in the publish window. An unknown schedule (ESPN down) skips the sport this time.
+ */
+export function makeExchangeGate(db: Db, gameSoon: (sport: Sport, now: Date) => Promise<boolean | null>) {
+  return async (sport: Sport, now: Date): Promise<boolean> => {
+    const [row] = await db
+      .insert(sportsRateLimits)
+      .values({ key: `fetch:exchange:${sport}`, bucket: exchangeBucket(now), count: 1 })
+      .onConflictDoUpdate({ target: [sportsRateLimits.key, sportsRateLimits.bucket], set: { count: sql`${sportsRateLimits.count} + 1` } })
+      .returning({ count: sportsRateLimits.count })
+    if ((row?.count ?? 1) !== 1) return false
+    const [open] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(sportsMarkets)
+      .innerJoin(sportsEvents, eq(sportsEvents.id, sportsMarkets.eventId))
+      .where(and(eq(sportsMarkets.status, "open"), gt(sportsMarkets.lockAt, now), eq(sportsEvents.sport, sport)))
+    if ((open?.n ?? 0) > 0) return true
+    return (await gameSoon(sport, now)) === true
+  }
+}
+
+/** Shared per-sport, per-UTC-day request counter for the exchange provider (every upstream request takes one). */
+export function makeDbCallCap(db: Db, perDay = 400) {
+  return {
+    async take(sport: Sport, now: Date): Promise<boolean> {
+      const [row] = await db
+        .insert(sportsRateLimits)
+        .values({ key: `exch-calls:${sport}`, bucket: Math.floor(now.getTime() / 86_400_000), count: 1 })
+        .onConflictDoUpdate({ target: [sportsRateLimits.key, sportsRateLimits.bucket], set: { count: sql`${sportsRateLimits.count} + 1` } })
+        .returning({ count: sportsRateLimits.count })
+      return (row?.count ?? 1) <= perDay
+    },
+  }
+}
+
 export async function publishLines(db: Db, provider: OddsProvider, sports: readonly Sport[], now: Date, cfg = DEFAULT_PUBLISH, gate?: (sport: Sport, now: Date) => Promise<boolean>) {
   const summary: { sport: Sport; published: number; frozen: number; rescheduled: number; rejected: string | null; notes: string[] }[] = []
   for (const sport of sports) {
@@ -600,7 +639,16 @@ export async function publishLines(db: Db, provider: OddsProvider, sports: reado
       summary.push({ sport, published: 0, frozen: 0, rescheduled: 0, rejected: null, notes: ["no fetch: nothing unlocked and no game in the next 24h, or this window's fetch was already taken"] })
       continue
     }
-    const snapshot = await provider.fetchOdds(sport, now)
+    let snapshot: Awaited<ReturnType<OddsProvider["fetchOdds"]>>
+    try {
+      snapshot = await provider.fetchOdds(sport, now)
+    } catch (error) {
+      // One sport's outage must not stop the others, and must never freeze or publish anything for it.
+      const capped = error instanceof Error && error.name === "ExchangeCapError"
+      const message = error instanceof Error ? error.message : "error"
+      summary.push({ sport, published: 0, frozen: 0, rescheduled: 0, rejected: capped ? "call_cap" : "fetch_failed", notes: [capped ? `${provider.name}: skipped, call cap reached (${message})` : `${provider.name}: failed (${message})`] })
+      continue
+    }
     const guard = await guardPublished(db, snapshot, sport, now, cfg)
     const existing = await db
       .select({ ext: sportsEvents.externalId, key: sportsMarkets.marketKey })

@@ -6,6 +6,9 @@ import { bookClock, quoteKey, shouldWrite, type BookClock, type LastWrite, type 
 import { normalizeQuote, pairProbability } from "./quote.ts"
 import { chooseLiveOdds } from "./reconcile.ts"
 import {
+  CLOB,
+  GAMMA,
+  KALSHI,
   ESPN_PATH,
   KALSHI_SERIES,
   POLYMARKET_SERIES,
@@ -110,9 +113,7 @@ export const newWorkerState = (): WorkerState => ({
   reprice: { lastPassAt: 0, holdLogAt: new Map() },
 })
 
-export const GAMMA = "https://gamma-api.polymarket.com"
-export const CLOB = "https://clob.polymarket.com"
-export const KALSHI = "https://api.elections.kalshi.com/trade-api/v2"
+export { CLOB, GAMMA, KALSHI }
 const ESPN = "https://site.api.espn.com/apis/site/v2/sports"
 export const SLOW_MS = 30_000
 export const BACKOFF_MS = 30_000

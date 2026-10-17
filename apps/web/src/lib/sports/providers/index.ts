@@ -3,18 +3,38 @@ import { PROP_MARKETS, TheOddsApiProvider } from "./the-odds-api.ts"
 import { createCompositeOdds, withSnapshotCache, type Source } from "./composite.ts"
 import { MockProvider } from "./mock.ts"
 import { EspnResultsProvider } from "./espn.ts"
+import { ExchangeOddsProvider, type CallCap } from "./polymarket-odds.ts"
 import type { OddsProvider, ResultsProvider, Sport } from "../types.ts"
 import { DEFAULT_RESOLVE, type ResolveConfig } from "../settlement.ts"
 
 /**
- * Wires providers from environment variables. Order is priority:
- *   1. THE_ODDS_API_KEY            (the-odds-api.com, free 500 credits/mo, unverified)
- *   2. PROPLINE_API_KEY + PROPLINE_BASE_URL  (Odds-API-compatible, unverified)
- * SPORTS_MOCK=1 uses the offline mock instead (local dev, demos, tests).
+ * Wires providers from environment variables.
+ *
+ * SPORTS_MOCK=1 uses the offline mock (local dev, demos, tests) and wins over everything.
+ * SPORTS_ODDS_SOURCE picks the line source, default "exchange":
+ *   exchange   free: Polymarket prices (Kalshi cross-check) on ESPN's schedule. Needs no key and never touches any Odds API credits,
+ *              even when THE_ODDS_API_KEY happens to be set.
+ *   odds-api   opt-in, metered: the sportsbook consensus from the vendors below. Order is priority:
+ *                1. THE_ODDS_API_KEY            (the-odds-api.com, free 500 credits/mo, unverified)
+ *                2. PROPLINE_API_KEY + PROPLINE_BASE_URL  (Odds-API-compatible, unverified)
  * Keys live only in env vars.
  */
 
 export const isMockMode = () => process.env.SPORTS_MOCK === "1"
+
+export type OddsSource = "exchange" | "odds-api"
+/** "odds-api" only when asked for explicitly; anything else (including unset) is the free exchange source. */
+export const oddsSource = (): OddsSource => (process.env.SPORTS_ODDS_SOURCE?.trim().toLowerCase() === "odds-api" ? "odds-api" : "exchange")
+export type PublishMode = "mock" | "exchange" | "odds-api"
+export const publishMode = (): PublishMode => (isMockMode() ? "mock" : oddsSource())
+
+/** Sports the publish cron may look at: SPORTS_ENABLED_SPORTS (comma list) or all of them. */
+export function enabledSports(all: readonly Sport[]): Sport[] {
+  const raw = process.env.SPORTS_ENABLED_SPORTS?.trim()
+  if (!raw) return [...all]
+  const wanted = new Set(raw.toLowerCase().split(/[\s,]+/).filter(Boolean))
+  return all.filter((s) => wanted.has(s))
+}
 
 const monthlyOf = (monthlyVar: string, fallback: number) => (Number(process.env[monthlyVar]) > 0 ? Number(process.env[monthlyVar]) : fallback)
 
@@ -36,8 +56,16 @@ const oddsApiCost = (props: boolean) => (sport: Sport) =>
     propEvents: props ? 8 : 0,
   })
 
-export function buildOddsProvider(usage: UsageStore): OddsProvider {
+/** The exchange provider (for its free schedule check) and the cached provider the publisher fetches through. */
+export function buildExchangeOdds(cap?: CallCap): { exchange: ExchangeOddsProvider; provider: OddsProvider } {
+  const exchange = new ExchangeOddsProvider({ cap })
+  return { exchange, provider: withSnapshotCache(exchange, 5 * 60_000) }
+}
+
+export function buildOddsProvider(usage: UsageStore, cap?: CallCap): OddsProvider {
   if (isMockMode()) return withSnapshotCache(new MockProvider(), 60_000)
+  // Free path: no usage store is consulted, so no credit can be spent or blocked on.
+  if (oddsSource() === "exchange") return buildExchangeOdds(cap).provider
   const props = process.env.SPORTS_PROPS_ENABLED === "1"
   const sources: Source[] = []
   if (process.env.THE_ODDS_API_KEY ?? process.env.ODDS_API_KEY) {
@@ -52,10 +80,17 @@ export function buildOddsProvider(usage: UsageStore): OddsProvider {
   return withSnapshotCache(createCompositeOdds(sources, usage), 5 * 60_000)
 }
 
-/** Settlement sources: the odds vendors' score endpoints, plus ESPN when ESPN_RESULTS_ENABLED=1 (a separate family). */
+/**
+ * Settlement sources. Exchange mode (default): free sources only, ESPN on (unless ESPN_RESULTS_ENABLED=0), no metered vendor even if
+ * a key is set. Odds-API mode: the vendors' score endpoints, plus ESPN when ESPN_RESULTS_ENABLED=1 (a separate family).
+ */
 export function buildResultsProviders(): ResultsProvider[] {
   if (isMockMode()) return [new MockProvider()]
   const out: ResultsProvider[] = []
+  if (oddsSource() === "exchange") {
+    if (process.env.ESPN_RESULTS_ENABLED !== "0") out.push(new EspnResultsProvider())
+    return out
+  }
   // Metered: settlement asks these only after a free source (ESPN) shows a final, inside their own share of the plan.
   if (process.env.THE_ODDS_API_KEY ?? process.env.ODDS_API_KEY) {
     out.push(TheOddsApiProvider.fromEnv().meterResults("the-odds-api:scores", Math.floor(monthlyOf("THE_ODDS_API_MONTHLY_CREDITS", 500) * RESULTS_SHARE)))
