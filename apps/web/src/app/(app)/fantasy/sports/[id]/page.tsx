@@ -61,7 +61,7 @@ function resolveSelected(markets: Market[], sel: { market: Market; line: Line })
   return market && line ? { market, line } : null
 }
 
-const SPORT_COLOR: Record<string, string> = { nfl: "#c8102e", nba: "#f58426", tennis: "#a6c738" }
+const SPORT_COLOR: Record<string, string> = { nfl: "#c8102e", nba: "#f58426", tennis: "#a6c738", nhl: "#1d4ed8", mlb: "#bf0d3e", cfb: "#7c3aed", mls: "#0e7c66" }
 const dayOf = (iso: string) => new Date(iso).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })
 const timeOf = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
 const credits = (n: number) => n.toLocaleString()

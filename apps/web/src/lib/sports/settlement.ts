@@ -178,8 +178,9 @@ export function gradePick(line: GradableLine, result: EventResult): Outcome {
   const { homeScore: h, awayScore: a } = result
 
   if (line.kind === "moneyline") {
-    // NFL ties refund. Tennis and NBA cannot tie, so an equal score means the feed is wrong: refund via void.
-    if (h === a) return line.sport === "nfl" || line.sport === undefined ? "push" : "void"
+    // NFL (and college football) ties refund as a push. Tennis, NBA, NHL and MLB cannot tie in a final result, so an
+    // equal score means the feed is wrong: refund via void. (Soccer draws are handled by 3-way grading, not here.)
+    if (h === a) return line.sport === "nfl" || line.sport === "cfb" || line.sport === undefined ? "push" : "void"
     return (h > a) === (line.selection === "home") ? "win" : "loss"
   }
 

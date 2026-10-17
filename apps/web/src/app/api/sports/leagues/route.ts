@@ -10,7 +10,7 @@ const CreateSportsLeague = z.object({
   name: z.string().trim().min(2, "Name is too short").max(40, "Name is too long"),
   emoji: z.string().refine(isLeagueEmoji, "Pick an icon from the list").default("🏈"),
   accent: z.enum(ACCENT_KEYS).default("emerald"),
-  sports: z.array(z.enum(SPORTS as [string, ...string[]])).min(1, "Pick at least one sport").max(3),
+  sports: z.array(z.enum(SPORTS as [string, ...string[]])).min(1, "Pick at least one sport").max(SPORTS.length),
   startingCredits: z.number().int().min(100).max(100_000).default(1_000),
   endsAt: z.string().datetime().nullable().default(null),
 })

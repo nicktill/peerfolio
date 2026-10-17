@@ -13,13 +13,24 @@ import type { BookQuote, EventRef, EventResult, OddsProvider, OddsSnapshot, Prov
 
 const DEFAULT_BASE = "https://api.the-odds-api.com/v4"
 
-const FIXED_KEYS: Partial<Record<Sport, string>> = { nfl: "americanfootball_nfl", nba: "basketball_nba" }
+const FIXED_KEYS: Partial<Record<Sport, string>> = {
+  nfl: "americanfootball_nfl",
+  nba: "basketball_nba",
+  nhl: "icehockey_nhl",
+  mlb: "baseball_mlb",
+  cfb: "americanfootball_ncaaf",
+  mls: "soccer_usa_mls",
+}
 
 /** Prop markets requested per sport. Each costs 1 credit per event per region. */
 export const PROP_MARKETS: Record<Sport, string[]> = {
   nfl: ["player_pass_yds", "player_rush_yds", "player_reception_yds", "player_receptions"],
   nba: ["player_points", "player_rebounds", "player_assists", "player_threes"],
   tennis: [],
+  nhl: [],
+  mlb: [],
+  cfb: [],
+  mls: [],
 }
 
 type FetchLike = (url: string) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>

@@ -5,8 +5,8 @@
  * Credits are virtual and always whole integers. Odds are American integers.
  */
 
-export type Sport = "nfl" | "nba" | "tennis"
-export const SPORTS: readonly Sport[] = ["nfl", "nba", "tennis"]
+export type Sport = "nfl" | "nba" | "tennis" | "nhl" | "mlb" | "cfb" | "mls"
+export const SPORTS: readonly Sport[] = ["nfl", "nba", "tennis", "nhl", "mlb", "cfb", "mls"]
 
 export type MarketKind = "moneyline" | "spread" | "total" | "player_prop"
 

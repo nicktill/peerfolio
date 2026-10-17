@@ -26,10 +26,10 @@ export const DEFAULT_TOLERANCE_MS = 3 * 3600_000
 /** Two candidates this close in start gap are indistinguishable. */
 const AMBIGUOUS_MS = 30 * 60_000
 
-const STOP = new Set(["fc", "the", "of", "de", "la", "afc", "cf"])
+const STOP = new Set(["fc", "the", "of", "de", "la", "afc", "cf", "sc"])
 
 export function normName(s: string): string {
-  return s
+  const base = s
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
@@ -37,7 +37,24 @@ export function normName(s: string): string {
     .replace(/[^a-z0-9 ]+/g, " ")
     .split(/\s+/)
     .filter((t) => t && !STOP.has(t))
+    .map((t, i, all) => (t === "st" ? (i === all.length - 1 ? "state" : "saint") : t))
     .join(" ")
+  return ALIAS[base] ?? base
+}
+
+/**
+ * Whole-name aliases (after normalisation) for names feeds abbreviate beyond what suffix/prefix matching can bridge:
+ * ESPN writes "LAFC" where Polymarket writes "Los Angeles FC", Kalshi truncates to "New York RB" and "Chicago WS".
+ * Both sides of a comparison go through this, so each alias only has to name the same team once.
+ */
+const ALIAS: Record<string, string> = {
+  lafc: "los angeles",
+  nycfc: "new york city",
+  galaxy: "los angeles galaxy",
+  "new york rb": "new york red bulls",
+  "ny red bulls": "new york red bulls",
+  "chicago ws": "chicago white sox",
+  "utah hc": "utah mammoth",
 }
 
 /**
@@ -61,7 +78,11 @@ export function sameTeamLoose(a: string, b: string): boolean {
   if (sameTeam(a, b)) return true
   const x = normName(a)
   const y = normName(b)
-  return !!x && !!y && (x.startsWith(`${y} `) || y.startsWith(`${x} `))
+  if (!x || !y) return false
+  if (x.startsWith(`${y} `) || y.startsWith(`${x} `)) return true
+  // Kalshi clips long names to an initial: "New York R", "Los Angeles G". A one-letter last token is a prefix of the full name.
+  const clipped = (short: string, full: string) => / \w$/.test(short) && full.startsWith(short)
+  return clipped(x, y) || clipped(y, x)
 }
 
 export function matchGame<C extends Candidate>(

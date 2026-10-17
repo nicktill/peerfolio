@@ -30,7 +30,7 @@ const json = <T>(x: unknown): T | null => {
 /* ---------------- Polymarket ---------------- */
 
 /** Polymarket Gamma series ids for a game series, from the exchange proof of concept. Tennis has no game series. */
-export const POLYMARKET_SERIES: Record<string, string> = { nfl: "12185", nba: "10345" }
+export const POLYMARKET_SERIES: Record<string, string> = { nfl: "12185", nba: "10345", nhl: "10346", mlb: "3", cfb: "12756", mls: "10189" }
 
 export type PmGame = Candidate & {
   slug: string
@@ -168,7 +168,7 @@ export function applyWsMessage(books: Map<string, WsBook>, message: unknown): st
 
 /* ---------------- Kalshi ---------------- */
 
-export const KALSHI_SERIES: Record<string, string> = { nfl: "KXNFLGAME", nba: "KXNBAGAME" }
+export const KALSHI_SERIES: Record<string, string> = { nfl: "KXNFLGAME", nba: "KXNBAGAME", nhl: "KXNHLGAME", mlb: "KXMLBGAME", cfb: "KXNCAAFGAME", mls: "KXMLSGAME" }
 
 export type KalshiGame = Candidate & { expectedEnd: Date | null; markets: { ticker: string; team: string; bid: number | null; ask: number | null }[] }
 
@@ -218,7 +218,7 @@ export function kalshiQuotes(game: KalshiGame, homeName: string, awayName: strin
 
 /* ---------------- ESPN ---------------- */
 
-export const ESPN_PATH: Record<string, string> = { nfl: "football/nfl", nba: "basketball/nba" }
+export const ESPN_PATH: Record<string, string> = { nfl: "football/nfl", nba: "basketball/nba", nhl: "hockey/nhl", mlb: "baseball/mlb", cfb: "football/college-football", mls: "soccer/usa.1" }
 
 export type EspnGame = Candidate & {
   state: "pre" | "in" | "post"

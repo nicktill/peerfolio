@@ -7,7 +7,7 @@ import { withSportsUser } from "@web/lib/sports/api"
 const cache = new Map<string, { url: string | null; at: number }>()
 const DAY = 24 * 3_600_000
 
-const ROLE: Record<string, RegExp> = { tennis: /tennis/i, nfl: /american football|quarterback|running back|wide receiver|tight end|football player/i, nba: /basketball/i }
+const ROLE: Record<string, RegExp> = { tennis: /tennis/i, nfl: /american football|quarterback|running back|wide receiver|tight end|football player/i, nba: /basketball/i, nhl: /ice hockey|hockey/i, mlb: /baseball/i, cfb: /american football|quarterback|running back|wide receiver|tight end|football player/i, mls: /soccer|association football|footballer/i }
 
 async function lookup(name: string, sport: string): Promise<string | null> {
   const title = encodeURIComponent(name.trim().replace(/\s+/g, "_"))

@@ -17,7 +17,7 @@ export const WAKE_LEAD_MS = 10 * 60_000
 export type SlateEvent = { id: string; sport: string; status: string; startsAt: Date; homeName: string; awayName: string }
 
 /** Longest a game of each sport plausibly stays unfinished, after which it is not polled (settlement still handles it). */
-const MAX_LIVE_MS: Record<string, number> = { nfl: 5 * 3600_000, nba: 4 * 3600_000, tennis: 6 * 3600_000 }
+const MAX_LIVE_MS: Record<string, number> = { nfl: 5 * 3600_000, nba: 4 * 3600_000, tennis: 6 * 3600_000, nhl: 4 * 3600_000, mlb: 5 * 3600_000, cfb: 5 * 3600_000, mls: 3 * 3600_000 }
 /** Start polling shortly before the scheduled start so the first live quote is already there at kickoff. */
 export const PRE_START_MS = 5 * 60_000
 

@@ -12,6 +12,10 @@ const LEAGUES: Record<Sport, string[]> = {
   nfl: ["football/nfl"],
   nba: ["basketball/nba"],
   tennis: ["tennis/atp", "tennis/wta"],
+  nhl: ["hockey/nhl"],
+  mlb: ["baseball/mlb"],
+  cfb: ["football/college-football"],
+  mls: ["soccer/usa.1"],
 }
 
 type Competitor = {

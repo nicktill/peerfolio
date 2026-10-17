@@ -54,6 +54,11 @@ export const SPORT_KINDS: Record<Sport, readonly MarketKind[]> = {
   nfl: ["moneyline", "spread", "total", "player_prop"],
   nba: ["moneyline", "spread", "total", "player_prop"],
   tennis: ["moneyline", "total"],
+  nhl: ["moneyline", "spread", "total"],
+  mlb: ["moneyline", "spread", "total"],
+  cfb: ["moneyline", "spread", "total"],
+  // Soccer moneyline is 3-way (draw), handled separately; until then only spread and total.
+  mls: ["spread", "total"],
 }
 
 export const kindsFor = (sport: Sport, cfg: PublishConfig): readonly MarketKind[] =>
