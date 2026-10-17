@@ -11,7 +11,7 @@ Stale-line window (publish within 24 h, lock 2 h, freeze on movement), start-tim
 - Provider investigation and combined free-tier budget math: PROVIDERS.md
 - Fairness design, threat model, data model, phased plan: DESIGN.md
 - Local test guide: TESTING.md
-- Migration `0025_sports_picks.sql` (8 new tables, additive only; `migration-safety` passes)
+- Migration `0026_sports_picks.sql` (8 new tables), `0027_sports_guards.sql` (outbox, freeze and alias columns) and `0028_sports_rate_limits.sql` (all additive; `migration-safety` passes)
 - Pure logic with tests (`apps/web/src/lib/sports`): odds maths, consensus + devig, line publishing, pick lock, caps, accepted-line snapshot, result resolution, grading (moneyline, spread, total, props), idempotent settlement planning, credit budgeting, provider composite (failover, merge, pacing, cache)
 - Providers: mock; The Odds API adapter (also reusable for Odds-API-compatible vendors via name + base URL)
 - DB layer (`store.ts`): leagues, join, atomic pick placement, publishing, locking, void, settlement

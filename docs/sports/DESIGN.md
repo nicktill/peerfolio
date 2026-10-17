@@ -103,7 +103,7 @@ stake. A prop whose player is missing from the box score voids (DNP).
 
 ## Data model
 
-All new, additive (migration `0025_sports_picks.sql`):
+All new, additive (migrations `0026_sports_picks.sql`, `0027_sports_guards.sql`, `0028_sports_rate_limits.sql`; `0025` belongs to fantasy seasons):
 
 - `sports_leagues` (name, emoji, accent, owner, invite code, `sports[]`, starting credits, ends at, member limit)
 - `sports_members` (league, user, `credits` >= 0)
@@ -113,8 +113,8 @@ All new, additive (migration `0025_sports_picks.sql`):
 - `sports_picks` (league, member, market, line, selection, stake, price/point snapshot, `total_return`, status, `request_id`, accepted/settled at)
 - `sports_ledger` (member, pick, type `grant|place|settle_win|settle_refund`, signed amount, unique `idempotency_key`)
 - `sports_provider_usage` (provider, UTC day, credits) for budget pacing
-- `sports_notifications` outbox (migration 0026): a `pick_settled` row per settled pick, for push/email later
-- 0026 also adds `fair_prob_a`, `point_a`, `frozen_reason` on markets and `aliases` on events
+- `sports_notifications` outbox (migration 0027): a `pick_settled` row per settled pick, for push/email later
+- 0027 also adds `fair_prob_a`, `point_a`, `frozen_reason` on markets and `aliases` on events
 
 Invariant: `sports_members.credits == sum(sports_ledger.amount)` per member.
 

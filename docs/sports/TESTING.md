@@ -26,7 +26,7 @@ ENABLE_DEV_LOGIN="true"          # already the default in .env.example
 ```bash
 npm install                       # from the repo root, once
 cd apps/web
-npm run db:migrate                # applies 0025_sports_picks.sql (additive: new tables only)
+npm run db:migrate                # applies 0026-0028 (sports tables; additive only)
 npm run db:seed                   # demo users (note: truncates existing local data)
 npm run sports:seed               # publishes mock NFL/NBA/tennis lines, creates "Demo Sharps" with a few picks, prints the invite code
 npm run dev                       # http://localhost:3000
