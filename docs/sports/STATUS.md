@@ -44,7 +44,10 @@ Stale-line window (publish within 24 h, lock 2 h, freeze on movement), start-tim
 | Var | Purpose |
 |---|---|
 | `NEXT_PUBLIC_SPORTS_ENABLED` | `1` enables the Sports UI and API (build-time for the client) |
-| `THE_ODDS_API_KEY` | The Odds API key (server only, never committed) |
+| `SPORTS_ODDS_SOURCE` | `exchange` (default, free: Polymarket prices, Kalshi cross-check, ESPN schedule; no key, no credits) or `odds-api` (explicit opt-in to the metered vendors below) |
+| `SPORTS_ENABLED_SPORTS` | Comma list narrowing which sports the publish cron fetches (default all) |
+| `ESPN_RESULTS_ENABLED` | In exchange mode ESPN results are on unless this is `0`; in odds-api mode they are on only when `1` |
+| `THE_ODDS_API_KEY` | The Odds API key (server only, never committed); read only with `SPORTS_ODDS_SOURCE=odds-api` |
 | `THE_ODDS_API_MONTHLY_CREDITS` | Plan size for pacing, default 500 |
 | `PROPLINE_API_KEY`, `PROPLINE_BASE_URL`, `PROPLINE_MONTHLY_CREDITS` | Optional second, Odds-API-compatible source |
 | `SPORTS_PROPS_ENABLED` | `1` to fetch player props (costs more credits) |
