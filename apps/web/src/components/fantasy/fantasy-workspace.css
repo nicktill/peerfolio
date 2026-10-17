@@ -399,7 +399,7 @@ button.fw-feed-row:hover p { color: var(--fw-fg); }
   .fw-meta li { height: auto; padding: 0; border: 0; border-radius: 0; font: 400 11px/18px var(--fw-mono); letter-spacing: .02em; color: var(--fw-fg3); }
   .fw-meta li + li::before { content: "/"; margin: 0 8px; color: var(--fw-line); }
   .fw-meta-status { display: inline-flex; }
-  .fw-meta li:nth-child(4) { display: none; }
+  .fw-meta:not(.fw-meta-sports) li:nth-child(4) { display: none; }
   .fw-actions .fw-pill { display: none; }
   .fw-actions { gap: 8px; flex-wrap: wrap; }
   .fw-btn { height: 40px; border-radius: var(--fw-rs); padding: 0 16px; }

@@ -14,7 +14,7 @@ import { useToast } from "@web/components/ui/toast"
 import { useFantasyMode } from "@web/components/sports/mode-switch"
 import { eventTitle, formatOdds, lineLabel, lockLabel, marketTitle, pickSentence, sideTeam, SPORT_LABEL, winOn100, type DisplayLine, type DisplayMarket } from "@web/lib/sports/format"
 import { americanToDecimal } from "@web/lib/sports/odds"
-import { onColor, teamLook } from "@web/lib/sports/teams"
+import { onColor, oddsLabel, teamLook } from "@web/lib/sports/teams"
 import { InfoTip, Tip } from "@web/components/ui/tip"
 import { LeagueHero, LeaguePulse, Leaderboard, NextGames, PickFeed } from "@web/components/sports/league-parts"
 import { PickLockEffect, type PickLockFx } from "@web/components/sports/pick-lock-effect"
@@ -539,9 +539,9 @@ function GameCard({ game, selected, onSelect, disabled }: { game: { key: string;
             <i style={{ flex: 1, background: secondColor }} />
           </div>
           <div className="sp-odds-labels">
-            <span>{Math.round((tennis ? chances.home : chances.away) * 100)}% <small>{first.split(" ").pop()}</small></span>
+            <span>{Math.round((tennis ? chances.home : chances.away) * 100)}% <small>{oddsLabel(event.sport, first)}</small></span>
             {chances.draw != null ? <span>{Math.round(chances.draw * 100)}% <small>Draw</small></span> : null}
-            <span><small>{second.split(" ").pop()}</small> {Math.round((tennis ? chances.away : chances.home) * 100)}%</span>
+            <span><small>{oddsLabel(event.sport, second)}</small> {Math.round((tennis ? chances.away : chances.home) * 100)}%</span>
           </div>
         </div>
         </Tip>

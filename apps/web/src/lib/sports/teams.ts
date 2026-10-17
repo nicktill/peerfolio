@@ -94,6 +94,18 @@ export function teamLook(sport: string | undefined, name: string): TeamLook {
   return { abbr, color: NEUTRAL, logo: null }
 }
 
+/**
+ * The word or phrase under a win-chance bar. The last word of the name for most teams ("Celtics", "Bruins", "Sinner"),
+ * but MLS clubs often end in a bare suffix ("Inter Miami CF", "Seattle Sounders FC"), so they use the table's short name.
+ */
+export function oddsLabel(sport: string | undefined, name: string): string {
+  if (sport === "mls") {
+    const t = leagueTeam("mls", name)
+    if (t) return t.short
+  }
+  return name.trim().split(/\s+/).pop() ?? name
+}
+
 /** Readable text colour on a team colour. */
 export function onColor(hex: string): "#fff" | "#101418" {
   const n = parseInt(hex.slice(1), 16)

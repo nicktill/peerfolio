@@ -18,6 +18,8 @@ export type LeagueTeam = {
   logo: string
   /** Logo variant ESPN draws for dark backgrounds. */
   logoDark: string
+  /** Short display name from the table ("Seattle", "Salt Lake"). */
+  short: string
 }
 
 export const LEAGUE_SPORTS = ["nhl", "mlb", "cfb", "mls"] as const
@@ -153,6 +155,7 @@ function buildIndex(sport: LeagueSport, rows: TeamRow[]): Index {
       color: pickColor(color, alt),
       logo: logoUrl(sport, key),
       logoDark: logoUrl(sport, key, true),
+      short,
     } satisfies LeagueTeam,
     short,
   }))

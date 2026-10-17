@@ -106,7 +106,7 @@ export function LeagueHero({
             <h1>{league.name}</h1>
           </div>
         </div>
-        <ul className="fw-meta" aria-label="League rules">
+        <ul className="fw-meta fw-meta-sports" aria-label="League rules">
           <li className="fw-meta-status">{status}</li>
           <li>
             {standings.length} {standings.length === 1 ? "player" : "players"}

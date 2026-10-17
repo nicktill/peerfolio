@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import { CFB_TEAMS, MLB_TEAMS, MLS_TEAMS, NHL_TEAMS } from "./teams-data.ts"
 import { LEAGUE_SPORTS, leagueTeam, leagueTeamCount, type LeagueSport } from "./teams-leagues.ts"
-import { onColor, teamLook } from "./teams.ts"
+import { oddsLabel, onColor, teamLook } from "./teams.ts"
 
 const abbr = (s: LeagueSport, n: string) => leagueTeam(s, n)?.abbr ?? null
 
@@ -113,5 +113,17 @@ describe("teamLook for the new leagues", () => {
   it("keeps NFL and NBA working", () => {
     assert.equal(teamLook("nfl", "Kansas City Chiefs").abbr, "KC")
     assert.equal(teamLook("nba", "Celtics").abbr, "BOS")
+  })
+})
+
+describe("oddsLabel", () => {
+  it("uses the short name for MLS clubs that end in a bare suffix", () => {
+    assert.equal(oddsLabel("mls", "Inter Miami CF"), "Miami")
+    assert.equal(oddsLabel("mls", "Seattle Sounders FC"), "Seattle")
+  })
+  it("uses the last word elsewhere", () => {
+    assert.equal(oddsLabel("nhl", "Toronto Maple Leafs"), "Leafs")
+    assert.equal(oddsLabel("tennis", "Jannik Sinner"), "Sinner")
+    assert.equal(oddsLabel("mls", "Unknown Club"), "Club")
   })
 })
