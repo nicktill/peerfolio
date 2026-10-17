@@ -1,0 +1,92 @@
+name: Sports cron
+
+# Vercel's free plan runs crons once a day, so GitHub calls the sports routes. GitHub's schedule is best
+# effort: runs often start 10 to 30 minutes late, so nothing here may assume an exact minute.
+#
+# Off until the repository variable SPORTS_CRON_ENABLED is "1": publishing spends Odds API credits, and
+# this must not start the moment the file is merged. Manual runs (workflow_dispatch) always work.
+on:
+  schedule:
+    - cron: "*/15 * * * *" # publish (the route budgets its own credits) and lock due markets
+    - cron: "7,37 * * * *" # settle
+  workflow_dispatch:
+    inputs:
+      job:
+        description: publish, settle or latency
+        default: publish
+
+concurrency:
+  group: sports-${{ github.event.schedule || github.event.inputs.job }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: ${{ (github.event_name == 'schedule' && github.event.schedule == '*/15 * * * *' && vars.SPORTS_CRON_ENABLED == '1') || (github.event_name == 'workflow_dispatch' && inputs.job == 'publish') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call /api/cron/sports/publish
+        env:
+          APP_URL: ${{ vars.PEERFOLIO_URL || 'https://www.peerfolio.org' }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          [ -n "$CRON_SECRET" ] || { echo "Set the CRON_SECRET repository secret." >&2; exit 1; }
+          code=$(curl --silent --show-error --max-time 120 --retry 2 --retry-delay 10 \
+            -o response.json -w '%{http_code}' \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "${APP_URL%/}/api/cron/sports/publish")
+          cat response.json; echo
+          [ "$code" = "200" ] || { echo "Expected HTTP 200, got $code" >&2; exit 1; }
+
+  settle:
+    if: ${{ (github.event_name == 'schedule' && github.event.schedule == '7,37 * * * *' && vars.SPORTS_CRON_ENABLED == '1') || (github.event_name == 'workflow_dispatch' && inputs.job == 'settle') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call /api/cron/sports/settle
+        env:
+          APP_URL: ${{ vars.PEERFOLIO_URL || 'https://www.peerfolio.org' }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          [ -n "$CRON_SECRET" ] || { echo "Set the CRON_SECRET repository secret." >&2; exit 1; }
+          code=$(curl --silent --show-error --max-time 120 --retry 2 --retry-delay 10 \
+            -o response.json -w '%{http_code}' \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "${APP_URL%/}/api/cron/sports/settle")
+          cat response.json; echo
+          [ "$code" = "200" ] || { echo "Expected HTTP 200, got $code" >&2; exit 1; }
+
+  # Read-only measurement of ESPN (no app, no keys, no credits). Polls every 30 s for about 4.5 minutes on
+  # each run and uploads the transitions it saw; state carries over between runs through the cache so a
+  # game's pre -> in -> post is timed even when runs are late. Enabled by SPORTS_LATENCY_ENABLED.
+  latency:
+    if: ${{ (github.event_name == 'schedule' && github.event.schedule == '*/15 * * * *' && vars.SPORTS_LATENCY_ENABLED == '1') || (github.event_name == 'workflow_dispatch' && inputs.job == 'latency') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Restore last seen states
+        uses: actions/cache/restore@v4
+        with:
+          path: latency-state.json
+          key: espn-latency-state-${{ github.run_id }}
+          restore-keys: espn-latency-state-
+      - name: Poll ESPN scoreboards
+        run: node apps/web/scripts/espn-latency.mjs --loop 30 --for 270
+      - name: Save last seen states
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: latency-state.json
+          key: espn-latency-state-${{ github.run_id }}
+      - name: Upload transitions
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: espn-latency-${{ github.run_id }}
+          path: latency.jsonl
+          if-no-files-found: ignore
+          retention-days: 14
