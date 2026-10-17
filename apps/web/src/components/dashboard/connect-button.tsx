@@ -9,6 +9,7 @@ import { connectionNotice } from "@web/lib/plaid-status"
 import { exchangePublicToken, pendingLinkToken } from "@web/lib/plaid-link"
 import { userLimitNotice } from "@web/lib/plaid-access-core"
 import { linkUnavailable, preLinkNotice, type PreLinkNotice } from "@web/lib/plaid-link-copy"
+import { RequestMore } from "@web/components/dashboard/request-more-dialog"
 import { PreLinkDialog } from "@web/components/dashboard/pre-link-dialog"
 import { CONTACT_EMAIL } from "@web/components/site-footer"
 import { Tip } from "@web/components/ui/tip"
@@ -76,6 +77,7 @@ export function ConnectButton(props: Props) {
             {shown.caption.tail}
           </p>
         ) : null}
+        {data?.code === "user_limit" || data?.code === "full" ? <RequestMore limit={data.userLimit?.limit ?? 0} full={data.code === "full"} /> : null}
       </>
     )
   }

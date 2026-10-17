@@ -113,6 +113,18 @@ export const productionLinkAttempts = pgTable("production_link_attempts", {
   completedAt: timestamp("completed_at", { withTimezone: true }),
 }, (t) => [uniqueIndex("production_link_attempts_token_idx").on(t.publicTokenDigest)])
 
+/** A user asking for more brokerage connections than they get by default. One open request per user. */
+export const brokerageLinkRequests = pgTable("brokerage_link_requests", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  note: text("note"),
+  status: text("status").notNull().default("open"),
+  /** Connections the user had used when they asked. */
+  usedAtRequest: integer("used_at_request").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+}, (t) => [uniqueIndex("brokerage_link_requests_open_idx").on(t.userId).where(sql`${t.status} = 'open'`)])
+
 export const plaidItems = pgTable(
   "plaid_items",
   {

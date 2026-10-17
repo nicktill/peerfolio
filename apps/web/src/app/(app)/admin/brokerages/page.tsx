@@ -10,7 +10,9 @@ import { cacheClear } from "@web/lib/api-cache"
 import { mutate, useApi } from "@web/lib/use-api"
 
 type BrokerageUser = { id: string; email: string; name: string | null; allowed: boolean; linkLimit: number | null; effectiveLimit: number; used: number }
+type LinkRequest = { id: string; userId: string; email: string; name: string | null; note: string | null; createdAt: string; used: number; effectiveLimit: number }
 type AdminData = {
+  requests?: LinkRequest[]
   users: BrokerageUser[]
   orphanedPool2Items?: number
   credentials?: { pool: number; configured: boolean; state?: "enabled" | "disabled" | "not_set"; clientId?: string }[]
@@ -54,6 +56,21 @@ export default function BrokerageAdminPage() {
       await refetch()
     } catch (cause) {
       toast(cause instanceof Error ? cause.message : "Could not update the link limit.", "error")
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  async function resolveRequest(req: LinkRequest, raise: boolean) {
+    setSaving(req.id)
+    try {
+      if (raise) await mutate("/api/admin/brokerages", { method: "PATCH", body: { userId: req.userId, linkLimit: Math.min(10, req.effectiveLimit + 1) } })
+      await mutate("/api/admin/brokerages", { method: "DELETE", body: { requestId: req.id } })
+      cacheClear("/api/plaid/access")
+      toast(raise ? `${req.email}: limit raised to ${Math.min(10, req.effectiveLimit + 1)}.` : `${req.email}: request closed.`, "success")
+      await refetch()
+    } catch (cause) {
+      toast(cause instanceof Error ? cause.message : "Could not update the request.", "error")
     } finally {
       setSaving(null)
     }
@@ -106,6 +123,34 @@ export default function BrokerageAdminPage() {
               <p className="text-xs text-muted-foreground">Each new production connection attempt consumes capacity. Disconnecting does not restore it. Reconnect repairs reuse the existing connection.</p>
             </CardContent>
           </Card>
+
+          {data.requests?.length ? (
+            <Card>
+              <CardContent className="space-y-1 pt-5">
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="font-medium">Requests for more</h2>
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs tabular-nums text-muted-foreground">{data.requests.length} open</span>
+                </div>
+                <ul className="divide-y">
+                  {data.requests.map((req) => (
+                    <li key={req.id} className="flex flex-wrap items-center gap-3 py-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">{req.name ?? req.email}</p>
+                        <p className="truncate text-xs text-muted-foreground"><span className="tabular-nums">{req.used} of {req.effectiveLimit} used</span> · {new Date(req.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</p>
+                        <p className={`mt-1 text-sm ${req.note ? "" : "text-muted-foreground"}`}>{req.note ?? "No note"}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {req.effectiveLimit < 10 ? (
+                          <Button variant="outline" size="sm" disabled={saving !== null} loading={saving === req.id} onClick={() => void resolveRequest(req, true)} aria-label={`Raise link limit for ${req.email} to ${req.effectiveLimit + 1}`}>Raise to {req.effectiveLimit + 1}</Button>
+                        ) : null}
+                        <Button variant="ghost" size="sm" disabled={saving !== null} onClick={() => void resolveRequest(req, false)} aria-label={`Mark request from ${req.email} done`}>Mark done</Button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          ) : null}
 
           <div className="space-y-3">
             <label htmlFor="brokerage-user-search" className="block text-sm font-medium">Find a user</label>

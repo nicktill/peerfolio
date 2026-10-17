@@ -112,6 +112,14 @@ export function effectiveUserLimit(override: number | null | undefined): number 
   return typeof override === "number" && Number.isInteger(override) && override >= 0 && override <= MAX_USER_LINK_LIMIT ? override : USER_PRODUCTION_LINK_LIMIT
 }
 
+export const MAX_REQUEST_NOTE = 500
+
+/** Trims a request note to something storable; blank means no note. */
+export function cleanRequestNote(value: string | null | undefined): string | null {
+  const note = (value ?? "").replace(/\s+/g, " ").trim().slice(0, MAX_REQUEST_NOTE)
+  return note || null
+}
+
 /** Validates an admin write: a whole number 0..10, or null to clear the override. */
 export function parseLinkLimitOverride(value: unknown): { ok: true; value: number | null } | { ok: false } {
   if (value === null) return { ok: true, value: null }

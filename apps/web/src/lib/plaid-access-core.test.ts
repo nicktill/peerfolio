@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { effectiveUserLimit, MAX_USER_LINK_LIMIT, parseLinkLimitOverride, userLimitNotice, brokerageBlock, choosePool, firstAvailablePool, poolBudgets, productionPools, productionPoolsChecked, totalCapacity, isAdminEmail, productionBudgetSettings, USER_LINK_LIMIT_NOTICE, USER_PRODUCTION_LINK_LIMIT } from "./plaid-access-core.ts"
+import { cleanRequestNote, MAX_REQUEST_NOTE, effectiveUserLimit, MAX_USER_LINK_LIMIT, parseLinkLimitOverride, userLimitNotice, brokerageBlock, choosePool, firstAvailablePool, poolBudgets, productionPools, productionPoolsChecked, totalCapacity, isAdminEmail, productionBudgetSettings, USER_LINK_LIMIT_NOTICE, USER_PRODUCTION_LINK_LIMIT } from "./plaid-access-core.ts"
 
 describe("brokerage admin and lifetime production budget settings", () => {
   it("grants no admin access unless a normalized database email is explicitly listed", () => {
@@ -159,5 +159,17 @@ describe("per-user link limit override", () => {
   it("words the notice for one and zero", () => {
     assert.equal(userLimitNotice(1), "Only 1 brokerage connection per account for now. More coming soon.")
     assert.equal(userLimitNotice(0), "Brokerage connections aren't available for your account right now.")
+  })
+})
+
+describe("cleanRequestNote", () => {
+  it("treats blank and missing notes as no note", () => {
+    assert.equal(cleanRequestNote(undefined), null)
+    assert.equal(cleanRequestNote(null), null)
+    assert.equal(cleanRequestNote("  \n "), null)
+  })
+  it("collapses whitespace and caps the length", () => {
+    assert.equal(cleanRequestNote("  Fidelity \n and   Vanguard "), "Fidelity and Vanguard")
+    assert.equal(cleanRequestNote("x".repeat(900))?.length, MAX_REQUEST_NOTE)
   })
 })
