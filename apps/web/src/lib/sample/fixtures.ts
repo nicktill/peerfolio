@@ -144,8 +144,18 @@ function modeResponse(url: string, mode: "empty" | "sample"): unknown {
   }
 }
 
+/** Handles shown in sample views. The photo assets stay keyed by the original handles, so only the `handle` field is renamed. */
+const DISPLAY_HANDLES: Record<string, string> = { maya: "alexmoreno", theo: "natedelaney", priya: "tessnavarro", deshawn: "marcusbell", sam: "jamiemercer" }
+const withDisplayHandles = <T,>(value: T): T =>
+  JSON.parse(JSON.stringify(value), (k, v) => (k === "handle" && typeof v === "string" ? (DISPLAY_HANDLES[v] ?? v) : v)) as T
+
 /** The fixture for `url`, or null to let the request go to the network as usual. */
 export function sampleResponse(url: string, pathname: string | null): unknown {
+  const response = sampleResponseRaw(url, pathname)
+  return response === null ? null : withDisplayHandles(response)
+}
+
+function sampleResponseRaw(url: string, pathname: string | null): unknown {
   if (/^\/api\/fantasy\/sample\/season(\?|$)/.test(url)) return SEASON
   if (/^\/api\/fantasy\/sample(\?|$)/.test(url)) return fantasyView(FANTASY_LEAGUE)
   if (/^\/api\/sports\/leagues\/sample(\?|$)/.test(url)) return sportsView(SPORTS_LEAGUE)
