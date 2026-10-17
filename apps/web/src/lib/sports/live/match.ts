@@ -104,3 +104,35 @@ export function matchGame<C extends Candidate>(
 export function orientScore(first: number | null, second: number | null, homeIndex: 0 | 1): { home: number | null; away: number | null } {
   return homeIndex === 0 ? { home: first, away: second } : { home: second, away: first }
 }
+
+/**
+ * Why `matchGame` found nothing, for logs and the health endpoint. Mirrors matchGame's rules but reports the
+ * closest miss: no candidates at all, names that fit nowhere, names that fit but at the wrong time, or ambiguity.
+ */
+export function explainNoMatch(
+  ref: GameRef,
+  candidates: Candidate[],
+  opts: { toleranceMs?: number; requireTime?: boolean; loose?: boolean } = {},
+): string {
+  if (candidates.length === 0) return "feed_has_no_games"
+  const same = opts.loose ? sameTeamLoose : sameTeam
+  const tol = opts.toleranceMs ?? DEFAULT_TOLERANCE_MS
+  const byName = candidates.filter((c) => {
+    const straight = same(ref.homeName, c.teams[0]) && same(ref.awayName, c.teams[1])
+    const swapped = same(ref.homeName, c.teams[1]) && same(ref.awayName, c.teams[0])
+    return straight !== swapped
+  })
+  if (byName.length === 0) {
+    const oneTeam = candidates.some((c) => c.teams.some((t) => same(ref.homeName, t) || same(ref.awayName, t)))
+    return oneTeam ? "only_one_team_matches" : "no_name_match"
+  }
+  const timed = byName.filter((c) => c.startsAt && Math.abs(c.startsAt.getTime() - ref.startsAt.getTime()) <= tol)
+  if (opts.requireTime ?? true) {
+    if (timed.length === 0) {
+      const gaps = byName.map((c) => (c.startsAt ? Math.round(Math.abs(c.startsAt.getTime() - ref.startsAt.getTime()) / 60000) : null))
+      return `time_outside_tolerance(gap_min=${gaps.filter((g) => g != null).join(",") || "no_start_time"})`
+    }
+    return timed.length > 1 ? "ambiguous_candidates" : "unknown"
+  }
+  return byName.length > 1 ? "ambiguous_candidates" : "unknown"
+}

@@ -5,7 +5,8 @@ import { generateInviteCode } from "../crypto.ts"
 import { canSpend, type UsageStore } from "./credit-budget.ts"
 import { DEFAULT_PUBLISH, detectMove, fetchBucket, fetchKind, freshDrafts, marketsToLock, missingReason, planPublication, planSchedule } from "./lines.ts"
 import { bucketOf, LIMITS, PRUNE_AFTER_WINDOWS, withinLimit, type LimitName } from "./rate-limit.ts"
-import { acceptPick, DEFAULT_LIMITS, PickRejected, type PickRequest } from "./picks.ts"
+import { emit } from "./log.ts"
+import { acceptPick, DEFAULT_LIMITS, kickoffGateDecided, PickRejected, type PickContext, type PickRequest } from "./picks.ts"
 import { mirroredPairs } from "./report.ts"
 import { DEFAULT_RESOLVE, gradePick, needsMeteredSource, planSettlement, placeKey, resolveResult, resultsForEvent, type ResolveConfig, type SettlementPlan } from "./settlement.ts"
 import type { EventRef, EventResult, MarketKind, OddsProvider, Outcome, ResultsProvider, Selection, Sport } from "./types.ts"
@@ -358,8 +359,20 @@ export async function getMirroredPickReport(db: Db, userId: string, leagueId: st
  * ledger row and the balance change commit together or not at all. Replaying
  * the same `requestId` returns the original pick instead of placing a second.
  */
-export function placeSportsPick(db: Db, userId: string, leagueId: string, req: PickRequest & { requestId: string }, now: Date) {
-  return withDeadlockRetry(() => placeOnce(db, userId, leagueId, req, now))
+export async function placeSportsPick(db: Db, userId: string, leagueId: string, req: PickRequest & { requestId: string }, now: Date) {
+  const result = await withDeadlockRetry(() => placeOnce(db, userId, leagueId, req, now))
+  // One summary per placement. Ids and money only: no names, no tokens.
+  emit("info", result.replayed ? "sports.pick_replayed" : "sports.pick_placed", {
+    pickId: result.pick.id,
+    leagueId,
+    marketId: result.pick.marketId,
+    stake: result.pick.stake,
+    price: result.pick.price,
+    point: result.pick.point,
+    totalReturn: result.pick.totalReturn,
+    acceptedAt: result.pick.acceptedAt.toISOString(),
+  }, undefined, now)
+  return result
 }
 
 async function placeOnce(db: Db, userId: string, leagueId: string, req: PickRequest & { requestId: string }, now: Date) {
@@ -402,22 +415,38 @@ async function placeOnce(db: Db, userId: string, leagueId: string, req: PickRequ
       .from(sportsPicks)
       .where(and(eq(sportsPicks.memberId, member.id), eq(sportsPicks.status, "open")))
 
+    const pickCtx: PickContext = {
+      now,
+      market: { id: row.market.id, status: row.market.status, lockAt: row.market.lockAt },
+      eventStatus: row.event.status,
+      eventStartsAt: row.event.startsAt,
+      line: { id: row.line.id, marketId: row.line.marketId, price: row.line.price, point: row.line.point },
+      member: { credits: member.credits },
+      league: { startingCredits: league.startingCredits },
+      picksOnMarket: existing?.n ?? 0,
+      openPickCount: open?.n ?? 0,
+      openStakeTotal: open?.stake ?? 0,
+    }
     let accepted
     try {
-      accepted = acceptPick(req, {
-        now,
-        market: { id: row.market.id, status: row.market.status, lockAt: row.market.lockAt },
-        eventStatus: row.event.status,
-        eventStartsAt: row.event.startsAt,
-        line: { id: row.line.id, marketId: row.line.marketId, price: row.line.price, point: row.line.point },
-        member: { credits: member.credits },
-        league: { startingCredits: league.startingCredits },
-        picksOnMarket: existing?.n ?? 0,
-        openPickCount: open?.n ?? 0,
-        openStakeTotal: open?.stake ?? 0,
-      })
+      accepted = acceptPick(req, pickCtx)
     } catch (error) {
-      if (error instanceof PickRejected) throw new SportsError(error.message, error.code === "insufficient_credits" ? 402 : 409)
+      if (error instanceof PickRejected) {
+        // Rejections caused only by the kickoff gate are warnings (they mean a lock was late or a start moved); the rest are routine.
+        const kickoff = error.code === "market_closed" && kickoffGateDecided(pickCtx)
+        emit(kickoff ? "warn" : "info", kickoff ? "sports.pick_rejected_kickoff" : "sports.pick_rejected", {
+          code: error.code,
+          leagueId,
+          marketId: row.market.id,
+          eventId: row.event.id,
+          now: now.toISOString(),
+          eventStartsAt: row.event.startsAt.toISOString(),
+          lockAt: row.market.lockAt.toISOString(),
+          marketStatus: row.market.status,
+          eventStatus: row.event.status,
+        })
+        throw new SportsError(error.message, error.code === "insufficient_credits" ? 402 : 409)
+      }
       throw error
     }
 

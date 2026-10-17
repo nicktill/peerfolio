@@ -1,51 +1,68 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 import { Radio } from "lucide-react"
+import { PIPELINE } from "@web/lib/sports/live/freshness"
 import { chipFor, PAUSED_REASON, splitPct, statusLine } from "@web/lib/sports/live/format"
-import type { LiveView } from "@web/lib/sports/live/view"
+import { ageView, type LiveView } from "@web/lib/sports/live/view"
 import { teamLook } from "@web/lib/sports/teams"
 
-const POLL_MS = 10_000
+type Entry = { view: LiveView | null; receivedAt: number; subs: number; timer: number | undefined; failures: number; listeners: Set<() => void> }
+/** One poll per game for the whole page, however many tickets show it (module level, shared by every strip). */
+const games = new Map<string, Entry>()
 
-/** Polls the cached live endpoint while mounted and the tab is visible. The server does the upstream work; this only reads. */
+async function pollOnce(id: string, entry: Entry) {
+  if (document.visibilityState === "visible") {
+    try {
+      const res = await fetch(`/api/sports/live/${id}`, { cache: "no-store" })
+      if (res.ok) {
+        // Time the response spent in the CDN is reported by the Age header; count it, so a cached answer never looks fresher than it is.
+        const cdnAgeMs = Number(res.headers.get("age") ?? 0) * 1000
+        const view = (await res.json()) as LiveView
+        entry.view = cdnAgeMs > 0 ? ageView(view, cdnAgeMs) : view
+        entry.receivedAt = Date.now()
+        entry.failures = 0
+      } else entry.failures++
+    } catch {
+      entry.failures++
+    }
+    entry.listeners.forEach((l) => l())
+  }
+  if (entry.subs > 0) entry.timer = window.setTimeout(() => void pollOnce(id, entry), PIPELINE.clientPollMs * Math.min(4, 1 + entry.failures))
+}
+
+function subscribe(id: string, listener: () => void) {
+  let entry = games.get(id)
+  if (!entry) {
+    entry = { view: null, receivedAt: 0, subs: 0, timer: undefined, failures: 0, listeners: new Set() }
+    games.set(id, entry)
+  }
+  entry.listeners.add(listener)
+  if (entry.subs++ === 0) void pollOnce(id, entry)
+  const e = entry
+  return () => {
+    e.listeners.delete(listener)
+    if (--e.subs === 0) {
+      window.clearTimeout(e.timer)
+      games.delete(id)
+    }
+  }
+}
+
+/** Reads the shared poll for a game; re-renders every second so the "as of" text keeps counting up between polls. */
 function useLiveGame(eventId: string | undefined, enabled: boolean) {
-  const [view, setView] = useState<LiveView | null>(null)
-  const [receivedAt, setReceivedAt] = useState(0)
-  const [tick, setTick] = useState(0)
-  const failures = useRef(0)
-
+  const [, rerender] = useState(0)
   useEffect(() => {
     if (!eventId || !enabled) return
-    let stop = false
-    let timer: number | undefined
-    const load = async () => {
-      if (document.visibilityState === "visible") {
-        try {
-          const res = await fetch(`/api/sports/live/${eventId}`, { cache: "no-store" })
-          if (res.ok && !stop) {
-            setView((await res.json()) as LiveView)
-            setReceivedAt(Date.now())
-            failures.current = 0
-          } else failures.current++
-        } catch {
-          failures.current++
-        }
-      }
-      if (!stop) timer = window.setTimeout(load, POLL_MS * Math.min(4, 1 + failures.current))
-    }
-    void load()
-    // Re-render every second so the "as of" text keeps counting up between polls.
-    const clock = window.setInterval(() => setTick((t) => t + 1), 1000)
+    const off = subscribe(eventId, () => rerender((n) => n + 1))
+    const clock = window.setInterval(() => rerender((n) => n + 1), 1000)
     return () => {
-      stop = true
-      window.clearTimeout(timer)
+      off()
       window.clearInterval(clock)
     }
   }, [eventId, enabled])
-
-  void tick
-  return { view, elapsedMs: receivedAt ? Date.now() - receivedAt : 0 }
+  const entry = eventId && enabled ? games.get(eventId) : undefined
+  return { view: entry?.view ?? null, elapsedMs: entry?.receivedAt ? Date.now() - entry.receivedAt : 0 }
 }
 
 /**

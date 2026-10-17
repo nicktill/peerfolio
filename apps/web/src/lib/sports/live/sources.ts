@@ -38,6 +38,8 @@ export type PmGame = Candidate & {
   ended: boolean
   /** "first-second" in the order of `teams` (title order); null before the game. */
   score: [number, number] | null
+  /** The score string exactly as the feed sent it (clipped), kept so logs can show raw vs interpreted. */
+  scoreRaw: string | null
   period: string | null
   elapsed: string | null
   /** CLOB token per outcome, in the order of `teams`. */
@@ -71,6 +73,7 @@ export function parseGammaEvents(payload: unknown): PmGame[] {
       live: ev.live === true,
       ended: ev.ended === true,
       score: m ? [Number(m[1]), Number(m[2])] : null,
+      scoreRaw: typeof ev.score === "string" && ev.score ? ev.score.slice(0, 40) : null,
       period: typeof ev.period === "string" && ev.period ? ev.period : null,
       elapsed: typeof ev.elapsed === "string" && ev.elapsed ? ev.elapsed : null,
       tokens: [String(tokens[0]), String(tokens[1])],
@@ -167,7 +170,7 @@ export function applyWsMessage(books: Map<string, WsBook>, message: unknown): st
 
 export const KALSHI_SERIES: Record<string, string> = { nfl: "KXNFLGAME", nba: "KXNBAGAME" }
 
-export type KalshiGame = Candidate & { markets: { ticker: string; team: string; bid: number | null; ask: number | null }[] }
+export type KalshiGame = Candidate & { expectedEnd: Date | null; markets: { ticker: string; team: string; bid: number | null; ask: number | null }[] }
 
 /**
  * Open Kalshi game events with their per-team yes contracts (one binary market per team; the yes price is the
@@ -190,7 +193,15 @@ export function parseKalshiEvents(payload: unknown): KalshiGame[] {
       ask: num(m.yes_ask_dollars),
     }))
     if (markets.length !== 2) continue
-    out.push({ id: String(ev.event_ticker ?? ev.title), teams: [parts[0], parts[1]], startsAt: null, markets })
+    const m0 = (Array.isArray(ev.markets) ? (ev.markets as Record<string, unknown>[]) : [])[0] ?? {}
+    out.push({
+      id: String(ev.event_ticker ?? ev.title),
+      teams: [parts[0], parts[1]],
+      startsAt: null,
+      // Kalshi gives no start time; the expected end (or market close) tells tonight's game from another night's.
+      expectedEnd: date(m0.expected_expiration_time) ?? date(m0.close_time),
+      markets,
+    })
   }
   return out
 }

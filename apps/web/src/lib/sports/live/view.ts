@@ -109,3 +109,20 @@ export function buildLiveView(input: { eventId: string; eventStatus: string; quo
     serverTime: now.toISOString(),
   }
 }
+
+/**
+ * A cached view is older than when it was computed. `ageView` adds the time it sat in a cache (`lagMs`) to every age it
+ * reports and re-derives freshness, so the served age is true as of the response, not as of the cache fill. A quote that
+ * crosses the stale line while cached is paused rather than shown as live.
+ */
+export function ageView(view: LiveView, lagMs: number): LiveView {
+  if (lagMs <= 0) return view
+  const out: LiveView = { ...view, serverTime: new Date(Date.parse(view.serverTime) + lagMs).toISOString() }
+  if (view.odds.status === "ok") {
+    const ageMs = view.odds.ageMs + lagMs
+    const f = freshnessOf(ageMs)
+    out.odds = f === "stale" ? { status: "paused", reason: "stale", lastAsOf: view.odds.asOf } : { ...view.odds, ageMs, freshness: f }
+  }
+  if (view.stateAsOf) out.stateFreshness = freshnessOf(Date.parse(out.serverTime) - Date.parse(view.stateAsOf))
+  return out
+}

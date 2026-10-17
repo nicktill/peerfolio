@@ -1,6 +1,7 @@
-import { and, eq, gt, sql } from "drizzle-orm"
+import { and, eq, gt, inArray, sql } from "drizzle-orm"
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js"
 import * as schema from "../../../db/schema.ts"
+import type { HealthGame, HealthInput } from "./health.ts"
 import { liveSlate, type SlateEvent } from "./plan.ts"
 import { DEFAULT_RETENTION, retentionCutoffs, type RetentionPolicy } from "./retention.ts"
 import type { LiveGameState, NormalizedQuote } from "./types.ts"
@@ -13,7 +14,7 @@ import { buildLiveView, READ_WINDOW_MS, type LiveView, type QuoteRow } from "./v
  */
 
 type Db = PostgresJsDatabase<typeof schema>
-const { liveQuote, liveState, sportsEvents } = schema
+const { liveQuote, liveState, liveWorker, sportsEvents } = schema
 
 export type QuoteInsert = {
   eventId: string
@@ -123,4 +124,41 @@ export async function pruneLiveQuotes(db: Db, now: Date, policy: RetentionPolicy
              AND (in_bucket > 1 OR fetched_ts < ${c.coarseBefore.toISOString()}::timestamptz))
     ) RETURNING id`)
   return rows.length
+}
+
+/** Earliest scheduled start still ahead, so an idle worker can sleep until just before it. One indexed query. */
+export async function nextStartAfter(db: Db, now: Date): Promise<Date | null> {
+  const [row] = await db
+    .select({ at: sql<Date | string | null>`min(${sportsEvents.startsAt})` })
+    .from(sportsEvents)
+    .where(and(eq(sportsEvents.status, "scheduled"), gt(sportsEvents.startsAt, now)))
+  return row?.at ? new Date(row.at) : null
+}
+
+export type HeartbeatInput = { name: string; at: Date; ok: boolean; consecutiveFailures: number; details: Record<string, unknown> }
+
+/** One row per worker, overwritten each cycle: lets /api/sports/live/health answer without reading logs. */
+export async function writeHeartbeat(db: Db, h: HeartbeatInput): Promise<void> {
+  const values = { lastCycleAt: h.at, consecutiveFailures: h.consecutiveFailures, details: h.details }
+  await db
+    .insert(liveWorker)
+    .values({ name: h.name, ...values, lastOkAt: h.ok ? h.at : null })
+    .onConflictDoUpdate({ target: liveWorker.name, set: h.ok ? { ...values, lastOkAt: h.at } : values })
+}
+
+/** Everything liveHealth needs: the worker row and, for each game that should be live now, its newest quote and state. */
+export async function readHealthInput(db: Db, name: string, now: Date): Promise<HealthInput> {
+  const [w] = await db.select().from(liveWorker).where(eq(liveWorker.name, name)).limit(1)
+  const slate = await loadLiveSlate(db, now)
+  const toDate = (v: unknown) => (v == null ? null : v instanceof Date ? v : new Date(String(v)))
+  let liveGames: HealthGame[] = []
+  if (slate.length) {
+    const ids = slate.map((e) => e.id)
+    const quotes = await db.execute<{ id: string; at: unknown }>(sql`SELECT event_id AS id, max(fetched_ts) AS at FROM live_quote WHERE event_id IN ${ids} GROUP BY event_id`)
+    const states = await db.select({ id: liveState.eventId, at: liveState.fetchedTs }).from(liveState).where(inArray(liveState.eventId, ids))
+    const q = new Map([...quotes].map((r) => [r.id, toDate(r.at)]))
+    const s = new Map(states.map((r) => [r.id, r.at]))
+    liveGames = slate.map((e) => ({ eventId: e.id, label: `${e.awayName} @ ${e.homeName}`, sport: e.sport, newestQuoteAt: q.get(e.id) ?? null, newestStateAt: s.get(e.id) ?? null }))
+  }
+  return { worker: w ? { lastCycleAt: w.lastCycleAt, lastOkAt: w.lastOkAt, consecutiveFailures: w.consecutiveFailures, details: w.details } : null, liveGames }
 }

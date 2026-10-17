@@ -1331,6 +1331,17 @@ export const liveQuote = pgTable(
   ],
 )
 
+/** Worker heartbeat: one row per worker name, overwritten each cycle, so health can be checked without logs. */
+export const liveWorker = pgTable("live_worker", {
+  name: text("name").primaryKey(),
+  lastCycleAt: timestamp("last_cycle_at", { withTimezone: true }).notNull(),
+  /** Last cycle in which at least one upstream call (or an idle slate) succeeded. */
+  lastOkAt: timestamp("last_ok_at", { withTimezone: true }),
+  consecutiveFailures: integer("consecutive_failures").notNull().default(0),
+  /** Short summary of the last cycle: games, per-source counts, unmatched games and reasons. Never raw payloads. */
+  details: jsonb("details").$type<Record<string, unknown>>().notNull().default({}),
+})
+
 /** Latest score/period/clock per game: one row, overwritten each poll. */
 export const liveState = pgTable("live_state", {
   eventId: uuid("event_id")

@@ -7,7 +7,12 @@ import type { LiveSelection, LiveSource } from "./types.ts"
  */
 
 export const POLL_MS = 10_000
+/** Slate check cadence while a game is about to start (within WAKE_LEAD_MS + this). */
 export const IDLE_POLL_MS = 30_000
+/** The longest the worker sleeps with nothing live: bounds how late a game whose start moved EARLIER is noticed. */
+export const MAX_SLEEP_MS = 15 * 60_000
+/** Wake this long before the next scheduled start, then poll the slate at IDLE_POLL_MS until it fills (5 min pre-start window). */
+export const WAKE_LEAD_MS = 10 * 60_000
 
 export type SlateEvent = { id: string; sport: string; status: string; startsAt: Date; homeName: string; awayName: string }
 
@@ -27,17 +32,61 @@ export function liveSlate<E extends SlateEvent>(events: E[], now: Date): E[] {
 
 export const pollDelay = (slateSize: number): number => (slateSize > 0 ? POLL_MS : IDLE_POLL_MS)
 
+/**
+ * How long to sleep when the slate is empty, so an idle worker leaves a serverless Postgres (Neon) free to suspend.
+ * Sleeps until WAKE_LEAD_MS before the next scheduled start, capped at MAX_SLEEP_MS (no known game: the cap), never
+ * below IDLE_POLL_MS. Within the lead window it polls at IDLE_POLL_MS.
+ */
+export function idleSleepMs(now: Date, nextStartsAt: Date | null): number {
+  if (!nextStartsAt) return MAX_SLEEP_MS
+  const until = nextStartsAt.getTime() - WAKE_LEAD_MS - now.getTime()
+  return Math.min(MAX_SLEEP_MS, Math.max(IDLE_POLL_MS, until))
+}
+
 export type QuoteKey = `${string}|${string}|${LiveSelection}|${LiveSource}`
 export const quoteKey = (eventId: string, market: string, selection: LiveSelection, source: LiveSource): QuoteKey => `${eventId}|${market}|${selection}|${source}`
 
 export type LastWrite = { bid: number | null; ask: number | null; at: Date }
 
 /**
- * Whether a polled quote earns a row. Unchanged books are skipped except for a heartbeat, which keeps the
- * latest row's fetched time inside the 30s "live" window while limiting a 3 hour game to about 700 rows per key.
+ * Whether a polled quote earns a row. Default: every tick, so the newest row is never more than one tick old
+ * (a 15s heartbeat on a 10s tick would leave gaps of up to 20s and eat the 30s "live" budget; see PIPELINE in
+ * freshness.ts). A positive `heartbeatMs` skips unchanged books inside that window. Rows are thinned afterwards by
+ * the retention policy, so a 3 hour game costs about 1100 rows per key while live and a few dozen after.
  */
-export function shouldWrite(prev: LastWrite | undefined, next: { bid: number | null; ask: number | null }, now: Date, heartbeatMs = 15_000): boolean {
+export function shouldWrite(prev: LastWrite | undefined, next: { bid: number | null; ask: number | null }, now: Date, heartbeatMs = 0): boolean {
   if (!prev) return true
   if (prev.bid !== next.bid || prev.ask !== next.ask) return true
   return now.getTime() - prev.at.getTime() >= heartbeatMs
+}
+
+/** What the worker learned about a book's timestamp on previous polls, per key. */
+export type BookClock = { sourceTs: number | null; bid: number | null; ask: number | null; changedAt: number }
+
+/**
+ * M4: does `book.timestamp` mean "snapshot time" or "time of last change"? Unknown until a real game, so we track our
+ * own last-seen-change time, and offer a policy switch. "strict" (default) stores the source timestamp as given, so a
+ * quiet book whose timestamp stops advancing looks old and eventually pauses. "fetch" treats a book that is unchanged
+ * since the previous poll AND whose timestamp is merely old (not going backwards) as a quiet live book: it stores no
+ * source timestamp, so freshness is our fetch time. Returns the sourceTs to store and the updated clock.
+ */
+export function bookClock(
+  prev: BookClock | undefined,
+  next: { sourceTs: Date | null; bid: number | null; ask: number | null },
+  fetchedAt: Date,
+  mode: "strict" | "fetch",
+): { sourceTs: Date | null; clock: BookClock; changeAgeMs: number; sourceAgeMs: number | null; quiet: boolean } {
+  const ts = next.sourceTs ? next.sourceTs.getTime() : null
+  const changed = !prev || prev.bid !== next.bid || prev.ask !== next.ask || prev.sourceTs !== ts
+  const changedAt = changed ? fetchedAt.getTime() : prev!.changedAt
+  const sourceAgeMs = ts == null ? null : fetchedAt.getTime() - ts
+  // Quiet: content and timestamp both identical to last poll, and the timestamp lags the fetch by more than the live window.
+  const quiet = !changed && sourceAgeMs != null && sourceAgeMs > 30_000
+  return {
+    sourceTs: mode === "fetch" && quiet ? null : next.sourceTs,
+    clock: { sourceTs: ts, bid: next.bid, ask: next.ask, changedAt },
+    changeAgeMs: fetchedAt.getTime() - changedAt,
+    sourceAgeMs,
+    quiet,
+  }
 }

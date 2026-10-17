@@ -1,10 +1,10 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { createTtlCache } from "./cache.ts"
-import { ageOf, agoLabel, freshnessOf } from "./freshness.ts"
+import { clientIp, createMemoryLimiter, createTtlCache } from "./cache.ts"
+import { ageOf, agoLabel, freshnessOf, LIVE_MAX_MS, PIPELINE, WORST_CASE_AGE_MS } from "./freshness.ts"
 import { chipFor, splitPct, statusLine } from "./format.ts"
-import { matchGame, normName, orientScore, sameTeam } from "./match.ts"
-import { liveSlate, pollDelay, shouldWrite } from "./plan.ts"
+import { explainNoMatch, matchGame, normName, orientScore, sameTeam } from "./match.ts"
+import { bookClock, idleSleepMs, liveSlate, pollDelay, shouldWrite } from "./plan.ts"
 import { normalizeQuote, pairProbability, topOfBook } from "./quote.ts"
 import { chooseLiveOdds } from "./reconcile.ts"
 import { retentionCutoffs, survivors } from "./retention.ts"
@@ -21,7 +21,7 @@ import {
   type WsBook,
 } from "./sources.ts"
 import type { RawQuote, SourceProb } from "./types.ts"
-import { buildLiveView } from "./view.ts"
+import { ageView, buildLiveView } from "./view.ts"
 
 const NOW = new Date("2026-10-18T20:00:00Z")
 const ago = (ms: number) => new Date(NOW.getTime() - ms)
@@ -359,12 +359,86 @@ describe("worker planning", () => {
     assert.equal(pollDelay(0), 30_000)
     assert.equal(pollDelay(3), 10_000)
   })
-  it("writes changes at once and unchanged books only on the heartbeat", () => {
+  it("writes every tick by default, and honours an explicit heartbeat window", () => {
     const at = ago(5000)
     assert.equal(shouldWrite(undefined, { bid: 0.5, ask: 0.52 }, NOW), true)
-    assert.equal(shouldWrite({ bid: 0.5, ask: 0.52, at }, { bid: 0.5, ask: 0.52 }, NOW), false)
-    assert.equal(shouldWrite({ bid: 0.5, ask: 0.52, at }, { bid: 0.51, ask: 0.52 }, NOW), true)
-    assert.equal(shouldWrite({ bid: 0.5, ask: 0.52, at: ago(16_000) }, { bid: 0.5, ask: 0.52 }, NOW), true)
+    assert.equal(shouldWrite({ bid: 0.5, ask: 0.52, at }, { bid: 0.5, ask: 0.52 }, NOW), true)
+    assert.equal(shouldWrite({ bid: 0.5, ask: 0.52, at }, { bid: 0.5, ask: 0.52 }, NOW, 15_000), false)
+    assert.equal(shouldWrite({ bid: 0.5, ask: 0.52, at }, { bid: 0.51, ask: 0.52 }, NOW, 15_000), true)
+    assert.equal(shouldWrite({ bid: 0.5, ask: 0.52, at: ago(16_000) }, { bid: 0.5, ask: 0.52 }, NOW, 15_000), true)
+  })
+  it("idle sleep: until 10 min before the next start, capped at 15 min, floored at 30s", () => {
+    const at = (min: number) => new Date(NOW.getTime() + min * 60_000)
+    assert.equal(idleSleepMs(NOW, null), 15 * 60_000)
+    assert.equal(idleSleepMs(NOW, at(600)), 15 * 60_000)
+    assert.equal(idleSleepMs(NOW, at(20)), 10 * 60_000)
+    assert.equal(idleSleepMs(NOW, at(11)), 60_000)
+    assert.equal(idleSleepMs(NOW, at(5)), 30_000)
+    assert.equal(idleSleepMs(NOW, at(-5)), 30_000)
+  })
+  it("worst-case displayed age stays comfortably under the 30s live cutoff", () => {
+    assert.ok(WORST_CASE_AGE_MS <= LIVE_MAX_MS - 2_000, `worst case ${WORST_CASE_AGE_MS}ms`)
+    // Simulate a view cached at its worst point and re-aged: still "live".
+    const q = (sel: string, bid: number, ask: number) => ({ market: "moneyline", selection: sel, source: "polymarket", bid, ask, mid: (bid + ask) / 2, sourceTs: ago(PIPELINE.bookMs), fetchedTs: ago(PIPELINE.bookMs) })
+    const base = buildLiveView({ eventId: "e", eventStatus: "scheduled", quotes: [q("home", 0.6, 0.62), q("away", 0.38, 0.4)], state: null }, ago(0))
+    const lag = PIPELINE.tickMs + PIPELINE.cycleMs + PIPELINE.apiCacheMs + PIPELINE.cdnMs + PIPELINE.clientPollMs
+    const shown = ageView(base, lag)
+    assert.equal(shown.odds.status === "ok" && shown.odds.freshness, "live")
+    // And a view that sat too long is paused, not shown live.
+    assert.equal(ageView(base, 150_000).odds.status, "paused")
+  })
+  it("tracks book changes and, in fetch mode, treats an unchanged quiet book as live", () => {
+    const t0 = new Date("2026-10-18T20:00:00Z")
+    const t1 = new Date(t0.getTime() + 10_000)
+    const old = new Date(t0.getTime() - 90_000)
+    const first = bookClock(undefined, { sourceTs: old, bid: 0.5, ask: 0.52 }, t0, "strict")
+    assert.equal(first.quiet, false) // first sight: unknown, not yet "unchanged"
+    const second = bookClock(first.clock, { sourceTs: old, bid: 0.5, ask: 0.52 }, t1, "strict")
+    assert.equal(second.quiet, true)
+    assert.equal(second.sourceTs?.getTime(), old.getTime()) // strict keeps the source stamp
+    assert.equal(second.changeAgeMs, 10_000)
+    const fetchMode = bookClock(first.clock, { sourceTs: old, bid: 0.5, ask: 0.52 }, t1, "fetch")
+    assert.equal(fetchMode.sourceTs, null)
+    // A changed book is never quiet, whichever mode.
+    assert.equal(bookClock(first.clock, { sourceTs: old, bid: 0.51, ask: 0.52 }, t1, "fetch").quiet, false)
+    // A timestamp that tracks the fetch (snapshot semantics) is never quiet.
+    const snap = bookClock(undefined, { sourceTs: t0, bid: 0.5, ask: 0.52 }, t0, "fetch")
+    assert.equal(bookClock(snap.clock, { sourceTs: t1, bid: 0.5, ask: 0.52 }, t1, "fetch").quiet, false)
+  })
+})
+
+describe("public endpoint helpers", () => {
+  it("rate limiter allows max per window per key and resets", () => {
+    const l = createMemoryLimiter(3, 60_000)
+    assert.deepEqual([1, 2, 3, 4].map(() => l.take("ip", 1000)), [true, true, true, false])
+    assert.equal(l.take("other", 1000), true)
+    assert.equal(l.take("ip", 61_000), true)
+  })
+  it("negative results get their own longer ttl", async () => {
+    const c = createTtlCache<number | null>(1000)
+    let n = 0
+    const load = async () => (++n, null)
+    const ttl = (v: number | null) => (v ? 1000 : 60_000)
+    await c.getMeta("k", 0, load, ttl)
+    const again = await c.getMeta("k", 30_000, load, ttl)
+    assert.deepEqual([again.hit, n], [true, 1])
+    assert.equal((await c.getMeta("k", 61_000, load, ttl)).hit, false)
+  })
+  it("client ip comes from the first forwarded hop", () => {
+    assert.equal(clientIp({ get: (h: string) => (h === "x-forwarded-for" ? "1.2.3.4, 5.6.7.8" : null) }), "1.2.3.4")
+    assert.equal(clientIp({ get: () => null }), "unknown")
+  })
+})
+
+describe("why a game did not match", () => {
+  const ref = { homeName: "Boston Celtics", awayName: "Detroit Pistons", startsAt: new Date("2026-10-20T19:00:00Z") }
+  const c = (teams: [string, string], startsAt: string | null) => ({ id: "x", teams, startsAt: startsAt ? new Date(startsAt) : null })
+  it("explains each failure", () => {
+    assert.equal(explainNoMatch(ref, []), "feed_has_no_games")
+    assert.equal(explainNoMatch(ref, [c(["Lakers", "Suns"], "2026-10-20T19:00:00Z")]), "no_name_match")
+    assert.equal(explainNoMatch(ref, [c(["Celtics", "Suns"], "2026-10-20T19:00:00Z")]), "only_one_team_matches")
+    assert.match(explainNoMatch(ref, [c(["Celtics", "Pistons"], "2026-10-23T19:00:00Z")]), /^time_outside_tolerance\(gap_min=4320\)$/)
+    assert.equal(explainNoMatch(ref, [c(["Celtics", "Pistons"], "2026-10-20T19:05:00Z"), c(["Pistons", "Celtics"], "2026-10-20T19:10:00Z")]), "ambiguous_candidates")
   })
 })
 

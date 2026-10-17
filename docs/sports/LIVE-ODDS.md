@@ -10,7 +10,7 @@ Pregame, offered prices refresh until kickoff and picks close server-side at kic
 | Tables `live_quote`, `live_state` | migration `0030_live_odds.sql`, `src/db/schema.ts` |
 | DB layer (insert, upsert, slate, read view, prune) | `src/lib/sports/live/store.ts` |
 | Ingest worker (standalone process) | `apps/web/scripts/live-odds-worker.mts` |
-| Read API (flag gated, cached 5s) | `GET /api/sports/live/[gameId]` (`gameId` is `sports_events.id`) |
+| Read API (flag gated, cached 3s, per-IP limited) | `GET /api/sports/live/[gameId]` (`gameId` is `sports_events.id`) |
 | UI | `src/components/sports/live-game.tsx`, rendered under an in-progress pick |
 | Disposable-DB integration check | `apps/web/scripts/live-odds-integration.mts` |
 
@@ -24,9 +24,13 @@ Pregame, offered prices refresh until kickoff and picks close server-side at kic
 
 ## Upstream load scales with games, not users
 
-The worker polls only games whose `sports_events` row is `scheduled` and inside their live window (5 minutes before the start until 5h NFL / 4h NBA). Per 10s cycle: one Gamma list per live sport, one batched `/books` call for all live tokens, a Kalshi list per sport and ESPN fallbacks at most every 30s. With no live game it sleeps 30s and makes no upstream call. Viewers only read Postgres through the API (5s in-process cache plus `s-maxage=5` at the CDN). Unchanged books are not rewritten except for a 15s heartbeat, so a three hour game is a few hundred rows per key.
+The worker polls only games whose `sports_events` row is `scheduled` and inside their live window (5 minutes before the start until 5h NFL / 4h NBA). Per 10s cycle: one Gamma list per live sport, one batched `/books` call for all live tokens, a Kalshi list per sport and ESPN fallbacks at most every 30s. Viewers only read Postgres through the API (3s in-process cache plus `s-maxage=3` at the CDN, per-IP limit of 120 requests a minute per instance, unknown game ids negative-cached for 60s with `s-maxage=30`, ids validated as UUIDs before any query).
 
-Scores come from the Gamma list each cycle. The separate `wss://sports-api.polymarket.com/ws` score stream was verified but is not needed at this cadence; it is a possible later improvement for sub-10s scores.
+**Freshness budget.** A row is written every tick (an unchanged book is rewritten, so the newest row is never more than one tick old; retention thins them afterwards). Worst-case displayed age is the sum of `PIPELINE` in `freshness.ts`: tick 10s + cycle 2s + book lag 2s + API cache 3s + CDN 3s + client poll 7s = 27s, under the 30s "live" cutoff, and a test keeps it there. Cache time is added to the reported ages (server-side for the in-process cache, via the `Age` header on the client), so a cached answer never looks fresher than it is.
+
+## Database wake-ups (Neon compute)
+
+The worker is built so a serverless Postgres can suspend between games. With nothing live it does not poll: it runs one cheap query for the next scheduled start, writes one heartbeat row, and sleeps until 10 minutes before that start (at most 15 minutes, so a start moved earlier is noticed within 15 minutes). That is at most 4 wake-ups an hour with nothing on, about 3 small queries each, and nothing at all if `LIVE_ODDS_ENABLED=0`. Within 10 minutes of a start it checks the slate every 30s; during games it queries every 10s (the database is busy anyway). Prune runs only when rows were written since the last prune. Expect Neon compute to be active roughly from 10 minutes before the first kickoff of a slate until the last game ends, instead of 24/7. Set `LIVE_ODDS_ENABLED=0` to turn the worker off completely (it idles without touching the database).
 
 ## Storage (free tier)
 
@@ -41,6 +45,8 @@ DATABASE_URL=postgres://... node --experimental-strip-types scripts/live-odds-wo
 
 Needs Node 22+ (type stripping, global `fetch`/`WebSocket`) and only `DATABASE_URL`. Run **one** replica; a second would only duplicate rows. `SIGTERM` finishes the cycle and exits. `LIVE_ODDS_ENABLED=0` idles it. It logs a one-line summary every minute.
 
+Logs are one JSON object per line (`{"at","level","ev",...}`) on stdout; the process exits 1 after 6 consecutive total failures (about a minute) so a supervisor restarts it. Health without logs: `GET /api/sports/live/health` with `Authorization: Bearer $CRON_SECRET` (200 ok/degraded, 503 down).
+
 It must be a persistent process, not a Vercel function. Any of these works:
 
 - **Fly.io**: a small app (shared-cpu-1x, 256 MB) with `[processes] worker = "node --experimental-strip-types apps/web/scripts/live-odds-worker.mts --ws"`, `auto_stop_machines = false`, one machine, secret `DATABASE_URL`. Build from the repo root with a Node 22 image and `npm ci --workspaces`.
@@ -52,3 +58,33 @@ Use the app's normal pooled `DATABASE_URL` (the worker opens at most 2 connectio
 ## Verified and unverified
 
 Verified with real endpoints: Gamma list shape and moneyline parsing, `POST /books` batching (bids arrive unsorted, so top of book is a max/min), the market WebSocket subscribe/PING/book flow, and one live NHL game for socket and REST behavior. Not verified: any live NFL or NBA game (no game was on), the orientation of Polymarket's `score` string (assumed to follow the title/outcome order), `price_change` message field names beyond `best_bid`/`best_ask`, the Kalshi event title format for every team, and tennis (no Polymarket game series is configured, so tennis shows score-less "Odds paused" until a source is added).
+
+## Tomorrow's live-test checklist
+
+**Before kickoff (about 13:00Z)**
+1. Migrations are applied (`live_quote`, `live_state`, `live_worker` exist) and the sports flag is on.
+2. Smoke the worker against the real database once: `cd apps/web && DATABASE_URL=... node --experimental-strip-types scripts/live-odds-worker.mts --once`. It runs one cycle and exits 0 (1 if the cycle totally failed). Before games it prints no `live.cycle` line and a `live.start`; that is normal. Then start it for real with `--ws` (or without) as a single replica.
+3. `curl -s -H "Authorization: Bearer $CRON_SECRET" https://<host>/api/sports/live/health`: expect `"status":"ok"` and the worker's `lastCycleAgeMs` small (or `sleepUntil` in its details while idle).
+
+**During games, watch**
+- `live.cycle` every 10s: `games`, `matched`, `unmatched`, per-source `{ok,fail,ms}`, `rows.written`, `quoteAgeMs`.
+- `live.no_quotes` / health `unmatched`: a game with no exchange match, with the reason (`no_name_match`, `only_one_team_matches`, `time_outside_tolerance(gap_min=..)`, `ambiguous_candidates`, `polymarket_unavailable`, `no_series_for_sport` for tennis).
+- `live.odds_paused`, `live.low_confidence`, `live.source_mismatch`: what a viewer is being shown.
+- `live.book_clock`: **the answer to "what does the CLOB book timestamp mean"**. For a live, quiet book compare `sourceAgeMs` (age of the book's own timestamp) with `changeAgeMs` (how long ago the book last changed, by our own tracking). If `sourceAgeMs` stays small while `changeAgeMs` grows, the timestamp is the snapshot time. If both grow together on a quiet book, it is the time of last change; then set `LIVE_ODDS_BOOK_TS=fetch` and restart so quiet-but-live books are not paused (default is `strict`).
+- `live.backoff_start` / `live.backoff_end`: a source erroring and recovering.
+- `sports.pick_rejected_kickoff` (warn): a pick refused only because kickoff arrived before the market lock. It should be rare; each line shows `eventStartsAt`, `lockAt`, `now`.
+- `live.api` (route): cache fill lines with `outcome` served_odds / served_paused / missing_game.
+
+**Example lines**
+```
+ok:   {"at":"2026-10-18T13:41:10.2Z","level":"info","ev":"live.cycle","worker":"live-odds","games":3,"matched":3,"unmatched":0,"sources":{"polymarket":{"ok":2,"fail":0,"ms":410},"kalshi":{"ok":1,"fail":0,"ms":180}},"skippedBackoff":0,"rows":{"written":12,"skipped":0},"stateWrites":3,"quoteAgeMs":{"min":300,"max":1900}}
+warn: {"at":"...","level":"warn","ev":"live.no_quotes","game":"Detroit Pistons @ Boston Celtics","sport":"nba","reason":"time_outside_tolerance(gap_min=4320)"}
+fail: {"at":"...","level":"warn","ev":"live.backoff_start","source":"polymarket","forMs":30000,"error":"503 gamma-api.polymarket.com/events"}
+fail: {"at":"...","level":"error","ev":"live.cycle","games":3,"matched":0,"unmatched":3,"sources":{"polymarket":{"ok":0,"fail":1,"ms":8002}},"skippedBackoff":0,"rows":{"written":0,"skipped":0}}
+fatal:{"at":"...","level":"error","ev":"live.fatal","reason":"6 consecutive total failures","exiting":true}
+```
+
+**Verify score orientation (home/away) for a live game**
+1. In the worker log find `live.orientation` for the game: it shows `ourHome`, `ourAway`, the exchange's `feedTeams` order, the raw `scoreRaw` (e.g. `"50-54"`), `feedHomeIndex` (which feed team is our home), and `interpreted` `{home,away}`. The assumption to confirm is that Polymarket's score reads `first team - second team` in `feedTeams` order.
+2. Compare against ESPN: `curl -s https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard` (or `football/nfl`) and read the live event's two `competitors`, each with `homeAway` and `score`. Our `interpreted.home` must equal ESPN's `home` competitor score and `interpreted.away` the `away` one.
+3. Then check the app: the strip shows `AWAY score - HOME score`. If it is swapped, the fix is in `pmGameState`/`orientScore` (`sources.ts`/`match.ts`) and no stored data is affected.

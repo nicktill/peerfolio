@@ -24,3 +24,25 @@ export function agoLabel(ageMs: number): string {
   const m = Math.floor(s / 60)
   return m < 60 ? `${m}m ago` : `${Math.floor(m / 60)}h ago`
 }
+
+/**
+ * Where the displayed age of a quote can come from, in the worst case, from the exchange to the screen.
+ * Each term is a bound the pipeline enforces; `WORST_CASE_AGE_MS` is their sum and a test keeps it under the
+ * 30s "live" cutoff with margin, so a healthy game never flickers to "Delayed".
+ */
+export const PIPELINE = {
+  /** Worker polls every tick and writes a row every tick (no heartbeat gap). */
+  tickMs: 10_000,
+  /** Upstream latency plus the write inside one cycle. */
+  cycleMs: 2_000,
+  /** Book timestamp lag at the source when live (observed 0.1-2s). */
+  bookMs: 2_000,
+  /** In-process cache of the read API. */
+  apiCacheMs: 3_000,
+  /** CDN s-maxage on live responses (no stale-while-revalidate). */
+  cdnMs: 3_000,
+  /** Browser poll interval; the client counts age up between polls. */
+  clientPollMs: 7_000,
+} as const
+
+export const WORST_CASE_AGE_MS = Object.values(PIPELINE).reduce((a, b) => a + b, 0)
