@@ -572,11 +572,11 @@ export function PortfolioScreen({
             <section aria-labelledby="rail-leagues" className="pf-panel p-4 sm:p-5">
               <div className="pf-ph"><SectionLabel as="h2" id="rail-leagues" className="pf-lbl">Your leagues</SectionLabel></div>
               {data.leagues.length > 0 ? (
-                <LeagueGroup title="Leagues" note="Real portfolios" href="/leagues">
+                <LeagueGroup title="Leagues" note="Real portfolios" href={demo ? null : "/leagues"}>
                   {data.leagues.slice(0, 4).map((league) => (
                     <RailLink
                       key={league.id}
-                      href={`/leagues/${league.id}`}
+                      href={demo ? null : `/leagues/${league.id}`}
                       emoji={league.emoji}
                       name={league.name}
                       detail={plural(league.members, "member")}
@@ -586,11 +586,11 @@ export function PortfolioScreen({
                 </LeagueGroup>
               ) : null}
               {openFantasy.length > 0 ? (
-                <LeagueGroup title="Fantasy" note="Play money" href="/fantasy">
+                <LeagueGroup title="Fantasy" note="Play money" href={demo ? null : "/fantasy"}>
                   {openFantasy.slice(0, 4).map((league) => (
                     <RailLink
                       key={league.id}
-                      href={`/fantasy/${league.id}`}
+                      href={demo ? null : `/fantasy/${league.id}`}
                       emoji={league.emoji}
                       name={league.name}
                       detail={plural(league.memberCount, "player")}
@@ -615,16 +615,18 @@ export function PortfolioScreen({
 }
 
 /** One kind of league in the rail: a small heading with its own "See all", then rows. */
-function LeagueGroup({ title, note, href, children }: { title: string; note: string; href: string; children: React.ReactNode }) {
+function LeagueGroup({ title, note, href, children }: { title: string; note: string; href: string | null; children: React.ReactNode }) {
   return (
     <div className="mt-4">
       <div className="flex items-baseline justify-between gap-2">
         <h3 className="text-xs font-semibold">
           {title} <span className="font-normal text-muted-foreground">· {note}</span>
         </h3>
-        <Link href={href} className="text-xs font-medium text-muted-foreground transition-colors hover:text-foreground">
-          See all
-        </Link>
+        {href ? (
+          <Link href={href} className="text-xs font-medium text-muted-foreground transition-colors hover:text-foreground">
+            See all
+          </Link>
+        ) : null}
       </div>
       <ul className="mt-1 divide-y">{children}</ul>
     </div>
@@ -675,18 +677,28 @@ function RankBadge({ rank }: { rank: number }) {
   return <span className={cn("numeric font-display text-sm font-bold", rank === 1 ? "text-gold-ink" : "text-muted-foreground")}>#{rank}</span>
 }
 
-function RailLink({ href, emoji, name, detail, end }: { href: string; emoji: string; name: string; detail: string; end: React.ReactNode }) {
+/** A league in the rail. Without an `href` (the demo, whose leagues don't exist) it is a plain row. */
+function RailLink({ href, emoji, name, detail, end }: { href: string | null; emoji: string; name: string; detail: string; end: React.ReactNode }) {
+  const body = (
+    <>
+      <LeagueMark value={emoji} accent="emerald" size={26} />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium">{name}</span>
+        <span className="block text-xs text-muted-foreground">{detail}</span>
+      </span>
+      {end}
+      {href ? <ChevronRight className="size-3.5 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden /> : null}
+    </>
+  )
   return (
     <li>
-      <Link href={href} className="group -mx-2 flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-secondary/50">
-        <LeagueMark value={emoji} accent="emerald" size={26} />
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium">{name}</span>
-          <span className="block text-xs text-muted-foreground">{detail}</span>
-        </span>
-        {end}
-        <ChevronRight className="size-3.5 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden />
-      </Link>
+      {href ? (
+        <Link href={href} className="group -mx-2 flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-secondary/50">
+          {body}
+        </Link>
+      ) : (
+        <div className="-mx-2 flex items-center gap-3 px-2 py-2.5">{body}</div>
+      )}
     </li>
   )
 }
