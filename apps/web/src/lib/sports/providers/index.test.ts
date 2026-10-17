@@ -4,7 +4,7 @@ import { MemoryUsageStore } from "../credit-budget.ts"
 import { SPORTS } from "../types.ts"
 import { buildExchangeOdds, buildOddsProvider, buildResultsProviders, enabledSports, oddsSource, publishMode } from "./index.ts"
 
-const KEYS = ["SPORTS_MOCK", "SPORTS_ODDS_SOURCE", "THE_ODDS_API_KEY", "ODDS_API_KEY", "ESPN_RESULTS_ENABLED", "SPORTS_ENABLED_SPORTS"]
+const KEYS = ["SPORTS_MOCK", "SPORTS_ODDS_SOURCE", "THE_ODDS_API_KEY", "ODDS_API_KEY", "ESPN_RESULTS_ENABLED", "NHL_API_RESULTS_ENABLED", "MLB_API_RESULTS_ENABLED", "SPORTS_MIN_RESULT_SOURCES", "SPORTS_ENABLED_SPORTS"]
 const saved = Object.fromEntries(KEYS.map((k) => [k, process.env[k]]))
 const env = (vars: Record<string, string | undefined>) => {
   for (const k of KEYS) delete process.env[k]
@@ -65,12 +65,14 @@ describe("odds source selection", () => {
 })
 
 describe("results sources", () => {
-  it("exchange mode is free: ESPN only, no metered vendor even with a key", () => {
+  it("exchange mode is free: ESPN plus the leagues own NHL and MLB feeds, no metered vendor even with a key", () => {
     env({ THE_ODDS_API_KEY: "k" })
     const r = buildResultsProviders()
-    assert.deepEqual(r.map((p) => p.name), ["espn"])
+    assert.deepEqual(r.map((p) => p.name), ["espn", "nhl-api", "mlb-statsapi"])
     assert.ok(r.every((p) => !p.metered))
     env({ ESPN_RESULTS_ENABLED: "0" })
+    assert.deepEqual(buildResultsProviders().map((p) => p.name), ["nhl-api", "mlb-statsapi"])
+    env({ ESPN_RESULTS_ENABLED: "0", NHL_API_RESULTS_ENABLED: "0", MLB_API_RESULTS_ENABLED: "0" })
     assert.deepEqual(buildResultsProviders(), [])
   })
   it("odds-api mode keeps the metered scores endpoint and ESPN stays opt-in", () => {

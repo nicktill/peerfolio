@@ -3,9 +3,11 @@ import { PROP_MARKETS, TheOddsApiProvider } from "./the-odds-api.ts"
 import { createCompositeOdds, withSnapshotCache, type Source } from "./composite.ts"
 import { MockProvider } from "./mock.ts"
 import { EspnResultsProvider } from "./espn.ts"
+import { NhlResultsProvider } from "./nhl-api.ts"
+import { MlbResultsProvider } from "./mlb-statsapi.ts"
 import { ExchangeOddsProvider, type CallCap } from "./polymarket-odds.ts"
 import type { OddsProvider, ResultsProvider, Sport } from "../types.ts"
-import { DEFAULT_RESOLVE, type ResolveConfig } from "../settlement.ts"
+import { DEFAULT_RESOLVE, resolveConfigForSport, type ResolveConfig, type ResolveConfigFor } from "../settlement.ts"
 
 /**
  * Wires providers from environment variables.
@@ -89,6 +91,9 @@ export function buildResultsProviders(): ResultsProvider[] {
   const out: ResultsProvider[] = []
   if (oddsSource() === "exchange") {
     if (process.env.ESPN_RESULTS_ENABLED !== "0") out.push(new EspnResultsProvider())
+    // The leagues' own keyless APIs: an independent second family for NHL and MLB. NHL_API_RESULTS_ENABLED=0 / MLB_API_RESULTS_ENABLED=0 turn them off.
+    if (process.env.NHL_API_RESULTS_ENABLED !== "0") out.push(new NhlResultsProvider())
+    if (process.env.MLB_API_RESULTS_ENABLED !== "0") out.push(new MlbResultsProvider())
     return out
   }
   // Metered: settlement asks these only after a free source (ESPN) shows a final, inside their own share of the plan.
@@ -103,10 +108,34 @@ export function buildResultsProviders(): ResultsProvider[] {
   return out
 }
 
-/** Mock mode has one source and no waiting, so local settlement is instant. */
+/** How many distinct families in `providers` can answer for a sport. */
+export function familiesFor(providers: ResultsProvider[], sport: Sport): number {
+  return new Set(providers.filter((p) => !p.sports || p.sports.includes(sport)).map((p) => p.family ?? p.name)).size
+}
+
+/**
+ * Per-sport settlement policy (see FREE_RESULT_FAMILIES): sports with two free families keep requiring both, the rest settle
+ * on ESPN alone behind the stricter single-source safety net. SPORTS_MIN_RESULT_SOURCES, when set, overrides the quorum for
+ * every sport (and the route then insists that many families exist). Mock mode settles instantly.
+ */
+export function resolveConfigFor(providers: ResultsProvider[]): ResolveConfigFor {
+  const override = Number(process.env.SPORTS_MIN_RESULT_SOURCES)
+  return (sport) => {
+    if (isMockMode()) return { ...DEFAULT_RESOLVE, minSources: 1, settleDelayMs: 0 }
+    if (override >= 1) return { ...DEFAULT_RESOLVE, minSources: override }
+    return resolveConfigForSport(DEFAULT_RESOLVE, sport, familiesFor(providers, sport))
+  }
+}
+
+/** Global config (the override or the two-family default), kept for callers that do not know the sport. */
 export function resolveConfig(): ResolveConfig {
   if (isMockMode()) return { ...DEFAULT_RESOLVE, minSources: 1, settleDelayMs: 0 }
-  // Until a second independent results source exists, the owner can knowingly lower this (see STATUS.md).
   const min = Number(process.env.SPORTS_MIN_RESULT_SOURCES)
   return min >= 1 ? { ...DEFAULT_RESOLVE, minSources: min } : DEFAULT_RESOLVE
+}
+
+/** Sports that cannot settle because too few families cover them (zero providers, or fewer than an explicit override asks for). */
+export function sportsWithoutQuorum(providers: ResultsProvider[], sports: readonly Sport[]): Sport[] {
+  const cfgFor = resolveConfigFor(providers)
+  return sports.filter((s) => familiesFor(providers, s) < cfgFor(s).minSources || familiesFor(providers, s) < 1)
 }

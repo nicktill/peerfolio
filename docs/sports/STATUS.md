@@ -51,7 +51,8 @@ Stale-line window (publish within 24 h, lock 2 h, freeze on movement), start-tim
 | `THE_ODDS_API_MONTHLY_CREDITS` | Plan size for pacing, default 500 |
 | `PROPLINE_API_KEY`, `PROPLINE_BASE_URL`, `PROPLINE_MONTHLY_CREDITS` | Optional second, Odds-API-compatible source |
 | `SPORTS_PROPS_ENABLED` | `1` to fetch player props (costs more credits) |
-| `SPORTS_MIN_RESULT_SOURCES` | Override the 2-source settlement rule (default 2) |
+| `NHL_API_RESULTS_ENABLED`, `MLB_API_RESULTS_ENABLED` | The leagues' own keyless results feeds (exchange mode); on unless `0` |
+| `SPORTS_MIN_RESULT_SOURCES` | Global override of the per-sport quorum below. Unset by default; if set higher than a sport has families, that sport cannot settle |
 | `SPORTS_TENNIS_TOTALS` | `1` offers tennis total games (needs confirmed score semantics first) |
 | `SPORTS_MOCK` | `1` uses the offline mock for odds and results (local/dev only) |
 | `CRON_SECRET` | Already used by other crons; also guards sports cron and admin void |

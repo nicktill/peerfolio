@@ -88,6 +88,8 @@ export type EventRef = { externalId: string; homeName: string; awayName: string;
 export interface ResultsProvider {
   readonly name: string
   readonly family?: string
+  /** Sports this source can answer for; unset means any. Settlement counts a source toward a sport's quorum only if it covers it. */
+  readonly sports?: readonly Sport[]
   fetchResults(sport: Sport, events: EventRef[]): Promise<EventResult[]>
   /**
    * Set on sources that bill per call. Settlement asks these only when a free source already shows a final, within the

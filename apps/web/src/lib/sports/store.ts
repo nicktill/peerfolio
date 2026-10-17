@@ -9,7 +9,7 @@ import { emit } from "./log.ts"
 import { acceptPick, DEFAULT_LIMITS, kickoffGateDecided, PickRejected, type PickContext, type PickRequest } from "./picks.ts"
 import { mirroredPairs } from "./report.ts"
 import { REPRICE, type Decision, type RepriceResult, type RepriceTarget } from "./reprice.ts"
-import { DEFAULT_RESOLVE, gradePick, needsMeteredSource, planSettlement, placeKey, resolveResult, resultsForEvent, type ResolveConfig, type SettlementPlan } from "./settlement.ts"
+import { DEFAULT_RESOLVE, gradePick, needsMeteredSource, planSettlement, observeFinal, placeKey, resolveResult, resultsForEvent, type ResolveConfig, type ResolveConfigFor, type SettlementPlan } from "./settlement.ts"
 import type { EventRef, EventResult, MarketKind, OddsProvider, Outcome, ResultsProvider, Selection, Sport } from "./types.ts"
 import { hasDraw, SPORTS } from "./types.ts"
 
@@ -1024,7 +1024,7 @@ export async function sweepVoidedMarkets(db: Db, now: Date) {
  * from the `results` providers (a different source than the odds), and an
  * event only settles when `resolveResult` says so.
  */
-export async function settleDueEvents(db: Db, results: ResultsProvider[], now: Date, cfg: ResolveConfig = DEFAULT_RESOLVE, usage?: UsageStore) {
+export async function settleDueEvents(db: Db, results: ResultsProvider[], now: Date, cfgIn: ResolveConfig | ResolveConfigFor = DEFAULT_RESOLVE, usage?: UsageStore) {
   const events = await db
     .selectDistinct({ event: sportsEvents })
     .from(sportsEvents)
@@ -1047,8 +1047,9 @@ export async function settleDueEvents(db: Db, results: ResultsProvider[], now: D
   for (const sport of SPORTS) {
     const ofSport = events.map((e) => e.event).filter((e) => e.sport === sport)
     if (!ofSport.length) continue
+    const cfg = typeof cfgIn === "function" ? cfgIn(sport) : cfgIn
     const toRef = (e: (typeof ofSport)[number]): EventRef => ({ externalId: e.externalId, homeName: e.homeName, awayName: e.awayName, startsAt: e.startsAt })
-    const answers = await Promise.all(free.map((p) => ask(p, sport, ofSport.map(toRef))))
+    const answers = await Promise.all(free.filter((p) => !p.sports || p.sports.includes(sport)).map((p) => ask(p, sport, ofSport.map(toRef))))
 
     // Metered sources (Odds API /scores) only for the events a free source has already finalised, and only inside their own credit pace.
     const freeAll = answers.flatMap((a) => a.r)
@@ -1077,16 +1078,18 @@ export async function settleDueEvents(db: Db, results: ResultsProvider[], now: D
     for (const event of ofSport) {
       const { results: mine, matched } = resultsForEvent(event, all)
       const learned = Object.entries(matched).filter(([src, id]) => event.aliases?.[src] !== id)
+      const knownAliases: Record<string, string> = { ...event.aliases, ...Object.fromEntries(learned) }
       if (learned.length) {
-        await db.update(sportsEvents).set({ aliases: { ...event.aliases, ...Object.fromEntries(learned) } }).where(eq(sportsEvents.id, event.id))
+        await db.update(sportsEvents).set({ aliases: knownAliases }).where(eq(sportsEvents.id, event.id))
       }
-      const sawFinal = mine.some((r) => r.status === "final")
-      let firstSeen = event.finalFirstSeenAt
-      if (sawFinal && !firstSeen) {
-        firstSeen = now
-        await db.update(sportsEvents).set({ finalFirstSeenAt: now }).where(eq(sportsEvents.id, event.id))
+      // The score at the moment a final was first seen is kept (under a reserved alias key, no schema change) so a later change is caught.
+      const seen = observeFinal(mine, { firstSeen: event.finalFirstSeenAt, firstSeenScore: knownAliases._finalScore ?? null }, now)
+      const { firstSeen, firstSeenScore } = seen
+      if (seen.changed) {
+        const aliases = { ...knownAliases, ...(firstSeenScore ? { _finalScore: firstSeenScore } : {}) }
+        await db.update(sportsEvents).set({ finalFirstSeenAt: firstSeen, aliases }).where(eq(sportsEvents.id, event.id))
       }
-      const res = resolveResult(mine, { now, startsAt: event.startsAt, finalFirstSeenAt: firstSeen, sourcesAnswered }, cfg)
+      const res = resolveResult(mine, { now, startsAt: event.startsAt, finalFirstSeenAt: firstSeen, sourcesAnswered, sport, firstSeenScore }, cfg)
       if (res.kind === "wait") out.waiting++
       else if (res.kind === "review") {
         out.review++
