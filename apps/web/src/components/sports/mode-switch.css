@@ -280,7 +280,9 @@
   .sp-world:not([aria-selected="true"]) .am-card[data-k="1"] { top: 44%; }
 }
 @media (max-width: 760px) {
-  .sp-stage .sp-world[data-world] { aspect-ratio: 1 / .8; max-height: 150px; padding: 12px; }
+  /* Size to the content (never a clamped height, which cut the headline in half on iPhone Safari): the card is a bottom-aligned flex column with a floor height. */
+  .sp-stage .sp-world[data-world] { aspect-ratio: auto; height: auto; max-height: none; min-height: 128px; padding: 12px; display: flex; flex-direction: column; justify-content: flex-end; }
+  .sp-stage .sp-world[data-world] .sp-world-copy { height: auto; flex: none; }
   .sp-stage .fa-chart { bottom: 40px; height: 44%; }
   .sp-stage .ar-field { bottom: 36px; height: 46%; }
   .sp-world-copy strong { font-size: 24px; line-height: 26px; }
