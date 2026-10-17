@@ -48,6 +48,6 @@ jobs:
           [ -n "$DATABASE_URL" ] || { echo "Set the DATABASE_URL repository secret." >&2; exit 1; }
           # SIGTERM at 5h50m lets the worker finish its cycle and exit 0. Exit code 124 is that normal handover, not a failure.
           code=0
-          timeout --signal=TERM --kill-after=60s 5h50m node --experimental-strip-types scripts/live-odds-worker.mts || code=$?
+          timeout --signal=TERM --kill-after=60s 350m node --experimental-strip-types scripts/live-odds-worker.mts || code=$?
           [ "$code" = "124" ] && code=0
           exit "$code"
