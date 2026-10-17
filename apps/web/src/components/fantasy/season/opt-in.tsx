@@ -7,13 +7,13 @@ import { useState } from "react"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import { Choice, Row } from "@web/components/fantasy/choice"
-import { SeasonFormatRow } from "@web/components/fantasy/season/list-parts"
 import { useToast } from "@web/components/ui/toast"
 import { mutate } from "@web/lib/use-api"
 
 const LENGTHS = [
   { label: "4 rounds", value: 4 },
   { label: "8 rounds", value: 8 },
+  { label: "12 rounds", value: 12 },
   { label: "Open-ended", value: null },
 ] as const
 
@@ -23,14 +23,13 @@ const LENGTHS = [
  */
 export function SeasonOptIn({ leagueId, league, onStarted }: { leagueId: string; league: { name: string; emoji: string; accent: string; isOwner: boolean; isClosed: boolean }; onStarted: () => void }) {
   const { toast } = useToast()
-  const [format, setFormat] = useState<{ mode: "trading" | "draft"; picks: number }>({ mode: "trading", picks: 5 })
   const [length, setLength] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
 
   async function start() {
     setBusy(true)
     try {
-      await mutate(`/api/fantasy/${leagueId}/season`, { body: { action: "next", mode: format.mode, rounds: length, picks: format.picks } })
+      await mutate(`/api/fantasy/${leagueId}/season`, { body: { action: "next", mode: "trading", rounds: length, picks: 5 } })
       toast("Weekly rounds are on.", "success")
       onStarted()
     } catch (error) {
@@ -52,7 +51,7 @@ export function SeasonOptIn({ leagueId, league, onStarted }: { leagueId: string;
           </span>
           <div>
             <span className="fw-eyebrow">Fantasy / Weekly rounds</span>
-            <h1>Win the week</h1>
+            <h1>Add weekly rounds</h1>
           </div>
         </div>
       </header>
@@ -64,9 +63,8 @@ export function SeasonOptIn({ leagueId, league, onStarted }: { leagueId: string;
         {league.isOwner && !league.isClosed ? (
           <div className="fs-form">
             <p className="fs-hint" style={{ marginTop: 0 }}>
-              A new round every Monday: everyone is ranked, the week has a winner and a recap, and a season crowns a champion. Your league keeps working exactly as it does now; nothing is reset.
+              Your league keeps its long-race standings. Weekly rounds add a second scoreboard that starts next Monday: Round 1 only counts that week, and nothing so far is reset. Each round ranks everyone, the week gets a winner and a recap, and points build a season table.
             </p>
-            <SeasonFormatRow mode={format.mode} picks={format.picks} onChange={setFormat} />
             <Row label="Length">
               {LENGTHS.map((l) => (
                 <Choice key={l.label} active={length === l.value} onClick={() => setLength(l.value)}>

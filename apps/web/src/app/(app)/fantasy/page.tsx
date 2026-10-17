@@ -7,13 +7,14 @@ import Link from "next/link"
 import { ArrowRight, Clock, Infinity as Forever, Plus, Trophy, Users } from "lucide-react"
 import { formatPercent } from "@web/lib/format"
 import { visibleReturn } from "@web/lib/return-display"
+import { LeagueMark } from "@web/components/league/league-mark"
+import { InfoTip, Tip } from "@web/components/ui/tip"
 import { revealStyle } from "@web/components/motion/reveal"
 import { useToast } from "@web/components/ui/toast"
 import { mutate, useApi } from "@web/lib/use-api"
 import { timeLeft } from "@web/components/fantasy/time-left"
-import { Choice, Row } from "@web/components/fantasy/choice"
-import { LookPicker } from "@web/components/fantasy/league-look-picker"
-import { FantasyEmpty, RoundMeta, SeasonFormatRow } from "@web/components/fantasy/season/list-parts"
+import { CreateLeagueFlow } from "@web/components/fantasy/create-league-flow"
+import { FantasyEmpty, RoundMeta, SeasonLeaders } from "@web/components/fantasy/season/list-parts"
 import type { RoundChip } from "@web/lib/fantasy-season-view"
 import dynamic from "next/dynamic"
 import { ModePanel, ModeSwitch, useFantasyMode } from "@web/components/sports/mode-switch"
@@ -58,7 +59,7 @@ export default function FantasyPage() {
           <p className="fw-lede">Everyone starts with the same cash. Pick your stocks, compete with friends, and let the returns talk.</p>
         </div>
         <div className="fw-actions">
-          <span className="fw-pill">Play money</span>
+          <span className="fw-pill">Play money<InfoTip text="Everyone trades with virtual cash. Nothing real is at stake." label="About play money" /></span>
           <button type="button" className="fw-btn" data-solid aria-expanded={mode === "create"} onClick={() => setMode(mode === "create" ? "none" : "create")}>
             <Plus aria-hidden /> Start fantasy league
           </button>
@@ -68,8 +69,8 @@ export default function FantasyPage() {
         </div>
       </header>
 
+      {mode === "create" ? <CreateLeagueFlow onClose={() => setMode("none")} /> : null}
       <ModePanel mode={side}>
-      {mode === "create" ? <CreateForm onCancel={() => setMode("none")} /> : null}
       {mode === "join" ? <JoinForm onDone={() => { setMode("none"); void refetch() }} /> : null}
 
       {loading && !data ? (
@@ -85,40 +86,40 @@ export default function FantasyPage() {
               <li key={league.id} className="reveal" style={revealStyle(i + 1)}>
                 <Link href={`/fantasy/${league.id}`} className="fw-league">
                   <span className="fw-art" data-accent={league.accent} aria-hidden>
-                    <span>{league.emoji}</span>
+                    <LeagueMark value={league.emoji} accent={league.accent} size={36} />
                   </span>
                   <div className="fw-league-body">
                     <h2>{league.name}</h2>
                     <p className="fw-league-meta">
-                      <span>
-                        <Users aria-hidden />
-                        <span className="numeric">{league.memberCount}</span> {league.memberCount === 1 ? "player" : "players"}
-                      </span>
-                      {(league.round?.mode === "draft" ? league.round.seasonRank : league.yourRank) && league.memberCount > 1 ? (
+                      <Tip text="Players in this league">
                         <span>
-                          <Trophy aria-hidden />
-                          <span className="numeric">#{league.round?.mode === "draft" ? league.round.seasonRank : league.yourRank}</span> of {league.memberCount}
+                          <Users aria-hidden />
+                          <span className="numeric">{league.memberCount}</span> {league.memberCount === 1 ? "player" : "players"}
                         </span>
+                      </Tip>
+                      {league.yourRank && league.memberCount > 1 ? (
+                        <Tip text={`You are #${league.yourRank} of ${league.memberCount} by total return`}>
+                          <span>
+                            <Trophy aria-hidden />
+                            <span className="numeric">#{league.yourRank}</span> of {league.memberCount}
+                          </span>
+                        </Tip>
                       ) : null}
                       <RoundMeta round={league.round} />
-                      <span>
-                        {league.endsAt ? <Clock aria-hidden /> : <Forever aria-hidden />}
-                        {league.isClosed ? "Final" : league.endsAt ? timeLeft(league.endsAt) : "All-time"}
-                      </span>
+                      <Tip text={league.endsAt ? "Time until this league ends" : "All-time: no end date"}>
+                        <span>
+                          {league.endsAt ? <Clock aria-hidden /> : <Forever aria-hidden />}
+                          {league.isClosed ? "Final" : league.endsAt ? timeLeft(league.endsAt) : "All-time"}
+                        </span>
+                      </Tip>
                     </p>
                   </div>
-                  {league.round?.mode === "draft" ? (
-                    <div className="fw-league-return">
-                      <strong>{league.round.seasonPoints ?? 0}</strong>
-                      <span className="fw-note">Season points</span>
-                    </div>
-                  ) : (
-                    <div className="fw-league-return">
-                      <strong className={shown > 0 ? "fw-up" : shown < 0 ? "fw-down" : undefined}>{formatPercent(league.yourReturn, 2)}</strong>
-                      <span className="fw-note">Your return</span>
-                    </div>
-                  )}
+                  <div className="fw-league-return">
+                    <strong className={shown > 0 ? "fw-up" : shown < 0 ? "fw-down" : undefined}>{formatPercent(league.yourReturn, 2)}</strong>
+                    <span className="fw-note">Your return</span>
+                  </div>
                   <ArrowRight aria-hidden />
+                  {league.round && (league.round.leaders?.length ?? 0) > 0 ? <SeasonLeaders round={league.round} /> : null}
                 </Link>
               </li>
             )
@@ -129,101 +130,6 @@ export default function FantasyPage() {
       )}
       </ModePanel>
     </div>
-  )
-}
-
-const CASH = [10_000, 100_000, 1_000_000]
-const DURATIONS = [
-  { label: "1 week", days: 7 },
-  { label: "1 month", days: 30 },
-  { label: "3 months", days: 90 },
-  { label: "All-time", days: null },
-] as const
-const CAPS = [
-  { label: "No cap", value: null },
-  { label: "25%", value: 25 },
-  { label: "10%", value: 10 },
-] as const
-
-function CreateForm({ onCancel }: { onCancel: () => void }) {
-  const { toast } = useToast()
-  const [saving, setSaving] = useState(false)
-  const [name, setName] = useState("")
-  const [look, setLook] = useState({ emoji: "🏈", accent: "emerald" })
-  const [cash, setCash] = useState(100_000)
-  const [days, setDays] = useState<number | null>(30)
-  const [cap, setCap] = useState<number | null>(null)
-  const [format, setFormat] = useState<{ mode: "trading" | "draft"; picks: number }>({ mode: "trading", picks: 5 })
-
-  async function submit(event: React.FormEvent) {
-    event.preventDefault()
-    setSaving(true)
-    try {
-      const result = await mutate<{ league: { id: string } }>("/api/fantasy", {
-        body: {
-          name,
-          emoji: look.emoji,
-          accent: look.accent,
-          startingCash: cash,
-          maxPositionPct: cap,
-          endsAt: days ? new Date(Date.now() + days * 86_400_000).toISOString() : null,
-          season: { mode: format.mode, rounds: null, picks: format.picks },
-        },
-      })
-      window.location.href = `/fantasy/${result.league.id}`
-    } catch (error) {
-      toast(error instanceof Error ? error.message : "Couldn't create that league.", "error")
-      setSaving(false)
-    }
-  }
-
-  return (
-    <form onSubmit={submit} className="fw-form animate-rise-in">
-      <div>
-        <label htmlFor="fantasy-name">League name</label>
-        <input
-          id="fantasy-name"
-          required
-          minLength={2}
-          maxLength={40}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Wolves of Main Street"
-          className="fw-input"
-        />
-      </div>
-      <LookPicker look={look} name={name} onChange={setLook} />
-      <Row label="Starting cash (same for everyone)">
-        {CASH.map((c) => (
-          <Choice key={c} active={cash === c} onClick={() => setCash(c)}>
-            ${c.toLocaleString()}
-          </Choice>
-        ))}
-      </Row>
-      <Row label="How long">
-        {DURATIONS.map((d) => (
-          <Choice key={d.label} active={days === d.days} onClick={() => setDays(d.days)}>
-            {d.label}
-          </Choice>
-        ))}
-      </Row>
-      <SeasonFormatRow mode={format.mode} picks={format.picks} onChange={setFormat} />
-      <Row label="Biggest single pick">
-        {CAPS.map((c) => (
-          <Choice key={c.label} active={cap === c.value} onClick={() => setCap(c.value)}>
-            {c.label}
-          </Choice>
-        ))}
-      </Row>
-      <div className="fw-form-actions">
-        <button type="button" className="fw-btn" onClick={onCancel}>
-          Cancel
-        </button>
-        <button type="submit" className="fw-btn" data-solid disabled={saving} aria-busy={saving || undefined}>
-          {saving ? "Creating…" : "Create league"}
-        </button>
-      </div>
-    </form>
   )
 }
 

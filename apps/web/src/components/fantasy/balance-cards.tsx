@@ -15,7 +15,7 @@ const cents = (n: number) => Math.round(n * 100) / 100
 const signedCurrency = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${formatCurrency(Math.abs(n))}`
 
 /** Open stat: a small mono label over a large figure, no card around it. */
-export function Stat({ label, icon, tone, children }: { label: string; icon?: React.ReactNode; tone?: "rank" | "return" | "value" | "cash"; children: React.ReactNode }) {
+export function Stat({ label, icon, tone, children }: { label: React.ReactNode; icon?: React.ReactNode; tone?: "rank" | "return" | "value" | "cash"; children: React.ReactNode }) {
   return (
     <div className="fw-stat" data-tone={tone}>
       <dt>

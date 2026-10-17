@@ -1,5 +1,6 @@
 "use client"
 
+import { LeagueMark } from "@web/components/league/league-mark"
 import "@web/components/leagues/league-workspace.css"
 import "@web/components/app-4a.css"
 
@@ -132,7 +133,7 @@ export default function LeaguePage({ params }: { params: Promise<{ id: string }>
         <header className="pf-social-heading mt-4 flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-start gap-3">
             <span className="grid size-12 shrink-0 place-items-center rounded-xl border bg-card text-2xl" aria-hidden>
-              {data.league.emoji}
+              <LeagueMark value={data.league.emoji} accent="violet" size={36} />
             </span>
             <div>
               <h1 className="font-display text-3xl font-normal tracking-tight sm:text-4xl">{data.league.name}</h1>

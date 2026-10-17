@@ -8,6 +8,7 @@ const BENCH: Record<string, string> = { SPY: "the S&P 500", QQQ: "the Nasdaq 100
 const LABELS: Record<string, string> = {
   get_current_view: "Looking at your screen",
   get_portfolio_xray: "Running the portfolio X-Ray",
+  show_figure: "Drawing a figure",
   get_holdings: "Reading your holdings",
   get_league_standings: "Reading the standings",
   get_fantasy_league: "Reading your fantasy league",

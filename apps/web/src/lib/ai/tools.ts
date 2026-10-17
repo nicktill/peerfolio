@@ -14,6 +14,7 @@ import { MAX_LEAGUE_OVERVIEW, parseArgs, parseBenchmark, parseLimit, parseRange,
 import { loadPositions, loadXRay, trackedWindow } from "@web/lib/ai/portfolio-data"
 import type { XRay } from "@web/lib/ai/portfolio-xray"
 import { digestXRay } from "@web/lib/ai/xray-digest"
+import { FIGURES, figureFor, specToFigure, type FigureKind } from "@web/lib/ai/figures"
 import type { PageContext } from "@web/lib/ai/limits"
 import { thin, type Visual } from "@web/lib/ai/visuals"
 import { runProjectWealth } from "@web/lib/ai/tools-wealth"
@@ -60,9 +61,22 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
   switch (name) {
     case "get_portfolio_xray": {
       const xray = await cachedXRay(ctx.userId)
-      ctx.emit({ type: "xray", data: xray })
+      const args = parseArgs(rawArgs)
+      const kind = (FIGURES as readonly string[]).includes(args.figure as string) ? (args.figure as FigureKind) : "xray"
+      const focus = Array.isArray(args.focus) ? args.focus.filter((f): f is string => typeof f === "string").slice(0, 3) : null
+      if (kind === "xray") ctx.emit({ type: "xray", data: xray })
+      else {
+        const card = figureFor(kind, xray, focus)
+        if (card) ctx.emit({ type: "visual", data: card })
+      }
       // The screen draws the whole report; the model reads a digest of it, so its answer starts from the insight.
       return digestXRay(xray)
+    }
+    case "show_figure": {
+      const card = specToFigure(parseArgs(rawArgs))
+      if (!card) return { error: "That spec could not be drawn. Answer in plain text." }
+      ctx.emit({ type: "visual", data: card })
+      return { shown: card.kind, note: "The app drew it. Don't repeat its rows." }
     }
     case "get_holdings": {
       const limit = parseLimit(parseArgs(rawArgs))

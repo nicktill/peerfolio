@@ -385,6 +385,8 @@ export type RoundChip = {
   seasonRank: number | null
   seasonPoints: number | null
   seasonPlayers: number
+  /** The top of the season table (up to three), for a small leaderboard on the list. Empty until a round settles or when everyone is level. */
+  leaders: { userId: string; name: string | null; image: string | null; points: number; rank: number; isYou: boolean }[]
 }
 
 /**
@@ -418,13 +420,19 @@ export async function loadRoundChips(userId: string, leagueIds: string[], now = 
   const bySeason = new Map<string, { roundNumber: number; userId: string; percent: number; rank: number; points: number }[]>()
   for (const r of resultRows) bySeason.set(r.seasonId, [...(bySeason.get(r.seasonId) ?? []), { roundNumber: r.number, userId: r.userId, percent: n(r.pct), rank: r.rank, points: n(r.points) }])
 
+  const tables = new Map([...latest.values()].map((s) => [s.id, seasonStandings(bySeason.get(s.id) ?? [])] as const))
+  const leaderIds = [...new Set([...tables.values()].flatMap((t) => (t.length > 0 && t.every((r) => r.rank === 1) ? [] : t.slice(0, 3).map((r) => r.userId))))]
+  const people = leaderIds.length > 0 ? await db.select({ id: users.id, name: users.name, image: users.image }).from(users).where(inArray(users.id, leaderIds)) : []
+  const person = new Map(people.map((p) => [p.id, p]))
+
   for (const [leagueId, s] of latest) {
     const mode = s.mode as "trading" | "draft"
-    const table = seasonStandings(bySeason.get(s.id) ?? [])
+    const table = tables.get(s.id) ?? []
     const you = table.find((t) => t.userId === userId)
     // Everyone level (all 0%, or a first round nobody played) is not a ranking worth showing.
     const level = table.length > 0 && table.every((t) => t.rank === 1)
-    const base = { mode, seasonNumber: s.number, seasonRank: you && !level ? you.rank : null, seasonPoints: you ? you.points : null, seasonPlayers: table.length }
+    const leaders = level ? [] : table.slice(0, 3).map((r) => ({ userId: r.userId, name: person.get(r.userId)?.name ?? null, image: person.get(r.userId)?.image ?? null, points: r.points, rank: r.rank, isYou: r.userId === userId }))
+    const base = { mode, seasonNumber: s.number, seasonRank: you && !level ? you.rank : null, seasonPoints: you ? you.points : null, seasonPlayers: table.length, leaders }
     const current = roundNumberAt(s.startsAt, now, s.roundCount)
     if (s.status === "complete") {
       out.set(leagueId, { ...base, state: "complete", round: s.roundCount ?? current, at: null, kind: "complete", needsPicks: false })

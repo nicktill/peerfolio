@@ -2,8 +2,10 @@
 
 import "@web/components/fantasy/season/fantasy-season.css"
 
-import { CalendarDays, Lock, PenLine, Swords, Trophy } from "lucide-react"
-import { Choice, Row } from "@web/components/fantasy/choice"
+import { CalendarDays, Crown, Lock, PenLine, Swords, Trophy } from "lucide-react"
+import { formatPoints } from "@web/components/fantasy/season/season-format"
+import { Avatar } from "@web/components/ui/avatar"
+import { InfoTip } from "@web/components/ui/tip"
 import { Countdown } from "@web/components/fantasy/season/season-parts"
 import type { RoundChip } from "@web/lib/fantasy-season-view"
 
@@ -38,38 +40,33 @@ export function RoundMeta({ round }: { round: RoundChip | null | undefined }) {
       {round.at ? (
         <>
           {" "}
-          / <Countdown to={round.at} /> left
+          · <Countdown to={round.at} /> left
         </>
       ) : null}
     </span>
   )
 }
 
-/** "How it plays" for the create form: trading all week, or a weekly stock draft. */
-export function SeasonFormatRow({ mode, picks, onChange }: { mode: "trading" | "draft"; picks: number; onChange: (next: { mode: "trading" | "draft"; picks: number }) => void }) {
+/** The top of a league's season table, under its row on the list: who is winning this season, at a glance. */
+export function SeasonLeaders({ round }: { round: RoundChip }) {
   return (
-    <>
-      <Row label="How it plays">
-        <Choice active={mode === "trading"} onClick={() => onChange({ mode: "trading", picks })}>
-          Free trading
-        </Choice>
-        <Choice active={mode === "draft"} onClick={() => onChange({ mode: "draft", picks })}>
-          Weekly draft
-        </Choice>
-      </Row>
-      <p className="fs-hint" style={{ marginTop: -10 }}>
-        {mode === "draft" ? "Each week everyone picks stocks before the weekly lock. Equal weight, scored on the closes." : "Trade whenever you like. Every Monday a new round ranks the week's returns."}
-      </p>
-      {mode === "draft" ? (
-        <Row label="Picks per week">
-          {[3, 5, 8].map((p) => (
-            <Choice key={p} active={picks === p} onClick={() => onChange({ mode, picks: p })}>
-              {p}
-            </Choice>
-          ))}
-        </Row>
-      ) : null}
-    </>
+    <div className="fw-leaders">
+      <span className="fw-leaders-label">
+        <Crown aria-hidden /> Season {round.seasonNumber} standings
+        <InfoTip text="Points from weekly rounds. 1st earns one point per player, last earns one. Most points wins the season." label="How season points work" />
+      </span>
+      <ol>
+        {(round.leaders ?? []).map((l, i) => (
+          <li key={l.userId} data-you={l.isYou || undefined}>
+            <span className="fw-leaders-av" data-place={i + 1}>
+              <Avatar src={l.image} name={l.name} size="sm" />
+            </span>
+            <b>{l.isYou ? "You" : (l.name?.split(" ")[0] ?? "Player")}</b>
+            <em className="numeric">{formatPoints(l.points)} {l.points === 1 ? "pt" : "pts"}</em>
+          </li>
+        ))}
+      </ol>
+    </div>
   )
 }
 
@@ -86,7 +83,7 @@ export function FantasyEmpty() {
       <ol style={{ listStyle: "none", margin: "14px auto 0", padding: 0, maxWidth: 360, display: "grid", gap: 8, textAlign: "left", fontSize: 13, lineHeight: "20px" }}>
         <li><b style={{ fontWeight: 500, color: "var(--fw-fg)" }}>1. Start a league.</b> Same play cash for everyone.</li>
         <li><b style={{ fontWeight: 500, color: "var(--fw-fg)" }}>2. Send the invite link</b> to the group chat.</li>
-        <li><b style={{ fontWeight: 500, color: "var(--fw-fg)" }}>3. Win the week.</b> A new round every Monday, a champion at season end.</li>
+        <li><b style={{ fontWeight: 500, color: "var(--fw-fg)" }}>3. Win the week.</b> Optional weekly rounds: a new scoreboard every Monday, a champion at season end.</li>
       </ol>
     </div>
   )

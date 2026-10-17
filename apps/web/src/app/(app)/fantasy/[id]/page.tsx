@@ -5,7 +5,7 @@ import "@web/components/fantasy/fantasy-workspace.css"
 import { use, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, CalendarDays, Check, Clock, Flag, Infinity as Forever, Link2, Pencil } from "lucide-react"
+import { ArrowLeft, ArrowRight, CalendarDays, Check, Clock, Flag, Infinity as Forever, Link2, Pencil } from "lucide-react"
 import { initialsFor } from "@web/components/ui/avatar"
 import { RaceChart } from "@web/components/charts/race-chart"
 import { StandingsTable } from "@web/components/fantasy/standings-table"
@@ -13,7 +13,9 @@ import { EditLeagueDialog } from "@web/components/fantasy/edit-league-dialog"
 import { CashStat, PortfolioStat, RankStat, ReturnStat, SplitBar } from "@web/components/fantasy/balance-cards"
 import { TradePanel } from "@web/components/fantasy/trade-panel"
 import { TradeFeed, type FeedItem } from "@web/components/fantasy/trade-feed"
-import { SeasonStrip } from "@web/components/fantasy/season/season-strip"
+import { LeagueMark } from "@web/components/league/league-mark"
+import { Tip } from "@web/components/ui/tip"
+import { LeagueTop } from "@web/components/fantasy/season/league-top"
 import { timeLeft } from "@web/components/fantasy/time-left"
 import { useRankBaseline } from "@web/components/fantasy/use-rank-baseline"
 import { AnimatedNumber } from "@web/components/ui/animated-number"
@@ -112,7 +114,7 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
   const status = league.isClosed ? "Final standings" : league.endsAt ? timeLeft(league.endsAt) : "All-time"
 
   return (
-    <div className="fw">
+    <div className="fw" data-accent={league.accent}>
       <Link href="/fantasy" className="fw-back">
         <ArrowLeft className="size-3.5" aria-hidden /> Fantasy leagues
       </Link>
@@ -120,7 +122,7 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
       <header className="fw-head reveal" data-accent={league.accent} style={revealStyle(0)}>
         <div className="fw-identity">
           <span className="fw-art" data-accent={league.accent} aria-hidden>
-            <span>{league.emoji}</span>
+            <LeagueMark value={league.emoji} accent={league.accent} size={42} />
           </span>
           <div>
             <span className="fw-eyebrow">Fantasy / Play money</span>
@@ -138,6 +140,13 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
             {league.isClosed ? <Flag aria-hidden /> : league.endsAt ? <Clock aria-hidden /> : <Forever aria-hidden />}
             {status}
           </span>
+          {data.season ? (
+            <Tip text="Every Monday a fresh scoreboard. The best week earns the most points. Tap to see the season.">
+              <Link href={`/fantasy/${id}/season`} className="fw-pill fw-live-pill">
+                <i aria-hidden /> Weekly rounds on <ArrowRight aria-hidden />
+              </Link>
+            </Tip>
+          ) : null}
           {league.isOwner && !league.isClosed ? (
             <button type="button" className="fw-btn" onClick={() => setEditing(true)}>
               <Pencil aria-hidden />
@@ -154,15 +163,17 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
         </div>
       </header>
 
-      <dl className="fw-panel fw-scoreboard reveal" style={revealStyle(1)}>
-        <RankStat rank={you.rank} total={standings.length} moved={moved} />
-        <ReturnStat percent={you.percent} value={you.value} startingCash={league.startingCash} />
-        <PortfolioStat value={you.value} cash={you.cash} />
-        <CashStat cash={you.cash} value={you.value} />
-        <SplitBar value={you.value} cash={you.cash} />
-      </dl>
-
-      {data.season ? <SeasonStrip leagueId={league.id} /> : null}
+      {data.season ? (
+        <LeagueTop leagueId={league.id} rank={you.rank} total={standings.length} moved={moved} percent={you.percent} value={you.value} cash={you.cash} startingCash={league.startingCash} />
+      ) : (
+        <dl className="fw-panel fw-scoreboard reveal" style={revealStyle(1)}>
+          <RankStat rank={you.rank} total={standings.length} moved={moved} />
+          <ReturnStat percent={you.percent} value={you.value} startingCash={league.startingCash} />
+          <PortfolioStat value={you.value} cash={you.cash} />
+          <CashStat cash={you.cash} value={you.value} />
+          <SplitBar value={you.value} cash={you.cash} />
+        </dl>
+      )}
 
       {league.isOwner && !league.isClosed ? (
         <EditLeagueDialog league={league} open={editing} onClose={() => setEditing(false)} onSaved={refetch} />

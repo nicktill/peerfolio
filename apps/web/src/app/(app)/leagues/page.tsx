@@ -1,5 +1,6 @@
 "use client"
 
+import { LeagueMark } from "@web/components/league/league-mark"
 import "@web/components/leagues/league-workspace.css"
 import "@web/components/app-4a.css"
 
@@ -11,6 +12,7 @@ import { Card, CardContent } from "@web/components/ui/card"
 import { EmptyState } from "@web/components/ui/empty-state"
 import { Skeleton } from "@web/components/ui/skeleton"
 import { revealStyle } from "@web/components/motion/reveal"
+import { CreateLeagueFlow } from "@web/components/fantasy/create-league-flow"
 import { useToast } from "@web/components/ui/toast"
 import { mutate, useApi } from "@web/lib/use-api"
 import { cn } from "@web/lib/utils"
@@ -63,7 +65,7 @@ export default function LeaguesPage() {
         </div>
       </header>
 
-      {mode === "create" ? <CreateLeagueForm onDone={() => { setMode("none"); void refetch() }} /> : null}
+      {mode === "create" ? <CreateLeagueFlow kind="league" onClose={() => setMode("none")} onCreated={() => void refetch()} /> : null}
       {mode === "join" ? <JoinLeagueForm onDone={() => { setMode("none"); void refetch() }} /> : null}
 
       {loading && !data ? (
@@ -91,7 +93,7 @@ export default function LeaguesPage() {
                 <div className="pf-league-card-top"><span>Private league</span><span>{league.role === "owner" ? "You run this one" : "Member"}</span></div>
                 <div className="flex items-start gap-3">
                   <span className="pf-social-league-icon grid size-11 shrink-0 place-items-center rounded-xl border bg-background text-2xl" aria-hidden>
-                    {league.emoji}
+                    <LeagueMark value={league.emoji} accent={league.accent} size={34} />
                   </span>
                   <div className="min-w-0 flex-1">
                     <h2 className="truncate font-semibold">{league.name}</h2>
@@ -127,106 +129,6 @@ export default function LeaguesPage() {
         </Card>
       )}
     </div>
-  )
-}
-
-const EMOJI_CHOICES = ["🏆", "📈", "🐂", "🎯", "🧠", "🍀", "⚡", "🦈"]
-const ACCENT_CHOICES = ["emerald", "violet", "amber", "sky", "rose"] as const
-
-function CreateLeagueForm({ onDone }: { onDone: () => void }) {
-  const { toast } = useToast()
-  const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState({ name: "", description: "", emoji: "🏆", accent: "emerald" })
-
-  async function submit(event: React.FormEvent) {
-    event.preventDefault()
-    setSaving(true)
-    try {
-      await mutate("/api/leagues", {
-        body: { ...form, description: form.description.trim() || undefined },
-      })
-      toast("League created.", "success")
-      onDone()
-    } catch (error) {
-      toast(error instanceof Error ? error.message : "Couldn't create that league.", "error")
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <form onSubmit={submit} className="space-y-4 rounded-xl border bg-card p-5">
-      <div className="space-y-1.5">
-        <label htmlFor="league-name" className="text-xs font-medium text-muted-foreground">
-          League name
-        </label>
-        <input
-          id="league-name"
-          value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
-          placeholder="The Group Chat"
-          className="h-10 w-full rounded-lg border bg-background px-3 text-sm"
-          autoFocus
-        />
-      </div>
-
-      <div className="space-y-1.5">
-        <label htmlFor="league-desc" className="text-xs font-medium text-muted-foreground">
-          Description (optional)
-        </label>
-        <input
-          id="league-desc"
-          value={form.description}
-          onChange={(e) => setForm({ ...form, description: e.target.value })}
-          placeholder="Bragging rights only"
-          className="h-10 w-full rounded-lg border bg-background px-3 text-sm"
-        />
-      </div>
-
-      <fieldset>
-        <legend className="mb-2 text-xs font-medium text-muted-foreground">Icon</legend>
-        <div className="flex flex-wrap gap-1.5">
-          {EMOJI_CHOICES.map((emoji) => (
-            <button
-              key={emoji}
-              type="button"
-              onClick={() => setForm({ ...form, emoji })}
-              aria-pressed={form.emoji === emoji}
-              className={cn(
-                "h-9 w-9 rounded-lg border text-lg transition-colors",
-                form.emoji === emoji ? "border-primary bg-accent" : "hover:bg-secondary",
-              )}
-            >
-              {emoji}
-            </button>
-          ))}
-        </div>
-      </fieldset>
-
-      <fieldset>
-        <legend className="mb-2 text-xs font-medium text-muted-foreground">Colour</legend>
-        <div className="flex flex-wrap gap-1.5">
-          {ACCENT_CHOICES.map((accent) => (
-            <button
-              key={accent}
-              type="button"
-              onClick={() => setForm({ ...form, accent })}
-              aria-pressed={form.accent === accent}
-              className={cn(
-                "rounded-lg border px-3 py-1.5 text-xs font-medium capitalize transition-colors",
-                form.accent === accent ? "border-primary bg-accent" : "hover:bg-secondary",
-              )}
-            >
-              {accent}
-            </button>
-          ))}
-        </div>
-      </fieldset>
-
-      <Button type="submit" loading={saving}>
-        Create league
-      </Button>
-    </form>
   )
 }
 

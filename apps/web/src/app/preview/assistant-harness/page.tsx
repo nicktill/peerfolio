@@ -3,6 +3,7 @@ import { notFound } from "next/navigation"
 import { AssistantProvider } from "@web/components/assistant/use-assistant"
 import { AssistantRoot } from "@web/components/assistant/assistant"
 import { CannedAssistant } from "./canned"
+import { Gallery } from "./gallery"
 
 export const metadata: Metadata = { title: "Assistant harness", robots: { index: false, follow: false } }
 
@@ -16,12 +17,13 @@ export default function AssistantHarness() {
 
   return (
     <div className="peerfolio-app min-h-screen">
-      <main className="peerfolio-main">
-        <h1 className="p-6 text-lg">Assistant harness</h1>
-        <p className="px-6 text-sm opacity-70">Open the assistant (bottom right) and pick a prompt. Answers are canned; nothing calls a model.</p>
-      </main>
-      <CannedAssistant />
       <AssistantProvider>
+        <main className="peerfolio-main">
+          <h1 className="p-6 text-lg">Assistant harness</h1>
+          <p className="px-6 text-sm opacity-70">Open the assistant (bottom right) or press a button to see each figure type. Answers are canned; nothing calls a model.</p>
+          <Gallery />
+        </main>
+        <CannedAssistant />
         <AssistantRoot />
       </AssistantProvider>
     </div>

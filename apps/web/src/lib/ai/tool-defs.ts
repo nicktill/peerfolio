@@ -13,8 +13,46 @@ export const TOOL_DEFS: ToolDef[] = [
     type: "function",
     name: "get_portfolio_xray",
     description:
-      "Runs the Portfolio X-Ray on the signed-in user's own holdings and returns a digest: value, today and period return, largest holdings, mix, concentration, top sector, risk and up to three flagged items, all computed by Peerfolio. The interface shows the report as a compact card, so give the verdict and the one or two things that matter, not the numbers again. Use it for broad asks. A broad index or plan fund as the largest holding is diversified exposure, not single-company concentration. When sector coverage is partial, say the sector shares describe only the classified stocks.",
-    parameters: { type: "object", properties: {}, required: [], additionalProperties: false },
+      "Runs the Portfolio X-Ray on the signed-in user's own holdings and returns a digest: value, today and period return, largest holdings, mix, concentration, top sector, risk and up to three flagged items, all computed by Peerfolio. The interface draws the figure you pick with `figure` as a compact card, so give the verdict and the one or two things that matter, not the numbers again. Use it for broad asks. A broad index or plan fund as the largest holding is diversified exposure, not single-company concentration. When sector coverage is partial, say the sector shares describe only the classified stocks.",
+    parameters: {
+      type: "object",
+      properties: {
+        figure: {
+          type: "string",
+          enum: ["xray", "risk", "sectors", "mix", "donut", "stats", "scenario", "checklist", "performance", "contributors", "holding", "compare", "none"],
+          description:
+            "The figure the app draws beside your answer, chosen to fit the question. xray = the full report card, only for a broad \"analyze/review my portfolio\"; risk = concentration bars (biggest risks, diversification); sectors = sector breakdown; mix = stocks/ETFs/cash split as bars; donut = the same split as a ring; stats = a grid of headline numbers; scenario = a what-if slider (focus = the holding to stress, or none for the whole portfolio); checklist = what to review next; performance = returns and volatility (\"how am I doing\"); contributors = what moved the portfolio today; holding = one holding up close (\"is NVIDIA too big\"); compare = holdings side by side; none = no figure, for simple factual questions. Pick the narrowest one that answers the question; never default to xray.",
+        },
+        focus: { type: ["array", "null"], items: { type: "string" }, description: "Tickers the question names, for holding or compare (e.g. [\"NVDA\"] or [\"NVDA\",\"AAPL\"]); null otherwise." },
+      },
+      required: ["figure", "focus"],
+      additionalProperties: false,
+    },
+    strict: true,
+  },
+  {
+    type: "function",
+    name: "show_figure",
+    description:
+      "Draws a small figure beside your answer from a spec you fill in, for content that has a natural shape: a timeline of steps or events, a calendar of dated amounts, a checklist, a grid of stats, or a ring of shares. Use it only with facts from tool results or the user's own words, never invented portfolio numbers. Fill rows as: label = the text; value = a short display string (stat value, or the date for timeline and calendar rows); number = a plain number (percent for donut, amount for calendar), else null; detail = one short line or null. At most 12 rows. For anything about the user's own portfolio prefer get_portfolio_xray with a figure.",
+    parameters: {
+      type: "object",
+      properties: {
+        type: { type: "string", enum: ["timeline", "calendar", "checklist", "stats", "donut"] },
+        title: { type: "string", description: "Under 60 characters." },
+        items: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: { label: { type: "string" }, value: { type: ["string", "null"] }, number: { type: ["number", "null"] }, detail: { type: ["string", "null"] } },
+            required: ["label", "value", "number", "detail"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["type", "title", "items"],
+      additionalProperties: false,
+    },
     strict: true,
   },
   {

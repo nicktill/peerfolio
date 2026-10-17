@@ -17,6 +17,7 @@ import { domainOf, knownSet, collectUrls, type Source } from "@web/lib/ai/source
 import { nextRevealed } from "@web/lib/ai/reveal"
 import { formatCurrency } from "@web/lib/format"
 import type { XRay } from "@web/lib/ai/portfolio-xray"
+import { visualKey } from "@web/lib/ai/visuals"
 import { isWealthHref } from "@web/lib/wealth/link"
 import { useApi } from "@web/lib/use-api"
 import "@web/components/assistant/assistant.css"
@@ -579,7 +580,7 @@ function Panel({ onClose }: { onClose: () => void }) {
         ) : (
           <div className="pf-ai-thread" ref={thread}>
             {messages.map((m, i) => (
-              <Message key={m.id} m={m} last={i === messages.length - 1} phase={phase} activity={activity} steps={steps} known={known} asked={messages.slice(0, i).reverse().find((x) => x.role === "user")?.text ?? ""} busy={busy} onAsk={ask} onRetry={retry} repeatReport={!!m.xray && messages.slice(0, i).some((x) => !!x.xray)} earlierKinds={new Set(messages.slice(0, i).flatMap((x) => (x.visuals ?? []).map((v) => v.kind)))} />
+              <Message key={m.id} m={m} last={i === messages.length - 1} phase={phase} activity={activity} steps={steps} known={known} asked={messages.slice(0, i).reverse().find((x) => x.role === "user")?.text ?? ""} busy={busy} onAsk={ask} onRetry={retry} repeatReport={!!m.xray && messages.slice(0, i).some((x) => !!x.xray)} earlierKinds={new Set(messages.slice(0, i).flatMap((x) => (x.visuals ?? []).map(visualKey)))} />
             ))}
           </div>
         )}
@@ -870,7 +871,7 @@ function Message({ m, last, phase, activity, steps, known, asked, busy, onAsk, o
       {typed.text ? <Markdown text={typed.text} streaming={streaming} caret={streaming && !m.error} known={known} /> : null}
       {!streaming && m.sources ? <SourceChips sources={m.sources} /> : null}
       {m.visuals?.map((v) => (
-        <VisualCard key={v.kind} v={v} repeat={earlierKinds?.has(v.kind)} />
+        <VisualCard key={v.kind} v={v} repeat={earlierKinds?.has(visualKey(v))} />
       ))}
       {m.link && isWealthHref(m.link.href) && !streaming ? (
         <Link href={m.link.href} className="pf-ai-link">

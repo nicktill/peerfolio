@@ -9,8 +9,8 @@ import { ArrowRight, Clock, Infinity as Forever, Plus, Users } from "lucide-reac
 import { ModePanel } from "@web/components/sports/mode-switch"
 import { revealStyle } from "@web/components/motion/reveal"
 import { useToast } from "@web/components/ui/toast"
-import { Choice, Row } from "@web/components/fantasy/choice"
-import { LookPicker } from "@web/components/fantasy/league-look-picker"
+import { LeagueMark } from "@web/components/league/league-mark"
+import { CreateLeagueFlow } from "@web/components/fantasy/create-league-flow"
 import { timeLeft } from "@web/components/fantasy/time-left"
 import { SPORT_LABEL } from "@web/lib/sports/format"
 import { mutate, useApi } from "@web/lib/use-api"
@@ -27,15 +27,6 @@ type SportsSummary = {
   credits: number
   startingCredits: number
 }
-
-const CREDITS = [500, 1_000, 5_000]
-const DURATIONS = [
-  { label: "1 week", days: 7 },
-  { label: "1 month", days: 30 },
-  { label: "Season", days: 120 },
-  { label: "No end", days: null },
-] as const
-const SPORT_OPTIONS = ["nfl", "nba", "tennis"] as const
 
 /** The Sports side of the Fantasy page: your leagues, start one, or join with a code. */
 export function SportsHome({ switcher }: { switcher?: React.ReactNode }) {
@@ -63,7 +54,7 @@ export function SportsHome({ switcher }: { switcher?: React.ReactNode }) {
       </header>
 
       <ModePanel mode="sports">
-      {mode === "create" ? <CreateForm onCancel={() => setMode("none")} /> : null}
+      {mode === "create" ? <CreateLeagueFlow kind="sports" onClose={() => setMode("none")} /> : null}
       {mode === "join" ? (
         <JoinForm
           onDone={() => {
@@ -84,7 +75,7 @@ export function SportsHome({ switcher }: { switcher?: React.ReactNode }) {
             <li key={league.id} className="reveal" style={revealStyle(i + 1)}>
               <Link href={`/fantasy/sports/${league.id}`} className="fw-league">
                 <span className="fw-art" data-accent={league.accent} aria-hidden>
-                  <span>{league.emoji}</span>
+                  <LeagueMark value={league.emoji} accent={league.accent} size={36} />
                 </span>
                 <div className="fw-league-body">
                   <h2>{league.name}</h2>
@@ -121,82 +112,6 @@ export function SportsHome({ switcher }: { switcher?: React.ReactNode }) {
       )}
       </ModePanel>
     </>
-  )
-}
-
-function CreateForm({ onCancel }: { onCancel: () => void }) {
-  const { toast } = useToast()
-  const [saving, setSaving] = useState(false)
-  const [name, setName] = useState("")
-  const [look, setLook] = useState({ emoji: "🏈", accent: "emerald" })
-  const [credits, setCredits] = useState(1_000)
-  const [days, setDays] = useState<number | null>(30)
-  const [sports, setSports] = useState<string[]>(["nfl"])
-
-  const toggle = (s: string) => setSports((cur) => (cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]))
-
-  async function submit(event: React.FormEvent) {
-    event.preventDefault()
-    if (sports.length === 0) {
-      toast("Pick at least one sport.", "error")
-      return
-    }
-    setSaving(true)
-    try {
-      const result = await mutate<{ league: { id: string } }>("/api/sports/leagues", {
-        body: {
-          name,
-          emoji: look.emoji,
-          accent: look.accent,
-          sports,
-          startingCredits: credits,
-          endsAt: days ? new Date(Date.now() + days * 86_400_000).toISOString() : null,
-        },
-      })
-      window.location.href = `/fantasy/sports/${result.league.id}`
-    } catch (error) {
-      toast(error instanceof Error ? error.message : "Couldn't create the league.", "error")
-      setSaving(false)
-    }
-  }
-
-  return (
-    <form onSubmit={submit} className="fw-form animate-rise-in">
-      <div>
-        <label htmlFor="sports-name">League name</label>
-        <input id="sports-name" required minLength={2} maxLength={40} value={name} onChange={(e) => setName(e.target.value)} placeholder="Sunday Sharps" className="fw-input" />
-      </div>
-      <LookPicker look={look} name={name} onChange={setLook} />
-      <Row label="Sports">
-        {SPORT_OPTIONS.map((s) => (
-          <Choice key={s} active={sports.includes(s)} onClick={() => toggle(s)}>
-            {SPORT_LABEL[s]}
-          </Choice>
-        ))}
-      </Row>
-      <Row label="Starting credits (same for everyone)">
-        {CREDITS.map((c) => (
-          <Choice key={c} active={credits === c} onClick={() => setCredits(c)}>
-            {c.toLocaleString()}
-          </Choice>
-        ))}
-      </Row>
-      <Row label="How long">
-        {DURATIONS.map((d) => (
-          <Choice key={d.label} active={days === d.days} onClick={() => setDays(d.days)}>
-            {d.label}
-          </Choice>
-        ))}
-      </Row>
-      <div className="fw-form-actions">
-        <button type="button" className="fw-btn" onClick={onCancel}>
-          Cancel
-        </button>
-        <button type="submit" className="fw-btn" data-solid disabled={saving} aria-busy={saving || undefined}>
-          {saving ? "Creating…" : "Create league"}
-        </button>
-      </div>
-    </form>
   )
 }
 

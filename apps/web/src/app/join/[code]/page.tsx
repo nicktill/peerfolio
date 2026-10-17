@@ -1,4 +1,5 @@
 import { inviteMetadata } from "@web/lib/invite-metadata"
+import { LeagueMark } from "@web/components/league/league-mark"
 import { eq, sql } from "drizzle-orm"
 import Image from "next/image"
 import Link from "next/link"
@@ -47,9 +48,7 @@ export default async function JoinPage({ params }: { params: Promise<{ code: str
         </>
       ) : (
         <>
-          <span className="text-4xl" aria-hidden>
-            {league.emoji}
-          </span>
+          <LeagueMark value={league.emoji} accent={league.accent ?? "emerald"} size={56} />
           <h1 className="mt-4 text-2xl font-semibold tracking-tight">
             You&apos;re invited to {league.name}
           </h1>

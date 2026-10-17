@@ -121,3 +121,32 @@ export function PersonRows({ rows, showPoints = true, leagueId, onChanged }: { r
     </ul>
   )
 }
+
+/** A cup with the round engraved on its plinth. Gold for wins, bigger with a star for a season title. */
+export function Cup({ kind, label, title }: { kind: TrophyKind; label: string; title?: string }) {
+  const big = kind === "season_champion" || kind === "perfect_season"
+  const silver = kind === "season_runner_up" || kind === "season_third"
+  const Icon = TROPHY_ICON[kind]
+  const showIcon = kind !== "round_win" && !big
+  return (
+    <figure className="fs-cup" data-kind={kind} data-big={big || undefined} data-silver={silver || undefined} title={title}>
+      <svg viewBox="0 0 48 56" aria-hidden>
+        <defs>
+          <linearGradient id={`cup-${kind}`} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor={silver ? "#e8eaee" : "#ffe27a"} />
+            <stop offset=".55" stopColor={silver ? "#9aa1ad" : "#d4a82a"} />
+            <stop offset="1" stopColor={silver ? "#6b7280" : "#8a6414"} />
+          </linearGradient>
+        </defs>
+        <path d="M12 6h24v14c0 8-5 13-12 13S12 28 12 20z" fill={`url(#cup-${kind})`} />
+        <path d="M12 10H6c0 8 3 13 8 14M36 10h6c0 8-3 13-8 14" fill="none" stroke={`url(#cup-${kind})`} strokeWidth="3" strokeLinecap="round" />
+        <rect x="21" y="33" width="6" height="8" fill={`url(#cup-${kind})`} />
+        <rect x="14" y="41" width="20" height="6" rx="2" fill={`url(#cup-${kind})`} />
+        <path d="M17 9v10" stroke="rgb(255 255 255 / .45)" strokeWidth="2" strokeLinecap="round" />
+        {big ? <path d="M24 12l2.2 4.5 5 .7-3.6 3.5.9 5-4.5-2.4-4.5 2.4.9-5-3.6-3.5 5-.7z" fill="#fff6cf" /> : <text x="24" y="25" textAnchor="middle" fontFamily="Georgia, serif" fontSize="13" fontWeight="700" fill="#4a3604">{label.replace(/^[RS]/, "")}</text>}
+      </svg>
+      {showIcon ? <span className="fs-cup-ic"><Icon aria-hidden /></span> : null}
+      <figcaption>{label.startsWith("S") ? "Season" : "Round"}</figcaption>
+    </figure>
+  )
+}

@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { LeagueMark } from "@web/components/league/league-mark"
 import Image from "next/image"
 import Link from "next/link"
 import { notFound } from "next/navigation"
@@ -42,7 +43,7 @@ export default async function PublicRecapPage({ params }: Props) {
       </Link>
 
       <div className="rounded-3xl border bg-card/80 p-6 shadow-xl backdrop-blur">
-        <span className="text-4xl" aria-hidden>{league.emoji}</span>
+        <LeagueMark value={league.emoji} accent={league.accent ?? "emerald"} size={56} />
         <p className="mt-3 font-mono text-[11px] uppercase tracking-[0.09em] text-muted-foreground">
           {league.name} / Season {seasonNumber} / Round {recap.roundNumber}
         </p>

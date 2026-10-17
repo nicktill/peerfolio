@@ -429,6 +429,8 @@ for (const note of PICK_NOTES) {
 const { advanceLeague } = await import("../src/lib/fantasy-seasons.ts")
 await advanceLeague(fund.id, new Date())
 await advanceLeague(draft.id, new Date())
+// Weekly drafts are not offered in the app any more; the seeded draft league is removed again so the preview shows only what ships.
+await sql`DELETE FROM fantasy_leagues WHERE id = ${draft.id}`
 
 const recaps = await sql<{ league: string; round: number; token: string }[]>`
   SELECT l.name AS league, r.number AS round, rc.share_token AS token
@@ -444,7 +446,6 @@ const trophies = await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM fanta
 console.log("Fantasy leagues:")
 console.log(`  Legacy Stock Race   no season, invite ${legacy.inviteCode}   /fantasy/${legacy.id}`)
 console.log(`  Friday Fund         trading rounds, invite ${fund.inviteCode}   /fantasy/${fund.id}/season`)
-console.log(`  Sunday Draft Club   weekly draft, invite ${draft.inviteCode}   /fantasy/${draft.id}/season`)
 for (const s of settled) console.log(`  rounds settled in ${s.league}: ${s.settled} of ${s.total}`)
 console.log(`  trophies awarded: ${trophies[0]?.n ?? 0}`)
 console.log("Public recap links (no sign-in needed):")

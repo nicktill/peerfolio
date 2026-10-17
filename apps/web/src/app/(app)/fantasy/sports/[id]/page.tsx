@@ -5,8 +5,7 @@ import "@web/components/sports/sports-workspace.css"
 
 import { use, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, Check, Clock, Flag, Infinity as Forever, Link2, Lock, Minus, Undo2, X } from "lucide-react"
-import { Stat } from "@web/components/fantasy/balance-cards"
+import { ArrowLeft, Check, Link2, Lock, X } from "lucide-react"
 import { Choice } from "@web/components/fantasy/choice"
 import { timeLeft } from "@web/components/fantasy/time-left"
 import { revealStyle } from "@web/components/motion/reveal"
@@ -15,6 +14,10 @@ import { useToast } from "@web/components/ui/toast"
 import { useFantasyMode } from "@web/components/sports/mode-switch"
 import { eventTitle, formatOdds, lineLabel, lockLabel, marketTitle, pickSentence, SPORT_LABEL, winOn100, type DisplayLine, type DisplayMarket } from "@web/lib/sports/format"
 import { americanToDecimal } from "@web/lib/sports/odds"
+import { onColor, teamLook } from "@web/lib/sports/teams"
+import { InfoTip, Tip } from "@web/components/ui/tip"
+import { LeagueHero, LeaguePulse, Leaderboard, PickFeed } from "@web/components/sports/league-parts"
+import { PlayerBadge, TeamBadge } from "@web/components/sports/team-badge"
 import { plural } from "@web/lib/plural"
 import { mutate, useApi } from "@web/lib/use-api"
 
@@ -53,7 +56,6 @@ type Detail = {
 const dayOf = (iso: string) => new Date(iso).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })
 const timeOf = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
 const credits = (n: number) => n.toLocaleString()
-const asMarket = (p: PickRow): DisplayMarket => ({ ...p.market, event: p.event })
 
 export default function SportsLeaguePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -69,68 +71,35 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
   if (!data) return <p className="text-sm text-muted-foreground">{error ?? "Couldn't load this league."}</p>
 
   const { league, you, standings, markets, picks, leaguePicks } = data
-  const rank = standings.findIndex((s) => s.isYou) + 1
   const atRisk = picks.filter((p) => p.status === "open").reduce((sum, p) => sum + p.stake, 0)
   const ended = !!league.endsAt && new Date(league.endsAt).getTime() < Date.now()
   const status = ended ? "Final standings" : league.endsAt ? timeLeft(league.endsAt) : "No end"
   const shown = sport === "all" ? markets : markets.filter((m) => m.event.sport === sport)
 
   return (
-    <div className="fw">
+    <div className="fw" data-accent={league.accent}>
       <Link href="/fantasy" className="fw-back">
         <ArrowLeft className="size-3.5" aria-hidden /> Fantasy leagues
       </Link>
 
-      <header className="fw-head reveal" data-accent={league.accent} style={revealStyle(0)}>
-        <div className="fw-identity">
-          <span className="fw-art" data-accent={league.accent} aria-hidden>
-            <span>{league.emoji}</span>
-          </span>
-          <div>
-            <span className="fw-eyebrow">Sports / Play credits</span>
-            <h1>{league.name}</h1>
-          </div>
-        </div>
-        <ul className="fw-meta" aria-label="League rules">
-          <li className="fw-meta-status">{status}</li>
-          <li>{plural(standings.length, "player")}</li>
-          <li>{credits(league.startingCredits)} credits each</li>
-          <li>{league.sports.map((s) => SPORT_LABEL[s] ?? s).join(" · ")}</li>
-        </ul>
-        <div className="fw-actions">
-          <span className="fw-pill">
-            {ended ? <Flag aria-hidden /> : league.endsAt ? <Clock aria-hidden /> : <Forever aria-hidden />}
-            {status}
-          </span>
-          <InviteButton code={league.inviteCode} />
-        </div>
-      </header>
-
-      <dl className="fw-panel fw-scoreboard sp-scoreboard reveal" style={revealStyle(1)}>
-        <Stat label="Your rank">
-          <span className="fw-figure">
-            #{rank}
-            <small>of {standings.length}</small>
-          </span>
-        </Stat>
-        <Stat label="Credits">
-          <span className="fw-figure numeric">{credits(you.credits)}</span>
-        </Stat>
-        <Stat label="At risk">
-          <span className="fw-figure numeric">{credits(atRisk)}</span>
-        </Stat>
-      </dl>
+      <LeagueHero
+        league={league}
+        standings={standings}
+        you={you}
+        atRisk={atRisk}
+        openCount={picks.filter((p) => p.status === "open").length}
+        leaguePicks={leaguePicks}
+        status={status}
+        invite={<InviteButton code={league.inviteCode} />}
+      />
 
       <div className="fw-grid">
         <div className="fw-main">
           <section className="fw-panel reveal" style={revealStyle(2)} aria-labelledby="sp-markets-title">
             <div className="fw-section-head">
-              <h2 id="sp-markets-title">Open lines</h2>
+              <h2 id="sp-markets-title">Open lines<InfoTip side="bottom" label="How lines work" text={<>Everyone gets the same line and it never changes once you lock a pick. <b>+125</b> means 100 credits wins 125. <b>-110</b> means risking 110 wins 100. On a <b>spread</b>, your team must win by more than the number (or lose by less).</>} /></h2>
               <p>Fixed contest lines, not live odds</p>
             </div>
-            <p className="sp-explain">
-              Everyone gets the same line, and it never changes once you lock a pick in. <b>+125</b> means 100 credits wins 125. <b>-110</b> means risking 110 wins 100. On a <b>spread</b>, your team must win by more than the number (or lose by less).
-            </p>
             {league.sports.length > 1 ? (
               <div className="sp-filter fw-choices" role="group" aria-label="Filter by sport">
                 <Choice active={sport === "all"} onClick={() => setSport("all")}>
@@ -148,32 +117,19 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
 
           <section className="fw-panel reveal" style={revealStyle(3)} aria-labelledby="sp-standings-title">
             <div className="fw-section-head">
-              <h2 id="sp-standings-title">Standings</h2>
-              <p>Credits plus what&apos;s still riding.</p>
+              <h2 id="sp-standings-title">Leaderboard</h2>
+              <p>Credits, form and record</p>
             </div>
-            <ul className="fw-rows">
-              {standings.map((s, i) => (
-                <li key={`${s.name}-${i}`} className={`fw-standing sp-standing ${s.isYou ? "fw-you" : ""}`}>
-                  <span className="fw-rank" data-rank={i + 1}>{i + 1}</span>
-                  <div className="fw-standing-who">
-                    <strong>
-                      <span>{s.name}</span>
-                      {s.isYou ? <span className="fw-you-tag">You</span> : null}
-                    </strong>
-                  </div>
-                  <span className="fw-return numeric">{credits(s.credits)}</span>
-                </li>
-              ))}
-            </ul>
+            <Leaderboard standings={standings} start={league.startingCredits} leaguePicks={leaguePicks} />
           </section>
 
-          <PickList
-            title="Locked picks"
-            note="Everyone's picks, once the market closes"
-            empty="Picks show up here after each market locks, never before."
-            picks={leaguePicks}
-            delay={4}
-          />
+          <section className="fw-panel reveal" style={revealStyle(4)} aria-labelledby="sp-locked-title">
+            <div className="fw-section-head">
+              <h2 id="sp-locked-title">Locked picks</h2>
+              <p>Everyone&apos;s picks, once the market closes</p>
+            </div>
+            <PickFeed picks={leaguePicks} showName empty="Picks show up here after each market locks, never before." />
+          </section>
           {league.isOwner ? <MirrorReport leagueId={league.id} /> : null}
         </div>
 
@@ -191,7 +147,14 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
               void refetch()
             }}
           />
-          <PickList title="Your picks" note={picks.length === 0 ? "None yet" : plural(picks.length, "pick")} empty="Nothing yet. Credits don't win leagues." picks={picks} delay={4} />
+          <section className="fw-panel reveal" style={revealStyle(4)} aria-labelledby="sp-yours-title">
+            <div className="fw-section-head">
+              <h2 id="sp-yours-title">Your picks</h2>
+              <p>{picks.length === 0 ? "None yet" : plural(picks.length, "pick")}</p>
+            </div>
+            <PickFeed picks={picks} empty="Nothing yet. Credits don't win leagues." />
+          </section>
+          <LeaguePulse leaguePicks={leaguePicks} />
         </aside>
       </div>
       {/* Keeps the last rows clear of the phone pick sheet. */}
@@ -244,54 +207,7 @@ function Markets({ markets, selected, onSelect, disabled }: { markets: Market[];
         return (
           <li key={g.key}>
             {heading ? <h3 className="sp-day">{heading}</h3> : null}
-            <div className="sp-event">
-              <div className="sp-event-head">
-                <strong>{eventTitle(g.event)}</strong>
-                <span>
-                  {SPORT_LABEL[g.event.sport] ?? g.event.sport} · {timeOf(g.event.startsAt)}
-                </span>
-              </div>
-              {g.markets.map((m) => (
-                <div key={m.id} className="sp-market">
-                  <div className="sp-market-head">
-                    <span className="sp-market-title">{marketTitle(m)}</span>
-                    <span className="sp-lock">{lockLabel(m.lockAt)}</span>
-                  </div>
-                  <div className="sp-lines">
-                    {m.lines.map((l) => {
-                      const label = lineLabel(m, l)
-                      const mine = m.picked?.selection === l.selection
-                      return (
-                        <button
-                          key={l.id}
-                          type="button"
-                          className="sp-line"
-                          aria-pressed={selected?.line.id === l.id || mine}
-                          data-picked={mine || undefined}
-                          disabled={disabled || !!m.picked}
-                          aria-label={`${pickSentence(m, l)}, ${formatOdds(l.price)}, 100 credits wins ${winOn100(l.price)}${mine ? `, your pick, ${m.picked!.stake} credits` : ""}`}
-                          onClick={() => onSelect(m, l)}
-                        >
-                          <span className="sp-line-name">
-                            {label.name}
-                            {label.point ? <small>{label.point}</small> : null}
-                            {mine ? (
-                              <em className="sp-line-tag">
-                                <Lock aria-hidden /> Your pick · {credits(m.picked!.stake)}
-                              </em>
-                            ) : null}
-                          </span>
-                          <span className="sp-line-odds">
-                            <span className="sp-price">{formatOdds(l.price)}</span>
-                            <small>100 wins {winOn100(l.price)}</small>
-                          </span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <GameCard game={g} selected={selected} onSelect={onSelect} disabled={disabled} />
           </li>
         )
       })}
@@ -413,61 +329,6 @@ function Slip({
   )
 }
 
-/** Text, an icon and a sign carry the result, so colour is never the only signal. */
-const RESULT: Record<string, { label: string; icon: React.ReactNode }> = {
-  open: { label: "Open", icon: <Clock aria-hidden /> },
-  won: { label: "Won", icon: <Check aria-hidden /> },
-  lost: { label: "Lost", icon: <X aria-hidden /> },
-  push: { label: "Push", icon: <Minus aria-hidden /> },
-  void: { label: "Refunded", icon: <Undo2 aria-hidden /> },
-}
-
-function PickList({ title, note, empty, picks, delay }: { title: string; note: string; empty: string; picks: (PickRow & { name?: string })[]; delay: number }) {
-  const id = `sp-${title.toLowerCase().replace(/\W+/g, "-")}`
-  return (
-    <section className="fw-panel reveal" style={revealStyle(delay)} aria-labelledby={id}>
-      <div className="fw-section-head">
-        <h2 id={id}>{title}</h2>
-        <p>{note}</p>
-      </div>
-      {picks.length === 0 ? (
-        <p className="fw-empty">{empty}</p>
-      ) : (
-        <ul className="fw-picks">
-          {picks.map((p) => {
-            const m = asMarket(p)
-            const r = RESULT[p.status] ?? RESULT.open!
-            const net = p.payout == null ? null : p.payout - p.stake
-            return (
-              <li key={p.id} className="fw-pick sp-pick">
-                <div className="fw-pick-body">
-                  <strong>
-                    {p.name ? <span className="sp-pick-who">{p.name}: </span> : null}
-                    {pickSentence(m, p)}
-                  </strong>
-                  <span>
-                    {eventTitle(p.event)} · {SPORT_LABEL[p.event.sport] ?? p.event.sport} · {marketTitle(m)}
-                  </span>
-                  <span className="numeric">
-                    {credits(p.stake)} at {formatOdds(p.price)} · {p.payout == null ? `returns ${credits(p.totalReturn)} if it wins` : `paid ${credits(p.payout)}`}
-                  </span>
-                </div>
-                <div className="fw-pick-side">
-                  <span className="sp-result" data-status={p.status}>
-                    {r.icon}
-                    {r.label}
-                  </span>
-                  {net != null && p.status !== "open" ? <span className="sp-net numeric">{net > 0 ? `+${credits(net)}` : net < 0 ? `−${credits(-net)}` : "0"}</span> : null}
-                </div>
-              </li>
-            )
-          })}
-        </ul>
-      )}
-    </section>
-  )
-}
-
 function MirrorReport({ leagueId }: { leagueId: string }) {
   const { data } = useApi<{ pairs: { a: string; b: string; markets: number }[] }>(`/api/sports/leagues/${leagueId}/report`)
   return (
@@ -493,5 +354,133 @@ function MirrorReport({ leagueId }: { leagueId: string }) {
         </ul>
       )}
     </section>
+  )
+}
+
+/** Chance each side wins, from the moneyline prices with the bookmaker's margin taken out. */
+function winChances(lines: Line[]): Record<string, number> | null {
+  const home = lines.find((l) => l.selection === "home")
+  const away = lines.find((l) => l.selection === "away")
+  if (!home || !away) return null
+  const ph = 1 / americanToDecimal(home.price)
+  const pa = 1 / americanToDecimal(away.price)
+  return { home: ph / (ph + pa), away: pa / (ph + pa) }
+}
+
+function GameCard({ game, selected, onSelect, disabled }: { game: { key: string; event: EventInfo; markets: Market[] }; selected: { line: Line } | null; onSelect: (m: Market, l: Line) => void; disabled: boolean }) {
+  const { event } = game
+  const tennis = event.sport === "tennis"
+  const groups = (
+    [
+      { key: "winner", label: "Winner", test: (m: Market) => m.kind === "moneyline" },
+      { key: "spread", label: "Spread", test: (m: Market) => m.kind === "spread" },
+      { key: "total", label: "Total", test: (m: Market) => m.kind === "total" },
+      { key: "props", label: "Props", test: (m: Market) => m.kind === "player_prop" },
+    ] as const
+  )
+    .map((g) => ({ ...g, markets: game.markets.filter(g.test) }))
+    .filter((g) => g.markets.length > 0)
+  const [tab, setTab] = useState<string>(groups[0]?.key ?? "winner")
+  const active = groups.find((g) => g.key === tab) ?? groups[0]
+  const winner = game.markets.find((m) => m.kind === "moneyline")
+  const lock = game.markets[0]?.lockAt
+  const chances = winner ? winChances(winner.lines) : null
+  const home = teamLook(event.sport, event.home)
+  const away = teamLook(event.sport, event.away)
+  const first = tennis ? event.home : event.away
+  const second = tennis ? event.away : event.home
+  const firstColor = tennis ? home.color : away.color
+  const secondColor = tennis ? away.color : home.color
+
+  return (
+    <div className="sp-event sp-game">
+      <div className="sp-game-head">
+        <div className="sp-matchup">
+          <TeamBadge sport={event.sport} name={first} />
+          <span className="sp-at">{tennis ? "vs" : "@"}</span>
+          <TeamBadge sport={event.sport} name={second} />
+          <strong>{eventTitle(event)}</strong>
+        </div>
+        <span className="sp-game-meta">
+          <b>{SPORT_LABEL[event.sport] ?? event.sport}</b> · {timeOf(event.startsAt)}
+          {lock ? <span className="sp-lockpill"><Lock aria-hidden /> {lockLabel(lock)}</span> : null}
+        </span>
+      </div>
+
+      {chances ? (
+        <Tip block text="Implied win chance from the line. These are fixed contest lines, not live odds.">
+        <div className="sp-odds-bar" role="img" aria-label={`Win chance: ${event.away} ${Math.round(chances.away * 100)} percent, ${event.home} ${Math.round(chances.home * 100)} percent`}>
+          <div className="sp-odds-track">
+            <i style={{ width: `${(tennis ? chances.home : chances.away) * 100}%`, background: firstColor }} />
+            <i style={{ flex: 1, background: secondColor }} />
+          </div>
+          <div className="sp-odds-labels">
+            <span>{Math.round((tennis ? chances.home : chances.away) * 100)}% <small>{first.split(" ").pop()}</small></span>
+            <span><small>{second.split(" ").pop()}</small> {Math.round((tennis ? chances.away : chances.home) * 100)}%</span>
+          </div>
+        </div>
+        </Tip>
+      ) : null}
+
+      {groups.length > 1 ? (
+        <div className="sp-tabs" role="tablist" aria-label="Markets">
+          {groups.map((g) => (
+            <button key={g.key} type="button" role="tab" aria-selected={active?.key === g.key} onClick={() => setTab(g.key)}>
+              {g.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {active ? (
+        <div key={active.key} className="sp-panel" role="tabpanel">
+          {active.markets.map((m) => (
+            <div key={m.id} className="sp-market">
+              {active.key === "props" ? <div className="sp-market-head"><span className="sp-market-title">{marketTitle(m)}</span></div> : null}
+              <div className={`sp-lines${m.kind === "moneyline" ? " sp-team-lines" : ""}`}>
+                {(m.kind === "moneyline" ? [...m.lines].sort((x, y) => (x.selection === (tennis ? "home" : "away") ? -1 : 1) - (y.selection === (tennis ? "home" : "away") ? -1 : 1)) : m.lines).map((l) => (
+                  <LineButton key={l.id} market={m} line={l} selected={selected} onSelect={onSelect} disabled={disabled} team={m.kind === "moneyline"} />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function LineButton({ market: m, line: l, selected, onSelect, disabled, team }: { market: Market; line: Line; selected: { line: Line } | null; onSelect: (m: Market, l: Line) => void; disabled: boolean; team?: boolean }) {
+  const label = lineLabel(m, l)
+  const mine = m.picked?.selection === l.selection
+  const side = m.kind === "moneyline" || m.kind === "spread" ? (l.selection === "home" ? m.event.home : m.event.away) : null
+  const look = side ? teamLook(m.event.sport, side) : null
+  return (
+    <button
+      type="button"
+      className="sp-line"
+      data-team={team || undefined}
+      aria-pressed={selected?.line.id === l.id || mine}
+      data-picked={mine || undefined}
+      disabled={disabled || !!m.picked}
+      style={look ? ({ "--tc": look.color, "--tc-ink": onColor(look.color) } as React.CSSProperties) : undefined}
+      aria-label={`${pickSentence(m, l)}, ${formatOdds(l.price)}, 100 credits wins ${winOn100(l.price)}${mine ? `, your pick, ${m.picked!.stake} credits` : ""}`}
+      onClick={() => onSelect(m, l)}
+    >
+      {team && side ? <TeamBadge sport={m.event.sport} name={side} size={32} /> : m.kind === "player_prop" && m.player ? <PlayerBadge sport={m.event.sport} name={m.player} size={32} /> : look ? <i className="sp-dot" aria-hidden /> : null}
+      <span className="sp-line-name">
+        {label.name}
+        {label.point ? <small>{label.point}</small> : null}
+        {mine ? (
+          <em className="sp-line-tag">
+            <Lock aria-hidden /> Your pick · {credits(m.picked!.stake)}
+          </em>
+        ) : null}
+      </span>
+      <span className="sp-line-odds">
+        <span className="sp-price">{formatOdds(l.price)}</span>
+        <small>100 wins {winOn100(l.price)}</small>
+      </span>
+    </button>
   )
 }

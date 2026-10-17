@@ -1,0 +1,29 @@
+/* Drawn league marks and animated header scenery. */
+.lm { position: relative; display: inline-grid; place-items: center; flex: none; color: #fff; }
+.lm svg { position: absolute; inset: 0; filter: drop-shadow(0 6px 10px rgb(0 0 0 / .35)); }
+.lm-glyph { position: relative; filter: drop-shadow(0 1px 1px rgb(0 0 0 / .35)); }
+.lm[data-fx="glow"] svg { animation: lm-glow 2.8s ease-in-out infinite; }
+.lm[data-fx="float"] { animation: lm-float 3.6s ease-in-out infinite; }
+.lm[data-fx="shimmer"] { overflow: hidden; border-radius: 22%; }
+.lm-shine { position: absolute; inset: -20%; background: linear-gradient(110deg, transparent 38%, rgb(255 255 255 / .55) 50%, transparent 62%); transform: translateX(-120%); animation: lm-shine 3.2s ease-in-out infinite; mix-blend-mode: overlay; }
+@keyframes lm-glow { 50% { filter: drop-shadow(0 0 14px var(--fw-art, currentColor)) drop-shadow(0 6px 10px rgb(0 0 0 / .35)); } }
+@keyframes lm-float { 50% { transform: translateY(-4px) rotate(-3deg); } }
+@keyframes lm-shine { 60%, 100% { transform: translateX(120%); } }
+
+.lb { position: absolute; inset: 0; overflow: hidden; pointer-events: none; border-radius: inherit; }
+.lb[data-kind="aurora"]::before, .lb[data-kind="aurora"]::after { content: ""; position: absolute; width: 70%; height: 180%; border-radius: 50%; filter: blur(50px); opacity: .5; }
+.lb[data-kind="aurora"]::before { left: -10%; top: -60%; background: var(--lg, #3fae7f); animation: lb-drift 11s ease-in-out infinite alternate; }
+.lb[data-kind="aurora"]::after { right: -15%; top: -40%; background: var(--lg-2, #1f6b4c); animation: lb-drift 14s ease-in-out infinite alternate-reverse; }
+@keyframes lb-drift { to { transform: translate(18%, 12%) scale(1.15); } }
+.lb[data-kind="grid"] { background-image: linear-gradient(var(--lg, #3fae7f) 1px, transparent 1px), linear-gradient(90deg, var(--lg, #3fae7f) 1px, transparent 1px); background-size: 36px 36px; opacity: .14; mask-image: linear-gradient(180deg, transparent, #000 80%); animation: lb-grid 6s linear infinite; }
+@keyframes lb-grid { to { background-position: 0 36px, 36px 0; } }
+.lb-tape { position: absolute; left: 0; bottom: 8px; display: flex; gap: 28px; white-space: nowrap; font: 500 11px ui-monospace, monospace; letter-spacing: .06em; color: var(--lg, #3fae7f); opacity: .55; animation: lb-tape 40s linear infinite; }
+.lb-tape span[data-down] { color: #e0607a; }
+@keyframes lb-tape { to { transform: translateX(-50%); } }
+.lb[data-kind="confetti"] i { position: absolute; top: -10px; left: calc(var(--i) * 6.4%); width: 7px; height: 11px; border-radius: 2px; background: var(--lg, #3fae7f); opacity: .7; animation: lb-fall calc(5s + (var(--i) * .37s)) linear infinite; animation-delay: calc(var(--i) * -.9s); }
+.lb[data-kind="confetti"] i:nth-child(3n) { background: #f2c94c; } .lb[data-kind="confetti"] i:nth-child(3n+1) { background: var(--lg-2, #1f6b4c); width: 9px; height: 5px; }
+@keyframes lb-fall { to { transform: translateY(260px) rotate(540deg); } }
+.lb[data-kind="stars"] i { position: absolute; left: calc((var(--i) * 37) * 1%); top: calc((var(--i) * 53) * 1%); width: 3px; height: 3px; border-radius: 50%; background: #fff; opacity: .15; animation: lb-twinkle calc(2s + (var(--i) * .13s)) ease-in-out infinite; animation-delay: calc(var(--i) * -.3s); }
+.lb[data-kind="stars"] i:nth-child(4n) { width: 2px; height: 2px; } .lb[data-kind="stars"] i:nth-child(5n) { background: var(--lg, #fff); width: 4px; height: 4px; }
+@keyframes lb-twinkle { 50% { opacity: .85; transform: scale(1.4); } }
+@media (prefers-reduced-motion: reduce) { .lm, .lm svg, .lm-shine, .lb *, .lb, .lb::before, .lb::after { animation: none !important; } }

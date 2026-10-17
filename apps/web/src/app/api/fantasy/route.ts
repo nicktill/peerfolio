@@ -14,13 +14,14 @@ const CreateFantasyLeague = z.object({
   maxPositionPct: z.number().int().min(5).max(100).nullable().default(null),
   /** ISO timestamp, or null for a league that never ends. */
   endsAt: z.string().datetime().nullable().default(null),
-  /** Weekly rounds: how the league plays. Defaults to an open-ended trading season. */
+  /** Weekly rounds: how the league plays. Defaults to an open-ended trading season; null makes it one long race. */
   season: z
     .object({
       mode: z.enum(["trading", "draft"]).default("trading"),
       rounds: z.number().int().min(1).max(52).nullable().default(null),
       picks: z.number().int().min(1).max(10).default(5),
     })
+    .nullable()
     .default({ mode: "trading", rounds: null, picks: 5 }),
 })
 
@@ -43,6 +44,6 @@ export const POST = withUser<unknown>(async (userId, request) => {
 
   const { season, ...rules } = parsed.data
   const league = await createFantasyLeague(userId, { ...rules, endsAt })
-  await ensureSeason(league.id, normalizeSeasonConfig(season))
+  if (season) await ensureSeason(league.id, normalizeSeasonConfig(season))
   return NextResponse.json({ league: { id: league.id } }, { status: 201 })
 })

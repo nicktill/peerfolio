@@ -1,5 +1,6 @@
 "use client"
 
+import { LeagueMark } from "@web/components/league/league-mark"
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useSession } from "next-auth/react"
@@ -669,9 +670,7 @@ function RailLink({ href, emoji, name, detail, end }: { href: string; emoji: str
   return (
     <li>
       <Link href={href} className="group -mx-2 flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-secondary/50">
-        <span className="text-lg" aria-hidden>
-          {emoji}
-        </span>
+        <LeagueMark value={emoji} accent="emerald" size={26} />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-medium">{name}</span>
           <span className="block text-xs text-muted-foreground">{detail}</span>
