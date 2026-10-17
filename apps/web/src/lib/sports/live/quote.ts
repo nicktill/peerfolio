@@ -89,3 +89,20 @@ export function topOfBook(bids: { price: string | number }[], asks: { price: str
   const a = asks.map(num).filter((x) => Number.isFinite(x))
   return { bid: b.length ? Math.max(...b) : null, ask: a.length ? Math.min(...a) : null }
 }
+
+/** Best bid/ask with the total size resting at each best price (levels may arrive unsorted). */
+export function topOfBookSized(
+  bids: { price: string | number; size?: string | number }[],
+  asks: { price: string | number; size?: string | number }[],
+): { bid: number | null; ask: number | null; bidSize: number | null; askSize: number | null } {
+  const best = (levels: typeof bids, pick: (a: number, b: number) => number) => {
+    const priced = levels.map((l) => ({ p: Number(l.price), s: Number(l.size) })).filter((l) => Number.isFinite(l.p))
+    if (!priced.length) return { price: null, size: null }
+    const price = priced.map((l) => l.p).reduce((x, y) => pick(x, y))
+    const sizes = priced.filter((l) => l.p === price).map((l) => l.s)
+    return { price, size: sizes.every((x) => Number.isFinite(x)) ? sizes.reduce((a, b) => a + b, 0) : null }
+  }
+  const b = best(bids, Math.max)
+  const a = best(asks, Math.min)
+  return { bid: b.price, ask: a.price, bidSize: b.size, askSize: a.size }
+}

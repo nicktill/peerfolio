@@ -42,9 +42,9 @@ config({ path: ".env" })
 
 const out = (level: Level, ev: string, fields?: Fields) => emit(level, ev, { worker: WORKER_NAME, ...fields })
 
-if (process.env.LIVE_ODDS_ENABLED === "0") {
+if (process.env.LIVE_ODDS_ENABLED !== "1") {
   // Off switch: no database, no upstream. Sleep long instead of exiting, so a supervisor does not restart-loop it.
-  out("info", "live.disabled", { note: "LIVE_ODDS_ENABLED=0; idling" })
+  out("info", "live.disabled", { note: "LIVE_ODDS_ENABLED is not 1; idling without touching the database. This worker acts on open markets in DATABASE_URL, so it must be switched on deliberately." })
   if (process.argv.includes("--once")) process.exit(0)
   setInterval(() => {}, MAX_SLEEP_MS)
   await new Promise(() => {})

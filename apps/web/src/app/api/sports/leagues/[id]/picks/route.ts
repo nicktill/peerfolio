@@ -21,6 +21,6 @@ export const POST = withSportsUser<Ctx>(async (userId, request, { params }) => {
   if (!(await takeRateLimit(db, "pick", userId))) throw new ApiError("Slow down a little, then try again.", 429)
   const parsed = Pick.safeParse(await readJson(request))
   if (!parsed.success) throw new ApiError(parsed.error.issues[0]?.message ?? "Invalid pick")
-  const { pick, replayed } = await placeSportsPick(db, userId, id, parsed.data, new Date())
+  const { pick, replayed } = await placeSportsPick(db, userId, id, parsed.data)
   return NextResponse.json({ pick: { id: pick.id, stake: pick.stake, price: pick.price, point: pick.point, totalReturn: pick.totalReturn } }, { status: replayed ? 200 : 201 })
 })

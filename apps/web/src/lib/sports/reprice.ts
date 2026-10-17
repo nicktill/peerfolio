@@ -15,7 +15,11 @@ export const REPRICE = {
   /** Freshest read we accept: our fetch of the book must be this young. */
   maxAgeMs: 60_000,
   /** Widest best-bid/best-ask gap (probability points) we price from. */
-  maxSpread: 0.06,
+  maxSpread: 0.03,
+  /** Least size (shares) resting at BOTH best levels of BOTH outcome books; a thin top of book is cheap to move. */
+  minTopSize: 200,
+  /** Fair probabilities outside [minFair, 1 - minFair] are never repriced (a stale longshot price is the costliest): the market freezes. */
+  minFair: 0.15,
   /** A book's own timestamp older than this is a stuck feed even if we just fetched it. */
   maxBookTsAgeMs: 10 * 60_000,
   /** Polymarket and Kalshi further apart than this: skip (hold the current line). */
@@ -24,28 +28,32 @@ export const REPRICE = {
   minMove: 0.015,
   /** At most one line write per market in this interval. */
   minIntervalMs: 30_000,
-  /** One reprice may not move fair probability more than this; a bigger jump freezes the market. */
-  maxStep: 0.08,
+  /** One reprice may not move fair probability more than this; a bigger jump freezes the market instead. */
+  maxStep: 0.04,
   /** Total range of fair probability over the last hour above this freezes the market. */
   hourRange: 0.15,
   hourMs: 3_600_000,
-  /** First exchange contact: the published (consensus) basis and the exchange may differ by this much, else freeze. */
+  /** First exchange contact: the published (consensus) basis and the exchange may differ by this much ONLY when Polymarket and Kalshi agree; otherwise `maxStep` applies. */
   firstContactMax: 0.12,
   /** A market the exchange manages freezes if no good exchange read arrives for this long. */
   staleFreezeMs: 10 * 60_000,
   /** Re-stamp `exchange_ok_at` at most this often when nothing moved. */
-  confirmEveryMs: 5 * 60_000,
+  confirmEveryMs: 2 * 60_000,
   /** Only games starting within this window are repriced at the fast cadence (keeps a serverless DB able to sleep). */
   windowMs: 3 * 3_600_000,
-  /** Pass cadence inside the window, and outside it (further-out games still get a slow pass). */
-  passMs: 60_000,
-  farPassMs: 15 * 60_000,
+  /** Pass cadence inside the window, and outside it (further-out games still get a slower pass while the worker is up). */
+  passMs: 30_000,
+  farPassMs: 5 * 60_000,
+  /** The publish/guard cron stops trusting an exchange-managed market, and freezes it inside `windowMs` of the start, when the worker heartbeat is older than this. */
+  workerDeadMs: 5 * 60_000,
 } as const
 
 export type ExchangeView = {
   /** Probability of the market's FIRST side (home for moneyline/spread, over for totals). */
   probA: number
   spread: number | null
+  /** Smallest size resting at the best bid and best ask of the books used (shares); null when the source does not report sizes. */
+  topSize: number | null
   /** Age of our read of the book. */
   ageMs: number
   /** Age of the book's own timestamp, if it gave one. */
@@ -71,6 +79,8 @@ export type MarketState = {
   /** Current offered prices of the first and second side. */
   prices: [number, number]
   repricedAt: Date | null
+  /** Number of line writes so far; with the basis it identifies the version a decision was made from. */
+  repriceCount: number
   exchangeOkAt: Date | null
   /** Fair probabilities of side A over the last hour (from line history), oldest first. */
   history: { at: Date; fairProbA: number }[]
@@ -113,12 +123,18 @@ export function decideReprice(input: RepriceInput): Decision {
   if (x.ageMs > REPRICE.maxAgeMs) return hold("read too old")
   if (x.bookTsAgeMs != null && x.bookTsAgeMs > REPRICE.maxBookTsAgeMs) return hold("book timestamp stuck")
   if (x.spread == null || x.spread > REPRICE.maxSpread) return hold("book too wide")
+  if (x.topSize == null || x.topSize < REPRICE.minTopSize) return hold("book too thin")
   if (!(x.probA > 0 && x.probA < 1)) return hold("invalid price")
   if (x.other && Math.abs(x.other.probA - x.probA) > REPRICE.disagree) return hold("sources disagree")
 
+  if (x.probA < REPRICE.minFair || x.probA > 1 - REPRICE.minFair) return { action: "freeze", reason: "price outside the repricing range" }
+
   const basis = m.fairProbA ?? x.probA
   const step = Math.abs(x.probA - basis)
-  if (managed ? step > REPRICE.maxStep : step > REPRICE.firstContactMax) return { action: "freeze", reason: managed ? "exchange jump" : "exchange and published line disagree" }
+  // A single source may move a managed line only a little per step; the bigger first-contact gap needs both exchanges to agree.
+  const bothAgree = x.other != null && Math.abs(x.other.probA - x.probA) <= REPRICE.disagree
+  const limit = managed || !bothAgree ? REPRICE.maxStep : REPRICE.firstContactMax
+  if (step > limit) return { action: "freeze", reason: managed ? "exchange jump" : "exchange and published line disagree" }
   const recent = m.history.filter((h) => now.getTime() - h.at.getTime() <= REPRICE.hourMs).map((h) => h.fairProbA)
   const all = [...recent, x.probA]
   if (Math.max(...all) - Math.min(...all) > REPRICE.hourRange) return { action: "freeze", reason: "exchange moved too far in an hour" }
@@ -151,7 +167,7 @@ export type RepriceResult = { applied: boolean; reason?: string; oldPrices?: [nu
 /** What the worker needs from the database for repricing (implemented by store.ts; injected so tests need no database). */
 export type RepriceStore = {
   listTargets(now: Date): Promise<RepriceTarget[]>
-  apply(marketId: string, expectedBasis: number | null, decision: Extract<Decision, { action: "update" }>, now: Date): Promise<RepriceResult>
+  apply(marketId: string, expected: { basis: number | null; count: number }, decision: Extract<Decision, { action: "update" }>, now: Date): Promise<RepriceResult>
   freeze(marketId: string, reason: string): Promise<boolean>
   confirm(marketIds: string[], now: Date): Promise<void>
 }

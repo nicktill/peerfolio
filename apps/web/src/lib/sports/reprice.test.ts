@@ -23,11 +23,12 @@ const market = (over: Partial<MarketState> = {}): MarketState => ({
   pointA: null,
   prices: prices0,
   repricedAt: null,
+  repriceCount: 0,
   exchangeOkAt: mins(-5),
   history: [],
   ...over,
 })
-const exchange = (over: Partial<ExchangeView> = {}): ExchangeView => ({ probA: 0.58, spread: 0.02, ageMs: 1_000, bookTsAgeMs: 2_000, source: "polymarket", other: null, gameLive: false, acceptingOrders: true, point: null, ...over })
+const exchange = (over: Partial<ExchangeView> = {}): ExchangeView => ({ probA: 0.58, spread: 0.02, topSize: 1_000, ageMs: 1_000, bookTsAgeMs: 2_000, source: "polymarket", other: null, gameLive: false, acceptingOrders: true, point: null, ...over })
 const input = (over: Partial<RepriceInput> = {}): RepriceInput => ({ now: NOW, startsAt: START, eventStatus: "scheduled", market: market(), exchange: exchange(), ...over })
 
 describe("reprice decision: happy path and convention", () => {
@@ -89,7 +90,9 @@ describe("reprice decision: quality gates hold the current price", () => {
     return d.action === "none" ? d.reason : ""
   }
   it("holds on a wide, one-sided, stale or stuck book", () => {
-    assert.equal(holds({ spread: 0.07 }), "book too wide")
+    assert.equal(holds({ spread: 0.04 }), "book too wide")
+    assert.equal(holds({ topSize: REPRICE.minTopSize - 1 }), "book too thin")
+    assert.equal(holds({ topSize: null }), "book too thin")
     assert.equal(holds({ spread: null }), "book too wide")
     assert.equal(holds({ ageMs: 61_000 }), "read too old")
     assert.equal(holds({ bookTsAgeMs: 11 * 60_000 }), "book timestamp stuck")
@@ -116,14 +119,23 @@ describe("reprice decision: freezes (one-way) on danger", () => {
   it("a suspicious jump freezes a managed market", () => {
     assert.match(froze({ exchange: exchange({ probA: BASIS + REPRICE.maxStep + 0.01 }) }), /jump/)
   })
-  it("first contact allows a bigger gap than a managed step but not unlimited", () => {
+  it("first contact allows a bigger gap than a managed step only when both exchanges agree, and never unlimited", () => {
     const first = market({ exchangeOkAt: null })
-    assert.equal(decideReprice(input({ market: first, exchange: exchange({ probA: BASIS + 0.1 }) })).action, "update")
-    assert.match(froze({ market: first, exchange: exchange({ probA: BASIS + REPRICE.firstContactMax + 0.01 }) }), /disagree/)
+    const both = (probA: number) => exchange({ probA, other: { source: "kalshi", probA: probA - 0.005 } })
+    assert.equal(decideReprice(input({ market: first, exchange: both(BASIS + 0.1) })).action, "update")
+    assert.match(froze({ market: first, exchange: both(BASIS + REPRICE.firstContactMax + 0.01) }), /disagree/)
+    // One source alone is held to the ordinary step.
+    assert.equal(decideReprice(input({ market: first, exchange: exchange({ probA: BASIS + REPRICE.maxStep - 0.005 }) })).action, "update")
+    assert.match(froze({ market: first, exchange: exchange({ probA: BASIS + REPRICE.maxStep + 0.01 }) }), /disagree/)
+  })
+  it("longshots and heavy favourites are never repriced: the market freezes", () => {
+    assert.match(froze({ market: market({ fairProbA: 0.16 }), exchange: exchange({ probA: 0.14 }) }), /outside the repricing range/)
+    assert.match(froze({ market: market({ fairProbA: 0.84 }), exchange: exchange({ probA: 0.86 }) }), /outside the repricing range/)
+    assert.equal(decideReprice(input({ market: market({ fairProbA: 0.17 }), exchange: exchange({ probA: 0.155 }) })).action, "update")
   })
   it("cumulative movement over the hour freezes", () => {
     const history = [{ at: mins(-50), fairProbA: 0.45 }, { at: mins(-20), fairProbA: 0.5 }]
-    assert.match(froze({ market: market({ fairProbA: 0.55, history }), exchange: exchange({ probA: 0.45 + REPRICE.hourRange + 0.01 }) }), /hour/)
+    assert.match(froze({ market: market({ fairProbA: 0.58, history }), exchange: exchange({ probA: 0.45 + REPRICE.hourRange + 0.01 }) }), /hour/)
     // The same history from two hours ago is ignored.
     const old = [{ at: mins(-120), fairProbA: 0.3 }]
     assert.equal(decideReprice(input({ market: market({ history: old }) })).action, "update")
@@ -131,8 +143,8 @@ describe("reprice decision: freezes (one-way) on danger", () => {
   it("the exchange showing the game in play before the scheduled start freezes", () => {
     assert.match(froze({ exchange: exchange({ gameLive: true }) }), /in play/)
   })
-  it("a lopsided price freezes instead of offering a giveaway", () => {
-    assert.match(froze({ market: market({ fairProbA: 0.14 }), exchange: exchange({ probA: 0.07 }) }), /lopsided/)
+  it("a very lopsided price freezes instead of offering a giveaway", () => {
+    assert.match(froze({ market: market({ fairProbA: 0.14 }), exchange: exchange({ probA: 0.07 }) }), /repricing range/)
   })
   it("a managed market with no good exchange read for 10 minutes freezes; a recent one just holds", () => {
     const stale = market({ exchangeOkAt: mins(-REPRICE.staleFreezeMs / 60_000 - 1) })
@@ -211,6 +223,11 @@ describe("source-level guards: exchange data stays out of settlement, grading an
   })
   it("reprice.ts is pure: it imports only the odds maths", () => {
     assert.deepEqual(importsOf("reprice.ts"), ["./odds.ts"])
+  })
+  it("applyReprice re-checks inside the lock: moneyline only, minimum interval, version and basis, master switch", () => {
+    const code = readFileSync(join(here, "store.ts"), "utf8")
+    const body = code.slice(code.indexOf("export function applyReprice"), code.indexOf("export async function confirmExchange"))
+    for (const needle of ['m.kind !== "moneyline"', "REPRICE.minIntervalMs", "m.repriceCount !== expected.count", "expected.basis", "LIVE_ODDS_ENABLED"]) assert.ok(body.includes(needle), needle)
   })
   it("the only store function that writes line prices is applyReprice, behind the exclusive market lock", () => {
     const code = readFileSync(join(here, "store.ts"), "utf8")

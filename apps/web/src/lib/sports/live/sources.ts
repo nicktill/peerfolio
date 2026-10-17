@@ -1,5 +1,5 @@
 import { orientScore, sameTeamLoose, type Candidate } from "./match.ts"
-import { topOfBook } from "./quote.ts"
+import { topOfBook, topOfBookSized } from "./quote.ts"
 import type { LiveGameState, LiveSelection, LiveStatus, RawQuote } from "./types.ts"
 
 /**
@@ -102,12 +102,12 @@ export function pmGameState(g: PmGame, homeIndex: 0 | 1, fetchedTs: Date): LiveG
 }
 
 /** One CLOB book (REST `/book` item or one element of `POST /books`) to best bid/ask. Levels arrive unsorted. */
-export function parseClobBook(book: unknown): { assetId: string; bid: number | null; ask: number | null; ts: Date | null } | null {
+export function parseClobBook(book: unknown): { assetId: string; bid: number | null; ask: number | null; bidSize: number | null; askSize: number | null; ts: Date | null } | null {
   const b = book as { asset_id?: unknown; bids?: unknown; asks?: unknown; timestamp?: unknown } | null
   if (!b || typeof b.asset_id !== "string") return null
-  const bids = Array.isArray(b.bids) ? (b.bids as { price: string }[]) : []
-  const asks = Array.isArray(b.asks) ? (b.asks as { price: string }[]) : []
-  return { assetId: b.asset_id, ...topOfBook(bids, asks), ts: date(b.timestamp) }
+  const bids = Array.isArray(b.bids) ? (b.bids as { price: string; size?: string }[]) : []
+  const asks = Array.isArray(b.asks) ? (b.asks as { price: string; size?: string }[]) : []
+  return { assetId: b.asset_id, ...topOfBookSized(bids, asks), ts: date(b.timestamp) }
 }
 
 /** `POST /books` response to raw quotes for a matched game; a token missing from the response gives no quote. */
@@ -120,7 +120,7 @@ export function pmQuotes(game: PmGame, homeIndex: 0 | 1, books: unknown, fetched
   const out: RawQuote[] = []
   for (const [i, selection] of ([[homeIndex, "home"], [(1 - homeIndex) as 0 | 1, "away"]] as [0 | 1, LiveSelection][])) {
     const p = byAsset.get(game.tokens[i])
-    if (p) out.push({ source: "polymarket", selection, bid: p.bid, ask: p.ask, sourceTs: p.ts, fetchedTs })
+    if (p) out.push({ source: "polymarket", selection, bid: p.bid, ask: p.ask, bidSize: p.bidSize, askSize: p.askSize, sourceTs: p.ts, fetchedTs })
   }
   return out
 }

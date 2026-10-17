@@ -23,6 +23,11 @@ const sql = postgres(url, { max: 2, prepare: false })
 const db = drizzle(sql, { schema })
 
 const now = new Date()
+// Isolation: count the money tables first and assert this script changed none of them (other data may exist).
+const money = async () => Number((await sql<{ n: number }[]>`SELECT (SELECT count(*) FROM sports_picks) + (SELECT count(*) FROM sports_lines) + (SELECT count(*) FROM sports_ledger) AS n`)[0]!.n)
+const moneyBefore = await money()
+// Remove rows left by an earlier aborted run of this script (its events are named it-*), so reruns start clean.
+await sql`DELETE FROM sports_events WHERE external_id LIKE 'it-%'`
 const [ev] = await db
   .insert(schema.sportsEvents)
   .values({ sport: "nba", externalId: `it-${now.getTime()}`, homeName: "Boston Celtics", awayName: "Detroit Pistons", startsAt: new Date(now.getTime() - 3600_000) })
@@ -97,16 +102,17 @@ const hl = liveHealth(hin, new Date())
 console.log("health:", hl.status, JSON.stringify(hl.reasons))
 assert.ok(hl.games.find((g) => g.eventId === ev.id)?.quoteAgeMs != null)
 
-// Idle scheduling: the next scheduled start (a far-future event) drives the sleep.
-const [future] = await db.insert(schema.sportsEvents).values({ sport: "nfl", externalId: `it-f-${Date.now()}`, homeName: "A", awayName: "B", startsAt: new Date(Date.now() + 5 * 3600_000) }).returning()
+// Idle scheduling: the next scheduled start drives the sleep. 90s out is earlier than any other event this or other
+// scripts could have left, so the check does not depend on the database being empty.
+const [future] = await db.insert(schema.sportsEvents).values({ sport: "nfl", externalId: `it-f-${Date.now()}`, homeName: "A", awayName: "B", startsAt: new Date(Date.now() + 90_000) }).returning()
 const next = await nextStartAfter(db, new Date())
 assert.ok(next && Math.abs(next.getTime() - future!.startsAt.getTime()) < 1000)
-console.log("idle sleep for next start in 5h:", Math.round(idleSleepMs(new Date(), next) / 60_000), "min")
+assert.equal(idleSleepMs(new Date(), next), 30_000)
+console.log("idle sleep with a start in 90s: 30s poll")
 await db.delete(schema.sportsEvents).where(eq(schema.sportsEvents.id, future!.id))
 
 // Cascade: nothing in picks/lines/markets/ledger was touched.
-const [counts] = await sql<{ n: number }[]>`SELECT (SELECT count(*) FROM sports_picks) + (SELECT count(*) FROM sports_lines) + (SELECT count(*) FROM sports_ledger) AS n`
-assert.equal(Number(counts!.n), 0)
+assert.equal(await money(), moneyBefore, "picks, lines and ledger untouched")
 
 await db.delete(schema.sportsEvents).where(eq(schema.sportsEvents.id, ev.id))
 await sql.end()

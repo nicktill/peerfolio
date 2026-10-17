@@ -95,6 +95,8 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
   // Prices can be refreshed until kickoff, so the slip always shows the price from the latest fetch. A line or market that has
   // since closed drops out and the slip clears; the price you are shown is the price sent, and the server refuses a stale one.
   const current = selected ? resolveSelected(markets, selected) : null
+  // The market closed (frozen, locked or gone) while it was on the slip: keep the slip, say so, and block submitting.
+  const gone = !!selected && !current
   const atRisk = picks.filter((p) => p.status === "open").reduce((sum, p) => sum + p.stake, 0)
   const ended = !!league.endsAt && new Date(league.endsAt).getTime() < Date.now()
   const status = ended ? "Final standings" : league.endsAt ? timeLeft(league.endsAt) : "No end"
@@ -154,7 +156,8 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
           <PickLockEffect fx={lockFx} onDone={clearLockFx} />
           <Slip
             leagueId={league.id}
-            selected={current}
+            selected={current ?? selected}
+            gone={gone}
             onStale={() => void refetch()}
             balance={you.credits}
             limits={data.limits}
@@ -255,10 +258,13 @@ function Slip({
   onLock,
   onPlaced,
   onStale,
+  gone,
 }: {
   leagueId: string
   selected: { market: Market; line: Line } | null
   onStale: () => void
+  /** The selected market is no longer open to picks. */
+  gone: boolean
   balance: number
   limits: Detail["limits"]
   closed: boolean
@@ -272,10 +278,9 @@ function Slip({
   const dragStart = useRef<number | null>(null)
   const dragged = useRef(false)
   const [pending, setPending] = useState(false)
-  // Tell the user when the price under their finger changed since they opened the slip.
-  const openedAt = useRef<{ id: string; price: number } | null>(null)
-  if (selected && openedAt.current?.id !== selected.line.id) openedAt.current = { id: selected.line.id, price: selected.line.price }
-  const moved = selected && openedAt.current && openedAt.current.id === selected.line.id && openedAt.current.price !== selected.line.price ? openedAt.current.price : null
+  // The price the user has seen and agreed to. If the line moves under them, locking stays disabled until they accept the new price.
+  const [agreed, setAgreed] = useState<{ id: string; price: number } | null>(null)
+  const moved = !gone && selected && agreed && agreed.id === selected.line.id && agreed.price !== selected.line.price ? agreed.price : null
   // One key per slip: a double tap or a retry after a dropped response places a single pick.
   const newKey = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`)
   const [requestId, setRequestId] = useState(newKey)
@@ -285,6 +290,8 @@ function Slip({
     setStake("")
     setDragY(0)
     setRequestId(newKey())
+    setAgreed(lineId && selected ? { id: lineId, price: selected.line.price } : null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- a different line starts a fresh slip; price moves on the same line must not reset it
   }, [lineId])
 
   const cap = Math.min(limits.maxStake, balance)
@@ -298,7 +305,7 @@ function Slip({
 
   async function submit(event: React.FormEvent) {
     event.preventDefault()
-    if (!selected || amount === 0 || problem) return
+    if (!selected || amount === 0 || problem || gone || moved != null) return
     setPending(true)
     try {
       await mutate(`/api/sports/leagues/${leagueId}/picks`, {
@@ -406,9 +413,18 @@ function Slip({
               </button>
             ))}
           </div>
+          {/* Always in the DOM so screen readers announce the change; empty (and collapsed) until a price moves. */}
+          <p className="sp-slip-moved" role="status" aria-live="polite">
+            {moved != null ? `Price updated from ${formatOdds(moved)} to ${formatOdds(selected!.line.price)}. Accept the new price to lock this pick.` : null}
+          </p>
           {moved != null ? (
-            <p className="sp-slip-moved" role="status">
-              Price updated from {formatOdds(moved)} to {formatOdds(selected!.line.price)}. Check it before you lock.
+            <button type="button" className="fw-btn" data-solid onClick={() => setAgreed({ id: selected!.line.id, price: selected!.line.price })}>
+              Accept new price {formatOdds(selected!.line.price)}
+            </button>
+          ) : null}
+          {gone ? (
+            <p className="sp-slip-moved" role="alert">
+              This market just closed to new picks (it was frozen because its line moved, or it locked). <button type="button" className="fw-link" onClick={onClear}>Dismiss</button>
             </p>
           ) : null}
           <div className="sp-slip-return" aria-live="polite">
@@ -417,7 +433,7 @@ function Slip({
             </span>
             {amount > 0 && !problem ? <b>{credits(winnings)}</b> : <span className="sp-slip-hint">Enter a stake</span>}
           </div>
-          <button type="submit" className="fw-submit" disabled={pending || closed || amount === 0 || !!problem} aria-busy={pending || undefined}>
+          <button type="submit" className="fw-submit" disabled={pending || closed || gone || moved != null || amount === 0 || !!problem} aria-busy={pending || undefined}>
             {pending ? <span className="spin" aria-hidden /> : null}
             {pending ? "Locking in…" : "Lock in pick"}
           </button>

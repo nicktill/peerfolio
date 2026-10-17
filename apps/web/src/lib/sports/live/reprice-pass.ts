@@ -38,7 +38,9 @@ function bookView(raws: RawQuote[], now: Date) {
   const pair = pairProbability(sides.home, sides.away)
   if (!pair) return null
   const tsAges = raws.map((r) => (r.sourceTs ? r.fetchedTs.getTime() - r.sourceTs.getTime() : null)).filter((x): x is number => x != null)
-  return { probA: pair.homeProb, spread: pair.spread, ageMs: Math.max(0, ...raws.map((r) => now.getTime() - r.fetchedTs.getTime())), bookTsAgeMs: tsAges.length ? Math.max(...tsAges) : null }
+  const sizes = raws.flatMap((r) => [r.bidSize, r.askSize])
+  const topSize = sizes.length > 0 && sizes.every((x): x is number => typeof x === "number" && Number.isFinite(x)) ? Math.min(...sizes) : null
+  return { probA: pair.homeProb, spread: pair.spread, topSize, ageMs: Math.max(0, ...raws.map((r) => now.getTime() - r.fetchedTs.getTime())), bookTsAgeMs: tsAges.length ? Math.max(...tsAges) : null }
 }
 
 export async function runRepricePass(deps: WorkerDeps, st: WorkerState, now: Date): Promise<PassResult | null> {
@@ -107,7 +109,7 @@ export async function runRepricePass(deps: WorkerDeps, st: WorkerState, now: Dat
     const d = decideReprice({ now, startsAt: t.startsAt, eventStatus: t.eventStatus, market: t.state, exchange })
     const label = `${t.awayName} @ ${t.homeName}`
     if (d.action === "update") {
-      const r = await store.apply(t.marketId, t.state.fairProbA, d, now)
+      const r = await store.apply(t.marketId, { basis: t.state.fairProbA, count: t.state.repriceCount }, d, now)
       if (r.applied) {
         result.updated++
         deps.emit?.("info", "sports.line_repriced", {
@@ -154,7 +156,7 @@ export async function runRepricePass(deps: WorkerDeps, st: WorkerState, now: Dat
 }
 
 const round = (x: number) => Math.round(x * 1000) / 1000
-const summary = (x: ExchangeView) => ({ source: x.source, probA: round(x.probA), spread: x.spread == null ? null : round(x.spread), ageMs: x.ageMs, bookTsAgeMs: x.bookTsAgeMs, other: x.other ? { source: x.other.source, probA: round(x.other.probA) } : null, gameLive: x.gameLive })
+const summary = (x: ExchangeView) => ({ source: x.source, probA: round(x.probA), spread: x.spread == null ? null : round(x.spread), topSize: x.topSize, ageMs: x.ageMs, bookTsAgeMs: x.bookTsAgeMs, other: x.other ? { source: x.other.source, probA: round(x.other.probA) } : null, gameLive: x.gameLive })
 
 function buildView(t: RepriceTarget, pm: { game: PmGame; homeIndex: 0 | 1 } | undefined, books: unknown[], kalshiGames: KalshiGame[] | undefined, now: Date): ExchangeView | null {
   const pmView = pm ? bookView(pmQuotes(pm.game, pm.homeIndex, books, now), now) : null
@@ -165,11 +167,12 @@ function buildView(t: RepriceTarget, pm: { game: PmGame; homeIndex: 0 | 1 } | un
     if (m) kView = bookView(kalshiQuotes(m.candidate, t.homeName, t.awayName, now), now)
   }
   const primary = pmView ? { v: pmView, source: "polymarket" as const } : kView ? { v: kView, source: "kalshi" as const } : null
-  if (!primary) return pm && !pm.game.ended ? { probA: 0.5, spread: null, ageMs: 0, bookTsAgeMs: null, source: "polymarket", other: null, gameLive: pm.game.live && !pm.game.ended, acceptingOrders: pm.game.acceptingOrders, point: null } : null
+  if (!primary) return pm && !pm.game.ended ? { probA: 0.5, spread: null, topSize: null, ageMs: 0, bookTsAgeMs: null, source: "polymarket", other: null, gameLive: pm.game.live && !pm.game.ended, acceptingOrders: pm.game.acceptingOrders, point: null } : null
   const other = primary.source === "polymarket" && kView ? { source: "kalshi" as const, probA: kView.probA } : null
   return {
     probA: primary.v.probA,
     spread: primary.v.spread,
+    topSize: primary.v.topSize,
     ageMs: primary.v.ageMs,
     bookTsAgeMs: primary.v.bookTsAgeMs,
     source: primary.source,

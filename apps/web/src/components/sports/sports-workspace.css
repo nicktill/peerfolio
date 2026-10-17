@@ -33,6 +33,7 @@
 .sp-slip-pick { padding: 12px; border: 1px solid var(--fw-hair); border-radius: var(--fw-r); background: var(--fw-bg); }
 .sp-slip-pick strong { display: block; font: 500 14px/20px var(--fw-sans); }
 .sp-slip-pick span { display: block; margin-top: 2px; font: 400 10.5px/17px var(--fw-mono); color: var(--fw-fg3); }
+.sp-slip-moved:empty { display: block; min-height: 0; padding: 0; border: 0; background: none; }
 .sp-slip-moved { margin: 0; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--series-4, #e0a23f) 50%, transparent); border-radius: var(--fw-rs); background: color-mix(in srgb, var(--series-4, #e0a23f) 10%, var(--fw-bg)); font-size: 12px; line-height: 17px; color: var(--fw-fg); }
 .sp-slip-return { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .sp-slip-return b { font: 400 26px/30px var(--fw-serif); letter-spacing: -.025em; font-variant-numeric: tabular-nums lining-nums; }

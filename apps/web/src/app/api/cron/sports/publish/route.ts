@@ -3,7 +3,7 @@ import { db, withSportsCron } from "@web/lib/sports/api"
 import { buildOddsProvider, isMockMode } from "@web/lib/sports/providers"
 import { EspnResultsProvider } from "@web/lib/sports/providers/espn"
 import { DEFAULT_PUBLISH } from "@web/lib/sports/lines"
-import { DbUsageStore, lockDueMarkets, makeFetchGate, pruneRateLimits, publishLines } from "@web/lib/sports/store"
+import { DbUsageStore, freezeUnguardedMarkets, lockDueMarkets, makeFetchGate, pruneRateLimits, publishLines } from "@web/lib/sports/store"
 import { publicationHealth } from "@web/lib/sports/health"
 import { SPORTS } from "@web/lib/sports/types"
 
@@ -19,11 +19,13 @@ export const GET = withSportsCron<unknown>(async () => {
   const gate = isMockMode() || process.env.SPORTS_FETCH_GATE === "0" ? undefined : makeFetchGate(db, async (sport, at) => (process.env.ESPN_RESULTS_ENABLED === "1" ? espn.hasGameWithin(sport, at) : null))
   const published = await publishLines(db, provider, SPORTS, now, { ...DEFAULT_PUBLISH, tennisTotals: process.env.SPORTS_TENNIS_TOTALS === "1" }, gate)
   const locked = await lockDueMarkets(db, now)
+  // Exchange-managed markets must not sit unguarded when the live odds worker is not beating (see store.freezeUnguardedMarkets).
+  const unguarded = await freezeUnguardedMarkets(db, now)
   await pruneRateLimits(db, now)
   const health = publicationHealth(published)
-  const summary = JSON.stringify({ job: "sports.publish", at: now.toISOString(), health, published, locked })
+  const summary = JSON.stringify({ job: "sports.publish", at: now.toISOString(), health, published, locked, unguarded })
   if (health.httpStatus !== 200) console.error(summary)
   else if (health.status !== "ok") console.warn(summary)
   else console.info(summary)
-  return NextResponse.json({ health, published, locked }, { status: health.httpStatus })
+  return NextResponse.json({ health, published, locked, unguarded }, { status: health.httpStatus })
 })

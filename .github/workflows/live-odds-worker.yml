@@ -9,9 +9,11 @@ name: Live odds worker
 # (workflow_dispatch) always work. Needs the repository secret DATABASE_URL.
 on:
   schedule:
-    # Every 6 hours. A job runs 5h50m after its (late) start, so there is a handover gap of roughly 10 minutes plus
-    # GitHub's scheduling delay (often 5 to 30 minutes) between two workers. The concurrency group stops overlap.
-    - cron: "20 5,11,17,23 * * *"
+    # Every 2 hours. A job runs 5h50m, so there is always one running and one queued behind it (GitHub keeps only the
+    # newest pending run in a concurrency group and cancels older ones, which show as cancelled runs: expected). The queued
+    # run starts as soon as the running one ends, so the handover gap is the runner start plus npm ci, about 1 to 2 minutes
+    # (the guard cron tolerates 5). The concurrency group stops overlap.
+    - cron: "20 */2 * * *"
   workflow_dispatch:
 
 # Never two workers at once (they would only duplicate rows), and never kill a running worker for a new one:
@@ -38,6 +40,9 @@ jobs:
         working-directory: apps/web
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          # Master switch the worker requires (it acts on OPEN markets in the database it is pointed at). Set by this workflow
+          # only after the LIVE_ODDS_ENABLED repository variable gate above, or a deliberate manual run.
+          LIVE_ODDS_ENABLED: "1"
           LIVE_ODDS_BOOK_TS: ${{ vars.LIVE_ODDS_BOOK_TS }}
         run: |
           [ -n "$DATABASE_URL" ] || { echo "Set the DATABASE_URL repository secret." >&2; exit 1; }

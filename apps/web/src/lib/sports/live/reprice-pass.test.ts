@@ -19,6 +19,7 @@ const state = (over: Partial<MarketState> = {}): MarketState => ({
   pointA: null,
   prices: priceTwoWay(BASIS)!,
   repricedAt: null,
+  repriceCount: 0,
   exchangeOkAt: plus(-60_000),
   history: [],
   ...over,
@@ -34,9 +35,9 @@ const gamma = (live = false) => [
     markets: [{ sportsMarketType: "moneyline", outcomes: '["Pistons","Celtics"]', clobTokenIds: '["t-det","t-bos"]', acceptingOrders: true }],
   },
 ]
-const book = (id: string, mid: number, half = 0.01) => ({ asset_id: id, timestamp: String(NOW.getTime() - 500), bids: [{ price: String(mid - half) }], asks: [{ price: String(mid + half) }] })
+const book = (id: string, mid: number, half = 0.01, size = "1000") => ({ asset_id: id, timestamp: String(NOW.getTime() - 500), bids: [{ price: String(mid - half), size }], asks: [{ price: String(mid + half), size }] })
 
-function harness(targets: RepriceTarget[], opts: { celticsMid?: number; half?: number; live?: boolean; kalshi?: unknown } = {}) {
+function harness(targets: RepriceTarget[], opts: { celticsMid?: number; half?: number; size?: string; live?: boolean; kalshi?: unknown } = {}) {
   const applied: { marketId: string; basis: number | null; prices: [number, number] }[] = []
   const frozen: { marketId: string; reason: string }[] = []
   const confirmed: string[][] = []
@@ -44,8 +45,8 @@ function harness(targets: RepriceTarget[], opts: { celticsMid?: number; half?: n
   const calls: string[] = []
   const store: RepriceStore = {
     listTargets: async () => targets,
-    apply: async (marketId, basis, d) => {
-      applied.push({ marketId, basis, prices: d.prices })
+    apply: async (marketId, expected, d) => {
+      applied.push({ marketId, basis: expected.basis, prices: d.prices })
       return { applied: true, oldPrices: targets[0]!.state.prices, newPrices: d.prices, version: 2 }
     },
     freeze: async (marketId, reason) => {
@@ -54,7 +55,7 @@ function harness(targets: RepriceTarget[], opts: { celticsMid?: number; half?: n
     },
     confirm: async (ids) => void confirmed.push(ids),
   }
-  const mid = opts.celticsMid ?? 0.6
+  const mid = opts.celticsMid ?? 0.58
   const deps: WorkerDeps = {
     store: { loadSlate: async () => [], insertQuotes: async () => {}, upsertState: async () => {} },
     reprice: store,
@@ -66,7 +67,7 @@ function harness(targets: RepriceTarget[], opts: { celticsMid?: number; half?: n
     },
     postJson: async (u, body) => {
       calls.push(`POST ${u}`)
-      return (body as { token_id: string }[]).map(({ token_id }) => book(token_id, token_id === "t-bos" ? mid : 1 - mid, opts.half))
+      return (body as { token_id: string }[]).map(({ token_id }) => book(token_id, token_id === "t-bos" ? mid : 1 - mid, opts.half, opts.size))
     },
     emit: (level, ev, f) => void lines.push({ level, ev, f: f ?? {} }),
   }
@@ -78,10 +79,10 @@ describe("pregame repricing pass", () => {
     const h = harness([target()])
     const r = await runRepricePass(h.deps, newWorkerState(), NOW)
     assert.equal(r?.updated, 1)
-    assert.deepEqual(h.applied[0], { marketId: "m1", basis: BASIS, prices: priceTwoWay(0.6)! })
+    assert.deepEqual(h.applied[0], { marketId: "m1", basis: BASIS, prices: priceTwoWay(0.58)! })
     const line = h.lines.find((l) => l.ev === "sports.line_repriced")!
     assert.equal(line.level, "info")
-    assert.deepEqual(line.f.newPrices, priceTwoWay(0.6))
+    assert.deepEqual(line.f.newPrices, priceTwoWay(0.58))
     assert.equal(line.f.source, "polymarket")
     assert.equal(line.f.spread, 0.02)
     assert.equal(typeof line.f.ageMs, "number")
@@ -110,10 +111,17 @@ describe("pregame repricing pass", () => {
     const r = await runRepricePass(wide.deps, newWorkerState(), NOW)
     assert.equal(r?.updated, 0)
     assert.equal(wide.lines.find((l) => l.ev === "live.reprice_hold")?.f.reason, "book too wide")
-    const jump = harness([target()], { celticsMid: BASIS + 0.2 })
+    const jump = harness([target()], { celticsMid: BASIS + 0.1 })
     await runRepricePass(jump.deps, newWorkerState(), NOW)
     assert.deepEqual(jump.frozen, [{ marketId: "m1", reason: "exchange jump" }])
     assert.equal(jump.lines.find((l) => l.ev === "sports.market_frozen_exchange")?.level, "warn")
+  })
+
+  it("holds on a thin top of book, even with a tight spread", async () => {
+    const h = harness([target()], { size: "50" })
+    const r = await runRepricePass(h.deps, newWorkerState(), NOW)
+    assert.equal(r?.updated, 0)
+    assert.equal(h.lines.find((l) => l.ev === "live.reprice_hold")?.f.reason, "book too thin")
   })
 
   it("freezes when the exchange shows the game already in play before the scheduled start", async () => {
@@ -131,16 +139,16 @@ describe("pregame repricing pass", () => {
     assert.equal(h.lines.find((l) => l.ev === "live.reprice_hold")?.f.reason, "sources disagree")
   })
 
-  it("uses Kalshi alone when Polymarket has no match, and agreeing sources reprice", async () => {
-    const kalshi = { events: [{ event_ticker: "K", title: "Detroit vs Boston", markets: [{ ticker: "a", yes_sub_title: "Boston", yes_bid_dollars: "0.59", yes_ask_dollars: "0.61" }, { ticker: "b", yes_sub_title: "Detroit", yes_bid_dollars: "0.39", yes_ask_dollars: "0.41" }] }] }
+  it("Kalshi is a cross-check: it never reprices alone (no sizes), agreeing sources reprice", async () => {
+    const kalshi = { events: [{ event_ticker: "K", title: "Detroit vs Boston", markets: [{ ticker: "a", yes_sub_title: "Boston", yes_bid_dollars: "0.57", yes_ask_dollars: "0.59" }, { ticker: "b", yes_sub_title: "Detroit", yes_bid_dollars: "0.41", yes_ask_dollars: "0.43" }] }] }
     const agree = harness([target()], { kalshi })
     await runRepricePass(agree.deps, newWorkerState(), NOW)
     assert.equal(agree.applied.length, 1)
     const only = harness([target({ homeName: "Boston Celtics", awayName: "Detroit Pistons" })], { kalshi })
     only.deps.getJson = async (u) => (u.includes("gamma-api") ? [] : u.includes("kalshi") ? kalshi : (() => { throw new Error(u) })())
     const r = await runRepricePass(only.deps, newWorkerState(), NOW)
-    assert.equal(r?.updated, 1)
-    assert.equal(only.lines.find((l) => l.ev === "sports.line_repriced")?.f.source, "kalshi")
+    assert.equal(r?.updated, 0)
+    assert.equal(only.lines.find((l) => l.ev === "live.reprice_hold")?.f.reason, "book too thin")
   })
 
   it("an unmatched market keeps its current behaviour: nothing written, nothing frozen", async () => {

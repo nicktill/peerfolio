@@ -22,6 +22,9 @@ export type RawQuote = {
   ask: number | null
   /** Only for sources that publish a single number (a model), never for exchanges. */
   mid?: number | null
+  /** Shares resting at the best bid / best ask, when the source reports sizes (Polymarket CLOB does). */
+  bidSize?: number | null
+  askSize?: number | null
   /** When the source says the book was true (e.g. the CLOB book timestamp). Null when it gives none. */
   sourceTs: Date | null
   /** When we read it. */
