@@ -218,6 +218,13 @@
       "when": 1792259726167,
       "tag": "0030_positionless_accounts",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1792260557253,
+      "tag": "0031_brokerage_linking_blocked",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "brokerage_linking_blocked" boolean DEFAULT false NOT NULL;

@@ -61,6 +61,8 @@ export type ItemRow = {
   status: "active" | "needs_reauth" | "error" | "disconnected"
   errorCode: string | null
   lastSyncedAt: string | null
+  /** True when this connection consumed a production link slot, which a disconnect never refunds. */
+  usesLinkSlot?: boolean
 }
 
 const GROUP_LABELS: Record<string, string> = {
@@ -97,7 +99,7 @@ export function AccountsCard({
   const confirm = useConfirm()
   const [busyId, setBusyId] = useState<string | null>(null)
   // Disconnect permanently uses the connection slot, so it asks for the institution name in a dialog.
-  const [disconnecting, setDisconnecting] = useState<{ id: string; name: string } | null>(null)
+  const [disconnecting, setDisconnecting] = useState<{ id: string; name: string; usesSlot: boolean } | null>(null)
   // A just-created account is scrolled into view and briefly outlined, so the
   // eye lands where the next step (adding holdings) is.
   const [highlightId, setHighlightId] = useState<string | null>(null)
@@ -164,7 +166,7 @@ export function AccountsCard({
 
   function disconnect(itemId: string, name: string) {
     if (isDemo) return
-    setDisconnecting({ id: itemId, name })
+    setDisconnecting({ id: itemId, name, usesSlot: items.find((i) => i.id === itemId)?.usesLinkSlot === true })
   }
 
   async function confirmDisconnect() {
@@ -467,6 +469,7 @@ export function AccountsCard({
   const disconnectDialog = (
     <DisconnectDialog
       institutionName={disconnecting?.name ?? null}
+      usesSlot={disconnecting?.usesSlot ?? false}
       busy={disconnecting !== null && busyId === disconnecting.id}
       onCancel={() => setDisconnecting(null)}
       onConfirm={() => void confirmDisconnect()}

@@ -31,6 +31,7 @@ type Access = {
   allowed: boolean
   code?: "paused" | "off" | "unconfigured" | "user_limit" | "full"
   reason?: string
+  capApplies?: boolean
   userLimit?: { used: number; limit: number; remaining: number }
 }
 
@@ -81,7 +82,7 @@ export function ConnectButton(props: Props) {
     return (
       <>
         <PlaidConnectButton {...props} />
-        <p className={CAPTION}>{USER_LINK_LIMIT_NOTICE}</p>
+        {data?.capApplies ? <p className={CAPTION}>{USER_LINK_LIMIT_NOTICE}</p> : null}
       </>
     )
   }

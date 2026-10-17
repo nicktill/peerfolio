@@ -53,7 +53,7 @@ export async function getBrokerageAccess(userId: string) {
   const admin = isAdminEmail(user.email, process.env.ADMIN_EMAILS)
   // `code` lets the button say why it's unavailable. The reason text and the budget are for the owner only.
   const userLimit = { used: userAttempts, limit: USER_PRODUCTION_LINK_LIMIT, remaining: Math.max(0, USER_PRODUCTION_LINK_LIMIT - userAttempts) }
-  return { allowed: !blocked, admin, code: blocked?.code, userLimit, notice: USER_LINK_LIMIT_NOTICE, ...(admin ? { capacity, reason: blocked?.reason } : {}) }
+  return { allowed: !blocked, admin, code: blocked?.code, capApplies: production, userLimit, notice: USER_LINK_LIMIT_NOTICE, ...(admin ? { capacity, reason: blocked?.reason } : {}) }
 }
 
 export async function assertBrokerageLinkingAllowed(userId: string) {
