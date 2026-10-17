@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm"
+import { and, asc, desc, eq, gt, inArray, isNull, lt, or, sql } from "drizzle-orm"
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js"
 import * as schema from "../../db/schema.ts"
 import { generateInviteCode } from "../crypto.ts"
@@ -8,6 +8,7 @@ import { bucketOf, LIMITS, PRUNE_AFTER_WINDOWS, withinLimit, type LimitName } fr
 import { emit } from "./log.ts"
 import { acceptPick, DEFAULT_LIMITS, kickoffGateDecided, PickRejected, type PickContext, type PickRequest } from "./picks.ts"
 import { mirroredPairs } from "./report.ts"
+import { REPRICE, type Decision, type RepriceResult, type RepriceTarget } from "./reprice.ts"
 import { DEFAULT_RESOLVE, gradePick, needsMeteredSource, planSettlement, placeKey, resolveResult, resultsForEvent, type ResolveConfig, type SettlementPlan } from "./settlement.ts"
 import type { EventRef, EventResult, MarketKind, OddsProvider, Outcome, ResultsProvider, Selection, Sport } from "./types.ts"
 import { SPORTS } from "./types.ts"
@@ -78,7 +79,7 @@ export async function pruneRateLimits(db: Db, now: Date = new Date()) {
   return cutoff
 }
 
-const { sportsLeagues, sportsMembers, sportsEvents, sportsMarkets, sportsLines, sportsPicks, sportsLedger, sportsProviderUsage, sportsNotifications, sportsRateLimits } = schema
+const { sportsLeagues, sportsMembers, sportsEvents, sportsMarkets, sportsLines, sportsLineHistory, sportsPicks, sportsLedger, sportsProviderUsage, sportsNotifications, sportsRateLimits } = schema
 
 export const JOIN_FAILED = "That code didn't work"
 
@@ -380,11 +381,15 @@ async function placeOnce(db: Db, userId: string, leagueId: string, req: PickRequ
     // LOCK ORDER, everywhere: market first, then member rows. voidMarket, freezing and settlement take the
     // market row exclusively before touching any member, so a pick can never hold a member and wait on a
     // market while a void holds the market and waits on that member.
+    const [lineProbe] = await tx.select({ marketId: sportsLines.marketId }).from(sportsLines).where(eq(sportsLines.id, req.lineId)).limit(1)
+    if (!lineProbe) throw new SportsError("Line not found", 404)
+    // Shared: many picks proceed together; a void/freeze/reprice (exclusive) either waits for them or runs first and is seen here.
+    const [theMarket] = await tx.select().from(sportsMarkets).where(eq(sportsMarkets.id, lineProbe.marketId)).for("share")
+    if (!theMarket) throw new SportsError("Line not found", 404)
+    // The line is read AFTER the market lock, never before: a reprice commits under the exclusive lock, so once we hold the
+    // shared lock this row is the price offered right now, and the client's expected price is checked against exactly it.
     const [theLine] = await tx.select().from(sportsLines).where(eq(sportsLines.id, req.lineId)).limit(1)
     if (!theLine) throw new SportsError("Line not found", 404)
-    // Shared: many picks proceed together; a void/freeze (exclusive) either waits for them or runs first and is seen here.
-    const [theMarket] = await tx.select().from(sportsMarkets).where(eq(sportsMarkets.id, theLine.marketId)).for("share")
-    if (!theMarket) throw new SportsError("Line not found", 404)
 
     const [member] = await tx.execute<{ id: string; credits: number }>(
       sql`SELECT id, credits FROM sports_members WHERE league_id = ${leagueId} AND user_id = ${userId} FOR UPDATE`,
@@ -502,6 +507,9 @@ export class DbUsageStore implements UsageStore {
   }
 }
 
+/** An exchange confirmation this recent means the exchange, not a paid Odds API fetch, is guarding the market. */
+export const EXCHANGE_FRESH_MS = 15 * 60_000
+
 /** Fetches (via the provider, normally cached/composite), guards what is published, then publishes new fixed lines. Idempotent. */
 /**
  * Decides per sport whether this cron run may spend credits: an unlocked market wants a guard fetch (once per 2h), a game
@@ -514,7 +522,15 @@ export function makeFetchGate(db: Db, gameSoon: (sport: Sport, now: Date) => Pro
       .select({ n: sql<number>`count(*)::int` })
       .from(sportsMarkets)
       .innerJoin(sportsEvents, eq(sportsEvents.id, sportsMarkets.eventId))
-      .where(and(eq(sportsMarkets.status, "open"), gt(sportsMarkets.lockAt, now), eq(sportsEvents.sport, sport)))
+      .where(
+        and(
+          eq(sportsMarkets.status, "open"),
+          gt(sportsMarkets.lockAt, now),
+          eq(sportsEvents.sport, sport),
+          // A market the exchange confirmed recently is guarded by the exchange, so it does not buy a paid guard fetch.
+          or(isNull(sportsMarkets.exchangeOkAt), lt(sportsMarkets.exchangeOkAt, new Date(now.getTime() - EXCHANGE_FRESH_MS))),
+        ),
+      )
     const kind = fetchKind({ hasUnlockedMarket: (open?.n ?? 0) > 0, gameWithin24h: (open?.n ?? 0) > 0 ? null : await gameSoon(sport, now) })
     if (!kind) return false
     const claim = async (k: "guard" | "discover") => {
@@ -617,7 +633,10 @@ export async function guardPublished(db: Db, snapshot: Awaited<ReturnType<OddsPr
       out.rescheduled++
     }
     const draft = fresh.get(`${event.externalId}::${market.marketKey}`)
-    if (!freeze && draft) {
+    // An exchange-managed market is guarded by the exchange (repricing, jump and staleness freezes). The consensus drift
+    // check applies only when the exchange has gone quiet, and then compares against the exchange-priced basis.
+    const exchangeGuarded = market.exchangeOkAt != null && now.getTime() - market.exchangeOkAt.getTime() < EXCHANGE_FRESH_MS
+    if (!freeze && draft && !exchangeGuarded) {
       freeze = detectMove({ kind: market.kind as MarketKind, lockAt, fairProbA: market.fairProbA, pointA: market.pointA }, draft, cfg)
     }
     if (freeze || lockAt !== market.lockAt) await freezeMarket(db, market.id, freeze, lockAt, out)
@@ -635,6 +654,112 @@ async function freezeMarket(db: Db, marketId: string, reason: string | null, loc
       if (reason) out.frozen++
     }),
   )
+}
+
+/* ---------------- pregame repricing (exchange mids) ---------------- */
+
+/** Open, unlocked, not-yet-started markets with their current prices and the last hour of fair-probability history. */
+export async function listRepriceTargets(db: Db, now: Date, kinds: readonly string[] = ["moneyline"], horizonMs = 24 * 3600_000): Promise<RepriceTarget[]> {
+  const rows = await db
+    .select({ market: sportsMarkets, event: sportsEvents })
+    .from(sportsMarkets)
+    .innerJoin(sportsEvents, eq(sportsEvents.id, sportsMarkets.eventId))
+    .where(
+      and(
+        eq(sportsMarkets.status, "open"),
+        gt(sportsMarkets.lockAt, now),
+        eq(sportsEvents.status, "scheduled"),
+        gt(sportsEvents.startsAt, now),
+        sql`${sportsEvents.startsAt} <= ${new Date(now.getTime() + horizonMs).toISOString()}::timestamptz`,
+        inArray(sportsMarkets.kind, [...kinds]),
+      ),
+    )
+  if (rows.length === 0) return []
+  const ids = rows.map((r) => r.market.id)
+  const lines = await db.select().from(sportsLines).where(inArray(sportsLines.marketId, ids))
+  const since = new Date(now.getTime() - REPRICE.hourMs)
+  const history = await db
+    .select({ marketId: sportsLineHistory.marketId, at: sportsLineHistory.at, fairProb: sportsLineHistory.fairProb, price: sportsLineHistory.price, lineId: sportsLineHistory.lineId })
+    .from(sportsLineHistory)
+    .where(and(inArray(sportsLineHistory.marketId, ids), gt(sportsLineHistory.at, since)))
+    .orderBy(asc(sportsLineHistory.at))
+  const isFirst = (sel: string) => sel === "home" || sel === "over"
+  const out: RepriceTarget[] = []
+  for (const { market, event } of rows) {
+    const mine = lines.filter((l) => l.marketId === market.id)
+    const a = mine.find((l) => isFirst(l.selection))
+    const b = mine.find((l) => !isFirst(l.selection))
+    if (!a || !b) continue
+    out.push({
+      marketId: market.id,
+      eventId: event.id,
+      sport: event.sport,
+      homeName: event.homeName,
+      awayName: event.awayName,
+      startsAt: event.startsAt,
+      eventStatus: event.status,
+      state: {
+        kind: market.kind,
+        status: market.status,
+        lockAt: market.lockAt,
+        createdAt: market.createdAt,
+        fairProbA: market.fairProbA,
+        pointA: market.pointA,
+        prices: [a.price, b.price],
+        repricedAt: market.repricedAt,
+        exchangeOkAt: market.exchangeOkAt,
+        history: history.filter((h) => h.lineId === a.id && h.fairProb != null).map((h) => ({ at: h.at, fairProbA: h.fairProb! })),
+      },
+    })
+  }
+  return out
+}
+
+/**
+ * Writes a new price version for a market, or refuses. Runs under the EXCLUSIVE market row lock, so it waits for picks being
+ * accepted (they hold the shared lock) and any pick that starts afterwards sees the new price. Everything is re-checked
+ * inside the lock on the server clock (open, not locked, not started, event still scheduled) and the write is a
+ * compare-and-set on the basis the decision was made from, so a repeat or a second worker changes nothing. Lines are
+ * updated in place and each price is appended to the history; accepted picks hold their own copies and are never touched.
+ */
+export function applyReprice(db: Db, marketId: string, expectedBasis: number | null, d: Extract<Decision, { action: "update" }>, now: Date): Promise<RepriceResult> {
+  return withDeadlockRetry(() =>
+    db.transaction(async (tx): Promise<RepriceResult> => {
+      const [m] = await tx.select().from(sportsMarkets).where(eq(sportsMarkets.id, marketId)).for("update")
+      if (!m || m.status !== "open") return { applied: false, reason: "closed" }
+      const [ev] = await tx.select().from(sportsEvents).where(eq(sportsEvents.id, m.eventId)).limit(1)
+      if (!ev || ev.status !== "scheduled") return { applied: false, reason: "event not scheduled" }
+      if (now.getTime() >= ev.startsAt.getTime()) return { applied: false, reason: "kickoff" }
+      if (now.getTime() >= m.lockAt.getTime()) return { applied: false, reason: "locked" }
+      const same = (m.fairProbA == null && expectedBasis == null) || (m.fairProbA != null && expectedBasis != null && Math.abs(m.fairProbA - expectedBasis) < 1e-9)
+      if (!same) return { applied: false, reason: "basis changed" }
+      const lines = await tx.select().from(sportsLines).where(eq(sportsLines.marketId, marketId))
+      const a = lines.find((l) => l.selection === "home" || l.selection === "over")
+      const b = lines.find((l) => l !== a)
+      if (!a || !b || lines.length !== 2) return { applied: false, reason: "lines missing" }
+      const oldPrices: [number, number] = [a.price, b.price]
+      for (const [line, price, fair] of [[a, d.prices[0], d.fairProbA], [b, d.prices[1], 1 - d.fairProbA]] as const) {
+        await tx.update(sportsLines).set({ price, version: line.version + 1, fairProb: fair, repricedAt: now }).where(eq(sportsLines.id, line.id))
+        await tx.insert(sportsLineHistory).values({ lineId: line.id, marketId, version: line.version + 1, price, point: line.point, fairProb: fair, source: d.source, spread: d.spread, ageMs: Math.round(d.ageMs), at: now })
+      }
+      await tx.update(sportsMarkets).set({ fairProbA: d.fairProbA, repricedAt: now, repriceCount: sql`${sportsMarkets.repriceCount} + 1`, exchangeOkAt: now }).where(eq(sportsMarkets.id, marketId))
+      return { applied: true, oldPrices, newPrices: d.prices, version: a.version + 1 }
+    }),
+  )
+}
+
+/** Stamps healthy exchange checks on markets whose price did not need to move. Cheap, no market lock needed. */
+export async function confirmExchange(db: Db, marketIds: string[], now: Date) {
+  if (marketIds.length) await db.update(sportsMarkets).set({ exchangeOkAt: now }).where(and(inArray(sportsMarkets.id, marketIds), eq(sportsMarkets.status, "open")))
+}
+
+/** One-way close for a reason (jump, wide book, stale exchange). Takes the exclusive market lock like every freeze. */
+export async function freezeForReason(db: Db, marketId: string, reason: string): Promise<boolean> {
+  const out = { frozen: 0 }
+  const [m] = await db.select({ lockAt: sportsMarkets.lockAt }).from(sportsMarkets).where(eq(sportsMarkets.id, marketId)).limit(1)
+  if (!m) return false
+  await freezeMarket(db, marketId, reason, m.lockAt, out)
+  return out.frozen > 0
 }
 
 /** Closes markets whose lock time has passed. Picks are also refused by time in `acceptPick`, so this is bookkeeping, not the guard. */

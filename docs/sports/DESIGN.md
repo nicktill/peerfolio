@@ -34,7 +34,7 @@ kickoff, so a fixed line is never days old. Games and props lock exactly at the 
 open until kickoff; it was 2 hours before). The server refuses any pick at or after the scheduled
 start independently of the market lock, so a late or missing lock job cannot keep a market open. The
 tradeoff is that NFL inactives (about 90 minutes before kickoff) land while picks are open; the
-guard for that is the freeze below, not a cushion. A market is only published while at least an hour
+guard for that is repricing and the freeze below, not a cushion. A market is only published while at least an hour
 of pick window remains (`minOpenMs`). As a second guard, every
 publish cron compares the fresh consensus with each open market and **freezes** it (no new picks
 at the old price) when fair probability moved 4 points or the point moved 1 or more. Picks already
@@ -164,3 +164,8 @@ slip and pick history in the rail. All built on the existing `fw-*` tokens and c
 2. Real keys in staging; verify provider facts (PROVIDERS.md checklist); add second results source (ESPN or SportsGameOdds); line-move auto-void; settlement admin screen for `review` events; leaderboard across leagues; vercel.json crons.
 3. Props at scale (box-score source), NBA/tennis tuning, notifications for settled picks.
 4. Collusion report, rate limits per user, legal/compliance review before any prize or sponsor idea.
+
+**Pregame repricing (October 2026).** Offered lines are no longer fixed until they freeze: for markets with an exchange
+match (Polymarket, Kalshi) the line is repriced from the exchange mid until kickoff, under the exclusive market
+lock, with every price kept in `sports_line_history` and accepted picks keeping their price, point and total
+return. Details, thresholds and the credit impact are in LIVE-ODDS.md ("Pregame repricing").

@@ -354,3 +354,9 @@ reopened before lock does not void existing picks; no result 72 h after start st
 ## 9. Out of scope
 
 Live or in-play betting and cash-out; parlays; anything real-money or prize-related (needs compliance review first); SSE/WebSockets; tennis props; fight method and round markets until a second family quotes them; automated boxing settlement; other sports; push delivery (the outbox exists); paid plans as a v1 dependency; scraping sites without an API (UFCStats, BoxRec); showing raw bookmaker names or prices.
+
+## Addendum (2026-10-17): exchange mids as the pregame price source
+
+Section 4's versioned-quote idea is implemented for exchange-matched moneyline markets: the live worker reprices open markets from
+Polymarket/Kalshi mids (`lib/sports/reprice.ts`), the Odds API remains the publisher of new markets and the fallback, and its
+guard fetches are skipped for exchange-confirmed markets. See LIVE-ODDS.md.

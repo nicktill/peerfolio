@@ -1,3 +1,4 @@
+import type { RepriceStore } from "../reprice.ts"
 import { cycleFailed } from "./health.ts"
 import { clip, type Fields, type Level } from "../log.ts"
 import { explainNoMatch, matchGame } from "./match.ts"
@@ -48,6 +49,8 @@ export type WorkerDeps = {
   wsBooks?: Map<string, WsBook>
   /** Called with the token ids the worker wants streamed. */
   wantTokens?(tokens: string[]): void
+  /** Pregame repricing (optional; absent in tests that do not exercise it). */
+  reprice?: RepriceStore
   /** How a book timestamp is trusted (see bookClock in plan.ts). Default strict. */
   bookMode?: "strict" | "fetch"
   log?(msg: string): void
@@ -69,6 +72,8 @@ export type WorkerState = {
   stats: { calls: number; rowsWritten: number; stateWrites: number; errors: number }
   /** Per-cycle counters, reset at the start of every tick. */
   cycle: CycleStats
+  /** Pregame repricing pass bookkeeping (see reprice-pass.ts). */
+  reprice: { lastPassAt: number; holdLogAt: Map<string, number> }
   /** Last time the score orientation of a game was logged (raw vs interpreted), by event id. */
   orientAt: Map<string, number>
 }
@@ -102,11 +107,12 @@ export const newWorkerState = (): WorkerState => ({
   stats: { calls: 0, rowsWritten: 0, stateWrites: 0, errors: 0 },
   cycle: freshCycle(),
   orientAt: new Map(),
+  reprice: { lastPassAt: 0, holdLogAt: new Map() },
 })
 
-const GAMMA = "https://gamma-api.polymarket.com"
-const CLOB = "https://clob.polymarket.com"
-const KALSHI = "https://api.elections.kalshi.com/trade-api/v2"
+export const GAMMA = "https://gamma-api.polymarket.com"
+export const CLOB = "https://clob.polymarket.com"
+export const KALSHI = "https://api.elections.kalshi.com/trade-api/v2"
 const ESPN = "https://site.api.espn.com/apis/site/v2/sports"
 export const SLOW_MS = 30_000
 export const BACKOFF_MS = 30_000
@@ -115,7 +121,7 @@ export const WS_FRESH_MS = 5_000
 const STATE_HEARTBEAT_MS = 15_000
 const ORIENT_LOG_MS = 5 * 60_000
 
-async function guarded<T>(deps: WorkerDeps, st: WorkerState, now: Date, source: string, fn: () => Promise<T>): Promise<T | null> {
+export async function guarded<T>(deps: WorkerDeps, st: WorkerState, now: Date, source: string, fn: () => Promise<T>): Promise<T | null> {
   if ((st.backoffUntil.get(source) ?? 0) > now.getTime()) {
     st.cycle.skippedBackoff++
     return null
@@ -139,7 +145,7 @@ async function guarded<T>(deps: WorkerDeps, st: WorkerState, now: Date, source: 
   }
 }
 
-async function slow<T>(st: WorkerState, key: string, now: Date, load: () => Promise<T | null>): Promise<T | null> {
+export async function slow<T>(st: WorkerState, key: string, now: Date, load: () => Promise<T | null>): Promise<T | null> {
   const hit = st.slow.get(key)
   if (hit && now.getTime() - hit.at < SLOW_MS) return hit.value as T
   const value = await load()

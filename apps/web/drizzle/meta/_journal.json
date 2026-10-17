@@ -218,6 +218,13 @@
       "when": 1792260827433,
       "tag": "0030_live_odds",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1792261265706,
+      "tag": "0031_pregame_reprice",
+      "breakpoints": true
     }
   ]
 }

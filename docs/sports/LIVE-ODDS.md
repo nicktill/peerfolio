@@ -22,6 +22,40 @@ Pregame, offered prices refresh until kickoff and picks close server-side at kic
 - If the primary is stale the next fresh source is shown. If a second source differs by more than 8 points the primary is kept but marked low confidence ("sources differ"). Two order books more than 20 points apart pause the odds. A model (ESPN) can only warn.
 - Games are matched on both team names (nickname/full-name aware, never city alone) and a start time within 3 hours; an ambiguous pairing is no match. Kalshi names NBA teams by city, so it uses a loose matcher plus a uniqueness check.
 
+## Pregame repricing (offered odds refresh until kickoff)
+
+Offered lines used to be fixed at publish and frozen on drift. Now the same worker reprices open moneyline markets from exchange mids until the scheduled start, while every accepted pick keeps its accepted price, point and total return forever. Code: decision in `src/lib/sports/reprice.ts` (pure), fetch/match/apply in `live/reprice-pass.ts`, the write in `applyReprice` (`store.ts`), history in `sports_line_history` (migration `0031_pregame_reprice`).
+
+**Source and price convention.** Polymarket is primary (Kalshi is primary only when Polymarket has no match, and otherwise the cross-check; ESPN is never used). The fair probability is the mid of best bid and best ask of each outcome book, renormalised (never a last trade). The offered price is `priceTwoWay(fair)`, exactly as consensus publishing does it: half of a 4.5% margin added to each side, rounded to the nearest 5, no side under 10% fair. Exchange mids carry no vig (the two mids sum to about 1), so applying the app's margin gives the same house edge as before and payouts are not systematically richer. The Odds API consensus is still what publishes new markets (and what a market falls back to when the exchange is silent).
+
+**Thresholds** (named constants in `REPRICE`, `reprice.ts`):
+
+| Constant | Value | Meaning |
+|---|---|---|
+| `maxAgeMs` | 60s | our read of the book must be this fresh |
+| `maxSpread` | 6 pts | widest bid/ask gap priced from |
+| `maxBookTsAgeMs` | 10 min | a book timestamp older than this is a stuck feed |
+| `disagree` | 5 pts | Polymarket vs Kalshi further apart: hold the current line |
+| `minMove` | 1.5 pts | fair probability must drift this far from the last priced basis to write |
+| `minIntervalMs` | 30s | at most one write per market in this time |
+| `maxStep` | 8 pts | a bigger single move freezes the market (suspicious jump) |
+| `hourRange` | 15 pts | total range of fair probability over an hour above this freezes it |
+| `firstContactMax` | 12 pts | first exchange read vs the published consensus basis, else freeze |
+| `staleFreezeMs` | 10 min | a market the exchange manages freezes if no good read arrives for this long |
+| `windowMs` / `passMs` / `farPassMs` | 3h / 60s / 15 min | games inside 3h of the start are repriced every 60s, further out every 15 min |
+
+**Mechanism.** The write happens in one transaction under the EXCLUSIVE market row lock, the same lock order as freezes and voids. Picks hold the shared lock, so a reprice waits for any pick being accepted, and every pick that starts later reads the new price. Pick placement now reads the line AFTER taking the market lock (before this change it read it first, which would have let a pick pass its price check against a price a reprice had just replaced). Inside the lock the write re-checks, on the server clock, that the market is open, unlocked and not started (kickoff is refused at the exact start instant), and is a compare-and-set on the basis the decision used, so a retry or a second worker changes nothing. It updates the two line rows in place (bumping `version`) and appends both prices to `sports_line_history` with source, spread and age; accepted picks copy price/point/total return and never read the line again. A client that submits an old price is refused with `The line moved to -165 since you opened it. Review the new price and try again`; the league page refetches every 20s, shows the slip at the latest price, flags "Price updated from X to Y", and refetches on that error.
+
+**What reprices.** Moneylines with a Polymarket or Kalshi game-winner match. Spreads and totals are supported by the decision only at the EXACT offered point (no interpolation), but the worker does not yet fetch those exchange markets (their wire shape is unverified), so today they and all props stay on consensus + freeze. Markets with no exchange match keep the old behaviour exactly.
+
+**Freezes (one-way).** Exchange jump, hourly range, first-contact disagreement, a lopsided price, the exchange showing the game in play before its scheduled start, and an exchange silent for 10 minutes on a market it manages. Feed failures on the Odds API side and disappearing markets still freeze as before; the consensus drift freeze is skipped only while the exchange confirmed the market within 15 minutes.
+
+**Logs.** `sports.line_repriced` (old/new prices, fair, basis, step, source, spread, age, minutes to start), `sports.market_frozen_exchange`, `sports.reprice_skipped`, `live.reprice_hold` (throttled, with the reason and the exchange view), `live.reprice_pass` (counts). The heartbeat details carry a `reprice` summary.
+
+**Credit impact.** The paid guard fetch (once per 2h per sport while any market is unlocked) no longer counts a market the exchange confirmed in the last 15 minutes, so a sport whose open markets are all exchange-managed spends only the 12 hour discover fetch (needed to publish new markets) instead of up to 12 guard fetches a day. Expect Odds API use to fall to roughly the discover fetches. Exchange calls are free.
+
+**DB wake-ups.** Repricing keeps the worker active from 3 hours before the first start with an open market (60s passes: 2 reads and one batched exchange call) through the games; with open markets only further out it wakes every 15 minutes. Writes happen only when a price actually moves by 1.5 points or more (a handful per market per day), plus a confirm stamp at most every 5 minutes.
+
 ## Upstream load scales with games, not users
 
 The worker polls only games whose `sports_events` row is `scheduled` and inside their live window (5 minutes before the start until 5h NFL / 4h NBA). Per 10s cycle: one Gamma list per live sport, one batched `/books` call for all live tokens, a Kalshi list per sport and ESPN fallbacks at most every 30s. Viewers only read Postgres through the API (3s in-process cache plus `s-maxage=3` at the CDN, per-IP limit of 120 requests a minute per instance, unknown game ids negative-cached for 60s with `s-maxage=30`, ids validated as UUIDs before any query).

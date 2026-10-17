@@ -54,6 +54,13 @@ type Detail = {
   leaguePicks: (PickRow & { name: string })[]
 }
 
+/** The freshly fetched market and line for what the user selected (same ids; the line row is updated in place on a reprice). */
+function resolveSelected(markets: Market[], sel: { market: Market; line: Line }): { market: Market; line: Line } | null {
+  const market = markets.find((m) => m.id === sel.market.id)
+  const line = market?.lines.find((l) => l.id === sel.line.id)
+  return market && line ? { market, line } : null
+}
+
 const SPORT_COLOR: Record<string, string> = { nfl: "#c8102e", nba: "#f58426", tennis: "#a6c738" }
 const dayOf = (iso: string) => new Date(iso).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })
 const timeOf = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
@@ -65,7 +72,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
   // Landing here means Sports is the side you're on; "Fantasy leagues" then returns to it.
   useEffect(() => visit("sports"), [visit])
 
-  const { data, error, loading, refetch } = useApi<Detail>(`/api/sports/leagues/${id}`, [], { refreshMs: 60_000 })
+  const { data, error, loading, refetch } = useApi<Detail>(`/api/sports/leagues/${id}`, [], { refreshMs: 20_000 })
   const [selected, setSelected] = useState<{ market: Market; line: Line } | null>(null)
   const [sport, setSport] = useState<string>("all")
   const [demo, setDemo] = useState<string | null>(null)
@@ -85,6 +92,9 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
   if (!data) return <p className="text-sm text-muted-foreground">{error ?? "Couldn't load this league."}</p>
 
   const { league, you, standings, markets, picks, leaguePicks } = data
+  // Prices can be refreshed until kickoff, so the slip always shows the price from the latest fetch. A line or market that has
+  // since closed drops out and the slip clears; the price you are shown is the price sent, and the server refuses a stale one.
+  const current = selected ? resolveSelected(markets, selected) : null
   const atRisk = picks.filter((p) => p.status === "open").reduce((sum, p) => sum + p.stake, 0)
   const ended = !!league.endsAt && new Date(league.endsAt).getTime() < Date.now()
   const status = ended ? "Final standings" : league.endsAt ? timeLeft(league.endsAt) : "No end"
@@ -111,8 +121,8 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
         <div className="fw-main">
           <section className="fw-panel reveal" style={revealStyle(2)} aria-labelledby="sp-markets-title">
             <div className="fw-section-head">
-              <h2 id="sp-markets-title">Open lines<InfoTip side="bottom" label="How lines work" text={<>Everyone gets the same line and it never changes once you lock a pick. <b>+125</b> means 100 cash wins 125. <b>-110</b> means risking 110 wins 100. On a <b>spread</b>, your team must win by more than the number (or lose by less).</>} /></h2>
-              <p>Fixed contest lines, not live odds</p>
+              <h2 id="sp-markets-title">Open lines<InfoTip side="bottom" label="How lines work" text={<>Everyone gets the same line, and it can update until kickoff. Once you lock a pick, your price never changes. <b>+125</b> means 100 cash wins 125. <b>-110</b> means risking 110 wins 100. On a <b>spread</b>, your team must win by more than the number (or lose by less).</>} /></h2>
+              <p>Prices refresh until kickoff</p>
             </div>
             {league.sports.length > 1 ? (
               <div className="sp-filter fw-choices" role="group" aria-label="Filter by sport">
@@ -126,7 +136,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
                 ))}
               </div>
             ) : null}
-            <Markets markets={shown} selected={selected} onSelect={(market, line) => setSelected({ market, line })} disabled={ended} />
+            <Markets markets={shown} selected={current} onSelect={(market, line) => setSelected({ market, line })} disabled={ended} />
           </section>
 
           <section className="fw-panel reveal" style={revealStyle(3)} aria-labelledby="sp-standings-title">
@@ -144,7 +154,8 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
           <PickLockEffect fx={lockFx} onDone={clearLockFx} />
           <Slip
             leagueId={league.id}
-            selected={selected}
+            selected={current}
+            onStale={() => void refetch()}
             balance={you.credits}
             limits={data.limits}
             closed={ended}
@@ -243,9 +254,11 @@ function Slip({
   onClear,
   onLock,
   onPlaced,
+  onStale,
 }: {
   leagueId: string
   selected: { market: Market; line: Line } | null
+  onStale: () => void
   balance: number
   limits: Detail["limits"]
   closed: boolean
@@ -259,6 +272,10 @@ function Slip({
   const dragStart = useRef<number | null>(null)
   const dragged = useRef(false)
   const [pending, setPending] = useState(false)
+  // Tell the user when the price under their finger changed since they opened the slip.
+  const openedAt = useRef<{ id: string; price: number } | null>(null)
+  if (selected && openedAt.current?.id !== selected.line.id) openedAt.current = { id: selected.line.id, price: selected.line.price }
+  const moved = selected && openedAt.current && openedAt.current.id === selected.line.id && openedAt.current.price !== selected.line.price ? openedAt.current.price : null
   // One key per slip: a double tap or a retry after a dropped response places a single pick.
   const newKey = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`)
   const [requestId, setRequestId] = useState(newKey)
@@ -291,7 +308,10 @@ function Slip({
       toast("Pick locked in.", "success")
       onPlaced()
     } catch (e) {
-      toast(e instanceof Error ? e.message : "Couldn't place that pick.", "error")
+      const message = e instanceof Error ? e.message : "Couldn't place that pick."
+      toast(message, "error")
+      // A moved line: pull the new price so the slip shows it, and let the user decide again.
+      if (/line moved|line changed/i.test(message)) onStale()
     } finally {
       setPending(false)
     }
@@ -386,6 +406,11 @@ function Slip({
               </button>
             ))}
           </div>
+          {moved != null ? (
+            <p className="sp-slip-moved" role="status">
+              Price updated from {formatOdds(moved)} to {formatOdds(selected!.line.price)}. Check it before you lock.
+            </p>
+          ) : null}
           <div className="sp-slip-return" aria-live="polite">
             <span className="fw-label" style={{ margin: 0 }}>
               To win
@@ -482,7 +507,7 @@ function GameCard({ game, selected, onSelect, disabled }: { game: { key: string;
       </div>
 
       {chances ? (
-        <Tip block text="Implied win chance from the line. These are fixed contest lines, not live odds.">
+        <Tip block text="Implied win chance from the line. Prices can update until kickoff; a locked pick keeps its price.">
         <div className="sp-odds-bar" role="img" aria-label={`Win chance: ${event.away} ${Math.round(chances.away * 100)} percent, ${event.home} ${Math.round(chances.home * 100)} percent`}>
           <div className="sp-odds-track">
             <i style={{ width: `${(tennis ? chances.home : chances.away) * 100}%`, background: firstColor }} />

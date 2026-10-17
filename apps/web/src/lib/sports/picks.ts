@@ -93,7 +93,8 @@ export function acceptPick(req: PickRequest, ctx: PickContext, limits: PickLimit
   if (!isPickWindowOpen(ctx.market, ctx.eventStatus, ctx.now, ctx.eventStartsAt)) throw new PickRejected("market_closed", "Picks are closed for this market")
   if (ctx.line.marketId !== ctx.market.id) throw new PickRejected("line_mismatch", "That line is not part of this market")
   if (ctx.line.price !== req.expectedPrice || ctx.line.point !== req.expectedPoint) {
-    throw new PickRejected("line_mismatch", "The line changed. Review the current line and try again")
+    const shown = `${ctx.line.price > 0 ? "+" : ""}${ctx.line.price}${ctx.line.point != null ? ` (${ctx.line.point > 0 ? "+" : ""}${ctx.line.point})` : ""}`
+    throw new PickRejected("line_mismatch", `The line moved to ${shown} since you opened it. Review the new price and try again`)
   }
   if (ctx.picksOnMarket > 0) throw new PickRejected("already_picked", "You already have a pick on this market")
 

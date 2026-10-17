@@ -31,7 +31,10 @@ import { cycleFailed, EXIT_AFTER_FAILURES, shouldExit, WORKER_NAME } from "../sr
 import { clip, emit, type Fields, type Level } from "../src/lib/sports/log.ts"
 import { idleSleepMs, MAX_SLEEP_MS, pollDelay } from "../src/lib/sports/live/plan.ts"
 import { insertQuotes, loadLiveSlate, nextStartAfter, pruneLiveQuotes, upsertState, writeHeartbeat } from "../src/lib/sports/live/store.ts"
+import { applyReprice, confirmExchange, freezeForReason, listRepriceTargets } from "../src/lib/sports/store.ts"
+import { runRepricePass } from "../src/lib/sports/live/reprice-pass.ts"
 import { MarketSocket } from "../src/lib/sports/live/ws.ts"
+import type { PassResult } from "../src/lib/sports/live/reprice-pass.ts"
 import { newWorkerState, runTick, type TickResult, type WorkerDeps } from "../src/lib/sports/live/worker.ts"
 
 config({ path: ".env.local" })
@@ -75,6 +78,12 @@ const deps: WorkerDeps = {
   },
   getJson: (u) => request(u),
   postJson: (u, body) => request(u, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }),
+  reprice: {
+    listTargets: (now) => listRepriceTargets(db, now),
+    apply: (marketId, basis, decision, now) => applyReprice(db, marketId, basis, decision, now),
+    freeze: (marketId, reason) => freezeForReason(db, marketId, reason),
+    confirm: (ids, now) => confirmExchange(db, ids, now),
+  },
   wsBooks: socket?.books,
   wantTokens: (tokens) => socket?.want(tokens),
   bookMode,
@@ -117,8 +126,22 @@ while (!stopping) {
   const failed = cycleFailed({ threw, slate, okCalls: result?.okCalls ?? 0, failCalls: result?.failCalls ?? 0, skippedBackoff: result?.skippedBackoff ?? 0 })
   failures = failed ? failures + 1 : 0
   writtenSincePrune += result?.rowsWritten ?? 0
+  // (repricing writes line versions, not live_quote rows, so it does not count towards pruning)
 
-  // Idle: nothing live. Decide how long to sleep from the next scheduled start (one cheap query), else poll fast.
+  // Pregame repricing: due every 60s while a game starts within 3 hours, every 15 minutes otherwise. A failure here never
+  // fails the live cycle (display) and never leaves a market half-repriced (each write is one transaction).
+  let repriceNext = Number.POSITIVE_INFINITY
+  let repriced: PassResult | null = null
+  if (!threw) {
+    try {
+      repriced = await runRepricePass(deps, state, new Date())
+      if (repriced) repriceNext = repriced.targets === 0 ? Number.POSITIVE_INFINITY : repriced.nextPassMs
+    } catch (error) {
+      out("error", "live.reprice_failed", { error: clip(error) })
+    }
+  }
+
+  // Idle: nothing live. Decide how long to sleep from the next scheduled start (one cheap query) and the next reprice pass.
   let delay = pollDelay(slate)
   if (!threw && slate === 0) {
     try {
@@ -126,6 +149,7 @@ while (!stopping) {
     } catch (error) {
       out("warn", "live.next_start_failed", { error: clip(error) })
     }
+    delay = Math.min(delay, Math.max(10_000, repriceNext))
   }
 
   // Prune only if something was written since the last prune: an idle worker must not wake the database for nothing.
@@ -152,6 +176,7 @@ while (!stopping) {
         matched: result?.matched ?? 0,
         unmatched: (result?.unmatched ?? []).slice(0, 20),
         sources: result?.sources ?? {},
+        reprice: repriced ? { targets: repriced.targets, matched: repriced.matched, updated: repriced.updated, frozen: repriced.frozen, held: repriced.held, skipped: repriced.skipped } : null,
         sleepUntil: new Date(Date.now() + delay).toISOString(),
         bookMode,
         ...(threw ? { lastError: "cycle threw (see logs)" } : {}),
