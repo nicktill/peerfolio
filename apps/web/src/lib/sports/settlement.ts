@@ -19,8 +19,10 @@ export type ResolveConfig = {
   settleDelayMs: number
   /** A postponed game with no final this long after its start is voided. */
   postponeGraceMs: number
-  /** No source has a final this long after the start (feeds that cannot say "postponed"): void and refund. */
+  /** No source has a final this long after the start (feeds that cannot say "postponed"): void and refund. Only when sources actually answered. */
   noResultVoidMs: number
+  /** A game stuck in `review` (sources disagree) this long after its start is voided and refunded, and the owner is told. */
+  reviewTimeoutMs: number
 }
 
 export const DEFAULT_RESOLVE: ResolveConfig = {
@@ -28,6 +30,7 @@ export const DEFAULT_RESOLVE: ResolveConfig = {
   settleDelayMs: 6 * 3600_000,
   postponeGraceMs: 48 * 3600_000,
   noResultVoidMs: 72 * 3600_000,
+  reviewTimeoutMs: 7 * 24 * 3600_000,
 }
 
 export type Resolution =
@@ -39,11 +42,22 @@ export type Resolution =
 const familyOf = (r: EventResult) => r.family ?? r.source
 const validScore = (n: number | null): n is number => n != null && Number.isFinite(n) && n >= 0
 
-export function resolveResult(
-  results: EventResult[],
-  ctx: { now: Date; startsAt: Date; finalFirstSeenAt: Date | null },
-  cfg: ResolveConfig = DEFAULT_RESOLVE,
-): Resolution {
+export type ResolveContext = {
+  now: Date
+  startsAt: Date
+  finalFirstSeenAt: Date | null
+  /** How many results sources answered this run without error. Unknown (undefined) counts as answered. A failed fetch is NOT "no result". */
+  sourcesAnswered?: number
+}
+
+export function resolveResult(results: EventResult[], ctx: ResolveContext, cfg: ResolveConfig = DEFAULT_RESOLVE): Resolution {
+  const r = resolveCore(results, ctx, cfg)
+  // A disagreement nobody resolves must not hold credits forever: refund safely after the timeout.
+  if (r.kind === "review" && ctx.now.getTime() - ctx.startsAt.getTime() > cfg.reviewTimeoutMs) return { kind: "void", reason: `review timeout (${r.reason})` }
+  return r
+}
+
+function resolveCore(results: EventResult[], ctx: ResolveContext, cfg: ResolveConfig): Resolution {
   const finals = results.filter((r) => r.status === "final" && validScore(r.homeScore) && validScore(r.awayScore))
   const groups = new Map<string, EventResult[]>()
   for (const r of finals) groups.set(`${r.homeScore}-${r.awayScore}`, [...(groups.get(`${r.homeScore}-${r.awayScore}`) ?? []), r])
@@ -64,6 +78,8 @@ export function resolveResult(
   }
 
   if (finals.length === 0) {
+    // After an outage every fetch fails and results are empty: that is not evidence the game had no result.
+    if ((ctx.sourcesAnswered ?? 1) < 1) return { kind: "wait", reason: "no results source answered" }
     if (results.some((r) => r.status === "postponed") && sinceStart > cfg.postponeGraceMs) return { kind: "void", reason: "postponed" }
     if (sinceStart > cfg.noResultVoidMs) return { kind: "void", reason: "no result" }
     return { kind: "wait", reason: "no final yet" }
@@ -91,10 +107,13 @@ const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "")
 const WINDOW_MS = 3 * 3600_000
 
 /**
- * Picks the results that belong to one of our events. Matches by the id we know
- * for that source first, then falls back to sport-agnostic team names (either
- * orientation) plus a start-time window, so a second vendor with its own ids
- * still lines up. `matched` lists (source -> their id) for caching as aliases.
+ * Picks the results that belong to one of our events, scoped so ids from one
+ * vendor can never match another's:
+ *  - our own id matches only results from the family that issued it (`aliases._family`);
+ *  - a learned alias matches only that source, and still has to fall inside the time window;
+ *  - otherwise team names (either orientation) plus the time window.
+ * Orientation is decided from the names on EVERY run, never remembered, so a
+ * vendor that lists home and away the other way round is always swapped back.
  */
 export function resultsForEvent(
   event: { externalId: string; homeName: string; awayName: string; startsAt: Date; aliases?: Record<string, string> },
@@ -102,20 +121,17 @@ export function resultsForEvent(
 ): { results: EventResult[]; matched: Record<string, string> } {
   const results: EventResult[] = []
   const matched: Record<string, string> = {}
+  const family = event.aliases?._family
   for (const r of all) {
-    const byId = r.externalId === event.externalId || event.aliases?.[r.source] === r.externalId
-    const byName =
-      !!r.homeName &&
-      !!r.awayName &&
-      !!r.startsAt &&
-      Math.abs(r.startsAt.getTime() - event.startsAt.getTime()) <= WINDOW_MS &&
-      ((norm(r.homeName) === norm(event.homeName) && norm(r.awayName) === norm(event.awayName)) ||
-        (norm(r.homeName) === norm(event.awayName) && norm(r.awayName) === norm(event.homeName)))
-    if (!byId && !byName) continue
-    // A flipped listing swaps the scores back into our orientation.
-    const flipped = !byId && !!r.homeName && norm(r.homeName) === norm(event.awayName)
-    results.push(flipped ? { ...r, homeScore: r.awayScore, awayScore: r.homeScore } : r)
-    if (r.externalId !== event.externalId) matched[r.source] = r.externalId
+    const inWindow = !r.startsAt || Math.abs(r.startsAt.getTime() - event.startsAt.getTime()) <= WINDOW_MS
+    const byOwnId = r.externalId === event.externalId && (!family || (r.family ?? r.source) === family) && inWindow
+    const byAlias = event.aliases?.[r.source] === r.externalId && inWindow
+    const sameOrder = !!r.homeName && !!r.awayName && norm(r.homeName) === norm(event.homeName) && norm(r.awayName) === norm(event.awayName)
+    const swapped = !!r.homeName && !!r.awayName && norm(r.homeName) === norm(event.awayName) && norm(r.awayName) === norm(event.homeName)
+    const byName = !!r.startsAt && inWindow && (sameOrder || swapped)
+    if (!byOwnId && !byAlias && !byName) continue
+    results.push(swapped ? { ...r, homeScore: r.awayScore, awayScore: r.homeScore } : r)
+    if (!byOwnId && event.aliases?.[r.source] !== r.externalId) matched[r.source] = r.externalId
   }
   return { results, matched }
 }

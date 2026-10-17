@@ -111,7 +111,8 @@ export function createCompositeOdds(sources: Source[], usage: UsageStore, opts: 
           notes.push(`${name}: failed (${error instanceof Error ? error.message : "error"})`)
         }
       }
-      return { provider: sources.map((s) => s.provider.name).join("+"), fetchedAt: fetched.length ? new Date(Math.min(...fetched.map((d) => d.getTime()))) : new Date(0), events, notes }
+      const complete = !notes.some((n) => n.includes(": failed") || n.includes(": skipped"))
+      return { complete, provider: sources.map((s) => s.provider.name).join("+"), fetchedAt: fetched.length ? new Date(Math.min(...fetched.map((d) => d.getTime()))) : new Date(0), events, notes }
     },
   }
 }

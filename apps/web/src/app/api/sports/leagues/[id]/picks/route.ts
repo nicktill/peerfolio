@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { ApiError, readJson } from "@web/lib/api"
 import { db, withSportsUser } from "@web/lib/sports/api"
-import { placeSportsPick } from "@web/lib/sports/store"
+import { placeSportsPick, takeRateLimit } from "@web/lib/sports/store"
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -18,6 +18,7 @@ const Pick = z.object({
 
 export const POST = withSportsUser<Ctx>(async (userId, request, { params }) => {
   const { id } = await params
+  if (!(await takeRateLimit(db, "pick", userId))) throw new ApiError("Slow down a little, then try again.", 429)
   const parsed = Pick.safeParse(await readJson(request))
   if (!parsed.success) throw new ApiError(parsed.error.issues[0]?.message ?? "Invalid pick")
   const { pick, replayed } = await placeSportsPick(db, userId, id, parsed.data, new Date())

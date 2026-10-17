@@ -85,3 +85,5 @@ npm run lint
 Set `THE_ODDS_API_KEY` (free key from the-odds-api.com), remove `SPORTS_MOCK`, and call the publish
 route. Usage is recorded in `sports_provider_usage`. Set `SPORTS_PROPS_ENABLED=1` to include
 player props (costs more credits). The adapter is unverified against the live API, see STATUS.md.
+
+Concurrency stress (needs the local database and demo users): `npm run sports:stress` races picks against voids and settlement for 15 rounds and fails on any deadlock, ledger mismatch or pick left open on a void market.

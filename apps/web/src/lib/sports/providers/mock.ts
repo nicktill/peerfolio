@@ -60,13 +60,14 @@ export function mockEvent(sport: Sport, n: number, startsAt: Date): ProviderEven
     })
   }
   const [home, away] = TEAMS[sport][(n - 1) % 3]!
-  return { externalId: id, sport, homeName: home, awayName: away, startsAt, markets }
+  return { externalId: id, family: "mock", sport, homeName: home, awayName: away, startsAt, markets }
 }
 
 export class MockProvider implements OddsProvider, ResultsProvider {
   /** Optional canned results by external id, for tests and local play. */
   private readonly results: Record<string, Omit<EventResult, "source" | "externalId">>
   readonly name: string
+  readonly family = "mock"
   constructor(results: Record<string, Omit<EventResult, "source" | "externalId">> = {}, name = "mock") {
     this.results = results
     this.name = name

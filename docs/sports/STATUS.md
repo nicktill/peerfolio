@@ -20,6 +20,15 @@ Stale-line window (publish within 24 h, lock 2 h, freeze on movement), start-tim
 - Local scripts: `npm run sports:seed`, `npm run sports:settle-demo`
 - Verified locally against a real Postgres 16: migration applies, seed + settle work, second settle pays nothing, ledger sum equals credits, pick API returns 201/200 (replay)/409 (second pick, stale price)/403 (cron without secret); `/fantasy` and the league page respond 200.
 
+## Before enabling (checklist)
+
+1. **Second independent results source.** Today nothing settles unless `SPORTS_MIN_RESULT_SOURCES=1` (a knowing downgrade), because only the Odds API family is wired. Add ESPN, SportsGameOdds or similar, in a different family.
+2. **Publish cron frequent enough for freeze checks.** The freeze guard runs inside the publish job, so run it every 10 to 15 minutes on game days (credits permitting; the composite paces itself) and settle every 30 minutes. A published line is only as guarded as this schedule.
+3. **Live Odds API key test**: props on the free plan, `/scores` shape and tennis score semantics, credit cost per call (PROVIDERS.md checklist).
+4. **Display-terms confirmation** in writing from every odds vendor used.
+5. **Provider-outage policy**: if odds sources fail, nothing publishes and nothing freezes (by design); if results sources fail, nothing settles or voids until one answers; picks wait. Decide who watches the `settlement_review` / `review_timeout` notifications and the cron logs.
+6. Review the defaults below and the compliance note.
+
 ## Unverified (read this)
 
 - **Every provider fact** in PROVIDERS.md: no provider site was reachable (DNS blocked), only search snippets. The Odds API free tier was not resolved with certainty; the best evidence says free is limited by credits, not by market type, and that props work per event.
@@ -51,5 +60,5 @@ Stale-line window (publish within 24 h, lock 2 h, freeze on movement), start-tim
 3. **Second results source**: ESPN unofficial JSON (free, no ToS), SportsGameOdds, or BALLDONTLIE (about $40/month per sport for stats). Needed for safe auto-settlement and prop grading.
 4. **Cron schedule**: not added to `vercel.json` on purpose (would start spending credits on deploy). Suggested once keys exist: publish daily at 15:00 UTC and 2 hours before typical kickoffs on game days; settle every 30 minutes on game days.
 5. **Compliance**: credits-only is the design. Any prize, sponsorship or paid tier needs legal review (sweepstakes/gambling rules vary by state) before it is built.
-6. **Defaults to confirm**: margin 4.5%, locks 30/60 min, caps (10 min stake, 10% max stake, 20 open picks, 60% exposure), settle delay 6 h, 48 h postponement void.
+6. **Defaults to confirm**: margin 4.5%, locks 2 h before start, freeze at 1 point or 4 points of probability, caps (10 min stake, 10% max stake, 20 open picks, 60% exposure), settle delay 6 h, 48 h postponement void.
 7. **Naming/copy** on the Sports screens, and the collusion report priority (Phase 2).

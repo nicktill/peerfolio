@@ -84,6 +84,8 @@ export class TheOddsApiProvider implements OddsProvider, ResultsProvider {
   private readonly opts: { includeProps: boolean; maxPropEvents: number }
   readonly name: string
   private readonly baseUrl: string
+  /** Odds-API-compatible vendors resell the same upstream, so they all share one family and count once. */
+  readonly family = "the-odds-api"
 
   /** `name` and `baseUrl` are overridable so an Odds-API-compatible vendor (PropLine claims this shape; UNVERIFIED) can reuse the adapter. */
   constructor(
@@ -134,7 +136,7 @@ export class TheOddsApiProvider implements OddsProvider, ResultsProvider {
     const events: ProviderEvent[] = []
     for (const key of await this.sportKeys(sport)) {
       const raw = await this.get<RawEvent[]>(`/sports/${key}/odds`, { regions: "us", markets: "h2h,spreads,totals", oddsFormat: "american" })
-      let batch = raw.map((r) => normalizeOddsApiEvent(r, sport)).filter((e) => e.startsAt.getTime() > now.getTime())
+      let batch: ProviderEvent[] = raw.map((r) => ({ ...normalizeOddsApiEvent(r, sport), family: this.family })).filter((e) => e.startsAt.getTime() > now.getTime())
 
       const propMarkets = PROP_MARKETS[sport]
       if (this.opts.includeProps && propMarkets.length) {
@@ -154,9 +156,6 @@ export class TheOddsApiProvider implements OddsProvider, ResultsProvider {
     }
     return { provider: this.name, fetchedAt: new Date(), events }
   }
-
-  /** Odds-API-compatible vendors resell the same upstream, so they all share one family and count once. */
-  readonly family = "the-odds-api"
 
   async fetchResults(sport: Sport, events: EventRef[]): Promise<EventResult[]> {
     const wanted = new Set(events.map((e) => e.externalId))

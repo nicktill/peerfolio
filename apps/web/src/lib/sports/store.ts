@@ -3,11 +3,12 @@ import type { PostgresJsDatabase } from "drizzle-orm/postgres-js"
 import * as schema from "../../db/schema.ts"
 import { generateInviteCode } from "../crypto.ts"
 import type { UsageStore } from "./credit-budget.ts"
-import { DEFAULT_PUBLISH, detectMove, freshDrafts, marketsToLock, planPublication, planSchedule } from "./lines.ts"
+import { DEFAULT_PUBLISH, detectMove, freshDrafts, marketsToLock, missingReason, planPublication, planSchedule } from "./lines.ts"
+import { bucketOf, LIMITS, PRUNE_AFTER_WINDOWS, withinLimit, type LimitName } from "./rate-limit.ts"
 import { acceptPick, DEFAULT_LIMITS, PickRejected, type PickRequest } from "./picks.ts"
 import { mirroredPairs } from "./report.ts"
 import { DEFAULT_RESOLVE, gradePick, planSettlement, placeKey, resolveResult, resultsForEvent, type ResolveConfig, type SettlementPlan } from "./settlement.ts"
-import type { EventRef, MarketKind, OddsProvider, Outcome, ResultsProvider, Selection, Sport } from "./types.ts"
+import type { EventRef, EventResult, MarketKind, OddsProvider, Outcome, ResultsProvider, Selection, Sport } from "./types.ts"
 import { SPORTS } from "./types.ts"
 
 /**
@@ -29,7 +30,51 @@ export class SportsError extends Error {
   }
 }
 
-const { sportsLeagues, sportsMembers, sportsEvents, sportsMarkets, sportsLines, sportsPicks, sportsLedger, sportsProviderUsage, sportsNotifications } = schema
+/** Postgres deadlock (40P01) or serialization failure (40001): safe to run the whole transaction again. */
+const isRetryable = (error: unknown): boolean => {
+  const e = error as { code?: string; cause?: { code?: string } } | null
+  const code = e?.code ?? e?.cause?.code
+  return code === "40P01" || code === "40001"
+}
+
+/**
+ * Runs a transaction body, retrying a bounded number of times on deadlock. Lock order is
+ * market -> member everywhere, so this should never fire; it is the belt to that braces.
+ */
+export async function withDeadlockRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
+  for (let i = 1; ; i++) {
+    try {
+      return await fn()
+    } catch (error) {
+      if (i >= attempts || !isRetryable(error)) throw error
+      await new Promise((r) => setTimeout(r, 20 * i + Math.random() * 30))
+    }
+  }
+}
+
+/** Counts one attempt in the shared fixed window and says whether it is allowed. Works across servers. */
+export async function takeRateLimit(db: Db, name: LimitName, userId: string, now: Date = new Date()): Promise<boolean> {
+  const { max, windowMs } = LIMITS[name]
+  const [row] = await db
+    .insert(sportsRateLimits)
+    .values({ key: `${name}:${userId}`, bucket: bucketOf(now, windowMs), count: 1 })
+    .onConflictDoUpdate({ target: [sportsRateLimits.key, sportsRateLimits.bucket], set: { count: sql`${sportsRateLimits.count} + 1` } })
+    .returning({ count: sportsRateLimits.count })
+  return withinLimit(row?.count ?? 1, max)
+}
+
+export async function pruneRateLimits(db: Db, now: Date = new Date()) {
+  // The longest window decides how far back anything can still matter.
+  const longest = Math.max(...Object.values(LIMITS).map((l) => l.windowMs))
+  const cutoff = bucketOf(new Date(now.getTime() - PRUNE_AFTER_WINDOWS * longest), 1)
+  // Buckets are window-sized units, so compare in each name's own unit by deleting by key prefix.
+  for (const [name, { windowMs }] of Object.entries(LIMITS)) {
+    await db.execute(sql`DELETE FROM sports_rate_limits WHERE key LIKE ${name + ":%"} AND bucket < ${bucketOf(new Date(now.getTime() - PRUNE_AFTER_WINDOWS * windowMs), windowMs)}`)
+  }
+  return cutoff
+}
+
+const { sportsLeagues, sportsMembers, sportsEvents, sportsMarkets, sportsLines, sportsPicks, sportsLedger, sportsProviderUsage, sportsNotifications, sportsRateLimits } = schema
 
 export const JOIN_FAILED = "That code didn't work"
 
@@ -277,8 +322,21 @@ export async function getMirroredPickReport(db: Db, userId: string, leagueId: st
  * ledger row and the balance change commit together or not at all. Replaying
  * the same `requestId` returns the original pick instead of placing a second.
  */
-export async function placeSportsPick(db: Db, userId: string, leagueId: string, req: PickRequest & { requestId: string }, now: Date) {
+export function placeSportsPick(db: Db, userId: string, leagueId: string, req: PickRequest & { requestId: string }, now: Date) {
+  return withDeadlockRetry(() => placeOnce(db, userId, leagueId, req, now))
+}
+
+async function placeOnce(db: Db, userId: string, leagueId: string, req: PickRequest & { requestId: string }, now: Date) {
   return db.transaction(async (tx) => {
+    // LOCK ORDER, everywhere: market first, then member rows. voidMarket, freezing and settlement take the
+    // market row exclusively before touching any member, so a pick can never hold a member and wait on a
+    // market while a void holds the market and waits on that member.
+    const [theLine] = await tx.select().from(sportsLines).where(eq(sportsLines.id, req.lineId)).limit(1)
+    if (!theLine) throw new SportsError("Line not found", 404)
+    // Shared: many picks proceed together; a void/freeze (exclusive) either waits for them or runs first and is seen here.
+    const [theMarket] = await tx.select().from(sportsMarkets).where(eq(sportsMarkets.id, theLine.marketId)).for("share")
+    if (!theMarket) throw new SportsError("Line not found", 404)
+
     const [member] = await tx.execute<{ id: string; credits: number }>(
       sql`SELECT id, credits FROM sports_members WHERE league_id = ${leagueId} AND user_id = ${userId} FOR UPDATE`,
     )
@@ -295,13 +353,8 @@ export async function placeSportsPick(db: Db, userId: string, leagueId: string, 
     if (!league) throw new SportsError("League not found", 404)
     if (league.endsAt && league.endsAt.getTime() < now.getTime()) throw new SportsError("That league has ended")
 
-    const [theLine] = await tx.select().from(sportsLines).where(eq(sportsLines.id, req.lineId)).limit(1)
-    if (!theLine) throw new SportsError("Line not found", 404)
-    // A shared row lock on the market: voidMarket / freezing take the same row exclusively, so a void either
-    // waits for this pick to commit (and then refunds it) or runs first (and this pick sees `void` and is refused).
-    const [theMarket] = await tx.select().from(sportsMarkets).where(eq(sportsMarkets.id, theLine.marketId)).for("share")
-    const [theEvent] = theMarket ? await tx.select().from(sportsEvents).where(eq(sportsEvents.id, theMarket.eventId)).limit(1) : []
-    if (!theMarket || !theEvent || !league.sports.includes(theEvent.sport)) throw new SportsError("Line not found", 404)
+    const [theEvent] = await tx.select().from(sportsEvents).where(eq(sportsEvents.id, theMarket.eventId)).limit(1)
+    if (!theEvent || !league.sports.includes(theEvent.sport)) throw new SportsError("Line not found", 404)
     const row = { line: theLine, market: theMarket, event: theEvent }
 
     const [existing] = await tx
@@ -402,7 +455,7 @@ export async function publishLines(db: Db, provider: OddsProvider, sports: reado
       await db.transaction(async (tx) => {
         const [event] = await tx
           .insert(sportsEvents)
-          .values({ sport, externalId: ev.externalId, homeName: ev.homeName, awayName: ev.awayName, startsAt: ev.startsAt })
+          .values({ sport, externalId: ev.externalId, homeName: ev.homeName, awayName: ev.awayName, startsAt: ev.startsAt, aliases: ev.family ? { _family: ev.family } : {} })
           .onConflictDoUpdate({ target: [sportsEvents.sport, sportsEvents.externalId], set: { externalId: ev.externalId } })
           .returning()
         const [market] = await tx
@@ -447,9 +500,16 @@ export async function guardPublished(db: Db, snapshot: Awaited<ReturnType<OddsPr
     .where(and(eq(sportsMarkets.status, "open"), eq(sportsEvents.sport, sport)))
   for (const { market, event } of open) {
     const theirs = snapshot.events.find((e) => e.externalId === event.externalId)
-    if (!theirs) continue
-    let freeze: string | null = null
+    // Dropped from a trustworthy feed (event gone, prop pulled): close it. Freezing is one-way; a market that
+    // comes back is not reopened, because picks taken in between were never checked against it. Existing picks settle normally.
+    const gone = missingReason(snapshot, now, event.externalId, market.marketKey, cfg)
+    if (!theirs && !gone) continue
+    let freeze: string | null = gone
     let lockAt = market.lockAt
+    if (!theirs) {
+      await freezeMarket(db, market.id, freeze!, lockAt, out)
+      continue
+    }
     if (Math.abs(theirs.startsAt.getTime() - event.startsAt.getTime()) > 60_000) {
       const plan = planSchedule({ kind: market.kind as MarketKind, lockAt: market.lockAt }, theirs.startsAt, now, cfg)
       lockAt = plan.lockAt
@@ -461,18 +521,21 @@ export async function guardPublished(db: Db, snapshot: Awaited<ReturnType<OddsPr
     if (!freeze && draft) {
       freeze = detectMove({ kind: market.kind as MarketKind, lockAt, fairProbA: market.fairProbA, pointA: market.pointA }, draft, cfg)
     }
-    await db.transaction(async (tx) => {
-      // Exclusive lock on the market row: waits for in-flight picks, blocks new ones until commit.
-      const [locked] = await tx.select().from(sportsMarkets).where(eq(sportsMarkets.id, market.id)).for("update")
-      if (!locked || locked.status !== "open") return
-      await tx
-        .update(sportsMarkets)
-        .set(freeze ? { status: "locked", frozenReason: freeze, lockAt } : { lockAt })
-        .where(eq(sportsMarkets.id, market.id))
-      if (freeze) out.frozen++
-    })
+    if (freeze || lockAt !== market.lockAt) await freezeMarket(db, market.id, freeze, lockAt, out)
   }
   return out
+}
+
+/** Exclusive lock on the market row: waits for in-flight picks, blocks new ones until commit. `reason` null only moves the lock. */
+async function freezeMarket(db: Db, marketId: string, reason: string | null, lockAt: Date, out: { frozen: number }) {
+  await withDeadlockRetry(() =>
+    db.transaction(async (tx) => {
+      const [locked] = await tx.select().from(sportsMarkets).where(eq(sportsMarkets.id, marketId)).for("update")
+      if (!locked || locked.status !== "open") return
+      await tx.update(sportsMarkets).set(reason ? { status: "locked", frozenReason: reason, lockAt } : { lockAt }).where(eq(sportsMarkets.id, marketId))
+      if (reason) out.frozen++
+    }),
+  )
 }
 
 /** Closes markets whose lock time has passed. Picks are also refused by time in `acceptPick`, so this is bookkeeping, not the guard. */
@@ -492,7 +555,7 @@ export async function lockDueMarkets(db: Db, now: Date) {
  */
 export async function applySettlement(tx: Tx, plan: SettlementPlan, now: Date) {
   const moved = new Set<string>()
-  for (const s of plan.statuses) {
+  for (const s of [...plan.statuses].sort((x, y) => x.pickId.localeCompare(y.pickId))) {
     const done = await tx
       .update(sportsPicks)
       .set({ status: s.status, settledAt: now })
@@ -521,7 +584,8 @@ export async function applySettlement(tx: Tx, plan: SettlementPlan, now: Date) {
     }
   }
   let credited = 0
-  for (const entry of plan.ledger) {
+  // Same member order in every settlement run, so two runs touching the same members cannot deadlock.
+  for (const entry of [...plan.ledger].sort((x, y) => x.memberId.localeCompare(y.memberId))) {
     if (!moved.has(entry.pickId)) continue
     const inserted = await tx
       .insert(sportsLedger)
@@ -550,11 +614,37 @@ async function settleMarketPicks(tx: Tx, marketId: string, outcomeOf: (p: typeof
 }
 
 /** Voids one market (injury or lineup news, bad line) and refunds every open pick on it. */
-export async function voidMarket(db: Db, marketId: string, reason: string, now: Date) {
-  return db.transaction(async (tx) => {
-    await tx.update(sportsMarkets).set({ status: "void", voidReason: reason }).where(and(eq(sportsMarkets.id, marketId), inArray(sportsMarkets.status, ["open", "locked"])))
-    return settleMarketPicks(tx, marketId, () => "void", now)
-  })
+export function voidMarket(db: Db, marketId: string, reason: string, now: Date) {
+  return withDeadlockRetry(() =>
+    db.transaction(async (tx) => {
+      // Market first (exclusive), then members inside settleMarketPicks: the global lock order.
+      await tx.select({ id: sportsMarkets.id }).from(sportsMarkets).where(eq(sportsMarkets.id, marketId)).for("update")
+      await tx.update(sportsMarkets).set({ status: "void", voidReason: reason }).where(and(eq(sportsMarkets.id, marketId), inArray(sportsMarkets.status, ["open", "locked"])))
+      return settleMarketPicks(tx, marketId, () => "void", now)
+    }),
+  )
+}
+
+/**
+ * Tells each league owner with picks on this event that settlement needs a human, once per event and kind.
+ * Recorded in the notifications outbox (and logged), so an admin screen or push job can surface it.
+ */
+export async function alertOwners(db: Db, eventId: string, kind: string, message: string) {
+  const owners = await db
+    .selectDistinct({ userId: sportsLeagues.ownerId, leagueId: sportsLeagues.id })
+    .from(sportsPicks)
+    .innerJoin(sportsMarkets, eq(sportsMarkets.id, sportsPicks.marketId))
+    .innerJoin(sportsLeagues, eq(sportsLeagues.id, sportsPicks.leagueId))
+    .where(eq(sportsMarkets.eventId, eventId))
+  console.error(`[sports] ${kind} event=${eventId}: ${message}`)
+  for (const o of owners) {
+    const [already] = await db
+      .select({ id: sportsNotifications.id })
+      .from(sportsNotifications)
+      .where(and(eq(sportsNotifications.userId, o.userId), eq(sportsNotifications.kind, kind), sql`${sportsNotifications.payload}->>'eventId' = ${eventId}`))
+      .limit(1)
+    if (!already) await db.insert(sportsNotifications).values({ userId: o.userId, kind, payload: { eventId, leagueId: o.leagueId, message } })
+  }
 }
 
 /** Refunds picks still open on a void market (a void that raced a pick, or a crash mid-void). Safe to run any time. */
@@ -566,7 +656,14 @@ export async function sweepVoidedMarkets(db: Db, now: Date) {
     .where(and(eq(sportsPicks.status, "open"), eq(sportsMarkets.status, "void")))
   let refunded = 0
   for (const { marketId } of stuck) {
-    refunded += (await db.transaction((tx) => settleMarketPicks(tx, marketId, () => "void", now))).settled
+    refunded += (
+      await withDeadlockRetry(() =>
+        db.transaction(async (tx) => {
+          await tx.select({ id: sportsMarkets.id }).from(sportsMarkets).where(eq(sportsMarkets.id, marketId)).for("update")
+          return settleMarketPicks(tx, marketId, () => "void", now)
+        }),
+      )
+    ).settled
   }
   return refunded
 }
@@ -582,13 +679,27 @@ export async function settleDueEvents(db: Db, results: ResultsProvider[], now: D
     .from(sportsEvents)
     .innerJoin(sportsMarkets, eq(sportsMarkets.eventId, sportsEvents.id))
     .where(and(inArray(sportsMarkets.status, ["open", "locked"]), sql`${sportsEvents.startsAt} < ${now.toISOString()}::timestamptz`))
-  const out = { settled: 0, voided: 0, waiting: 0, review: 0, swept: await sweepVoidedMarkets(db, now) }
+  const out = { settled: 0, voided: 0, waiting: 0, review: 0, failedSources: 0, swept: await sweepVoidedMarkets(db, now) }
 
   for (const sport of SPORTS) {
     const ofSport = events.map((e) => e.event).filter((e) => e.sport === sport)
     if (!ofSport.length) continue
     const refs: EventRef[] = ofSport.map((e) => ({ externalId: e.externalId, homeName: e.homeName, awayName: e.awayName, startsAt: e.startsAt }))
-    const all = (await Promise.all(results.map((p) => p.fetchResults(sport, refs).catch(() => [])))).flat()
+    // A failed fetch is an outage, not "no result": count only sources that answered.
+    const answers = await Promise.all(
+      results.map((p) =>
+        p.fetchResults(sport, refs).then(
+          (r) => ({ ok: true as const, family: p.family ?? p.name, r }),
+          (error: unknown) => {
+            console.error(`[sports] results source ${p.name} failed:`, error instanceof Error ? error.message : error)
+            return { ok: false as const, family: p.family ?? p.name, r: [] as EventResult[] }
+          },
+        ),
+      ),
+    )
+    const all = answers.flatMap((a) => a.r)
+    const sourcesAnswered = new Set(answers.filter((a) => a.ok).map((a) => a.family)).size
+    out.failedSources += answers.filter((a) => !a.ok).length
 
     for (const event of ofSport) {
       const { results: mine, matched } = resultsForEvent(event, all)
@@ -602,12 +713,22 @@ export async function settleDueEvents(db: Db, results: ResultsProvider[], now: D
         firstSeen = now
         await db.update(sportsEvents).set({ finalFirstSeenAt: now }).where(eq(sportsEvents.id, event.id))
       }
-      const res = resolveResult(mine, { now, startsAt: event.startsAt, finalFirstSeenAt: firstSeen }, cfg)
+      const res = resolveResult(mine, { now, startsAt: event.startsAt, finalFirstSeenAt: firstSeen, sourcesAnswered }, cfg)
       if (res.kind === "wait") out.waiting++
-      else if (res.kind === "review") out.review++
+      else if (res.kind === "review") {
+        out.review++
+        await alertOwners(db, event.id, "settlement_review", `Sources disagree about ${event.awayName} @ ${event.homeName} (${res.reason}). Picks stay open and refund automatically after the review timeout.`)
+      }
       else {
         const markets = await db.select().from(sportsMarkets).where(and(eq(sportsMarkets.eventId, event.id), inArray(sportsMarkets.status, ["open", "locked"])))
-        await db.transaction(async (tx) => {
+        if (res.kind === "void" && res.reason.startsWith("review timeout")) {
+          await alertOwners(db, event.id, "review_timeout", `${event.awayName} @ ${event.homeName} was voided and refunded: ${res.reason}.`)
+        }
+        await withDeadlockRetry(() => db.transaction(async (tx) => {
+          // Market rows exclusively first, in id order, then members: the global lock order.
+          for (const m of [...markets].sort((x, y) => x.id.localeCompare(y.id))) {
+            await tx.select({ id: sportsMarkets.id }).from(sportsMarkets).where(eq(sportsMarkets.id, m.id)).for("update")
+          }
           for (const m of markets) {
             await settleMarketPicks(
               tx,
@@ -634,7 +755,7 @@ export async function settleDueEvents(db: Db, results: ResultsProvider[], now: D
                 : { status: "final", homeScore: res.result.homeScore, awayScore: res.result.awayScore },
             )
             .where(eq(sportsEvents.id, event.id))
-        })
+        }))
         if (res.kind === "void") out.voided++
         else out.settled++
       }

@@ -205,3 +205,16 @@ export function freshDrafts(snapshot: OddsSnapshot, now: Date, cfg: PublishConfi
   }
   return out
 }
+
+/**
+ * Whether a published market has disappeared from a trustworthy snapshot (the
+ * event was dropped, or a prop was pulled). Absence from a snapshot where a
+ * source failed or was skipped, or from an empty or stale one, proves nothing.
+ */
+export function missingReason(snapshot: OddsSnapshot, now: Date, externalId: string, marketKey: string, cfg: PublishConfig = DEFAULT_PUBLISH): string | null {
+  if (snapshot.complete === false || snapshot.events.length === 0) return null
+  if (now.getTime() - snapshot.fetchedAt.getTime() > cfg.maxSnapshotAgeMs) return null
+  const ev = snapshot.events.find((e) => e.externalId === externalId)
+  if (!ev) return "event no longer offered"
+  return ev.markets.some((m) => marketKeyOf(m) === marketKey) ? null : "market no longer offered"
+}

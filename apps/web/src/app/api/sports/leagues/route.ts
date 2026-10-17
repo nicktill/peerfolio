@@ -3,7 +3,7 @@ import { z } from "zod"
 import { ApiError, readJson } from "@web/lib/api"
 import { ACCENT_KEYS, isLeagueEmoji } from "@web/lib/league-look"
 import { db, withSportsUser } from "@web/lib/sports/api"
-import { createSportsLeague, listSportsLeagues } from "@web/lib/sports/store"
+import { createSportsLeague, listSportsLeagues, takeRateLimit } from "@web/lib/sports/store"
 import { SPORTS } from "@web/lib/sports/types"
 
 const CreateSportsLeague = z.object({
@@ -20,6 +20,7 @@ export const GET = withSportsUser<unknown>(async (userId) => {
 })
 
 export const POST = withSportsUser<unknown>(async (userId, request) => {
+  if (!(await takeRateLimit(db, "create", userId))) throw new ApiError("You've started a lot of leagues. Try again later.", 429)
   const parsed = CreateSportsLeague.safeParse(await readJson(request))
   if (!parsed.success) throw new ApiError(parsed.error.issues[0]?.message ?? "Invalid league")
   const endsAt = parsed.data.endsAt ? new Date(parsed.data.endsAt) : null

@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import { consensusTwoWay } from "./odds.ts"
 import { DEFAULT_PUBLISH, detectMove, draftMarket, freshDrafts, lockAtFor, planPublication, planSchedule } from "./lines.ts"
-import { createLimiter } from "./rate-limit.ts"
+import { bucketOf, LIMITS, withinLimit } from "./rate-limit.ts"
 import { mirroredPairs } from "./report.ts"
 import { gradePick, resolveResult, resultsForEvent } from "./settlement.ts"
 import { mockEvent } from "./providers/mock.ts"
@@ -131,13 +131,13 @@ describe("provider payload safety (must-fix 6, should-fix)", () => {
 })
 
 describe("join limiter and collusion report (should-fix)", () => {
-  it("allows a few tries then blocks until the window passes", () => {
-    let t = 0
-    const l = createLimiter(3, 1000, () => t)
-    assert.deepEqual([l.take("u"), l.take("u"), l.take("u"), l.take("u")], [true, true, true, false])
-    assert.equal(l.take("other"), true)
-    t = 1500
-    assert.equal(l.take("u"), true)
+  it("counts in fixed windows shared by every server, and limits all three actions", () => {
+    const w = LIMITS.join.windowMs
+    assert.equal(bucketOf(new Date(0), w), bucketOf(new Date(w - 1), w))
+    assert.notEqual(bucketOf(new Date(0), w), bucketOf(new Date(w), w))
+    assert.equal(withinLimit(LIMITS.join.max, LIMITS.join.max), true)
+    assert.equal(withinLimit(LIMITS.join.max + 1, LIMITS.join.max), false)
+    assert.deepEqual(Object.keys(LIMITS).sort(), ["create", "join", "pick"])
   })
   it("finds members who keep taking opposite sides", () => {
     const picks = ["m1", "m2", "m3"].flatMap((m) => [

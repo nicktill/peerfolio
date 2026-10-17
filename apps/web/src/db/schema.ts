@@ -1,4 +1,5 @@
 import {
+  bigint,
   bigserial,
   check,
   boolean,
@@ -1050,4 +1051,15 @@ export const sportsNotifications = pgTable(
     deliveredAt: timestamp("delivered_at", { withTimezone: true }),
   },
   (t) => [uniqueIndex("sports_notifications_pick_kind_idx").on(t.pickId, t.kind), index("sports_notifications_pending_idx").on(t.deliveredAt)],
+)
+
+/** Fixed-window request counters shared by every server (join, pick, create). Old windows are pruned by the publish cron. */
+export const sportsRateLimits = pgTable(
+  "sports_rate_limits",
+  {
+    key: text("key").notNull(),
+    bucket: bigint("bucket", { mode: "number" }).notNull(),
+    count: integer("count").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.key, t.bucket] })],
 )

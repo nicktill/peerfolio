@@ -31,6 +31,8 @@ export type ProviderMarket = {
 
 export type ProviderEvent = {
   externalId: string
+  /** Upstream family that issued `externalId`. Results ids only match within it. */
+  family?: string
   sport: Sport
   homeName: string
   awayName: string
@@ -44,6 +46,8 @@ export type OddsSnapshot = {
   events: ProviderEvent[]
   /** Set by the composite: which sources contributed and which were skipped, and why. */
   notes?: string[]
+  /** False when a source failed or was skipped, so absence from this snapshot proves nothing. Undefined means complete. */
+  complete?: boolean
 }
 
 export interface OddsProvider {

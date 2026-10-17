@@ -44,9 +44,10 @@ read). A cron also flips due markets `open -> locked`, but the time check is the
 
 **Void on news.** `voidMarket` (operator route `POST /api/sports/admin/void`, CRON_SECRET bearer)
 voids one market and refunds every open pick on it, idempotently. A void on injury/lineup news is
-manual in Phase 1. Phase 2 adds an automatic trigger: if the provider's line for a published market
-moves more than a threshold (default 1.5 points or 8 points of probability) before lock, void and
-republish as a new market. Postponed games void after 48 hours without a final, and a game no source ever finalises
+manual. Automatic protection is the **freeze** described above: a market whose fresh consensus moved
+1 point or 4 points of fair probability (or whose event or prop vanished from a complete, fresh
+feed) stops taking picks. Freezing is one-way: a market is never reopened, because picks taken in
+between were never checked against it; picks already accepted settle normally. Postponed games void after 48 hours without a final, and a game no source ever finalises
 voids 72 hours after its start (feeds that cannot say "postponed"). A cancelled or retired report voids only with quorum (two independent sources) and after the settle delay; a
 retirement reported next to an agreed final goes to `review`.
 
@@ -58,6 +59,12 @@ no single pick may win more than 50% of starting credits. Stakes are whole credi
 accepted `price`, `point` and the fixed `total_return` (floored to whole credits). Grading and
 payout read only the snapshot. The client sends the price/point it saw; if it differs from the
 published line the pick is refused, never silently re-priced.
+
+**Lock order and deadlocks.** Everywhere, the market row is locked before any member row (picks: market `FOR SHARE` then member `FOR UPDATE`; void, freeze and settlement: market `FOR UPDATE`, markets in id order, ledger writes in member-id order). Transactions also retry up to 3 times on `40P01`/`40001`. `npm run sports:stress` races picks against voids and settlement and checks the ledger.
+
+**Provider outages.** A results fetch that errors is an outage, not "no result": the 72 h no-result void needs a source that actually answered. A game stuck in `review` is refunded 7 days after its start, and league owners get an outbox notification (`settlement_review`, `review_timeout`). Absence from an incomplete (a source failed or was skipped), empty or stale odds snapshot never freezes anything.
+
+**Rate limits.** Join 8/min, pick 30/min, league create 5/hour, per user, counted in Postgres (`sports_rate_limits`, fixed windows) so they hold across servers; pruned by the publish cron.
 
 **Void/pick race.** `placeSportsPick` takes a shared row lock on the market; `voidMarket` and the move freeze take it exclusively, so a void either waits for an in-flight pick (and refunds it) or runs first (and the pick is refused). `settleDueEvents` also sweeps picks left open on void markets.
 
@@ -83,7 +90,7 @@ stake. A prop whose player is missing from the box score voids (DNP).
 
 | Threat | How it would work | Mitigation |
 |---|---|---|
-| Stale-line arbitrage | Compare our fixed line to live books, bet the one that moved | Early lock (30/60 min) removes most movement; stake and win caps bound the gain; void-on-move in Phase 2; credits have no cash value |
+| Stale-line arbitrage | Compare our fixed line to live books, bet the one that moved | Publish within 24 h, lock 2 h before start, freeze on line movement or when a market disappears from the feed; stake and win caps bound the gain; credits have no cash value |
 | Free-money lines | We publish a mispriced line from a bad feed | Consensus of 3+ books, outlier drop, margin baked into every price, lopsided markets skipped, snapshot freshness check (10 min) |
 | Late-edit / late-pick | Pick after kickoff or edit a pick after seeing news | No edit or cancel exists; server-time lock; snapshot of accepted line; one pick per market |
 | Double-spend / race | Fire parallel pick requests to exceed balance or caps | Member row lock, re-check inside the transaction, CHECK credits >= 0, unique (member, market) |
