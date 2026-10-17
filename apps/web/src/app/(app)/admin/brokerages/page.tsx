@@ -32,7 +32,7 @@ export default function BrokerageAdminPage() {
     try {
       await mutate("/api/admin/brokerages", { method: "PATCH", body: { userId: user.id, allowed: !user.allowed } })
       cacheClear("/api/plaid/access")
-      toast(`${user.email}: brokerage linking ${user.allowed ? "disabled" : "enabled"}.`, "success")
+      toast(`${user.email}: brokerage linking ${user.allowed ? "blocked" : "restored"}.`, "success")
       await refetch()
     } catch (cause) {
       toast(cause instanceof Error ? cause.message : "Could not update brokerage access.", "error")
@@ -45,7 +45,7 @@ export default function BrokerageAdminPage() {
     <main className="mx-auto w-full max-w-4xl space-y-6 px-4 py-8 sm:px-6">
       <div>
         <h1 className="flex items-center gap-2 text-2xl font-semibold"><Building2 aria-hidden className="size-6" />Brokerage access</h1>
-        <p className="mt-2 text-sm text-muted-foreground">Enable real brokerage linking for selected users. New users start with access disabled.</p>
+        <p className="mt-2 text-sm text-muted-foreground">Brokerage linking is open to every user, with a lifetime limit on connections each. Use this to block or restore an individual user.</p>
       </div>
 
       <PlaidKillSwitch />
@@ -88,9 +88,9 @@ export default function BrokerageAdminPage() {
                     <p className="truncate text-sm font-medium">{user.name ?? user.email}</p>
                     <p className="truncate text-xs text-muted-foreground">{user.email}</p>
                   </div>
-                  <span className="text-xs text-muted-foreground">{user.allowed ? "Enabled" : "Disabled"}</span>
-                  <Button variant={user.allowed ? "outline" : "default"} size="sm" disabled={saving !== null} loading={saving === user.id} onClick={() => void setAllowed(user)} aria-label={`${user.allowed ? "Disable" : "Enable"} brokerage linking for ${user.email}`}>
-                    {user.allowed ? "Disable" : "Enable"}
+                  <span className="text-xs text-muted-foreground">{user.allowed ? "Allowed" : "Blocked"}</span>
+                  <Button variant={user.allowed ? "outline" : "default"} size="sm" disabled={saving !== null} loading={saving === user.id} onClick={() => void setAllowed(user)} aria-label={`${user.allowed ? "Block" : "Restore"} brokerage linking for ${user.email}`}>
+                    {user.allowed ? "Block" : "Restore"}
                   </Button>
                 </li>
               ))}

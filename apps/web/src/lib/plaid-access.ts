@@ -5,7 +5,7 @@ import { db, productionLinkAttempts, users } from "@web/db"
 import { ApiError } from "@web/lib/api"
 import { plaidLinkingEnabled } from "@web/lib/plaid"
 import { plaidEnvironment } from "@web/lib/plaid-config"
-import { isAdminEmail, productionBudgetSettings } from "@web/lib/plaid-access-core"
+import { brokerageBlock, isAdminEmail, productionBudgetSettings, USER_LINK_LIMIT_NOTICE, USER_PRODUCTION_LINK_LIMIT } from "@web/lib/plaid-access-core"
 import { plaidPaused } from "@web/lib/plaid-switch"
 
 type Store = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0]
@@ -18,8 +18,15 @@ export async function assertAdmin(userId: string, store: Store = db) {
 
 export async function assertBrokeragePermission(userId: string, store: Store = db) {
   const user = await store.query.users.findFirst({ where: eq(users.id, userId) })
-  if (!user?.brokerageLinkingEnabled) throw new ApiError("Brokerage linking has not been enabled for your account", 403, { code: "BROKERAGE_LINKING_DISABLED" })
+  // Open to every signed-in user; only an explicit admin block (or a missing user) refuses.
+  if (!user || user.brokerageLinkingBlocked) throw new ApiError("Brokerage linking has been disabled for your account", 403, { code: "BROKERAGE_LINKING_DISABLED" })
   return user
+}
+
+/** Lifetime attempts by this user that created or may have created an Item. Disconnects never reduce it. */
+export async function userLinkAttempts(userId: string, store: Store = db) {
+  const [row] = await store.select({ n: sql<number>`count(*)::int` }).from(productionLinkAttempts).where(eq(productionLinkAttempts.userId, userId))
+  return Number(row?.n ?? 0)
 }
 
 export async function productionCapacity(store: Store = db) {
@@ -41,18 +48,21 @@ export async function getBrokerageAccess(userId: string) {
   const production = plaidEnvironment(process.env.PLAID_ENV) === "production"
   const enabled = plaidLinkingEnabled()
   const paused = await plaidPaused()
-  const blocked = paused ? { code: "paused", reason: "Brokerage connections are paused" } as const
-    : !user.brokerageLinkingEnabled ? { code: "off", reason: "Brokerage linking has not been enabled for your account" } as const
-      : !enabled ? { code: "unconfigured", reason: "Brokerage linking is not configured" } as const
-        : production && capacity.available === 0 ? { code: "full", reason: "Production connection limit reached" } as const : null
+  const userAttempts = production ? await userLinkAttempts(userId) : 0
+  const blocked = brokerageBlock({ paused, userBlocked: user.brokerageLinkingBlocked, configured: enabled, production, userAttempts, poolAvailable: capacity.available })
   const admin = isAdminEmail(user.email, process.env.ADMIN_EMAILS)
   // `code` lets the button say why it's unavailable. The reason text and the budget are for the owner only.
-  return { allowed: !blocked, admin, code: blocked?.code, ...(admin ? { capacity, reason: blocked?.reason } : {}) }
+  const userLimit = { used: userAttempts, limit: USER_PRODUCTION_LINK_LIMIT, remaining: Math.max(0, USER_PRODUCTION_LINK_LIMIT - userAttempts) }
+  return { allowed: !blocked, admin, code: blocked?.code, userLimit, notice: USER_LINK_LIMIT_NOTICE, ...(admin ? { capacity, reason: blocked?.reason } : {}) }
 }
 
 export async function assertBrokerageLinkingAllowed(userId: string) {
   const access = await getBrokerageAccess(userId)
-  if (!access.allowed) throw new ApiError(("reason" in access && access.reason) || "Brokerage linking unavailable", 403)
+  if (!access.allowed) {
+    if (access.code === "user_limit") throw new ApiError(USER_LINK_LIMIT_NOTICE, 403, { code: "USER_ITEM_LIMIT_REACHED" })
+    if (access.code === "full") throw new ApiError("Production connection limit reached", 403, { code: "PRODUCTION_ITEM_LIMIT_REACHED" })
+    throw new ApiError(("reason" in access && access.reason) || "Brokerage linking unavailable", 403)
+  }
 }
 
 /** Commit before calling Plaid: rollback/timeout cannot replenish the lifetime budget. */
@@ -72,6 +82,8 @@ export async function reserveProductionLinkAttempt(userId: string, publicToken: 
     const prior = await store.query.productionLinkAttempts.findFirst({ where: eq(productionLinkAttempts.publicTokenDigest, digest) })
     if (prior) throw new ApiError("This connection attempt was already processed. Start a new connection to retry.", 409, { code: "LINK_ATTEMPT_ALREADY_RESERVED" })
     const capacity = await productionCapacity(store)
+    // Same transaction and locks as the insert: two simultaneous reservations at the cap cannot both pass.
+    if ((await userLinkAttempts(userId, store)) >= USER_PRODUCTION_LINK_LIMIT) throw new ApiError(USER_LINK_LIMIT_NOTICE, 403, { code: "USER_ITEM_LIMIT_REACHED" })
     if (capacity.available === 0) throw new ApiError("Production connection limit reached", 403, { code: "PRODUCTION_ITEM_LIMIT_REACHED" })
     const [attempt] = await store.insert(productionLinkAttempts).values({ userId, publicTokenDigest: digest }).returning({ id: productionLinkAttempts.id })
     return attempt!.id

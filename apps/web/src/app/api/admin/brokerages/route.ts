@@ -9,7 +9,7 @@ export const GET = withUser<unknown>(async (userId, request) => {
   await assertAdmin(userId)
   const q = new URL(request.url).searchParams.get("q")?.trim().slice(0, 120)
   const [list, capacity] = await Promise.all([
-    db.select({ id: users.id, email: users.email, name: users.name, allowed: users.brokerageLinkingEnabled }).from(users)
+    db.select({ id: users.id, email: users.email, name: users.name, allowed: sql<boolean>`not ${users.brokerageLinkingBlocked}` }).from(users)
       .where(q ? or(ilike(users.email, `%${q}%`), ilike(users.name, `%${q}%`)) : undefined)
       .orderBy(desc(users.createdAt)).limit(50),
     productionCapacity(),
@@ -27,7 +27,7 @@ export const PATCH = withUser<unknown>(async (userId, request) => {
     await store.execute(sql`set local lock_timeout = '10s'`)
     await store.execute(sql`select pg_advisory_xact_lock(hashtext(${parsed.data.userId}))`)
     await assertAdmin(userId, store)
-    const updated = await store.update(users).set({ brokerageLinkingEnabled: parsed.data.allowed, updatedAt: new Date() })
+    const updated = await store.update(users).set({ brokerageLinkingBlocked: !parsed.data.allowed, updatedAt: new Date() })
       .where(eq(users.id, parsed.data.userId)).returning({ id: users.id })
     if (!updated.length) throw new ApiError("User not found", 404)
   })

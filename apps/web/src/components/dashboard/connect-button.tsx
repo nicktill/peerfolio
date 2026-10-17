@@ -7,6 +7,11 @@ import { Button, type ButtonProps } from "@web/components/ui/button"
 import { useToast } from "@web/components/ui/toast"
 import { connectionNotice } from "@web/lib/plaid-status"
 import { exchangePublicToken, pendingLinkToken } from "@web/lib/plaid-link"
+import { USER_LINK_LIMIT_NOTICE } from "@web/lib/plaid-access-core"
+import { linkUnavailable } from "@web/lib/plaid-link-copy"
+import { CONTACT_EMAIL } from "@web/components/site-footer"
+import { Tip } from "@web/components/ui/tip"
+import { cn } from "@web/lib/utils"
 import { mutate, useApi } from "@web/lib/use-api"
 
 type Props = {
@@ -22,27 +27,62 @@ type Props = {
  * The access token never comes back here — the server stores it encrypted and
  * returns only our own item id.
  */
-type Access = { allowed: boolean; code?: "paused" | "off" | "unconfigured" | "full"; reason?: string }
-
-const UNAVAILABLE: Record<string, { label: string; title: string }> = {
-  paused: { label: "Brokerage linking paused", title: "Brokerage linking is paused for now." },
-  full: { label: "Brokerage linking is full", title: "Brokerage linking is full right now. Check back soon." },
-  off: { label: "Brokerage linking soon", title: "Brokerage linking is coming soon." },
-  unconfigured: { label: "Brokerage linking soon", title: "Brokerage linking is coming soon." },
+type Access = {
+  allowed: boolean
+  code?: "paused" | "off" | "unconfigured" | "user_limit" | "full"
+  reason?: string
+  userLimit?: { used: number; limit: number; remaining: number }
 }
+
+const CAPTION = "w-full text-xs leading-snug text-muted-foreground"
 
 export function ConnectButton(props: Props) {
   const { data, error } = useApi<Access>(props.itemId ? null : "/api/plaid/access", [], { refreshMs: 60_000 })
   // Everyone sees the button. The server decides, live, whether it's usable for this account:
-  // it's live for approved accounts and greyed out, with the reason, for the rest.
+  // it's live for everyone not blocked, and greyed out (with a short pill and a muted note) otherwise.
   if (!props.itemId && (error || !data?.allowed)) {
-    const shown = error ? { label: "Brokerage linking unavailable", title: "Couldn't check brokerage access. Try again shortly." } : UNAVAILABLE[data?.code ?? "off"]!
-    return (
-      <Button type="button" size={props.size} className={props.className} variant="outline" disabled title={data?.reason ? `${shown.title} (${data.reason})` : shown.title}>
+    const shown = error
+      ? { label: "Brokerage linking unavailable", title: "Couldn't check brokerage access. Try again shortly.", caption: undefined, tip: undefined }
+      : linkUnavailable(data?.code ?? "off", data?.userLimit)
+    const noteId = "link-unavailable-note"
+    const pill = (
+      <Button
+        type="button"
+        size={props.size}
+        className={cn("max-w-full", props.className)}
+        variant="outline"
+        disabled
+        title={data?.reason && !shown.tip ? `${shown.title} (${data.reason})` : shown.title}
+        aria-describedby={shown.caption ? noteId : undefined}
+      >
         <Clock aria-hidden />
-        <span className="hidden sm:inline">{shown.label}</span>
-        <span className="sm:hidden">{shown.label.replace("Brokerage linking", "Linking")}</span>
+        <span className="truncate">{shown.label}</span>
       </Button>
+    )
+    return (
+      <>
+        {/* A disabled button swallows hover and focus, so the tooltip wraps it; the caption below is the phone and screen-reader copy. */}
+        {shown.tip ? <Tip text={shown.tip}>{pill}</Tip> : pill}
+        {shown.caption ? (
+          <p id={noteId} className={cn(CAPTION, shown.tip && "sm:sr-only")}>
+            {shown.caption.lead}
+            {shown.caption.link ? (
+              <a href={`mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent("Brokerage linking")}`} className="underline underline-offset-2 hover:text-foreground">
+                {shown.caption.link}
+              </a>
+            ) : null}
+            {shown.caption.tail}
+          </p>
+        ) : null}
+      </>
+    )
+  }
+  if (!props.itemId) {
+    return (
+      <>
+        <PlaidConnectButton {...props} />
+        <p className={CAPTION}>{USER_LINK_LIMIT_NOTICE}</p>
+      </>
     )
   }
   return <PlaidConnectButton {...props} />

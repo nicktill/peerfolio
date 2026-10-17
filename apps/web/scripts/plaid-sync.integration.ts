@@ -7,7 +7,7 @@ import type { PlaidLinkOnSuccessMetadata } from 'react-plaid-link'
 import type { InvestmentFlow } from '../src/lib/plaid-sync-core'
 import * as schema from '../src/db/schema'
 import { db, plaidSyncRuns, users, plaidItems, accounts, holdings, portfolioSnapshots, plaidInvestmentFlows, accountEvents, securities } from '../src/db'
-import { getBrokerageAccess, productionCapacity, reserveProductionLinkAttempt } from '../src/lib/plaid-access'
+import { finishProductionLinkAttempt, getBrokerageAccess, productionCapacity, reserveProductionLinkAttempt, userLinkAttempts } from '../src/lib/plaid-access'
 import { loadLivePoints } from '../src/lib/returns'
 import { encrypt } from '../src/lib/crypto'
 import { manualMutation } from '../src/lib/manual-mutation'
@@ -44,7 +44,7 @@ try {
   // The launcher only permits the disposable local test database.
   await store.execute(sql`truncate table users, production_link_attempts cascade`)
   const [user] = await db.insert(users).values({ email: `plaid-test-${Date.now()}@example.com` }).returning()
-  await db.update(users).set({ brokerageLinkingEnabled: true }).where(eq(users.id, user!.id))
+  await db.update(users).set({ brokerageLinkingBlocked: false }).where(eq(users.id, user!.id))
   ;globalThis.plaidTestUser = user!.id
   const [adminUser] = await db.insert(users).values({ email: 'admin@test.peerfolio.invalid' }).returning()
   process.env.ADMIN_EMAILS = 'admin@test.peerfolio.invalid'
@@ -83,7 +83,7 @@ try {
       return { data: { investment_transactions: transactionList.slice(options.offset, options.offset + 500), total_investment_transactions: transactionList.length } }
     },
     itemPublicTokenExchange: async () => { exchangeRequests++; return { data: { access_token: 'duplicate-token', item_id: 'duplicate-item' } } },
-    itemGet: async () => { if (revokeDuringMetadata) await db.update(users).set({ brokerageLinkingEnabled: false }).where(eq(users.id, user!.id)); if (metadataFailure) throw new Error('metadata outage'); return { data: { item: { institution_id: institutionMissing ? null : 'institution' } } } },
+    itemGet: async () => { if (revokeDuringMetadata) await db.update(users).set({ brokerageLinkingBlocked: true }).where(eq(users.id, user!.id)); if (metadataFailure) throw new Error('metadata outage'); return { data: { item: { institution_id: institutionMissing ? null : 'institution' } } } },
     institutionsGetById: async () => ({ data: { institution: { name: 'Test brokerage' } } }),
     investmentsRefresh: async () => { refreshCalls++; if (refreshFailure) throw { response: { data: { error_code: refreshFailure, error_message: 'refresh not allowed', request_id: 'req-refresh-err' } } }; return { data: { request_id: 'req-refresh' } } },
     itemRemove: async () => { if (removeFailure) throw { response: { data: { error_code: 'INTERNAL_SERVER_ERROR' } } }; removed++; return { data: {} } },
@@ -99,7 +99,7 @@ try {
   globalThis.plaidTestUser = user!.id
   assert.equal((await (await brokerageAccess(new Request('http://localhost/api/plaid/access'), {})).json()).allowed, false)
   // Eligibility is enforced on the server before either Plaid API is called.
-  await db.update(users).set({ brokerageLinkingEnabled: false }).where(eq(users.id, user!.id))
+  await db.update(users).set({ brokerageLinkingBlocked: true }).where(eq(users.id, user!.id))
   await assert.rejects(createLinkToken(new Request('http://localhost/api/plaid/link-token', { method: 'POST', body: '{}' }), {}))
   await assert.rejects(exchange(new Request('http://localhost/api/plaid/exchange', { method: 'POST', body: JSON.stringify({ publicToken: 'denied' }) }), {}))
   assert.equal(linkRequests, 0)
@@ -339,11 +339,11 @@ try {
   // Permission revoked after token exchange cannot commit a local connection.
   revokeDuringMetadata = true
   const removalsBeforeRevoke = removed
-  await assert.rejects(exchange(new Request('http://localhost/api/plaid/exchange', { method: 'POST', body: JSON.stringify({ publicToken: 'revoked-mid-link' }) }), {}), /not been enabled/)
+  await assert.rejects(exchange(new Request('http://localhost/api/plaid/exchange', { method: 'POST', body: JSON.stringify({ publicToken: 'revoked-mid-link' }) }), {}), /been disabled/)
   assert.equal(removed, removalsBeforeRevoke + 1)
   assert.equal((await db.select().from(plaidItems)).length, 1)
   revokeDuringMetadata = false
-  await db.update(users).set({ brokerageLinkingEnabled: true }).where(eq(users.id, user!.id))
+  await db.update(users).set({ brokerageLinkingBlocked: false }).where(eq(users.id, user!.id))
   // Reconnect resumes the original Item, including across the OAuth return page.
   const storage = new Map<string, string>()
   Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { setItem: (k: string,v: string) => storage.set(k,v), getItem: (k: string) => storage.get(k) ?? null, removeItem: (k: string) => storage.delete(k) } })
@@ -411,6 +411,64 @@ try {
   assert.equal((await productionCapacity()).used, 1, 'Disconnect must not replenish lifetime capacity')
   await db.delete(users).where(eq(users.id, user!.id))
   assert.equal((await productionCapacity()).used, 1, 'Account deletion must not replenish lifetime capacity')
+  // Per-user lifetime cap (2), counted from the attempt ledger in the reservation transaction.
+  {
+    const request = (body: unknown, url: string) => new Request(`http://localhost${url}`, { method: 'POST', body: JSON.stringify(body) })
+    const baseUsed = (await productionCapacity()).used
+    process.env.PLAID_ENV = 'production'
+    process.env.PLAID_PRODUCTION_ITEM_LIMIT = '10'
+    const [capUser] = await db.insert(users).values({ email: 'cap-user@test.peerfolio.invalid' }).returning()
+    const [freshUser] = await db.insert(users).values({ email: 'fresh-user@test.peerfolio.invalid' }).returning()
+    // Open by default: a user nobody enabled can link, and sees the remaining slots.
+    const open = await getBrokerageAccess(capUser!.id)
+    assert.equal(open.allowed, true)
+    assert.equal(open.userLimit.remaining, 2)
+    // One slot used, then simultaneous reservations at the cap: exactly one wins.
+    const first = await reserveProductionLinkAttempt(capUser!.id, 'cap-user-1')
+    assert.ok(first)
+    const racers = await Promise.allSettled(['cap-user-2', 'cap-user-3', 'cap-user-4'].map((token) => reserveProductionLinkAttempt(capUser!.id, token)))
+    assert.equal(racers.filter((r) => r.status === 'fulfilled').length, 1)
+    assert.equal(racers.filter((r) => r.status === 'rejected' && /Only 2 brokerage connections/.test(String(r.reason))).length, 2)
+    assert.equal(await userLinkAttempts(capUser!.id), 2)
+    assert.equal((await productionCapacity()).used, baseUsed + 2)
+    // Every status counts; marking one uncertain changes nothing.
+    await finishProductionLinkAttempt(first, 'uncertain')
+    assert.equal(await userLinkAttempts(capUser!.id), 2)
+    // Disconnecting an Item never refunds the slot.
+    const [capItem] = await db.insert(plaidItems).values({ userId: capUser!.id, plaidItemId: 'cap-item', institutionName: 'Cap brokerage', accessToken: encrypt('cap-token') }).returning()
+    globalThis.plaidTestUser = capUser!.id
+    process.env.PLAID_ENV = 'sandbox' // legacy-token removal uses the sandbox client in this harness
+    assert.equal((await disconnect(new Request('http://localhost/api/plaid/items/x', { method: 'DELETE' }), { params: Promise.resolve({ id: capItem!.id }) })).status, 200)
+    process.env.PLAID_ENV = 'production'
+    assert.equal(await userLinkAttempts(capUser!.id), 2)
+    await assert.rejects(reserveProductionLinkAttempt(capUser!.id, 'cap-user-5'), /Only 2 brokerage connections/)
+    // The API reports the cap, and the server refuses before any Plaid call.
+    const capped = await getBrokerageAccess(capUser!.id)
+    assert.equal(capped.allowed, false)
+    assert.equal(capped.code, 'user_limit')
+    assert.equal(capped.userLimit.remaining, 0)
+    const callsBeforeCapped = { link: linkRequests, exchange: exchangeRequests }
+    await assert.rejects(createLinkToken(request({}, '/api/plaid/link-token'), {}), /Only 2 brokerage connections/)
+    await assert.rejects(exchange(request({ publicToken: 'over-cap' }, '/api/plaid/exchange'), {}), /Only 2 brokerage connections/)
+    assert.equal(linkRequests, callsBeforeCapped.link)
+    assert.equal(exchangeRequests, callsBeforeCapped.exchange)
+    // Another user is unaffected by this user's cap.
+    assert.equal((await getBrokerageAccess(freshUser!.id)).allowed, true)
+    // Global pool interplay: exhausted pool shows "full" to a user with spare slots; a user at their cap still sees their own cap.
+    process.env.PLAID_PRODUCTION_ITEM_LIMIT = String((await productionCapacity()).used)
+    assert.equal((await getBrokerageAccess(freshUser!.id)).code, 'full')
+    assert.equal((await getBrokerageAccess(capUser!.id)).code, 'user_limit')
+    await assert.rejects(reserveProductionLinkAttempt(freshUser!.id, 'pool-full'), /Production connection limit reached/)
+    assert.equal(await userLinkAttempts(freshUser!.id), 0)
+    // An admin block still wins over everything.
+    process.env.PLAID_PRODUCTION_ITEM_LIMIT = '10'
+    await db.update(users).set({ brokerageLinkingBlocked: true }).where(eq(users.id, freshUser!.id))
+    assert.equal((await getBrokerageAccess(freshUser!.id)).code, 'off')
+    await assert.rejects(reserveProductionLinkAttempt(freshUser!.id, 'blocked'), /been disabled/)
+    process.env.PLAID_PRODUCTION_ITEM_LIMIT = '1'
+    process.env.PLAID_ENV = 'sandbox'
+    globalThis.plaidTestUser = user!.id
+  }
   await db.insert(users).values({ email: 'denied@test.peerfolio.invalid' })
   // Explicit manual-to-linked replacement: no Plaid request or new Item is required.
   const [replacementUser] = await db.insert(users).values({ email: 'replacement@test.peerfolio.invalid' }).returning()

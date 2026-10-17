@@ -21,3 +21,35 @@ export function productionBudgetSettings(env: Record<string, string | undefined>
     previouslyUsed: nonnegativeInteger(env.PLAID_PRODUCTION_ITEMS_PREVIOUSLY_USED, 0, "PLAID_PRODUCTION_ITEMS_PREVIOUSLY_USED"),
   }
 }
+
+/**
+ * Lifetime cap on link attempts that created (or may have created) a Plaid Item, per user.
+ * Counted from production_link_attempts (reserved + uncertain + succeeded), so disconnecting never refunds a slot.
+ * Raise this one number to allow more connections per account.
+ */
+export const USER_PRODUCTION_LINK_LIMIT = 2
+
+/** Shown before linking and as the disabled-state message once a user has used every slot. */
+export const USER_LINK_LIMIT_NOTICE = `Only ${USER_PRODUCTION_LINK_LIMIT} brokerage connections per account for now. More coming soon.`
+
+export type BrokerageBlock = { code: "paused" | "off" | "unconfigured" | "user_limit" | "full"; reason: string }
+
+/**
+ * Pure access decision. Every signed-in user may link unless an admin explicitly blocked them.
+ * Order matters: kill switch, per-user block, configuration, the user's own cap, then the shared pool.
+ */
+export function brokerageBlock(input: {
+  paused: boolean
+  userBlocked: boolean
+  configured: boolean
+  production: boolean
+  userAttempts: number
+  poolAvailable: number
+}): BrokerageBlock | null {
+  if (input.paused) return { code: "paused", reason: "Brokerage connections are paused" }
+  if (input.userBlocked) return { code: "off", reason: "Brokerage linking has been disabled for your account" }
+  if (!input.configured) return { code: "unconfigured", reason: "Brokerage linking is not configured" }
+  if (input.production && input.userAttempts >= USER_PRODUCTION_LINK_LIMIT) return { code: "user_limit", reason: USER_LINK_LIMIT_NOTICE }
+  if (input.production && input.poolAvailable <= 0) return { code: "full", reason: "Production connection limit reached" }
+  return null
+}

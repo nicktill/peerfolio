@@ -24,6 +24,7 @@ import { useToast } from "@web/components/ui/toast"
 import { usePreviewDemo } from "@web/components/app-shell"
 import { connectionNotice } from "@web/lib/plaid-status"
 import { ConnectButton } from "@web/components/dashboard/connect-button"
+import { DisconnectDialog } from "@web/components/dashboard/disconnect-dialog"
 import { AddAccountButton, EditAccountButton } from "@web/components/dashboard/add-account-dialog"
 import { ImportPositionsButton } from "@web/components/dashboard/import-positions-dialog"
 import { PositionsEditor, type PositionRow } from "@web/components/dashboard/positions-editor"
@@ -95,6 +96,8 @@ export function AccountsCard({
   const { toast } = useToast()
   const confirm = useConfirm()
   const [busyId, setBusyId] = useState<string | null>(null)
+  // Disconnect permanently uses the connection slot, so it asks for the institution name in a dialog.
+  const [disconnecting, setDisconnecting] = useState<{ id: string; name: string } | null>(null)
   // A just-created account is scrolled into view and briefly outlined, so the
   // eye lands where the next step (adding holdings) is.
   const [highlightId, setHighlightId] = useState<string | null>(null)
@@ -159,19 +162,19 @@ export function AccountsCard({
     }
   }
 
-  async function disconnect(itemId: string, name: string) {
-    const ok = await confirm({
-      title: `Disconnect ${name}?`,
-      description: "Its accounts are removed from Peerfolio and their history stops updating. You can connect it again later.",
-      confirmLabel: "Disconnect",
-      tone: "danger",
-    })
-    if (!ok) return
+  function disconnect(itemId: string, name: string) {
+    if (isDemo) return
+    setDisconnecting({ id: itemId, name })
+  }
 
+  async function confirmDisconnect() {
+    if (!disconnecting || isDemo) return
+    const { id: itemId, name } = disconnecting
     setBusyId(itemId)
     try {
       await mutate(`/api/plaid/items/${itemId}`, { method: "DELETE" })
       toast(`${name} disconnected.`, "success")
+      setDisconnecting(null)
       onChange()
     } catch (error) {
       toast(error instanceof Error ? error.message : "Couldn't disconnect.", "error")
@@ -247,7 +250,7 @@ export function AccountsCard({
                   : "hit an error on its last sync."}
             </p>
             {isDemo ? <span className="pf-chip">Demo only</span> : connectionNotice(item).removeRequired ? (
-              <Button size="sm" variant="outline" disabled={busyId === item.id} onClick={() => void disconnect(item.id, item.institutionName)}>
+              <Button size="sm" variant="outline" disabled={busyId === item.id} onClick={() => disconnect(item.id, item.institutionName)}>
                 Remove connection
               </Button>
             ) : item.status === "error" ? (
@@ -432,7 +435,7 @@ export function AccountsCard({
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8 shrink-0"
-                  onClick={() => void disconnect(item.id, item.institutionName)}
+                  onClick={() => disconnect(item.id, item.institutionName)}
                   disabled={isDemo || busyId === item.id}
                   title={isDemo ? "Sample connection" : `Disconnect ${item.institutionName}`}
                 >
@@ -461,6 +464,15 @@ export function AccountsCard({
       </div>
   )
 
+  const disconnectDialog = (
+    <DisconnectDialog
+      institutionName={disconnecting?.name ?? null}
+      busy={disconnecting !== null && busyId === disconnecting.id}
+      onCancel={() => setDisconnecting(null)}
+      onConfirm={() => void confirmDisconnect()}
+    />
+  )
+
   if (variant === "rail") {
     return (
       <section aria-labelledby="rail-accounts" className="portfolio-accounts pf-panel min-w-0 p-4 sm:p-5">
@@ -471,6 +483,7 @@ export function AccountsCard({
           {importButton}
         </div>
         {body}
+        {disconnectDialog}
       </section>
     )
   }
@@ -478,6 +491,7 @@ export function AccountsCard({
   return (
     <SectionCard label={`Accounts · ${listed.length}`} labelId="card-accounts" action={importButton}>
       {body}
+      {disconnectDialog}
     </SectionCard>
   )
 }

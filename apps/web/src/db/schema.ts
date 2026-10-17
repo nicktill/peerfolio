@@ -64,7 +64,10 @@ export const users = pgTable(
      * publishable because the person deliberately published it.
      */
     isPublic: boolean("is_public").notNull().default(false),
+    /** Legacy opt-in flag; no longer read. Linking is open to everyone. */
     brokerageLinkingEnabled: boolean("brokerage_linking_enabled").notNull().default(false),
+    /** Admin kill-switch for one user. Linking is allowed unless this is true. */
+    brokerageLinkingBlocked: boolean("brokerage_linking_blocked").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
