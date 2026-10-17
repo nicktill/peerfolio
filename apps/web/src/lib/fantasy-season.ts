@@ -41,33 +41,98 @@ export function nextWeekStart(date: Date): Date {
 /** `YYYY-MM-DD` in UTC, the key snapshots are stored under. */
 export const dateKey = (date: Date) => date.toISOString().slice(0, 10)
 
+/**
+ * How long a round lasts. All boundaries are UTC midnight, so daylight saving
+ * never moves them: weekly rounds run Monday to Monday, monthly ones calendar
+ * month to calendar month, quarterly ones Jan/Apr/Jul/Oct to the next.
+ */
+export type Cadence = "weekly" | "monthly" | "quarterly"
+export const CADENCES: readonly Cadence[] = ["weekly", "monthly", "quarterly"]
+export const DEFAULT_CADENCE: Cadence = "weekly"
+export const isCadence = (v: unknown): v is Cadence => v === "weekly" || v === "monthly" || v === "quarterly"
+/** Anything unknown (an old row, a bad value) is weekly, the only cadence before this existed. */
+export const asCadence = (v: unknown): Cadence => (isCadence(v) ? v : DEFAULT_CADENCE)
+
+const MONTHS_PER: Record<Exclude<Cadence, "weekly">, number> = { monthly: 1, quarterly: 3 }
+
+/** The first instant of the period (week, month or quarter) containing `date`. */
+export function periodStart(date: Date, cadence: Cadence): Date {
+  if (cadence === "weekly") return weekStart(date)
+  const step = MONTHS_PER[cadence]
+  return new Date(Date.UTC(date.getUTCFullYear(), Math.floor(date.getUTCMonth() / step) * step, 1))
+}
+
+/** The first period boundary strictly after `date`. */
+export function nextPeriodStart(date: Date, cadence: Cadence): Date {
+  if (cadence === "weekly") return nextWeekStart(date)
+  const start = periodStart(date, cadence)
+  return new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + MONTHS_PER[cadence], 1))
+}
+
+/** The first boundary on or after `date`: a date picked in a calendar snaps forward to where a round can begin. */
+export function boundaryOnOrAfter(date: Date, cadence: Cadence): Date {
+  const start = periodStart(date, cadence)
+  return start.getTime() === date.getTime() ? start : nextPeriodStart(date, cadence)
+}
+
+/** Whether `date` is exactly a period boundary, which is where a season has to start. */
+export const isPeriodStart = (date: Date, cadence: Cadence) => periodStart(date, cadence).getTime() === date.getTime()
+
+/** `seasonStart` moved forward by `periods` whole periods. Month maths is on the calendar, so a 31-day month stays a month. */
+function addPeriods(seasonStart: Date, periods: number, cadence: Cadence): Date {
+  if (cadence === "weekly") return new Date(seasonStart.getTime() + periods * WEEK_MS)
+  return new Date(Date.UTC(seasonStart.getUTCFullYear(), seasonStart.getUTCMonth() + periods * MONTHS_PER[cadence], seasonStart.getUTCDate()))
+}
+
 /** Where round `number` (1-based) sits in a season that starts at `seasonStart`. */
-export function roundWindow(seasonStart: Date, number: number): { startsAt: Date; endsAt: Date } {
-  const startsAt = new Date(seasonStart.getTime() + (number - 1) * WEEK_MS)
-  return { startsAt, endsAt: new Date(startsAt.getTime() + WEEK_MS) }
+export function roundWindow(seasonStart: Date, number: number, cadence: Cadence = DEFAULT_CADENCE): { startsAt: Date; endsAt: Date } {
+  return { startsAt: addPeriods(seasonStart, number - 1, cadence), endsAt: addPeriods(seasonStart, number, cadence) }
 }
 
 /**
  * The round in progress at `now`: 0 before the season starts, otherwise the
  * 1-based number, held at `roundCount` once a fixed-length season is past its end.
  */
-export function roundNumberAt(seasonStart: Date, now: Date, roundCount: number | null): number {
+export function roundNumberAt(seasonStart: Date, now: Date, roundCount: number | null, cadence: Cadence = DEFAULT_CADENCE): number {
   if (now.getTime() < seasonStart.getTime()) return 0
-  const number = Math.floor((now.getTime() - seasonStart.getTime()) / WEEK_MS) + 1
+  let number: number
+  if (cadence === "weekly") number = Math.floor((now.getTime() - seasonStart.getTime()) / WEEK_MS) + 1
+  else {
+    const months = (now.getUTCFullYear() - seasonStart.getUTCFullYear()) * 12 + (now.getUTCMonth() - seasonStart.getUTCMonth())
+    number = Math.floor(months / MONTHS_PER[cadence]) + 1
+    // Same month as a boundary but earlier in it (a start on the 1st makes this rare): step back one.
+    if (now.getTime() < roundWindow(seasonStart, number, cadence).startsAt.getTime()) number -= 1
+  }
   return roundCount === null ? number : Math.min(number, roundCount)
 }
 
 /** When a fixed-length season is scheduled to end, or null if it runs until someone wraps it up. */
-export const seasonEnd = (seasonStart: Date, roundCount: number | null) => (roundCount === null ? null : roundWindow(seasonStart, roundCount).endsAt)
+export const seasonEnd = (seasonStart: Date, roundCount: number | null, cadence: Cadence = DEFAULT_CADENCE) => (roundCount === null ? null : roundWindow(seasonStart, roundCount, cadence).endsAt)
 
 /**
- * The start for a new season: the next Monday, unless that is too close to ask
- * anyone to draft for (under `minLeadHours`), then the one after.
+ * The start for a new season: the next boundary (Monday for weekly), unless that
+ * is too close to ask anyone to draft for (under `minLeadHours`), then the one after.
  */
-export function nextSeasonStart(now: Date, mode: SeasonMode, minLeadHours = 12): Date {
-  const next = nextWeekStart(now)
-  if (mode === "draft" && next.getTime() - now.getTime() < minLeadHours * 3_600_000) return new Date(next.getTime() + WEEK_MS)
+export function nextSeasonStart(now: Date, mode: SeasonMode, minLeadHours = 12, cadence: Cadence = DEFAULT_CADENCE): Date {
+  const next = nextPeriodStart(now, cadence)
+  if (mode === "draft" && next.getTime() - now.getTime() < minLeadHours * 3_600_000) return nextPeriodStart(next, cadence)
   return next
+}
+
+/**
+ * Checks a start date the owner picked for turning seasons on. It has to be a
+ * boundary of the chosen cadence and not in the past, so no round begins before
+ * the day seasons were switched on. Today's boundary is fine: it is "now".
+ */
+export function checkSeasonStart(startsAt: Date, cadence: Cadence, now: Date): { ok: true } | { ok: false; message: string } {
+  if (Number.isNaN(startsAt.getTime())) return { ok: false, message: "Pick a start date" }
+  if (!isPeriodStart(startsAt, cadence)) {
+    const where = cadence === "weekly" ? "a Monday" : cadence === "monthly" ? "the 1st of a month" : "the first day of a quarter"
+    return { ok: false, message: `${cadence === "weekly" ? "Weekly" : cadence === "monthly" ? "Monthly" : "Quarterly"} rounds start on ${where}` }
+  }
+  if (startsAt.getTime() < periodStart(now, cadence).getTime()) return { ok: false, message: "The start date can't be in the past" }
+  if (startsAt.getTime() > now.getTime() + 400 * DAY_MS) return { ok: false, message: "Pick a start within the next year" }
+  return { ok: true }
 }
 
 /* ------------------------------------------------------------------ *

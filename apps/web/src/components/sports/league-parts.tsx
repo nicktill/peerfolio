@@ -1,14 +1,17 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import { Check, Clock, Crown, Flame, Link2, Minus, Target, TrendingUp, Undo2, X } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { motion } from "motion/react"
+import { Check, Clock, Crown, Flame, Link2, Minus, Target, TrendingUp, Undo2, Wallet, X } from "lucide-react"
 import { AnimatedNumber } from "@web/components/ui/animated-number"
-import { LeagueBackdrop, LeagueMark, watermark } from "@web/components/league/league-mark"
+import { LeagueMark } from "@web/components/league/league-mark"
+import { EmptyScene } from "@web/components/ui/empty-scene"
 import { InfoTip } from "@web/components/ui/tip"
+import { Stat } from "@web/components/fantasy/balance-cards"
 import { PlayerBadge, TeamBadge } from "@web/components/sports/team-badge"
-import { eventTitle, formatOdds, marketTitle, pickSentence, SPORT_LABEL, type DisplayMarket } from "@web/lib/sports/format"
+import { eventTitle, formatOdds, marketTitle, openPickPhase, pickSentence, SPORT_LABEL, type DisplayMarket } from "@web/lib/sports/format"
 import { teamLook } from "@web/lib/sports/teams"
-import { initialsFor } from "@web/components/ui/avatar"
+import { Avatar, initialsFor } from "@web/components/ui/avatar"
 
 export type EventInfo = { sport: string; home: string; away: string; startsAt: string }
 export type PickRow = {
@@ -25,7 +28,7 @@ export type PickRow = {
   event: EventInfo
   name?: string
 }
-export type Standing = { name: string; credits: number; isYou: boolean }
+export type Standing = { name: string; credits: number; isYou: boolean; image?: string | null; record?: { won: number; lost: number } }
 
 const credits = (n: number) => Math.round(n).toLocaleString()
 const signed = (n: number) => (n > 0 ? `+${credits(n)}` : n < 0 ? `−${credits(-n)}` : "0")
@@ -34,10 +37,10 @@ const asMarket = (p: PickRow): DisplayMarket => ({ ...p.market, event: p.event }
 const settled = (p: PickRow) => p.status === "won" || p.status === "lost"
 
 /** Initials on a colour picked from the name, so players are recognisable at a glance. */
-export function Badge({ name, size = 34, ring }: { name: string; size?: number; ring?: string }) {
+export function Badge({ name, size = 34, ring, image }: { name: string; size?: number; ring?: string; image?: string | null }) {
   return (
     <span className="sl-av" style={{ width: size, height: size, fontSize: size * 0.36, background: `hsl(${hue(name)} 42% 34%)`, boxShadow: ring ? `0 0 0 2px var(--fw-panel), 0 0 0 3.5px ${ring}` : undefined }} aria-hidden>
-      {initialsFor(name, null)}
+      {image ? <Avatar src={image} name={name} className="h-full w-full border-0" /> : initialsFor(name, null)}
     </span>
   )
 }
@@ -82,129 +85,153 @@ export function LeagueHero({
 }) {
   const rank = standings.findIndex((s) => s.isYou) + 1
   const leader = standings[0]
-  const gap = leader && !leader.isYou ? leader.credits - you.credits : 0
+  // Standings count cash plus open stake, so compare like with like (not spendable cash).
+  const mineStanding = standings.find((s) => s.isYou)
+  const gap = leader && !leader.isYou ? leader.credits - (mineStanding?.credits ?? you.credits) : 0
   const delta = you.credits - league.startingCredits
-  const mine = statsByName(leaguePicks).get(standings.find((s) => s.isYou)?.name ?? "")
+  const mine = mineStanding?.record ?? statsByName(leaguePicks).get(mineStanding?.name ?? "")
   const decided = (mine?.won ?? 0) + (mine?.lost ?? 0)
   const hit = decided ? Math.round(((mine?.won ?? 0) / decided) * 100) : null
 
   return (
-    <section className="sl-hero reveal" data-emoji={watermark(league.emoji)} aria-label="League summary">
-      <LeagueBackdrop value={league.emoji} />
-      <div className="sl-hero-top">
-        <span className="sl-hero-art" aria-hidden>
-          <LeagueMark value={league.emoji} accent={league.accent} size={48} />
-        </span>
-        <div className="sl-hero-id">
-          <span className="sl-kicker">
-            <i aria-hidden /> Sports league · play credits
+    <>
+      <header className="fw-head reveal" data-accent={league.accent} aria-label="League">
+        <div className="fw-identity">
+          <span className="fw-art" data-accent={league.accent} aria-hidden>
+            <LeagueMark value={league.emoji} accent={league.accent} size={42} />
           </span>
-          <h1>{league.name}</h1>
-          <p>
-            {status} · {standings.length} players · {league.sports.map((s) => SPORT_LABEL[s] ?? s).join(" · ")}
-          </p>
+          <div>
+            <span className="fw-eyebrow">Sports / Play money</span>
+            <h1>{league.name}</h1>
+          </div>
         </div>
-        <div className="sl-hero-invite">{invite}</div>
-      </div>
+        <ul className="fw-meta" aria-label="League rules">
+          <li className="fw-meta-status">{status}</li>
+          <li>
+            {standings.length} {standings.length === 1 ? "player" : "players"}
+          </li>
+          {league.sports.map((s) => (
+            <li key={s}>{SPORT_LABEL[s] ?? s}</li>
+          ))}
+        </ul>
+        <div className="fw-actions">{invite}</div>
+      </header>
 
-      <div className="sl-stats">
-        <div className="sl-stat" data-hero>
-          <span className="sl-stat-k">Your rank</span>
-          <strong>
+      <dl className="fw-panel fw-scoreboard sp-scoreboard reveal" aria-label="League summary">
+        <Stat label="Your rank" icon={<Crown />} tone="rank">
+          <span className="fw-figure">
             #{rank}
-            <small> of {standings.length}</small>
-          </strong>
-          <span className="sl-stat-n">{rank === 1 ? "You're leading the league" : leader ? `${credits(gap)} behind ${leader.name.split(" ")[0]}` : ""}</span>
-        </div>
-        <div className="sl-stat">
-          <span className="sl-stat-k">
-            Credits <InfoTip text="Your balance of play credits. Nothing real is at stake." label="About credits" />
+            <small>of {standings.length}</small>
           </span>
-          <strong className="numeric">
+          <span className="fw-sub">{rank === 1 ? "You're leading the league" : leader ? (gap > 0 ? `${credits(gap)} behind ${leader.name.split(" ")[0]}` : `Level with ${leader.name.split(" ")[0]}`) : ""}</span>
+        </Stat>
+        <Stat label={<>Cash <InfoTip text="Your play-money balance. Nothing real is at stake." label="About cash" /></>} icon={<Wallet />} tone="value">
+          <span className="fw-figure numeric">
             <AnimatedNumber value={you.credits} format={credits} countUp={`sl-credits-${league.name}`} />
-          </strong>
-          <span className="sl-stat-n" data-tone={delta > 0 ? "up" : delta < 0 ? "down" : undefined}>
-            {delta === 0 ? "Even with the start" : `${signed(delta)} since the start`}
           </span>
-        </div>
-        <div className="sl-stat">
-          <span className="sl-stat-k">
-            At risk <InfoTip text="Credits staked on picks that haven't settled yet." label="About at risk" />
+          <span className="fw-sub" data-tone={delta > 0 ? "up" : delta < 0 ? "down" : "flat"}>
+            {delta === 0 ? "Even with the start" : <><b>{signed(delta)}</b> since the start</>}
           </span>
-          <strong className="numeric">{credits(atRisk)}</strong>
-          <span className="sl-stat-n">{openCount === 0 ? "No open picks" : `${openCount} open ${openCount === 1 ? "pick" : "picks"}`}</span>
-        </div>
-        <div className="sl-stat">
-          <span className="sl-stat-k">Your record</span>
-          <strong className="numeric">
+        </Stat>
+        <Stat label={<>At risk <InfoTip text="Cash staked on picks that haven't settled yet." label="About at risk" /></>} icon={<Target />} tone="cash">
+          <span className="fw-figure numeric">{credits(atRisk)}</span>
+          <span className="fw-sub">{openCount === 0 ? "No open picks" : `${openCount} open ${openCount === 1 ? "pick" : "picks"}`}</span>
+        </Stat>
+        <Stat label="Your record" icon={<TrendingUp />} tone="return">
+          <span className="fw-figure numeric">
             {mine?.won ?? 0}–{mine?.lost ?? 0}
-          </strong>
-          <span className="sl-stat-n">{hit === null ? "No settled picks yet" : `${hit}% hit rate`}</span>
-        </div>
-      </div>
-    </section>
+          </span>
+          <span className="fw-sub">{hit === null ? "No settled picks yet" : `${hit}% hit rate`}</span>
+        </Stat>
+      </dl>
+    </>
   )
 }
 
 /** Credits as bars from a marked starting line, with form dots and record: who is winning, at a glance. */
-export function Leaderboard({ standings, start, leaguePicks }: { standings: Standing[]; start: number; leaguePicks: PickRow[] }) {
+export function Leaderboard({ standings: live, start, leaguePicks, demo }: { standings: Standing[]; start: number; leaguePicks: PickRow[]; demo?: boolean }) {
+  // ?demo=ranks shuffles credits every few seconds so the rank animation can be seen without waiting for a real result.
+  const [offsets, setOffsets] = useState<Record<string, number>>({})
+  useEffect(() => {
+    if (!demo) return
+    const id = setInterval(() => {
+      const who = live[Math.floor(Math.random() * live.length)]
+      if (who) setOffsets((o) => ({ ...o, [who.name]: (o[who.name] ?? 0) + Math.round((Math.random() - 0.45) * 160) }))
+    }, 2600)
+    return () => clearInterval(id)
+  }, [demo, live])
+  const standings = useMemo(() => (demo ? [...live].map((s) => ({ ...s, credits: s.credits + (offsets[s.name] ?? 0) })).sort((a, b) => b.credits - a.credits) : live), [demo, live, offsets])
   const stats = useMemo(() => statsByName(leaguePicks), [leaguePicks])
-  const max = Math.max(start * 1.15, ...standings.map((s) => s.credits))
-  const min = Math.min(start * 0.85, ...standings.map((s) => s.credits))
-  const span = max - min || 1
-  const baseline = ((start - min) / span) * 100
+  // Equal distance from the centre always means equal profit or loss.
+  const range = Math.max(start * 0.05, ...standings.map((s) => Math.abs(s.credits - start))) * 1.15 || 1
   const leader = standings[0]
   const second = standings[1]
   return (
     <>
-      {leader && second ? (
+      {leader && second && leader.credits > second.credits ? (
         <p className="sl-lead-note">
-          <Crown aria-hidden /> <b>{leader.isYou ? "You lead" : `${leader.name} leads`}</b> by {credits(leader.credits - second.credits)} credits
+          <Crown aria-hidden /> <b>{leader.isYou ? "You lead" : `${leader.name} leads`}</b> by {credits(leader.credits - second.credits)}
         </p>
       ) : null}
       <ol className="sl-board">
         {standings.map((s, i) => {
           const st = stats.get(s.name)
+          const record = s.record ?? st
           const roi = ((s.credits - start) / start) * 100
-          const pct = ((s.credits - min) / span) * 100
+          const change = s.credits - start
+          const tone = change > 0 ? "up" : change < 0 ? "down" : "flat"
+          const width = Math.abs(change) / range * 50
           const ring = i === 0 ? "#d4af37" : i === 1 ? "#b8bcc4" : i === 2 ? "#b87333" : undefined
           return (
-            <li key={`${s.name}-${i}`} className="sl-row" data-you={s.isYou || undefined} data-place={i + 1} style={{ "--i": i } as React.CSSProperties}>
-              <span className="sl-rank">{i === 0 ? <Crown aria-hidden /> : i + 1}</span>
-              <Badge name={s.name} ring={ring} />
+            <motion.li key={s.name} layout transition={{ type: "spring", stiffness: 420, damping: 38 }} className="sl-row" data-you={s.isYou || undefined} data-place={i + 1} data-pnl={tone} style={{ "--i": i } as React.CSSProperties}>
+              <span className="sl-rank">
+                {i === 0 ? (
+                  <motion.span key="crown" className="sl-crown" initial={{ y: -22, opacity: 0, rotate: -25, scale: 0.6 }} animate={{ y: 0, opacity: 1, rotate: 0, scale: 1 }} transition={{ type: "spring", stiffness: 380, damping: 14 }}>
+                    <Crown aria-hidden />
+                  </motion.span>
+                ) : (
+                  <motion.span key={`n${i}`} initial={{ y: 6, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
+                    {i + 1}
+                  </motion.span>
+                )}
+              </span>
+              <Badge name={s.name} image={s.image} ring={ring} />
               <div className="sl-who">
                 <div className="sl-who-top">
                   <b>{s.isYou ? "You" : s.name}</b>
-                  <span className="sl-form" aria-label={st?.form.length ? `Last results: ${st.form.slice(-5).join(" ")}` : "No settled picks"}>
+                  <span className="sl-form" aria-label={st?.form.length ? `Last results: ${st.form.slice(-5).join(" ")}` : record && record.won + record.lost > 0 ? "No recent results in the public feed" : "No settled picks"}>
                     {(st?.form.slice(-5) ?? []).map((f, k) => (
                       <i key={k} data-r={f} />
                     ))}
                   </span>
-                  <small>{st ? `${st.won}–${st.lost}` : "0–0"}</small>
+                  <small>{record ? `${record.won}–${record.lost}` : "0–0"}</small>
                 </div>
                 <div className="sl-bar" aria-hidden>
-                  <i style={{ width: `${Math.max(pct, 3)}%` }} />
-                  <u style={{ left: `${baseline}%` }} />
+                  <i data-tone={tone} style={{ left: `${change < 0 ? 50 - width : 50}%`, width: `${width}%`, transformOrigin: change < 0 ? "right" : "left" }} />
+                  <u style={{ left: "50%" }} />
                 </div>
               </div>
               <div className="sl-fig">
-                <strong className="numeric">{credits(s.credits)}</strong>
-                <small data-tone={roi > 0.05 ? "up" : roi < -0.05 ? "down" : undefined} className="numeric">
+                <strong className="numeric">
+                  <AnimatedNumber value={s.credits} format={credits} />
+                </strong>
+                <small data-tone={tone} className="numeric">
+                  {signed(change)} · {" "}
                   {roi > 0 ? "+" : roi < 0 ? "−" : ""}
                   {Math.abs(roi).toFixed(1)}%
                 </small>
               </div>
-            </li>
+            </motion.li>
           )
         })}
       </ol>
-      <p className="sl-board-note">The tick on each bar is where everyone started ({credits(start)}).</p>
+      <p className="sl-board-note">Bars show gain or loss from {credits(start)} starting cash, including open stakes.</p>
     </>
   )
 }
 
 const RESULT: Record<string, { label: string; icon: React.ReactNode }> = {
-  open: { label: "Live", icon: <Clock aria-hidden /> },
+  open: { label: "Open", icon: <Clock aria-hidden /> },
   won: { label: "Won", icon: <Check aria-hidden /> },
   lost: { label: "Lost", icon: <X aria-hidden /> },
   push: { label: "Push", icon: <Minus aria-hidden /> },
@@ -212,14 +239,49 @@ const RESULT: Record<string, { label: string; icon: React.ReactNode }> = {
 }
 
 /** One pick as a ticket: the team mark, the sentence, the price, and what it paid. */
+const SEEN_KEY = "pf.sports.seenWins"
+
+/** True the first time a won pick is shown in this browser (or always with ?demo=win), so the celebration plays once. */
+function useFirstWin(id: string, won: boolean): boolean {
+  const [first, setFirst] = useState(false)
+  useEffect(() => {
+    if (!won) return
+    let demo = false
+    try {
+      demo = new URLSearchParams(window.location.search).get("demo") === "win"
+      const seen = new Set<string>(JSON.parse(window.localStorage.getItem(SEEN_KEY) ?? "[]"))
+      if (demo || !seen.has(id)) {
+        setFirst(true)
+        if (!demo) {
+          seen.add(id)
+          window.localStorage.setItem(SEEN_KEY, JSON.stringify([...seen].slice(-200)))
+        }
+      }
+    } catch {
+      /* storage blocked: skip the celebration */
+    }
+  }, [id, won])
+  return first
+}
+
 export function PickTicket({ pick, showName }: { pick: PickRow; showName?: boolean }) {
+  const celebrate = useFirstWin(pick.id, pick.status === "won")
   const m = asMarket(pick)
-  const r = RESULT[pick.status] ?? RESULT.open!
+  const base = RESULT[pick.status] ?? RESULT.open!
+  // The clock only exists in the browser, so the first paint says "Open" and the real phase follows (no hydration mismatch).
+  const [now, setNow] = useState<Date | null>(null)
+  useEffect(() => {
+    if (pick.status !== "open") return
+    setNow(new Date())
+    const t = window.setInterval(() => setNow(new Date()), 60_000)
+    return () => window.clearInterval(t)
+  }, [pick.status])
+  const r = pick.status === "open" && now ? { ...base, label: openPickPhase(pick.event.startsAt, now).label } : base
   const net = pick.payout == null ? null : pick.payout - pick.stake
   const side = pick.market.kind === "moneyline" || pick.market.kind === "spread" ? (pick.selection === "home" ? pick.event.home : pick.event.away) : null
   const color = side ? teamLook(pick.event.sport, side).color : undefined
   return (
-    <li className="sl-ticket" data-status={pick.status} style={color ? ({ "--tc": color } as React.CSSProperties) : undefined}>
+    <li className="sl-ticket" data-status={pick.status} data-celebrate={celebrate || undefined} style={color ? ({ "--tc": color } as React.CSSProperties) : undefined}>
       <span className="sl-ticket-mark">{side ? <TeamBadge sport={pick.event.sport} name={side} size={36} /> : pick.market.player ? <PlayerBadge sport={pick.event.sport} name={pick.market.player} size={36} /> : <span className="sl-prop"><Target aria-hidden /></span>}</span>
       <div className="sl-ticket-body">
         <b>{pickSentence(m, pick)}</b>
@@ -253,7 +315,7 @@ export function PickFeed({ picks, empty, showName }: { picks: PickRow[]; empty: 
   const lost = picks.filter((p) => p.status === "lost").length
   const open = picks.filter((p) => p.status === "open").length
   const shown = filter === "all" ? picks : picks.filter((p) => p.status === filter)
-  if (picks.length === 0) return <p className="fw-empty">{empty}</p>
+  if (picks.length === 0) return <EmptyScene kind="picks" title="No picks yet" body={empty} />
   return (
     <>
       <div className="sl-feed-head">
@@ -263,7 +325,7 @@ export function PickFeed({ picks, empty, showName }: { picks: PickRow[]; empty: 
               ["all", `All ${picks.length}`],
               ["won", `Won ${won}`],
               ["lost", `Lost ${lost}`],
-              ["open", `Live ${open}`],
+              ["open", `Open ${open}`],
             ] as const
           ).map(([k, label]) => (
             <button key={k} type="button" role="tab" aria-selected={filter === k} onClick={() => setFilter(k)}>
@@ -284,7 +346,15 @@ export function PickFeed({ picks, empty, showName }: { picks: PickRow[]; empty: 
   )
 }
 
-/** Quick league facts: hit rate ring, the biggest win, who is hottest. Fills the rail with something useful. */
+/** The mark for a pick: the team it backs, the player it is on, or a target. */
+function PickMark({ pick, size }: { pick: PickRow; size: number }) {
+  const side = pick.market.kind === "moneyline" || pick.market.kind === "spread" ? (pick.selection === "home" ? pick.event.home : pick.event.away) : null
+  if (side) return <TeamBadge sport={pick.event.sport} name={side} size={size} />
+  if (pick.market.player) return <PlayerBadge sport={pick.event.sport} name={pick.market.player} size={size} />
+  return <span className="sl-prop" style={{ width: size, height: size }}><Target aria-hidden /></span>
+}
+
+/** Quick league facts: hit rate ring, the biggest win, who is hottest, who is sharpest. Fills the rail with something useful. */
 export function LeaguePulse({ leaguePicks }: { leaguePicks: PickRow[] }) {
   const done = leaguePicks.filter(settled)
   const wins = done.filter((p) => p.status === "won")
@@ -292,12 +362,16 @@ export function LeaguePulse({ leaguePicks }: { leaguePicks: PickRow[] }) {
   const biggest = wins.reduce<PickRow | null>((b, p) => (b === null || (p.payout ?? 0) - p.stake > (b.payout ?? 0) - b.stake ? p : b), null)
   const stats = statsByName(leaguePicks)
   let hot: { name: string; streak: number } | null = null
-  for (const [name, s] of stats) {
+  let sharp: { name: string; rate: number; n: number } | null = null
+  for (const [name, st] of stats) {
     let streak = 0
-    for (let i = s.form.length - 1; i >= 0 && s.form[i] === "W"; i--) streak++
+    for (let i = st.form.length - 1; i >= 0 && st.form[i] === "W"; i--) streak++
     if (streak >= 2 && (!hot || streak > hot.streak)) hot = { name, streak }
+    const n = st.won + st.lost
+    if (n >= 2 && (!sharp || st.won / n > sharp.rate)) sharp = { name, rate: st.won / n, n }
   }
-  const C = 2 * Math.PI * 26
+  const R = 40
+  const C = 2 * Math.PI * R
   return (
     <section className="fw-panel sl-pulse reveal" aria-label="League pulse">
       <div className="fw-section-head">
@@ -306,28 +380,51 @@ export function LeaguePulse({ leaguePicks }: { leaguePicks: PickRow[] }) {
       </div>
       <div className="sl-pulse-body">
         <div className="sl-ring">
-          <svg viewBox="0 0 64 64" aria-hidden>
-            <circle cx="32" cy="32" r="26" className="sl-ring-bg" />
-            <circle cx="32" cy="32" r="26" className="sl-ring-fg" strokeDasharray={`${C * rate} ${C}`} />
+          <svg viewBox="0 0 100 100" aria-hidden>
+            <defs>
+              <linearGradient id="sl-ring-g" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stopColor="var(--lg, #3fae7f)" />
+                <stop offset="1" stopColor="#f6d768" />
+              </linearGradient>
+            </defs>
+            <circle cx="50" cy="50" r={R} className="sl-ring-bg" />
+            <circle cx="50" cy="50" r={R} className="sl-ring-ticks" />
+            <circle cx="50" cy="50" r={R} className="sl-ring-fg" strokeDasharray={`${C * rate} ${C}`} />
           </svg>
-          <strong className="numeric">{done.length ? Math.round(rate * 100) : "–"}<small>%</small></strong>
-          <span>Picks won</span>
+          <div className="sl-ring-label">
+            <strong className="numeric">{done.length ? Math.round(rate * 100) : "–"}<small>%</small></strong>
+            <span>picks won</span>
+          </div>
         </div>
         <ul>
           <li>
-            <span className="sl-pulse-ic"><TrendingUp aria-hidden /></span>
+            {biggest ? <PickMark pick={biggest} size={40} /> : <span className="sl-pulse-ic"><TrendingUp aria-hidden /></span>}
             <div>
               <small>Biggest win</small>
-              <b>{biggest ? `${biggest.name?.split(" ")[0] ?? ""} +${credits((biggest.payout ?? 0) - biggest.stake)}` : "None yet"}</b>
-              {biggest ? <em>{pickSentence(asMarket(biggest), biggest)}</em> : null}
+              <b>{biggest ? <>{biggest.name?.split(" ")[0]} <span className="sl-gold">+{credits((biggest.payout ?? 0) - biggest.stake)}</span></> : "None yet"}</b>
+              {biggest ? <em>{pickSentence(asMarket(biggest), biggest)}</em> : <em>The first big win lands here</em>}
             </div>
           </li>
-          <li>
+          <li data-hot={hot ? "" : undefined}>
             <span className="sl-pulse-ic" data-hot><Flame aria-hidden /></span>
             <div>
               <small>Hottest</small>
               <b>{hot ? `${hot.name.split(" ")[0]} · ${hot.streak} straight` : "Nobody on a streak"}</b>
-              {hot ? <em>Wins in a row</em> : <em>Win two in a row to show up</em>}
+              {hot ? (
+                <em className="sl-dots" aria-hidden>
+                  {Array.from({ length: Math.min(hot.streak, 8) }, (_, i) => <i key={i} style={{ "--d": i } as React.CSSProperties} />)}
+                </em>
+              ) : (
+                <em>Win two in a row to show up</em>
+              )}
+            </div>
+          </li>
+          <li>
+            {sharp ? <Badge name={sharp.name} size={40} ring="#d4af37" /> : <span className="sl-pulse-ic"><Target aria-hidden /></span>}
+            <div>
+              <small>Sharpest</small>
+              <b>{sharp ? `${sharp.name.split(" ")[0]} · ${Math.round(sharp.rate * 100)}%` : "Too early to tell"}</b>
+              <em>{sharp ? `${sharp.n} settled picks` : "Needs two settled picks"}</em>
             </div>
           </li>
         </ul>
@@ -343,4 +440,20 @@ export function InviteChip({ code, copied, onCopy }: { code: string; copied: boo
       {copied ? "Code copied" : `Invite code ${code}`}
     </button>
   )
+}
+
+/** The next games with an unsettled pick, from the league response already on screen. */
+export function NextGames({ picks, events }: { picks: PickRow[]; events: EventInfo[] }) {
+  const keyOf = (event: EventInfo) => `${event.sport}:${event.home}:${event.away}:${event.startsAt}`
+  const picked = new Set(picks.filter((p) => p.status === "open").map((p) => keyOf(p.event)))
+  const unique = new Map<string, EventInfo>()
+  for (const event of [...events, ...picks.filter((p) => p.status === "open").map((p) => p.event)]) unique.set(keyOf(event), event)
+  const games = [...unique.values()].sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt)).slice(0, 8)
+  return <section className="fw-panel sp-next sp-desktop-context" aria-labelledby="sp-next-title">
+    <div className="fw-section-head"><h2 id="sp-next-title">Upcoming games</h2><Clock size={14} aria-hidden /></div>
+    {games.length ? <ul>{games.map((event) => <li key={keyOf(event)}>
+      <div className="sp-next-teams"><TeamBadge sport={event.sport} name={event.away} size={24} /><TeamBadge sport={event.sport} name={event.home} size={24} /></div>
+      <div><span className="sp-next-sport">{SPORT_LABEL[event.sport] ?? event.sport}{picked.has(keyOf(event)) ? " · You have a pick" : ""}</span><b>{event.away} {event.sport === "tennis" ? "vs" : "@"} {event.home}</b><span>{openPickPhase(event.startsAt, new Date()).label}</span></div>
+    </li>)}</ul> : <p className="fw-empty">Upcoming matchups will appear when lines are posted.</p>}
+  </section>
 }

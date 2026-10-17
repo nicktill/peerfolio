@@ -1,5 +1,6 @@
 "use client"
 
+import { SampleLink } from "@web/components/sample/sample-link"
 import "@web/components/fantasy/fantasy-workspace.css"
 
 import { useState } from "react"
@@ -14,10 +15,10 @@ import { useToast } from "@web/components/ui/toast"
 import { mutate, useApi } from "@web/lib/use-api"
 import { timeLeft } from "@web/components/fantasy/time-left"
 import { CreateLeagueFlow } from "@web/components/fantasy/create-league-flow"
-import { FantasyEmpty, RoundMeta, SeasonLeaders } from "@web/components/fantasy/season/list-parts"
+import { FantasyEmpty, ListStandings, RoundMeta } from "@web/components/fantasy/season/list-parts"
 import type { RoundChip } from "@web/lib/fantasy-season-view"
 import dynamic from "next/dynamic"
-import { ModePanel, ModeSwitch, useFantasyMode } from "@web/components/sports/mode-switch"
+import { ModePanel, ModeSwitch, WorldAmbient, useFantasyMode } from "@web/components/sports/mode-switch"
 
 // Loaded only when someone opens the Sports side, so the flag-off Fantasy bundle carries no sports code or CSS.
 const SportsHome = dynamic(() => import("@web/components/sports/sports-home").then((m) => m.SportsHome), { ssr: false })
@@ -32,6 +33,7 @@ type FantasySummary = {
   memberCount: number
   yourReturn: number
   yourRank?: number | null
+  longLeaders?: { name: string | null; image: string | null; percent: number; rank: number; isYou: boolean }[]
   round?: RoundChip | null
 }
 
@@ -43,17 +45,20 @@ export default function FantasyPage() {
   // Sports sits behind the `sportsEnabled` flag; with it off `side` is always "stocks" and the switch renders nothing.
   if (side === "sports") {
     return (
-      <div className="fw">
-        <SportsHome switcher={<ModeSwitch mode={side} onChange={setSide} />} />
+      <div className="fw" data-world="sports">
+        <WorldAmbient world="sports" />
+        <ModeSwitch mode={side} onChange={setSide} />
+        <SportsHome />
       </div>
     )
   }
 
   return (
-    <div className="fw">
+    <div className="fw" data-world="stocks">
+      <WorldAmbient world="stocks" />
+      <ModeSwitch mode={side} onChange={setSide} />
       <header className="fw-intro reveal" style={revealStyle(0)}>
         <div>
-          <ModeSwitch mode={side} onChange={setSide} />
           <span className="fw-eyebrow">The market. Your group chat.</span>
           <h1>Fantasy leagues</h1>
           <p className="fw-lede">Everyone starts with the same cash. Pick your stocks, compete with friends, and let the returns talk.</p>
@@ -89,7 +94,16 @@ export default function FantasyPage() {
                     <LeagueMark value={league.emoji} accent={league.accent} size={36} />
                   </span>
                   <div className="fw-league-body">
-                    <h2>{league.name}</h2>
+                    <h2>
+                      {league.name}
+                      {league.round ? (
+                        <Tip text="Weekly seasons are on: every week is its own scoreboard and the best week earns the most points. The Season half below shows those points. Long race is total return since the start.">
+                          <span className="fw-season-pill">
+                            <i aria-hidden /> Seasons on
+                          </span>
+                        </Tip>
+                      ) : null}
+                    </h2>
                     <p className="fw-league-meta">
                       <Tip text="Players in this league">
                         <span>
@@ -119,14 +133,23 @@ export default function FantasyPage() {
                     <span className="fw-note">Your return</span>
                   </div>
                   <ArrowRight aria-hidden />
-                  {league.round && (league.round.leaders?.length ?? 0) > 0 ? <SeasonLeaders round={league.round} /> : null}
+                  <ListStandings race={league.longLeaders ?? []} raceYou={league.yourRank ?? null} total={league.memberCount} season={league.round && (league.round.leaders?.length ?? 0) > 0 ? league.round : null} />
                 </Link>
               </li>
             )
           })}
         </ul>
       ) : (
-        <FantasyEmpty />
+        <FantasyEmpty
+          action={
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <button type="button" className="fw-btn" data-solid onClick={() => setMode("create")}>
+                <Plus aria-hidden /> Start fantasy league
+              </button>
+              <SampleLink href="/fantasy/sample">See a sample league</SampleLink>
+            </div>
+          }
+        />
       )}
       </ModePanel>
     </div>

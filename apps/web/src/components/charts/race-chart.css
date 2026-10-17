@@ -1,0 +1,11 @@
+.race-caption { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 76px 4px 0; font: 400 10px/16px var(--font-plex-mono), ui-monospace, monospace; color: hsl(var(--muted-foreground)); }
+.race-caption > span:last-child { display: inline-flex; align-items: center; gap: 6px; }
+.race-caption i { width: 15px; height: 2px; border-radius: 2px; background: hsl(var(--foreground)); }
+.race-chart .race-scrub input[type="range"] { appearance: none; -webkit-appearance: none; background: transparent; height: 32px; margin: 0; }
+.race-chart .race-scrub input::-webkit-slider-runnable-track { height: 3px; border-radius: 999px; background: linear-gradient(90deg, hsl(var(--muted-foreground)) var(--race-progress, 100%), hsl(var(--border)) var(--race-progress, 100%)); }
+.race-chart .race-scrub input::-webkit-slider-thumb { appearance: none; -webkit-appearance: none; width: 14px; height: 14px; margin-top: -5.5px; border-radius: 50%; border: 3px solid hsl(var(--card)); background: hsl(var(--foreground)); box-shadow: 0 0 0 1px hsl(var(--border)); }
+.race-chart .race-scrub input::-moz-range-track { height: 3px; border-radius: 999px; background: hsl(var(--border)); }
+.race-chart .race-scrub input::-moz-range-progress { height: 3px; background: hsl(var(--muted-foreground)); }
+.race-chart .race-scrub input::-moz-range-thumb { width: 9px; height: 9px; border-radius: 50%; border: 3px solid hsl(var(--card)); background: hsl(var(--foreground)); box-shadow: 0 0 0 1px hsl(var(--border)); }
+.race-chart .race-scrub input:focus-visible { outline: 2px solid hsl(var(--foreground) / .5); outline-offset: 3px; border-radius: 6px; }
+.race-chart .race-details { box-shadow: 0 8px 24px -8px rgb(0 0 0 / .25); }

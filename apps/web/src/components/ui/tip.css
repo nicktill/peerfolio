@@ -1,12 +1,14 @@
 .tip { position: relative; display: inline-flex; }
 .tip[data-inline] { vertical-align: middle; }
-.tip-bubble { position: absolute; left: 50%; z-index: 90; width: max-content; max-width: 260px; padding: 8px 12px; border: 1px solid rgb(255 255 255 / .1); border-radius: 8px; background: #1b1f27; color: #e7eaf0; font: 400 12px/18px var(--font-hanken), ui-sans-serif, system-ui, sans-serif; letter-spacing: 0; text-align: left; text-transform: none; white-space: normal; box-shadow: 0 8px 24px -8px rgb(0 0 0 / .6); opacity: 0; pointer-events: none; transform: translate(-50%, 2px); transition: opacity .12s, transform .12s; transition-delay: 0s; }
-.tip-bubble[data-side="top"] { bottom: calc(100% + 8px); }
-.tip-bubble[data-side="bottom"] { top: calc(100% + 8px); transform: translate(-50%, -2px); }
-.tip[data-open] > .tip-bubble { opacity: 1; transform: translate(-50%, 0); transition-delay: .2s; }
+.tip-bubble { position: fixed; z-index: 1000; width: max-content; max-width: 260px; padding: 8px 12px; border: 1px solid rgb(255 255 255 / .1); border-radius: 8px; background: #1b1f27; color: #e7eaf0; font: 400 12px/18px var(--font-hanken), ui-sans-serif, system-ui, sans-serif; letter-spacing: 0; text-align: left; text-transform: none; white-space: normal; box-shadow: 0 8px 24px -8px rgb(0 0 0 / .6); pointer-events: none; opacity: 0; transform: translateY(2px); }
+.tip-bubble[data-ready] { opacity: 1; transform: none; animation: tip-in .14s ease-out; }
+@keyframes tip-in { from { opacity: 0; transform: translateY(3px); } }
+.tip-bubble[data-below] { animation-name: tip-in-below; }
+@keyframes tip-in-below { from { opacity: 0; transform: translateY(-3px); } }
 .tip-info { display: inline-grid; place-items: center; width: 18px; height: 18px; margin-left: 6px; border-radius: 50%; color: hsl(var(--muted-foreground)); opacity: .7; transition: opacity .15s, background .15s; }
 .tip-info:hover, .tip-info:focus-visible, .tip-info[data-pinned] { opacity: 1; background: hsl(var(--secondary)); }
 .tip-info svg { width: 13px; height: 13px; }
-:root:not(.dark) .tip-bubble { background: #14171c; }
-@media (prefers-reduced-motion: reduce) { .tip-bubble { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .tip-bubble { animation: none; } }
 .tip[data-block] { display: block; width: 100%; }
+.tip-info { position: relative; }
+@media (pointer: coarse) { .tip-info::after { content: ""; position: absolute; inset: -13px; } }

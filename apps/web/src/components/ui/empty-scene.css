@@ -1,0 +1,34 @@
+.es { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 34px 20px 30px; --es: var(--lg, var(--fw-accent, #3fae7f)); }
+.es-art { width: 180px; margin-bottom: 8px; color: var(--es); }
+.es-art svg { width: 100%; height: auto; overflow: visible; }
+.es-title { margin: 0; font: 400 22px/28px var(--fw-serif, Georgia, serif); letter-spacing: -.02em; }
+.es-body { margin: 6px 0 0; max-width: 340px; font-size: 13.5px; line-height: 20px; color: var(--fw-fg3, hsl(var(--muted-foreground))); }
+.es-action { margin-top: 16px; }
+.es-axis { fill: none; stroke: currentColor; stroke-width: 1.5; opacity: .25; stroke-linecap: round; }
+.es-draw { fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: 1; animation: es-draw 4.5s cubic-bezier(.4, 0, .2, 1) infinite; filter: drop-shadow(0 0 5px currentColor); }
+@keyframes es-draw { 0% { stroke-dashoffset: 1; } 55%, 85% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: -1; } }
+.es-coin { fill: #f2c94c; animation: es-coin 4.5s infinite; transform-box: fill-box; transform-origin: center; }
+.es-coin-t { font: 700 9px ui-monospace, monospace; fill: #6b4a00; animation: es-coin 4.5s infinite; }
+@keyframes es-coin { 0%, 50% { opacity: 0; transform: scale(.4); } 62%, 85% { opacity: 1; transform: scale(1); } 100% { opacity: 0; } }
+.es-float { animation: es-float 3.6s ease-in-out infinite; transform-box: fill-box; }
+.es-float-2 { animation-delay: -1.8s; }
+@keyframes es-float { 50% { transform: translateY(-5px); } }
+.es-ticket, .es-bub { fill: color-mix(in srgb, currentColor 14%, transparent); stroke: currentColor; stroke-width: 1.8; }
+.es-bub-2 { fill: color-mix(in srgb, currentColor 22%, transparent); }
+.es-perf { stroke: currentColor; stroke-width: 1.5; stroke-dasharray: 3 4; opacity: .6; }
+.es-q { font: 400 34px var(--fw-serif, Georgia, serif); fill: currentColor; }
+.es-line { stroke: currentColor; stroke-width: 2; stroke-linecap: round; opacity: .55; }
+.es-shelf { stroke: currentColor; stroke-width: 2; stroke-linecap: round; opacity: .35; }
+.es-ghost { fill: color-mix(in srgb, currentColor 10%, transparent); stroke: #f2c94c; stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; stroke-dasharray: 4 3; animation: es-ghost 3.2s ease-in-out infinite; }
+@keyframes es-ghost { 50% { filter: drop-shadow(0 0 8px rgb(242 201 76 / .7)); stroke-dasharray: 100 0; } }
+.es-spark { fill: #f2c94c; transform-box: fill-box; transform-origin: center; animation: es-twinkle 2.4s ease-in-out infinite; }
+.es-spark-2 { animation-delay: -1.2s; }
+@keyframes es-twinkle { 0%, 100% { opacity: .1; transform: scale(.5) rotate(0); } 50% { opacity: 1; transform: scale(1.2) rotate(30deg); } }
+@media (prefers-reduced-motion: reduce) { .es *, .es-draw { animation: none !important; } .es-draw { stroke-dashoffset: 0; } .es-coin, .es-coin-t { opacity: 1; } }
+
+/* Light theme: the scenes are drawn for a dark page; deepen the strokes and gold so they hold on white. */
+:root:not(.dark) .es-art { color: color-mix(in srgb, var(--es) 74%, #000); }
+:root:not(.dark) .es-axis { opacity: .4; }
+:root:not(.dark) .es-shelf { opacity: .55; }
+:root:not(.dark) .es-coin, :root:not(.dark) .es-spark { fill: #d99a00; }
+:root:not(.dark) .es-ghost { stroke: #b07d00; fill: color-mix(in srgb, #d99a00 16%, transparent); }

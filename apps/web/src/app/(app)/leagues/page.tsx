@@ -1,5 +1,7 @@
 "use client"
 
+import { SampleLink } from "@web/components/sample/sample-link"
+import { EmptyGhost } from "@web/components/ui/empty-ghost"
 import { LeagueMark } from "@web/components/league/league-mark"
 import "@web/components/leagues/league-workspace.css"
 import "@web/components/app-4a.css"
@@ -8,8 +10,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { ArrowUpRight, Plus, Users } from "lucide-react"
 import { Button } from "@web/components/ui/button"
-import { Card, CardContent } from "@web/components/ui/card"
-import { EmptyState } from "@web/components/ui/empty-state"
+import { Card } from "@web/components/ui/card"
 import { Skeleton } from "@web/components/ui/skeleton"
 import { revealStyle } from "@web/components/motion/reveal"
 import { CreateLeagueFlow } from "@web/components/fantasy/create-league-flow"
@@ -113,19 +114,21 @@ export default function LeaguesPage() {
         </div>
       ) : (
         <Card>
-          <CardContent className="pt-5">
-            <EmptyState
-              icon={Users}
-              title="No leagues yet"
-              description="Start one with friends, or join with an invite code. Returns are compared as percentages, so nobody has to reveal what they actually have."
-              action={
+          <EmptyGhost
+            kind="leagues"
+            icon={Users}
+            title="Start your first league"
+            body="Pick a few friends, send the invite, and compare returns as percentages. Nobody has to reveal what they actually have."
+            actions={
+              <>
                 <Button onClick={() => setMode("create")}>
                   <Plus aria-hidden />
                   Create your first league
                 </Button>
-              }
-            />
-          </CardContent>
+                <SampleLink href="/leagues/sample">See a sample league</SampleLink>
+              </>
+            }
+          />
         </Card>
       )}
     </div>

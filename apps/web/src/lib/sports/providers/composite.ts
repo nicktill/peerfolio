@@ -11,7 +11,7 @@ import type { OddsProvider, OddsSnapshot, ProviderEvent, ProviderMarket, Sport }
  *  - answers are MERGED rather than first-wins: a second source's books are
  *    added to the same market, so two free tiers give the consensus more
  *    books (more accurate, harder to game) instead of only filling gaps;
- *  - a source that throws costs nothing but its own contribution.
+ *  - failed attempts reserve their estimate conservatively: a partial response may already have spent credits.
  */
 
 export type Source = {
@@ -93,23 +93,28 @@ export function createCompositeOdds(sources: Source[], usage: UsageStore, opts: 
           notes.push(`${name}: not needed`)
           continue
         }
-        const cost = source.cost(sport)
+        // The provider knows how many requests it will really make (tennis: one per active tournament); the flat guess is the fallback.
+        const cost = (await source.provider.estimateCost?.(sport).catch(() => undefined)) ?? source.cost(sport)
         const used = await usage.usage(name, now)
         if (!canSpend(source.plan, used, cost, now)) {
           notes.push(`${name}: skipped, credit pace used up (${used.day} today, ${used.month} this month)`)
           continue
         }
+        let snap: OddsSnapshot
         try {
-          const snap = await source.provider.fetchOdds(sport, now)
-          // Charge even when the answer is empty: the provider billed us.
-          await usage.record(name, cost, now)
-          events = mergeSnapshots(events, snap.events)
-          // The merged snapshot is only as fresh as its oldest contributor.
-          fetched.push(snap.fetchedAt)
-          notes.push(`${name}: ${snap.events.length} events, ${cost} credits`)
+          snap = await source.provider.fetchOdds(sport, now)
         } catch (error) {
+          // A timeout or partially failed multi-request fetch may already have been billed.
+          // Count the estimate so repeated failures cannot evade our day/month pace.
+          await usage.record(name, cost, now)
           notes.push(`${name}: failed (${error instanceof Error ? error.message : "error"})`)
+          continue
         }
+        // Record outside the provider catch: a database failure must fail closed, not retry accounting.
+        await usage.record(name, snap.credits ?? cost, now)
+        events = mergeSnapshots(events, snap.events)
+        fetched.push(snap.fetchedAt)
+        notes.push(`${name}: ${snap.events.length} events, ${snap.credits ?? cost} credits`)
       }
       const complete = !notes.some((n) => n.includes(": failed") || n.includes(": skipped"))
       return { complete, provider: sources.map((s) => s.provider.name).join("+"), fetchedAt: fetched.length ? new Date(Math.min(...fetched.map((d) => d.getTime()))) : new Date(0), events, notes }

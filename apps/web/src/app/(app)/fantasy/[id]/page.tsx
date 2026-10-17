@@ -114,7 +114,7 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
   const status = league.isClosed ? "Final standings" : league.endsAt ? timeLeft(league.endsAt) : "All-time"
 
   return (
-    <div className="fw" data-accent={league.accent}>
+    <div className="fw fw-play-space" data-play-world="stocks" data-accent={league.accent}>
       <Link href="/fantasy" className="fw-back">
         <ArrowLeft className="size-3.5" aria-hidden /> Fantasy leagues
       </Link>
@@ -141,9 +141,9 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
             {status}
           </span>
           {data.season ? (
-            <Tip text="Every Monday a fresh scoreboard. The best week earns the most points. Tap to see the season.">
+            <Tip text="A fresh scoreboard each round. The best round earns the most points. Tap to see the season.">
               <Link href={`/fantasy/${id}/season`} className="fw-pill fw-live-pill">
-                <i aria-hidden /> Weekly rounds on <ArrowRight aria-hidden />
+                <i aria-hidden /> Seasons on <ArrowRight aria-hidden />
               </Link>
             </Tip>
           ) : null}
@@ -154,10 +154,12 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
             </button>
           ) : null}
           {league.isOwner && !league.isClosed && !data.season ? (
-            <Link href={`/fantasy/${id}/season`} className="fw-btn">
-              <CalendarDays aria-hidden />
-              Weekly rounds
-            </Link>
+            <Tip text="Add a second scoreboard in weekly, monthly or quarterly rounds. Your standings and trades stay as they are.">
+              <Link href={`/fantasy/${id}/season`} className="fw-btn">
+                <CalendarDays aria-hidden />
+                Turn on seasons
+              </Link>
+            </Tip>
           ) : null}
           <InviteButton code={league.inviteCode} />
         </div>
@@ -220,7 +222,8 @@ function InviteButton({ code }: { code: string }) {
   return (
     <button
       type="button"
-      className="fw-btn"
+      className="fw-btn fw-invite"
+      aria-label={copied ? "Link copied" : "Copy league invite link"}
       data-solid
       onClick={() => {
         void navigator.clipboard.writeText(`${window.location.origin}/fantasy/join/${code}`)
@@ -229,7 +232,8 @@ function InviteButton({ code }: { code: string }) {
       }}
     >
       {copied ? <Check aria-hidden /> : <Link2 aria-hidden />}
-      {copied ? "Link copied" : "Invite friends"}
+      <span className="fw-invite-label-full">{copied ? "Link copied" : "Invite friends"}</span>
+      <span className="fw-invite-label-short">{copied ? "Copied" : "Invite"}</span>
     </button>
   )
 }

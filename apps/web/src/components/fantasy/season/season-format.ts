@@ -28,9 +28,9 @@ export function formatDeadline(iso: string): string {
   return new Date(iso).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" })
 }
 
-/** "Mon, Oct 19". */
+/** "Mon, Oct 19". Rounds start at 00:00 UTC, so the date is the UTC one (as the turn-on form shows), not the viewer's. */
 export function formatDay(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
+  return new Date(iso).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })
 }
 
 /** "Draft, 5 picks, 4 rounds" or "Trading, open-ended". */
@@ -54,4 +54,15 @@ export function formatRecord(r: { wins: number; losses: number; ties: number }):
 /** Points without a trailing ".0": 7, 3.5. */
 export function formatPoints(points: number): string {
   return Number.isInteger(points) ? String(points) : points.toFixed(1)
+}
+
+export type CadenceName = "weekly" | "monthly" | "quarterly"
+
+/** The length of a round as a noun: "week", "month" or "quarter". */
+export const periodWord = (cadence: CadenceName = "weekly") => (cadence === "monthly" ? "month" : cadence === "quarterly" ? "quarter" : "week")
+
+/** "Starts Monday" for weekly rounds, otherwise the date: "Starts Nov 1". */
+export function startsLabel(cadence: CadenceName, startsAtIso: string): string {
+  if (cadence === "weekly") return "Starts Monday"
+  return `Starts ${new Date(startsAtIso).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}`
 }

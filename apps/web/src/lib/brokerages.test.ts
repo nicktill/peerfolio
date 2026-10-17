@@ -5,10 +5,10 @@ import { brandFor } from "./brokerages.ts"
 test("recognises common brokerages however they're typed", () => {
   assert.equal(brandFor("Fidelity")?.name, "Fidelity")
   assert.equal(brandFor("fidelity investments")?.name, "Fidelity")
-  assert.equal(brandFor("Robinhood")?.ticker, "HOOD")
+  assert.equal(brandFor("Robinhood")?.glyph, "/brokerages/robinhood.svg")
   assert.equal(brandFor("E*TRADE")?.name, "E*TRADE")
   assert.equal(brandFor("TD Ameritrade")?.name, "Charles Schwab")
-  assert.equal(brandFor("Chase")?.ticker, "JPM")
+  assert.equal(brandFor("Chase")?.name, "Chase")
 })
 
 test("matches whole words only", () => {

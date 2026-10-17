@@ -2,6 +2,7 @@ import { DEFAULT_PLAN, estimateCredits, type UsageStore } from "../credit-budget
 import { PROP_MARKETS, TheOddsApiProvider } from "./the-odds-api.ts"
 import { createCompositeOdds, withSnapshotCache, type Source } from "./composite.ts"
 import { MockProvider } from "./mock.ts"
+import { EspnResultsProvider } from "./espn.ts"
 import type { OddsProvider, ResultsProvider, Sport } from "../types.ts"
 import { DEFAULT_RESOLVE, type ResolveConfig } from "../settlement.ts"
 
@@ -15,9 +16,14 @@ import { DEFAULT_RESOLVE, type ResolveConfig } from "../settlement.ts"
 
 export const isMockMode = () => process.env.SPORTS_MOCK === "1"
 
+const monthlyOf = (monthlyVar: string, fallback: number) => (Number(process.env[monthlyVar]) > 0 ? Number(process.env[monthlyVar]) : fallback)
+
+/** Share of a key's monthly credits that settlement (`/scores`) may use. The odds fetches get the rest, so neither can starve the other. */
+export const RESULTS_SHARE = 0.25
+
 const plan = (monthlyVar: string, fallback: number) => ({
   ...DEFAULT_PLAN,
-  monthly: Number(process.env[monthlyVar]) > 0 ? Number(process.env[monthlyVar]) : fallback,
+  monthly: Math.floor(monthlyOf(monthlyVar, fallback) * (1 - RESULTS_SHARE)),
 })
 
 const oddsApiCost = (props: boolean) => (sport: Sport) =>
@@ -34,22 +40,31 @@ export function buildOddsProvider(usage: UsageStore): OddsProvider {
   if (isMockMode()) return withSnapshotCache(new MockProvider(), 60_000)
   const props = process.env.SPORTS_PROPS_ENABLED === "1"
   const sources: Source[] = []
-  if (process.env.THE_ODDS_API_KEY) {
+  if (process.env.THE_ODDS_API_KEY ?? process.env.ODDS_API_KEY) {
     sources.push({ provider: TheOddsApiProvider.fromEnv(), plan: plan("THE_ODDS_API_MONTHLY_CREDITS", 500), cost: oddsApiCost(props) })
   }
+  // A second key from a separate account: asked only when the first is thin, failed or out of pace, with its own budget.
+  const second = TheOddsApiProvider.secondFromEnv()
+  if (second) sources.push({ provider: second, plan: plan("THE_ODDS_API_2_MONTHLY_CREDITS", 500), cost: oddsApiCost(props) })
   const compat = TheOddsApiProvider.compatibleFromEnv("propline", "PROPLINE_API_KEY", "PROPLINE_BASE_URL")
   if (compat) sources.push({ provider: compat, plan: plan("PROPLINE_MONTHLY_CREDITS", 500), cost: oddsApiCost(props) })
   if (!sources.length) throw new Error("No sports odds provider configured. Set THE_ODDS_API_KEY or SPORTS_MOCK=1")
   return withSnapshotCache(createCompositeOdds(sources, usage), 5 * 60_000)
 }
 
-/** Settlement sources. For now the odds vendors' own score endpoints; a separate source (ESPN etc.) is a TODO in STATUS.md. */
+/** Settlement sources: the odds vendors' score endpoints, plus ESPN when ESPN_RESULTS_ENABLED=1 (a separate family). */
 export function buildResultsProviders(): ResultsProvider[] {
   if (isMockMode()) return [new MockProvider()]
   const out: ResultsProvider[] = []
-  if (process.env.THE_ODDS_API_KEY) out.push(TheOddsApiProvider.fromEnv())
+  // Metered: settlement asks these only after a free source (ESPN) shows a final, inside their own share of the plan.
+  if (process.env.THE_ODDS_API_KEY ?? process.env.ODDS_API_KEY) {
+    out.push(TheOddsApiProvider.fromEnv().meterResults("the-odds-api:scores", Math.floor(monthlyOf("THE_ODDS_API_MONTHLY_CREDITS", 500) * RESULTS_SHARE)))
+  }
   const compat = TheOddsApiProvider.compatibleFromEnv("propline", "PROPLINE_API_KEY", "PROPLINE_BASE_URL")
-  if (compat) out.push(compat)
+  if (compat) out.push(compat.meterResults("propline:scores", Math.floor(monthlyOf("PROPLINE_MONTHLY_CREDITS", 500) * RESULTS_SHARE)))
+  // Independent of the odds vendors (its own family), so it can be the second source settlement needs.
+  // Opt-in until ESPN's terms for this use are confirmed.
+  if (process.env.ESPN_RESULTS_ENABLED === "1") out.push(new EspnResultsProvider())
   return out
 }
 

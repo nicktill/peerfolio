@@ -7,19 +7,19 @@ import { ArrowRight, CalendarDays, Crown, Swords } from "lucide-react"
 import { Avatar } from "@web/components/ui/avatar"
 import { Delta } from "@web/components/ui/delta"
 import { personName, useNow } from "@web/components/fantasy/season/season-parts"
-import { formatPoints, ordinal, roundProgress } from "@web/components/fantasy/season/season-format"
+import { formatPoints, ordinal, periodWord, roundProgress, type CadenceName } from "@web/components/fantasy/season/season-format"
 import type { SeasonView } from "@web/lib/fantasy-season-view"
 
 /** One bar for the week, ticked per day, with a marker on today. */
-export function WeekBar({ startsAt, endsAt }: { startsAt: string; endsAt: string }) {
+export function WeekBar({ startsAt, endsAt, cadence = "weekly" }: { startsAt: string; endsAt: string; cadence?: CadenceName }) {
   const now = useNow()
   const f = roundProgress(startsAt, endsAt, now)
   const day = Math.min(6, Math.floor(f * 7))
   return (
-    <div className="fs-week" role="progressbar" aria-label="Week progress" aria-valuemin={0} aria-valuemax={7} aria-valuenow={Math.round(f * 70) / 10} aria-valuetext={`Day ${day + 1} of 7`}>
+    <div className="fs-week" role="progressbar" aria-label={`${periodWord(cadence)[0]!.toUpperCase()}${periodWord(cadence).slice(1)} progress`} aria-valuemin={0} aria-valuemax={7} aria-valuenow={Math.round(f * 70) / 10} aria-valuetext={cadence === "weekly" ? `Day ${day + 1} of 7` : `${Math.round(f * 100)}% through`}>
       <div className="fs-week-track">
         <i style={{ width: `${f * 100}%` }} />
-        <b style={{ left: `${f * 100}%` }}>{new Date(now).toLocaleDateString("en-US", { weekday: "short" })}</b>
+        <b style={{ left: `${f * 100}%` }}>{new Date(now).toLocaleDateString("en-US", cadence === "weekly" ? { weekday: "short" } : { month: "short", day: "numeric" })}</b>
       </div>
     </div>
   )
@@ -39,7 +39,7 @@ export function SeasonTables({ data, leagueId }: { data: SeasonView; leagueId: s
           <Swords aria-hidden /> {current ? `Round ${current.number} so far` : "This round"}
         </h3>
         {rows.length === 0 ? (
-          <p className="fs-card-empty">{complete ? "Final standings are on the right." : season.state === "upcoming" ? "Round 1 starts Monday. Trade as usual." : "Nobody has traded yet this week."}</p>
+          <p className="fs-card-empty">{complete ? "Final standings are on the right." : season.state === "upcoming" ? `Round 1 starts ${season.cadence === "weekly" ? "Monday" : new Date(season.startsAt).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}. Trade as usual.` : `Nobody has traded yet this ${periodWord(season.cadence)}.`}</p>
         ) : (
           <ol className="fs-mini">
             {rows.slice(0, 5).map((r) => (

@@ -204,6 +204,13 @@
       "when": 1792196000000,
       "tag": "0028_sports_rate_limits",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1792251157973,
+      "tag": "0029_fantasy_season_cadence",
+      "breakpoints": true
     }
   ]
 }

@@ -4,6 +4,8 @@ import { createContext, useContext, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { AppNav } from "@web/components/app-nav"
+import { DemoSwitch } from "@web/components/sample/demo-switch"
+import { SampleBanner } from "@web/components/sample/sample-banner"
 import { RouteProgress } from "@web/components/ui/route-progress"
 import { AssistantProvider } from "@web/components/assistant/use-assistant"
 import { AssistantRoot } from "@web/components/assistant/assistant"
@@ -26,7 +28,7 @@ export const usePreviewDemo = () => useContext(PreviewDemoContext)
  * session themselves, so nothing private is exposed in the moment before a
  * signed-out visitor is redirected.
  */
-export function AppShell({ children, previewDemo = false }: { children: React.ReactNode; previewDemo?: boolean }) {
+export function AppShell({ children, previewDemo = false, demoSwitch = false }: { children: React.ReactNode; previewDemo?: boolean; demoSwitch?: boolean }) {
   const { data: session, status } = useSession()
   const router = useRouter()
 
@@ -43,7 +45,8 @@ export function AppShell({ children, previewDemo = false }: { children: React.Re
       <AppNav />
       {/* Wide enough for a dashboard on a laptop; text-heavy pages set their own reading width. Bottom padding clears the mobile tab bar. */}
       {previewDemo && session?.user?.email?.endsWith("@example.com") ? <div className="pf-demo-pill" role="status">Demo data</div> : null}
-      <main className="peerfolio-main">{children}</main>
+      <main className="peerfolio-main"><SampleBanner />{children}</main>
+      {demoSwitch ? <DemoSwitch /> : null}
       {ASSISTANT_ENABLED && status === "authenticated" ? (
         <AssistantProvider>
           <AssistantRoot />

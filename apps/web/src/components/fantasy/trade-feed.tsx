@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { ArrowDownRight, ArrowUpRight, ChevronDown } from "lucide-react"
+import { EmptyScene } from "@web/components/ui/empty-scene"
 import { Avatar } from "@web/components/ui/avatar"
 import { formatCurrency, formatRelativeTime } from "@web/lib/format"
 import { groupFeed, tradeCount, type FeedEntry } from "@web/lib/feed-groups"
@@ -48,13 +49,13 @@ export function TradeFeed({ items, leagueId, onChanged }: { items: FeedItem[]; l
     })
 
   return (
-    <section className="fw-panel" aria-labelledby="fw-feed-title">
+    <section className="fw-panel" data-flat aria-labelledby="fw-feed-title">
       <div className="fw-section-head">
         <h2 id="fw-feed-title">Trade feed</h2>
         <span className="fw-live" aria-hidden />
       </div>
       {items.length === 0 ? (
-        <p className="fw-empty">Quiet in here. Someone make the first move.</p>
+        <EmptyScene kind="feed" title="Quiet in here" body="Someone make the first move and it shows up right here." />
       ) : (
         <>
           <ol className="fw-feed">

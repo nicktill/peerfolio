@@ -218,3 +218,22 @@ export function missingReason(snapshot: OddsSnapshot, now: Date, externalId: str
   if (!ev) return "event no longer offered"
   return ev.markets.some((m) => marketKeyOf(m) === marketKey) ? null : "market no longer offered"
 }
+
+/* ---- when to spend credits on a fetch ---- */
+
+export const GUARD_BUCKET_MS = 2 * 3600_000
+export const DISCOVER_BUCKET_MS = 12 * 3600_000
+
+/**
+ * Whether a sport is worth a (paid) odds fetch now, and which budget bucket it spends.
+ *  - "guard": an unlocked market exists, so a fresh consensus can freeze it if the line moved. At most one per 2 hours.
+ *  - "discover": nothing is open, but a game starts within 24h (the publish window), so lines can be published. At most one per 12 hours.
+ *  - null: nothing to do, spend nothing. `gameWithin24h` null means unknown (free schedule check failed): treated as yes.
+ * The caller claims the bucket, so the first cron run in it fetches and later ones (and late GitHub runs) do not.
+ */
+export function fetchKind(s: { hasUnlockedMarket: boolean; gameWithin24h: boolean | null }): "guard" | "discover" | null {
+  if (s.hasUnlockedMarket) return "guard"
+  return s.gameWithin24h === false ? null : "discover"
+}
+
+export const fetchBucket = (kind: "guard" | "discover", now: Date): number => Math.floor(now.getTime() / (kind === "guard" ? GUARD_BUCKET_MS : DISCOVER_BUCKET_MS))

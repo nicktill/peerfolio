@@ -159,9 +159,14 @@ export function ReplayControl({
 
   if (!open || !frame) {
     return (
-      <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+      <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border/60 py-4">
         <span className="pf-eyebrow !text-[10px]">Replay</span>
-        <button type="button" onClick={start} className={cn(chip, chipOn)} aria-label={`Replay ${plural(count, "tracked day")} of this range`}>
+        <button
+          type="button"
+          onClick={start}
+          className="inline-flex h-8 items-center gap-2 rounded-full border border-input bg-secondary px-4 text-xs font-medium text-foreground transition-colors hover:bg-secondary/70 focus-visible:outline-none focus-visible:[box-shadow:var(--pf-ring)]"
+          aria-label={`Replay ${plural(count, "tracked day")} of this range`}
+        >
           <Play className="size-3 fill-current" aria-hidden />
           Play
         </button>

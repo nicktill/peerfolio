@@ -78,7 +78,7 @@ export type AcceptedPick = {
 }
 
 export function acceptPick(req: PickRequest, ctx: PickContext, limits: PickLimits = DEFAULT_LIMITS): AcceptedPick {
-  if (!Number.isInteger(req.stake) || req.stake <= 0) throw new PickRejected("invalid_stake", "Stake must be a whole number of credits")
+  if (!Number.isInteger(req.stake) || req.stake <= 0) throw new PickRejected("invalid_stake", "Stake must be a whole number")
   if (!isPickWindowOpen(ctx.market, ctx.eventStatus, ctx.now)) throw new PickRejected("market_closed", "Picks are closed for this market")
   if (ctx.line.marketId !== ctx.market.id) throw new PickRejected("line_mismatch", "That line is not part of this market")
   if (ctx.line.price !== req.expectedPrice || ctx.line.point !== req.expectedPoint) {
@@ -90,10 +90,10 @@ export function acceptPick(req: PickRequest, ctx: PickContext, limits: PickLimit
   const maxStake = Math.floor((start * limits.maxStakePctOfStart) / 100)
   if (req.stake < limits.minStake) throw new PickRejected("stake_too_small", `Minimum stake is ${limits.minStake}`)
   if (req.stake > maxStake) throw new PickRejected("stake_too_large", `Maximum stake per pick is ${maxStake}`)
-  if (req.stake > ctx.member.credits) throw new PickRejected("insufficient_credits", "Not enough credits")
+  if (req.stake > ctx.member.credits) throw new PickRejected("insufficient_credits", "Not enough cash")
   if (ctx.openPickCount >= limits.maxOpenPicks) throw new PickRejected("too_many_picks", `You can have ${limits.maxOpenPicks} open picks at a time`)
   if (ctx.openStakeTotal + req.stake > Math.floor((start * limits.maxExposurePctOfStart) / 100)) {
-    throw new PickRejected("too_much_exposure", "That would put too many credits at risk at once")
+    throw new PickRejected("too_much_exposure", "That would put too much cash at risk at once")
   }
 
   const ret = totalReturn(req.stake, ctx.line.price)

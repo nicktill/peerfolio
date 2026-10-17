@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { ApiError, readJson, withUser } from "@web/lib/api"
 import { loadSeasonView } from "@web/lib/fantasy-season-view"
-import { setRecapSharing, startNextSeason, wrapUpSeason } from "@web/lib/fantasy-seasons"
+import { enableSeasons, setRecapSharing, startNextSeason, wrapUpSeason } from "@web/lib/fantasy-seasons"
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -13,12 +13,21 @@ export const GET = withUser<Ctx>(async (userId, _request, { params }) => {
 })
 
 const Action = z.discriminatedUnion("action", [
+  /** Owner only: turn seasons on for a league that has none, from a start date, on a cadence. Safe to repeat. */
+  z.object({
+    action: z.literal("enable"),
+    cadence: z.enum(["weekly", "monthly", "quarterly"]).default("weekly"),
+    /** ISO date of a period boundary; omitted means the next one. */
+    startsAt: z.string().datetime().nullable().default(null),
+    rounds: z.number().int().min(1).max(52).nullable().default(null),
+  }),
   z.object({
     action: z.literal("next"),
     mode: z.enum(["trading", "draft"]).default("trading"),
     /** Null runs until you wrap it up. */
     rounds: z.number().int().min(1).max(52).nullable().default(null),
     picks: z.number().int().min(1).max(10).default(5),
+    cadence: z.enum(["weekly", "monthly", "quarterly"]).optional(),
   }),
   z.object({ action: z.literal("wrap") }),
   /** Turn the public recap link for a round off ("stop") or on again with a new link ("share"). */
@@ -31,6 +40,10 @@ export const POST = withUser<Ctx>(async (userId, request, { params }) => {
   const parsed = Action.safeParse(await readJson(request))
   if (!parsed.success) throw new ApiError(parsed.error.issues[0]?.message ?? "Invalid request")
   const body = parsed.data
+  if (body.action === "enable") {
+    const { season, created } = await enableSeasons(userId, id, body)
+    return NextResponse.json({ created, season: { number: season.number, mode: season.mode, cadence: season.cadence, startsAt: season.startsAt } }, { status: created ? 201 : 200 })
+  }
   if (body.action !== "next") {
     if (body.action === "wrap") return NextResponse.json(await wrapUpSeason(userId, id))
     return NextResponse.json(await setRecapSharing(userId, id, body.round, body.action === "share"))

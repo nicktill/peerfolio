@@ -102,10 +102,18 @@ export class TheOddsApiProvider implements OddsProvider, ResultsProvider {
     this.baseUrl = baseUrl
   }
 
+  /** The first key. Either THE_ODDS_API_KEY or the shorter ODDS_API_KEY works. */
   static fromEnv(): TheOddsApiProvider {
-    const key = process.env.THE_ODDS_API_KEY
+    const key = process.env.THE_ODDS_API_KEY ?? process.env.ODDS_API_KEY
     if (!key) throw new Error("THE_ODDS_API_KEY is not set")
     return new TheOddsApiProvider(key, undefined, { includeProps: process.env.SPORTS_PROPS_ENABLED === "1", maxPropEvents: 8 })
+  }
+
+  /** A second key from a separate account of the same service, with its own credit budget. THE_ODDS_API_KEY_TWO or ODDS_API_KEY_TWO. */
+  static secondFromEnv(): TheOddsApiProvider | null {
+    const key = process.env.THE_ODDS_API_KEY_TWO ?? process.env.ODDS_API_KEY_TWO
+    if (!key) return null
+    return new TheOddsApiProvider(key, undefined, { includeProps: process.env.SPORTS_PROPS_ENABLED === "1", maxPropEvents: 8 }, "the-odds-api-2")
   }
 
   /** Same adapter pointed at an Odds-API-compatible vendor (e.g. PropLine). UNVERIFIED shape. */
@@ -124,18 +132,49 @@ export class TheOddsApiProvider implements OddsProvider, ResultsProvider {
     return (await res.json()) as T
   }
 
-  /** Tennis has one sport key per tournament; find the ones in play. */
+  /** Tennis has one sport key per tournament; find the ones in play. `/sports` is free; its answer is reused for a few minutes. */
+  private keyCache = new Map<Sport, { at: number; keys: string[] }>()
   private async sportKeys(sport: Sport): Promise<string[]> {
     const fixed = FIXED_KEYS[sport]
     if (fixed) return [fixed]
+    const hit = this.keyCache.get(sport)
+    if (hit && Date.now() - hit.at < 10 * 60_000) return hit.keys
     const all = await this.get<{ key: string; active: boolean }[]>("/sports", {})
-    return all.filter((s) => s.active && s.key.startsWith("tennis_")).map((s) => s.key)
+    const keys = all.filter((s) => s.active && s.key.startsWith("tennis_")).map((s) => s.key)
+    this.keyCache.set(sport, { at: Date.now(), keys })
+    return keys
+  }
+
+  /** Credits one odds fetch makes: 3 game markets per sport key, plus props one event at a time. Follows the real number of keys. */
+  async estimateCost(sport: Sport): Promise<number> {
+    const keys = (await this.sportKeys(sport)).length
+    const props = this.opts.includeProps ? PROP_MARKETS[sport].length * this.opts.maxPropEvents * keys : 0
+    return 3 * keys + props
+  }
+
+  private lastResultsCredits = 0
+  /** Set by {@link meterResults}. Left unset, settlement treats this source as free (tests, scripts). */
+  metered?: NonNullable<ResultsProvider["metered"]>
+  /**
+   * Bills `/scores?daysFrom` (2 credits per sport key per call, per the Odds API docs; not confirmed with a key) against its own
+   * monthly share, recorded under `usageName`, so settlement can never spend the odds budget.
+   */
+  meterResults(usageName: string, monthly: number): this {
+    this.metered = {
+      usageName,
+      plan: { monthly, safety: 0.9, dayBurst: 2 },
+      estimate: async (sport) => 2 * (await this.sportKeys(sport)).length,
+      lastCredits: () => this.lastResultsCredits,
+    }
+    return this
   }
 
   async fetchOdds(sport: Sport, now: Date): Promise<OddsSnapshot> {
     const events: ProviderEvent[] = []
+    let credits = 0
     for (const key of await this.sportKeys(sport)) {
       const raw = await this.get<RawEvent[]>(`/sports/${key}/odds`, { regions: "us", markets: "h2h,spreads,totals", oddsFormat: "american" })
+      credits += 3
       let batch: ProviderEvent[] = raw.map((r) => ({ ...normalizeOddsApiEvent(r, sport), family: this.family })).filter((e) => e.startsAt.getTime() > now.getTime())
 
       const propMarkets = PROP_MARKETS[sport]
@@ -148,19 +187,22 @@ export class TheOddsApiProvider implements OddsProvider, ResultsProvider {
             markets: propMarkets.join(","),
             oddsFormat: "american",
           })
+          credits += propMarkets.length
           enriched.set(e.externalId, mergeMarkets(e, normalizeOddsApiEvent(rawProps, sport)))
         }
         batch = batch.map((e) => enriched.get(e.externalId) ?? e)
       }
       events.push(...batch)
     }
-    return { provider: this.name, fetchedAt: new Date(), events }
+    return { provider: this.name, fetchedAt: new Date(), events, credits }
   }
 
   async fetchResults(sport: Sport, events: EventRef[]): Promise<EventResult[]> {
     const wanted = new Set(events.map((e) => e.externalId))
     const out: EventResult[] = []
+    this.lastResultsCredits = 0
     for (const key of await this.sportKeys(sport)) {
+      this.lastResultsCredits += 2
       const raw = await this.get<
         { id: string; commence_time?: string; completed: boolean; home_team: string; away_team: string; scores: { name: string; score: string }[] | null }[]
       >(`/sports/${key}/scores`, { daysFrom: "3" })

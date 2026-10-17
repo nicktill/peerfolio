@@ -76,6 +76,19 @@ describe("composite odds", () => {
     assert.equal((await usage.usage("b", NOW)).month, 10)
     assert.equal((await usage.usage("a", NOW)).month, 0)
   })
+  it("counts failed fetch estimates so outages cannot bypass credit pacing", async () => {
+    const usage = new MemoryUsageStore()
+    const calls: string[] = []
+    const c = createCompositeOdds([src(stub("a", new Error("timeout"), calls))], usage)
+    for (let i = 0; i < 5; i++) await c.fetchOdds("nfl", NOW)
+    assert.equal(calls.length, 3)
+    assert.equal((await usage.usage("a", NOW)).day, 30)
+  })
+  it("fails closed when the usage database cannot record a successful response", async () => {
+    const usage = { usage: async () => ({ day: 0, month: 0 }), record: async () => { throw new Error("usage db unavailable") } }
+    const c = createCompositeOdds([src(stub("a", rich()))], usage)
+    await assert.rejects(() => c.fetchOdds("nfl", NOW), /usage db unavailable/)
+  })
   it("yields nothing publishable when every source is down", async () => {
     const c = createCompositeOdds([src(stub("a", new Error("x")))], new MemoryUsageStore())
     const snap = await c.fetchOdds("nfl", NOW)

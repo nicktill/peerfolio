@@ -123,13 +123,13 @@ export function PersonRows({ rows, showPoints = true, leagueId, onChanged }: { r
 }
 
 /** A cup with the round engraved on its plinth. Gold for wins, bigger with a star for a season title. */
-export function Cup({ kind, label, title }: { kind: TrophyKind; label: string; title?: string }) {
+export function Cup({ kind, label, title, index = 0 }: { kind: TrophyKind; label: string; title?: string; index?: number }) {
   const big = kind === "season_champion" || kind === "perfect_season"
   const silver = kind === "season_runner_up" || kind === "season_third"
   const Icon = TROPHY_ICON[kind]
   const showIcon = kind !== "round_win" && !big
   return (
-    <figure className="fs-cup" data-kind={kind} data-big={big || undefined} data-silver={silver || undefined} title={title}>
+    <figure className="fs-cup" style={{ "--ci": index } as React.CSSProperties} data-kind={kind} data-big={big || undefined} data-silver={silver || undefined} title={title}>
       <svg viewBox="0 0 48 56" aria-hidden>
         <defs>
           <linearGradient id={`cup-${kind}`} x1="0" y1="0" x2="1" y2="1">

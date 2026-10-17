@@ -1,0 +1,29 @@
+.plf { position: fixed; inset: 0; z-index: 90; pointer-events: none; display: grid; place-items: center; }
+.plf-ticket { position: relative; width: min(330px, calc(100vw - 48px)); }
+.plf-card {
+  position: relative; display: flex; align-items: center; gap: 12px; padding: 16px 16px 30px 20px; overflow: visible;
+  border-radius: 14px; background: hsl(var(--card)); color: hsl(var(--foreground));
+  border: 1px solid color-mix(in srgb, var(--tc) 45%, hsl(var(--border)));
+  box-shadow: 0 18px 50px -12px color-mix(in srgb, var(--tc) 55%, transparent), 0 2px 8px rgb(0 0 0 / 0.12);
+}
+.plf-foil { position: absolute; inset: 0; border-radius: 14px; overflow: hidden; pointer-events: none; }
+.plf-foil::after { content: ""; position: absolute; inset: 0; background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / 0.65) 50%, transparent 65%); transform: translateX(-120%); animation: plf-foil 0.6s 0.3s ease-out forwards; }
+@keyframes plf-foil { to { transform: translateX(120%); } }
+.plf-stubspace { width: 40px; flex: none; }
+.plf-stub { position: absolute; right: 0; top: 0; bottom: 0; width: 46px; display: grid; place-items: center; border-left: 2px dashed color-mix(in srgb, var(--tc) 50%, hsl(var(--border))); border-radius: 0 14px 14px 0; background: hsl(var(--card)); font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--tc); transform-origin: 0 0; }
+.plf-ink { position: absolute; right: 10px; bottom: -22px; width: 86px; height: 34px; border-radius: 50%; background: var(--tc); pointer-events: none; }
+.plf-edge { position: absolute; inset: 0 auto 0 0; width: 6px; border-radius: 14px 0 0 14px; background: var(--tc); }
+.plf-body { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.plf-body b { font-weight: 600; font-size: 15px; line-height: 1.25; }
+.plf-body span { font-size: 12px; color: hsl(var(--muted-foreground)); }
+.plf-odds { font-style: normal; font-weight: 600; font-size: 15px; padding: 4px 9px; border-radius: 999px; background: var(--tc); color: var(--tc-ink); font-variant-numeric: tabular-nums; }
+.plf-stamp {
+  position: absolute; right: 54px; bottom: -14px; display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--tc); background: hsl(var(--card)); border: 2px solid var(--tc); border-radius: 6px;
+}
+.plf-stamp svg { width: 12px; height: 12px; }
+.plf-cash { position: absolute; left: 20px; bottom: 8px; font-size: 11px; color: hsl(var(--muted-foreground)); }
+.plf-ring { position: absolute; width: 56px; height: 56px; border-radius: 50%; border: 2px solid var(--tc); }
+.plf-bit { position: absolute; border-radius: 2px; background: var(--tc); }
+.plf-bit[data-light] { background: #f5c451; }

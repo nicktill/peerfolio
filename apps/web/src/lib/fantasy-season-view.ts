@@ -25,6 +25,10 @@ import {
   percentChange,
   picksOpen,
   rankRound,
+  asCadence,
+  nextPeriodStart,
+  CADENCES,
+  type Cadence,
   roundNumberAt,
   roundStartValue,
   roundWindow,
@@ -57,6 +61,8 @@ export type SeasonView = {
     picksPerRound: number | null
     startsAt: string
     endsAt: string | null
+    /** How long a round lasts. Seasons from before cadences existed are weekly. */
+    cadence: Cadence
     /** "upcoming" before round 1, "running", or "complete". */
     state: "upcoming" | "running" | "complete"
   }
@@ -75,7 +81,7 @@ export type SeasonView = {
 }
 
 /** A league that never turned weekly rounds on. Reading it creates nothing. */
-export type NoSeason = { none: true; league: { id: string; name: string; emoji: string; accent: string; isOwner: boolean; isClosed: boolean; inviteCode: string; endsAt: string | null } }
+export type NoSeason = { none: true; league: { id: string; name: string; emoji: string; accent: string; isOwner: boolean; isClosed: boolean; inviteCode: string; endsAt: string | null }; /** The next boundary of each cadence (ISO), the default start dates for turning seasons on. */ nextStarts: Record<Cadence, string> }
 
 export async function loadSeasonView(userId: string, leagueId: string, now = new Date()): Promise<SeasonView | NoSeason> {
   const { league } = await requireFantasyMember(userId, leagueId)
@@ -88,7 +94,7 @@ export async function loadSeasonView(userId: string, leagueId: string, now = new
   const season = await latestSeason(leagueId)
   const closed = isClosed(league.endsAt, now)
   const leagueView = { id: league.id, name: league.name, emoji: league.emoji, accent: league.accent, isOwner: league.ownerId === userId, isClosed: closed, inviteCode: league.inviteCode, endsAt: league.endsAt?.toISOString() ?? null }
-  if (!season) return { none: true, league: leagueView }
+  if (!season) return { none: true, league: leagueView, nextStarts: Object.fromEntries(CADENCES.map((c) => [c, nextPeriodStart(now, c).toISOString()])) as Record<Cadence, string> }
 
   const members = await db
     .select({ id: fantasyMembers.id, userId: fantasyMembers.userId, joinedAt: fantasyMembers.joinedAt, name: users.name, handle: users.handle, image: users.image })
@@ -117,7 +123,8 @@ export async function loadSeasonView(userId: string, leagueId: string, now = new
     db.select().from(fantasySeasons).where(eq(fantasySeasons.leagueId, leagueId)).orderBy(desc(fantasySeasons.number)),
   ])
 
-  const inProgress = roundNumberAt(season.startsAt, now, season.roundCount)
+  const cadence = asCadence(season.cadence)
+  const inProgress = roundNumberAt(season.startsAt, now, season.roundCount, cadence)
   const state: SeasonView["season"]["state"] = season.status === "complete" ? "complete" : inProgress === 0 ? "upcoming" : "running"
 
   /* Settled rounds, newest first. */
@@ -197,7 +204,8 @@ export async function loadSeasonView(userId: string, leagueId: string, now = new
       roundCount: season.roundCount,
       picksPerRound: season.picksPerRound,
       startsAt: season.startsAt.toISOString(),
-      endsAt: seasonEnd(season.startsAt, season.roundCount)?.toISOString() ?? null,
+      endsAt: seasonEnd(season.startsAt, season.roundCount, cadence)?.toISOString() ?? null,
+      cadence,
       state,
     },
     current,
@@ -433,7 +441,8 @@ export async function loadRoundChips(userId: string, leagueIds: string[], now = 
     const level = table.length > 0 && table.every((t) => t.rank === 1)
     const leaders = level ? [] : table.slice(0, 3).map((r) => ({ userId: r.userId, name: person.get(r.userId)?.name ?? null, image: person.get(r.userId)?.image ?? null, points: r.points, rank: r.rank, isYou: r.userId === userId }))
     const base = { mode, seasonNumber: s.number, seasonRank: you && !level ? you.rank : null, seasonPoints: you ? you.points : null, seasonPlayers: table.length, leaders }
-    const current = roundNumberAt(s.startsAt, now, s.roundCount)
+    const cadence = asCadence(s.cadence)
+    const current = roundNumberAt(s.startsAt, now, s.roundCount, cadence)
     if (s.status === "complete") {
       out.set(leagueId, { ...base, state: "complete", round: s.roundCount ?? current, at: null, kind: "complete", needsPicks: false })
     } else if (current === 0) {
@@ -442,13 +451,13 @@ export async function loadRoundChips(userId: string, leagueIds: string[], now = 
       const next = current + 1
       const hasNext = s.roundCount === null || next <= s.roundCount
       if (hasNext) {
-        const deadline = roundWindow(s.startsAt, next).startsAt
+        const deadline = roundWindow(s.startsAt, next, cadence).startsAt
         out.set(leagueId, { ...base, state: "running", round: next, at: deadline.toISOString(), kind: "draft-open", needsPicks: !picked.has(`${s.id}:${next}`) })
       } else {
-        out.set(leagueId, { ...base, state: "running", round: current, at: roundWindow(s.startsAt, current).endsAt.toISOString(), kind: "round-locked", needsPicks: false })
+        out.set(leagueId, { ...base, state: "running", round: current, at: roundWindow(s.startsAt, current, cadence).endsAt.toISOString(), kind: "round-locked", needsPicks: false })
       }
     } else {
-      out.set(leagueId, { ...base, state: "running", round: current, at: roundWindow(s.startsAt, current).endsAt.toISOString(), kind: "round-live", needsPicks: false })
+      out.set(leagueId, { ...base, state: "running", round: current, at: roundWindow(s.startsAt, current, cadence).endsAt.toISOString(), kind: "round-live", needsPicks: false })
     }
   }
   return out

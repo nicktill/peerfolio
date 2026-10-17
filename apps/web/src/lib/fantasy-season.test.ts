@@ -1,6 +1,11 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import {
+  boundaryOnOrAfter,
+  checkSeasonStart,
+  isPeriodStart,
+  nextPeriodStart,
+  periodStart,
   buildRecap,
   checkPicks,
   cleanNote,
@@ -27,6 +32,8 @@ import {
   seasonTrophies,
   settleDecision,
   SETTLE_GRACE_MS,
+  DAY_MS,
+  WEEK_MS,
   weekStart,
   type RoundResult,
 } from "./fantasy-season.ts"
@@ -434,5 +441,140 @@ describe("notes", () => {
     assert.equal(cleanNote("   "), null)
     assert.equal(cleanNote(42), null)
     assert.equal(cleanNote(undefined), null)
+  })
+})
+
+/* ------------------------------------------------------------------ *
+ * Cadences: weekly, monthly, quarterly
+ * ------------------------------------------------------------------ */
+
+const utc = (iso: string) => new Date(`${iso}T00:00:00Z`)
+const day2 = (d: Date) => d.toISOString().slice(0, 10)
+
+describe("period boundaries", () => {
+  const cases: [string, "weekly" | "monthly" | "quarterly", string, string][] = [
+    // [now, cadence, period start, next boundary]
+    ["2026-10-17", "weekly", "2026-10-12", "2026-10-19"],
+    ["2026-10-19", "weekly", "2026-10-19", "2026-10-26"],
+    ["2026-10-18", "weekly", "2026-10-12", "2026-10-19"], // Sunday
+    ["2026-03-08", "weekly", "2026-03-02", "2026-03-09"], // US DST starts
+    ["2026-11-01", "weekly", "2026-10-26", "2026-11-02"], // US DST ends
+    ["2026-10-17", "monthly", "2026-10-01", "2026-11-01"],
+    ["2026-10-01", "monthly", "2026-10-01", "2026-11-01"],
+    ["2026-12-31", "monthly", "2026-12-01", "2027-01-01"],
+    ["2028-02-29", "monthly", "2028-02-01", "2028-03-01"], // leap day
+    ["2026-10-17", "quarterly", "2026-10-01", "2027-01-01"],
+    ["2026-03-31", "quarterly", "2026-01-01", "2026-04-01"],
+    ["2026-04-01", "quarterly", "2026-04-01", "2026-07-01"],
+    ["2026-12-31", "quarterly", "2026-10-01", "2027-01-01"],
+  ]
+  for (const [now, cadence, start, next] of cases) {
+    it(`${cadence} ${now}: starts ${start}, next ${next}`, () => {
+      assert.equal(day2(periodStart(utc(now), cadence)), start)
+      assert.equal(day2(nextPeriodStart(utc(now), cadence)), next)
+    })
+  }
+  it("a time late on the last day of a period still belongs to it", () => {
+    assert.equal(day2(periodStart(new Date("2026-10-31T23:59:59.999Z"), "monthly")), "2026-10-01")
+    assert.equal(day2(nextPeriodStart(new Date("2026-10-31T23:59:59.999Z"), "monthly")), "2026-11-01")
+  })
+  it("snaps a picked date forward to a boundary", () => {
+    assert.equal(day2(boundaryOnOrAfter(utc("2026-10-19"), "weekly")), "2026-10-19")
+    assert.equal(day2(boundaryOnOrAfter(utc("2026-10-20"), "weekly")), "2026-10-26")
+    assert.equal(day2(boundaryOnOrAfter(utc("2026-11-02"), "monthly")), "2026-12-01")
+    assert.equal(day2(boundaryOnOrAfter(utc("2026-11-01"), "quarterly")), "2027-01-01")
+    assert.equal(isPeriodStart(utc("2026-07-01"), "quarterly"), true)
+    assert.equal(isPeriodStart(utc("2026-08-01"), "quarterly"), false)
+  })
+})
+
+describe("round windows by cadence", () => {
+  it("monthly rounds follow the calendar, not 30 days", () => {
+    const start = utc("2026-01-01")
+    const spans = [1, 2, 3].map((n) => roundWindow(start, n, "monthly")).map((w) => [day2(w.startsAt), day2(w.endsAt)])
+    assert.deepEqual(spans, [["2026-01-01", "2026-02-01"], ["2026-02-01", "2026-03-01"], ["2026-03-01", "2026-04-01"]])
+  })
+  it("quarterly rounds roll over the year", () => {
+    const start = utc("2026-10-01")
+    assert.deepEqual([day2(roundWindow(start, 1, "quarterly").endsAt), day2(roundWindow(start, 2, "quarterly").endsAt)], ["2027-01-01", "2027-04-01"])
+  })
+  it("weekly windows are unchanged and exact across DST", () => {
+    const start = utc("2026-03-02")
+    assert.equal(roundWindow(start, 2).startsAt.getTime() - start.getTime(), WEEK_MS)
+    assert.equal(roundWindow(start, 2, "weekly").startsAt.toISOString(), "2026-03-09T00:00:00.000Z")
+  })
+  it("windows are back to back with no gap or overlap", () => {
+    for (const cadence of ["weekly", "monthly", "quarterly"] as const) {
+      const start = periodStart(utc("2026-10-17"), cadence)
+      for (let n = 1; n < 14; n++) assert.equal(roundWindow(start, n, cadence).endsAt.getTime(), roundWindow(start, n + 1, cadence).startsAt.getTime())
+    }
+  })
+  const numbers: [string, "weekly" | "monthly" | "quarterly", string, number][] = [
+    ["2026-10-01", "monthly", "2026-09-30", 0],
+    ["2026-10-01", "monthly", "2026-10-01", 1],
+    ["2026-10-01", "monthly", "2026-10-31", 1],
+    ["2026-10-01", "monthly", "2026-11-01", 2],
+    ["2026-10-01", "monthly", "2027-10-01", 13],
+    ["2026-10-01", "quarterly", "2026-12-31", 1],
+    ["2026-10-01", "quarterly", "2027-01-01", 2],
+    ["2026-10-01", "quarterly", "2027-10-01", 5],
+    ["2026-10-19", "weekly", "2026-10-25", 1],
+    ["2026-10-19", "weekly", "2026-10-26", 2],
+  ]
+  for (const [start, cadence, now, expected] of numbers) {
+    it(`${cadence} season from ${start}: round at ${now} is ${expected}`, () => {
+      assert.equal(roundNumberAt(utc(start), utc(now), null, cadence), expected)
+    })
+  }
+  it("holds at the round count and reports the scheduled end", () => {
+    assert.equal(roundNumberAt(utc("2026-10-01"), utc("2027-06-01"), 3, "monthly"), 3)
+    assert.equal(day2(seasonEnd(utc("2026-10-01"), 3, "monthly")!), "2027-01-01")
+    assert.equal(day2(seasonEnd(utc("2026-10-01"), 2, "quarterly")!), "2027-04-01")
+    assert.equal(seasonEnd(utc("2026-10-01"), null, "quarterly"), null)
+  })
+  it("without a cadence everything behaves as weekly", () => {
+    assert.equal(roundNumberAt(utc("2026-10-19"), utc("2026-11-03"), null), 3)
+    assert.equal(nextSeasonStart(utc("2026-10-17"), "trading").toISOString(), "2026-10-19T00:00:00.000Z")
+  })
+})
+
+describe("checkSeasonStart", () => {
+  const now = new Date("2026-10-17T15:00:00Z")
+  const cases: [string, "weekly" | "monthly" | "quarterly", boolean][] = [
+    ["2026-10-19", "weekly", true],
+    ["2026-10-12", "weekly", true], // this week's Monday: round 1 counts from it
+    ["2026-10-05", "weekly", false], // a past week
+    ["2026-10-20", "weekly", false], // not a Monday
+    ["2026-11-01", "monthly", true],
+    ["2026-11-02", "monthly", false],
+    ["2026-09-01", "monthly", false],
+    ["2027-01-01", "quarterly", true],
+    ["2026-11-01", "quarterly", false],
+    ["2029-01-01", "quarterly", false], // too far out
+  ]
+  for (const [date, cadence, ok] of cases) {
+    it(`${cadence} start ${date} is ${ok ? "allowed" : "refused"}`, () => {
+      assert.equal(checkSeasonStart(utc(date), cadence, now).ok, ok)
+    })
+  }
+  it("refuses an invalid date", () => {
+    assert.equal(checkSeasonStart(new Date("nope"), "weekly", now).ok, false)
+  })
+})
+
+describe("a league with history turning seasons on", () => {
+  // The league ran for 10 weeks before. Seasons start next boundary: round 1 only reads snapshots before that.
+  const history = Array.from({ length: 70 }, (_, i) => ({ date: day2(new Date(utc("2026-08-01").getTime() + i * DAY_MS)), value: 10_000 + i * 10 }))
+  const start = utc("2026-11-01")
+  it("scores round 1 from the last value before the start, not from the league's first day", () => {
+    const { startsAt, endsAt } = roundWindow(start, 1, "monthly")
+    assert.equal(roundStartValue(history, utc("2026-08-01"), 10_000, startsAt), 10_000 + 69 * 10) // the last night on file (Oct 9)
+    assert.equal(roundEndValue([], endsAt, 123), 123) // no snapshot yet: falls back to the live value
+  })
+  it("a member who joined after the start begins from starting cash", () => {
+    assert.equal(roundStartValue(history, utc("2026-11-10"), 10_000, start), 10_000)
+  })
+  it("a member with no snapshot at all is taken to hold their starting cash", () => {
+    assert.equal(roundStartValue([], utc("2026-08-01"), 10_000, start), 10_000)
   })
 })

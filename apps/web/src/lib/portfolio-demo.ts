@@ -1,55 +1,34 @@
 import type { FantasyRow, PortfolioResponse } from "@web/components/dashboard/portfolio-screen"
 import type { AccountRow } from "@web/components/dashboard/accounts-card"
 import type { HoldingRow } from "@web/components/dashboard/holdings-table"
+import { SECURITIES, makeRandom } from "@web/lib/demo-data"
 import type { Range } from "@web/lib/ranges"
 
 /**
  * An invented portfolio for the sign-in-free preview of the Portfolio page:
- * a brokerage account, a Roth IRA, a 401(k) and cash, with a year of history.
+ * a Fidelity 401(k), two Robinhood accounts and cash, with a year of history.
  * Nothing here belongs to a real person.
  */
 
-type Lot = { ticker: string; name: string; kind?: "stock" | "crypto"; quantity: number; price: number; cost: number; today: number }
+type Lot = { ticker: string; name: string; type: string; quantity: number; price: number; cost: number; today: number }
+type DemoAccount = { id: string; name: string; mask: string; institution: string; logo: string | null; category: "investment" | "cash"; cash?: number; lots: Lot[] }
 
-const ETFS = new Set(["VTI", "SCHD", "VXUS", "QQQM", "VTSAX"])
+/** Fictional positions using the shared security catalogue; independent of real and seeded accounts. */
+const securityById = new Map(SECURITIES.map((s) => [s.id, s]))
+const costRandom = makeRandom(11)
+const lotsFor = (mix: [string, number][]): Lot[] =>
+  mix.map(([id, value]) => {
+    const sec = securityById.get(id)!
+    // Gains between about +4% and +58%, different on every position, as the seed script does.
+    return { ticker: sec.tickerSymbol, name: sec.name, type: sec.type, quantity: value / sec.price, price: sec.price, cost: value / (1.04 + costRandom() * 0.54), today: sec.move }
+  })
 
-const ACCOUNTS: { id: string; name: string; institution: string; category: "investment" | "cash"; cash?: number; lots: Lot[] }[] = [
-  {
-    id: "demo-brokerage",
-    name: "Brokerage",
-    institution: "Charles Schwab",
-    category: "investment",
-    lots: [
-      { ticker: "MSFT", name: "Microsoft", quantity: 14, price: 512.3, cost: 5_350, today: 0.36 },
-      { ticker: "V", name: "Visa", quantity: 12, price: 341.2, cost: 3_300, today: 0.28 },
-      { ticker: "COST", name: "Costco", quantity: 3, price: 918.4, cost: 2_420, today: 0.18 },
-      { ticker: "DIS", name: "Walt Disney", quantity: 20, price: 112.6, cost: 2_180, today: -0.55 },
-      { ticker: "SBUX", name: "Starbucks", quantity: 25, price: 86.4, cost: 2_610, today: -0.72 },
-      { ticker: "NKE", name: "Nike", quantity: 18, price: 71.9, cost: 1_580, today: 0.9 },
-      { ticker: "JNJ", name: "Johnson & Johnson", quantity: 10, price: 178.3, cost: 1_520, today: 0.12 },
-      { ticker: "KO", name: "Coca-Cola", quantity: 40, price: 69.8, cost: 2_380, today: 0.05 },
-    ],
-  },
-  {
-    id: "demo-roth",
-    name: "Roth IRA",
-    institution: "E*TRADE",
-    category: "investment",
-    lots: [
-      { ticker: "SCHD", name: "Schwab U.S. Dividend Equity ETF", quantity: 220, price: 28.1, cost: 5_200, today: 0.31 },
-      { ticker: "VTI", name: "Vanguard Total Stock Market ETF", quantity: 24, price: 331.4, cost: 6_040, today: 0.4 },
-      { ticker: "VXUS", name: "Vanguard Total International Stock ETF", quantity: 60, price: 74.2, cost: 3_700, today: 0.22 },
-      { ticker: "QQQM", name: "Invesco NASDAQ 100 ETF", quantity: 14, price: 247.5, cost: 2_600, today: 0.68 },
-    ],
-  },
-  {
-    id: "demo-401k",
-    name: "401(k)",
-    institution: "Empower",
-    category: "investment",
-    lots: [{ ticker: "VTSAX", name: "Vanguard Total Stock Market Index Admiral", quantity: 160, price: 156.4, cost: 19_800, today: 0.4 }],
-  },
-  { id: "demo-cash", name: "Everyday checking", institution: "Chase", category: "cash", cash: 3_860.17, lots: [] },
+const ACCOUNTS: DemoAccount[] = [
+  { id: "demo-401k", name: "401(k) Plan", mask: "6824", institution: "Fidelity", logo: "/landing/brokerages/fidelity.png", category: "investment", lots: lotsFor([["demo-voo", 24000], ["demo-vxus", 10500], ["demo-bnd", 7500]]) },
+  { id: "demo-roth", name: "Robinhood Roth IRA", mask: "7318", institution: "Robinhood", logo: "/demo/robinhood.svg", category: "investment", lots: lotsFor([["demo-vti", 14000], ["demo-qqq", 9500], ["demo-schd", 6000], ["demo-msft", 5000], ["demo-cost", 3500]]) },
+  { id: "demo-brokerage", name: "Robinhood Individual", mask: "2069", institution: "Robinhood", logo: "/demo/robinhood.svg", category: "investment", lots: lotsFor([["demo-nvda", 8500], ["demo-aapl", 7000], ["demo-msft", 6000], ["demo-googl", 5000], ["demo-amzn", 4500], ["demo-meta", 4000], ["demo-avgo", 3500], ["demo-cost", 3000], ["demo-v", 2500], ["demo-jpm", 2200], ["demo-lly", 1800], ["demo-nflx", 1400], ["demo-amd", 1100], ["demo-ko", 900], ["demo-dis", 600]]) },
+  { id: "demo-checking", name: "Checking", mask: "8542", institution: "Chase", logo: null, category: "cash", cash: 3_240.50, lots: [] },
+  { id: "demo-savings", name: "High-yield savings", mask: "9136", institution: "Chase", logo: null, category: "cash", cash: 14_500, lots: [] },
 ]
 
 const round2 = (v: number) => Math.round(v * 100) / 100
@@ -82,7 +61,13 @@ function history(today: string) {
   const rand = random(7)
   let level = 100
   return days.map((date, i) => {
-    if (i > 0) level *= 1 + (rand() - 0.44) * 0.011
+    if (i > 0) {
+      // A rising market with several rallies and drawdowns, plus daily variation.
+      // One continuous series feeds every range, so changing the lens preserves history.
+      const cycle = Math.sin(i / 17) * 0.0024 + Math.sin(i / 43 + 1.2) * 0.0015
+      const correction = i >= 125 && i < 142 ? -0.004 : 0
+      level *= 1 + 0.001 + cycle + correction + (rand() - 0.5) * 0.007
+    }
     return { date, level }
   })
 }
@@ -102,7 +87,7 @@ export function demoPortfolio(range: Range): PortfolioResponse {
       id: `${a.id}-${i}`,
       ticker: l.ticker,
       name: l.name,
-      kind: l.kind ?? ("stock" as const),
+      kind: "stock" as const,
       quantity: l.quantity,
       price: l.price,
       value: round2(l.quantity * l.price),
@@ -112,14 +97,14 @@ export function demoPortfolio(range: Range): PortfolioResponse {
     return {
       id: a.id,
       name: a.name,
-      mask: null,
+      mask: a.mask,
       category: a.category,
       balance: a.cash ?? positions.reduce((sum, p) => sum + p.value, 0),
       isLiability: false,
-      source: "manual" as const,
+      source: "plaid" as const,
       institutionName: a.institution,
-      institutionLogo: null,
-      itemId: null,
+      institutionLogo: a.logo,
+      itemId: a.category === "investment" ? `demo-connection-${a.institution.toLowerCase()}` : null,
       positions,
     }
   })
@@ -143,7 +128,7 @@ export function demoPortfolio(range: Range): PortfolioResponse {
       securityId: r.lot.ticker,
       ticker: r.lot.ticker,
       name: r.lot.name,
-      type: r.lot.kind === "crypto" ? "cryptocurrency" : ETFS.has(r.lot.ticker) ? "etf" : "equity",
+      type: r.lot.type,
       quantity: r.quantity,
       value: round2(r.value),
       weight: (r.value / invested) * 100,
@@ -155,8 +140,8 @@ export function demoPortfolio(range: Range): PortfolioResponse {
     }
   })
 
-  const kindOf = (h: HoldingRow) => (h.type === "cryptocurrency" ? "Crypto" : h.type === "etf" ? "ETFs" : "Stocks")
-  const allocation = ["Stocks", "ETFs", "Crypto"]
+  const kindOf = (h: HoldingRow) => (h.type === "cryptocurrency" ? "Crypto" : h.type === "etf" ? "ETFs" : h.type === "fixed_income" ? "Bonds" : "Stocks")
+  const allocation = ["Stocks", "ETFs", "Bonds", "Crypto"]
     .map((name) => {
       const value = holdings.filter((h) => kindOf(h) === name).reduce((sum, h) => sum + h.value, 0)
       return { name, value, percent: (value / invested) * 100 }
@@ -164,25 +149,28 @@ export function demoPortfolio(range: Range): PortfolioResponse {
     .filter((s) => s.value > 0)
     .sort((a, b) => b.value - a.value)
 
-  const netWorth = accounts.reduce((sum, a) => sum + a.balance, 0)
+  const assets = accounts.filter((a) => !a.isLiability).reduce((sum, a) => sum + a.balance, 0)
+  const liabilities = accounts.filter((a) => a.isLiability).reduce((sum, a) => sum + a.balance, 0)
+  const netWorth = assets - liabilities
   const cash = netWorth - invested
 
-  // The dollar series follows the same market path, plus a $5,000 deposit 15
-  // sessions ago: value steps up on that day, the time-weighted return doesn't.
-  const DEPOSIT = 5_000
-  const depositDate = full[full.length - 15]!.date
+  // Keep the dollar chart on the same market path as the return chart. Fictional
+  // cash stays constant, so a synthetic deposit cannot create a misleading spike.
   const last = full[full.length - 1]!.level
   const dollarHistory = window.map((p) => {
-    const investableAssets = (invested - (p.date < depositDate ? DEPOSIT : 0)) * (p.level / last)
+    const investableAssets = invested * (p.level / last)
     return { date: p.date, netWorth: investableAssets + cash, investableAssets }
   })
   const todayAmount = holdings.reduce((sum, h) => sum + (h.todayAmount ?? 0), 0)
   const cost = holdings.reduce((sum, h) => sum + (h.value - (h.gainAmount ?? 0)), 0)
 
   return {
-    summary: { totalAssets: netWorth, totalLiabilities: 0, netWorth, investableAssets: invested },
+    summary: { totalAssets: assets, totalLiabilities: liabilities, netWorth, investableAssets: invested },
     accounts,
-    items: [],
+    items: [
+      { id: "demo-connection-fidelity", institutionName: "Fidelity", institutionLogo: "/landing/brokerages/fidelity.png", status: "active", errorCode: null, lastSyncedAt: new Date(Date.now() - 10 * 3_600_000).toISOString() },
+      { id: "demo-connection-robinhood", institutionName: "Robinhood", institutionLogo: "/demo/robinhood.svg", status: "active", errorCode: null, lastSyncedAt: new Date(Date.now() - 6 * 3_600_000).toISOString() },
+    ],
     allocation,
     holdings,
     today: { amount: todayAmount, percent: (todayAmount / (invested - todayAmount)) * 100, asOf: today },

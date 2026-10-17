@@ -169,3 +169,20 @@
 .cf-chip-mark, .cf-livecard-mark, .cf-review-mark { display: inline-grid; place-items: center; flex: none; }
 .cf-chip { padding-left: 8px; }
 .cf-review { gap: 22px; }
+
+/* Light theme: white on the raw accent is ~2.8:1; darken the fill so the primary button reads. */
+:root:not(.dark) .cf-next { background: color-mix(in srgb, var(--cf, hsl(var(--primary))) 74%, #000) !important; }
+
+/* Phones: clear the notch, bigger touch areas on the step dots and the idea link */
+@media (max-width: 700px) {
+  .cf-top { padding-top: calc(12px + env(safe-area-inset-top)); }
+  .cf-steps li button, .cf-link { position: relative; }
+  .cf-steps li button::after, .cf-link::after { content: ""; position: absolute; inset: -6px -2px; }
+  .cf-link::after { inset: -14px -6px; }
+}
+@media (max-width: 700px) {
+  .cf-top { padding-left: 14px; padding-right: 14px; grid-template-columns: 40px minmax(0, 1fr) 0; }
+  .cf-steps { gap: 12px; }
+  .cf-steps li button { gap: 6px; padding-right: 8px; letter-spacing: .04em; }
+}
+@media (max-width: 400px) { .cf-steps li[data-state="now"] span { font-size: 10px; } .cf-steps { gap: 9px; } }

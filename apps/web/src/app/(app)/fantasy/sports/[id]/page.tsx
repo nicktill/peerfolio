@@ -3,7 +3,7 @@
 import "@web/components/fantasy/fantasy-workspace.css"
 import "@web/components/sports/sports-workspace.css"
 
-import { use, useEffect, useMemo, useState } from "react"
+import { use, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { ArrowLeft, Check, Link2, Lock, X } from "lucide-react"
 import { Choice } from "@web/components/fantasy/choice"
@@ -16,7 +16,8 @@ import { eventTitle, formatOdds, lineLabel, lockLabel, marketTitle, pickSentence
 import { americanToDecimal } from "@web/lib/sports/odds"
 import { onColor, teamLook } from "@web/lib/sports/teams"
 import { InfoTip, Tip } from "@web/components/ui/tip"
-import { LeagueHero, LeaguePulse, Leaderboard, PickFeed } from "@web/components/sports/league-parts"
+import { LeagueHero, LeaguePulse, Leaderboard, NextGames, PickFeed } from "@web/components/sports/league-parts"
+import { PickLockEffect, type PickLockFx } from "@web/components/sports/pick-lock-effect"
 import { PlayerBadge, TeamBadge } from "@web/components/sports/team-badge"
 import { plural } from "@web/lib/plural"
 import { mutate, useApi } from "@web/lib/use-api"
@@ -53,19 +54,32 @@ type Detail = {
   leaguePicks: (PickRow & { name: string })[]
 }
 
+const SPORT_COLOR: Record<string, string> = { nfl: "#c8102e", nba: "#f58426", tennis: "#a6c738" }
 const dayOf = (iso: string) => new Date(iso).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })
 const timeOf = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
 const credits = (n: number) => n.toLocaleString()
 
 export default function SportsLeaguePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
-  const [, setSide] = useFantasyMode()
+  const [, , visit] = useFantasyMode()
   // Landing here means Sports is the side you're on; "Fantasy leagues" then returns to it.
-  useEffect(() => setSide("sports"), [setSide])
+  useEffect(() => visit("sports"), [visit])
 
   const { data, error, loading, refetch } = useApi<Detail>(`/api/sports/leagues/${id}`, [], { refreshMs: 60_000 })
   const [selected, setSelected] = useState<{ market: Market; line: Line } | null>(null)
   const [sport, setSport] = useState<string>("all")
+  const [demo, setDemo] = useState<string | null>(null)
+  useEffect(() => setDemo(new URLSearchParams(window.location.search).get("demo")), [])
+  const [lockFx, setLockFx] = useState<PickLockFx | null>(null)
+  const clearLockFx = useCallback(() => setLockFx(null), [])
+  // ?demo=lock replays the lock-in animation every few seconds without placing a pick.
+  useEffect(() => {
+    if (demo !== "lock") return
+    const play = () => setLockFx({ id: Date.now(), color: "#c8102e", ink: "#ffffff", title: "Chiefs -3.5", sub: "250 at -110 · to win 227", odds: "-110", from: 1000, to: 750 })
+    const first = setTimeout(play, 600)
+    const every = setInterval(play, 4000)
+    return () => { clearTimeout(first); clearInterval(every) }
+  }, [demo])
 
   if (loading && !data) return <LeaguePageSkeleton />
   if (!data) return <p className="text-sm text-muted-foreground">{error ?? "Couldn't load this league."}</p>
@@ -77,7 +91,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
   const shown = sport === "all" ? markets : markets.filter((m) => m.event.sport === sport)
 
   return (
-    <div className="fw" data-accent={league.accent}>
+    <div className="fw fw-play-space" data-play-world="sports" data-accent={league.accent}>
       <Link href="/fantasy" className="fw-back">
         <ArrowLeft className="size-3.5" aria-hidden /> Fantasy leagues
       </Link>
@@ -97,7 +111,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
         <div className="fw-main">
           <section className="fw-panel reveal" style={revealStyle(2)} aria-labelledby="sp-markets-title">
             <div className="fw-section-head">
-              <h2 id="sp-markets-title">Open lines<InfoTip side="bottom" label="How lines work" text={<>Everyone gets the same line and it never changes once you lock a pick. <b>+125</b> means 100 credits wins 125. <b>-110</b> means risking 110 wins 100. On a <b>spread</b>, your team must win by more than the number (or lose by less).</>} /></h2>
+              <h2 id="sp-markets-title">Open lines<InfoTip side="bottom" label="How lines work" text={<>Everyone gets the same line and it never changes once you lock a pick. <b>+125</b> means 100 cash wins 125. <b>-110</b> means risking 110 wins 100. On a <b>spread</b>, your team must win by more than the number (or lose by less).</>} /></h2>
               <p>Fixed contest lines, not live odds</p>
             </div>
             {league.sports.length > 1 ? (
@@ -118,30 +132,24 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
           <section className="fw-panel reveal" style={revealStyle(3)} aria-labelledby="sp-standings-title">
             <div className="fw-section-head">
               <h2 id="sp-standings-title">Leaderboard</h2>
-              <p>Credits, form and record</p>
+              <p>Cash, form and record</p>
             </div>
-            <Leaderboard standings={standings} start={league.startingCredits} leaguePicks={leaguePicks} />
+            <Leaderboard standings={standings} start={league.startingCredits} leaguePicks={leaguePicks} demo={demo === "ranks"} />
           </section>
 
-          <section className="fw-panel reveal" style={revealStyle(4)} aria-labelledby="sp-locked-title">
-            <div className="fw-section-head">
-              <h2 id="sp-locked-title">Locked picks</h2>
-              <p>Everyone&apos;s picks, once the market closes</p>
-            </div>
-            <PickFeed picks={leaguePicks} showName empty="Picks show up here after each market locks, never before." />
-          </section>
-          {league.isOwner ? <MirrorReport leagueId={league.id} /> : null}
+
         </div>
 
-        <aside className="fw-rail reveal" style={revealStyle(3)}>
+        <aside className="fw-rail sp-sports-rail reveal" style={revealStyle(3)}>
+          <PickLockEffect fx={lockFx} onDone={clearLockFx} />
           <Slip
-            key={selected?.line.id ?? "none"}
             leagueId={league.id}
             selected={selected}
             balance={you.credits}
             limits={data.limits}
             closed={ended}
             onClear={() => setSelected(null)}
+            onLock={setLockFx}
             onPlaced={() => {
               setSelected(null)
               void refetch()
@@ -152,11 +160,20 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
               <h2 id="sp-yours-title">Your picks</h2>
               <p>{picks.length === 0 ? "None yet" : plural(picks.length, "pick")}</p>
             </div>
-            <PickFeed picks={picks} empty="Nothing yet. Credits don't win leagues." />
+            <PickFeed picks={picks} empty="Nothing yet. Cash doesn't win leagues." />
           </section>
-          <LeaguePulse leaguePicks={leaguePicks} />
+          <div className="sp-desktop-context"><LeaguePulse leaguePicks={leaguePicks} /></div>
+          <NextGames picks={picks} events={markets.map((market) => market.event)} />
         </aside>
       </div>
+          <section className="fw-panel reveal" data-flat style={revealStyle(4)} aria-labelledby="sp-locked-title">
+            <div className="fw-section-head">
+              <h2 id="sp-locked-title">Locked picks</h2>
+              <p>Everyone&apos;s picks, once the market closes</p>
+            </div>
+            <PickFeed picks={leaguePicks} showName empty="Picks show up here after each market locks, never before." />
+          </section>
+      {league.isOwner ? <MirrorReport leagueId={league.id} /> : null}
       {/* Keeps the last rows clear of the phone pick sheet. */}
       <div className="sp-sheet-spacer" data-on={selected ? "" : undefined} aria-hidden />
     </div>
@@ -168,7 +185,8 @@ function InviteButton({ code }: { code: string }) {
   return (
     <button
       type="button"
-      className="fw-btn"
+      className="fw-btn fw-invite"
+      aria-label={copied ? "Code copied" : `Copy invite code ${code}`}
       data-solid
       onClick={() => {
         void navigator.clipboard.writeText(code)
@@ -177,7 +195,8 @@ function InviteButton({ code }: { code: string }) {
       }}
     >
       {copied ? <Check aria-hidden /> : <Link2 aria-hidden />}
-      {copied ? "Code copied" : `Invite code ${code}`}
+      <span className="fw-invite-label-full">{copied ? "Code copied" : `Invite code ${code}`}</span>
+      <span className="fw-invite-label-short">{copied ? "Copied" : "Invite"}</span>
     </button>
   )
 }
@@ -222,6 +241,7 @@ function Slip({
   limits,
   closed,
   onClear,
+  onLock,
   onPlaced,
 }: {
   leagueId: string
@@ -230,19 +250,34 @@ function Slip({
   limits: Detail["limits"]
   closed: boolean
   onClear: () => void
+  onLock: (fx: PickLockFx) => void
   onPlaced: () => void
 }) {
   const { toast } = useToast()
   const [stake, setStake] = useState("")
+  const [dragY, setDragY] = useState(0)
+  const dragStart = useRef<number | null>(null)
+  const dragged = useRef(false)
   const [pending, setPending] = useState(false)
   // One key per slip: a double tap or a retry after a dropped response places a single pick.
-  const [requestId] = useState(() => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`))
+  const newKey = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`)
+  const [requestId, setRequestId] = useState(newKey)
+  // A different line is a different pick: a fresh stake and idempotency key, but the slip itself stays mounted (no reload flash).
+  const lineId = selected?.line.id
+  useEffect(() => {
+    setStake("")
+    setDragY(0)
+    setRequestId(newKey())
+  }, [lineId])
 
   const cap = Math.min(limits.maxStake, balance)
   const amount = Math.floor(Number(stake.replace(/[^\d]/g, "")) || 0)
   const winnings = selected ? Math.floor(amount * americanToDecimal(selected.line.price)) - amount : 0
+  const slipSide = selected && (selected.market.kind === "moneyline" || selected.market.kind === "spread") ? (selected.line.selection === "home" ? selected.market.event.home : selected.market.event.away) : null
+  // The slip wears the colour of what you picked: the team, or the sport for totals and props.
+  const slipColor = selected ? (slipSide ? teamLook(selected.market.event.sport, slipSide).color : SPORT_COLOR[selected.market.event.sport] ?? "#64748b") : null
   const problem =
-    amount === 0 ? null : amount < limits.minStake ? `Minimum is ${limits.minStake}` : amount > limits.maxStake ? `Maximum per pick is ${credits(limits.maxStake)}` : amount > balance ? "Not enough credits" : null
+    amount === 0 ? null : amount < limits.minStake ? `Minimum is ${limits.minStake}` : amount > limits.maxStake ? `Maximum per pick is ${credits(limits.maxStake)}` : amount > balance ? "Not enough cash" : null
 
   async function submit(event: React.FormEvent) {
     event.preventDefault()
@@ -252,6 +287,7 @@ function Slip({
       await mutate(`/api/sports/leagues/${leagueId}/picks`, {
         body: { lineId: selected.line.id, stake: amount, expectedPrice: selected.line.price, expectedPoint: selected.line.point, requestId },
       })
+      onLock({ id: Date.now(), color: slipColor ?? "#64748b", ink: onColor(slipColor ?? "#64748b"), title: pickSentence(selected.market, selected.line), sub: `${credits(amount)} at ${formatOdds(selected.line.price)} · to win ${credits(winnings)}`, odds: formatOdds(selected.line.price), from: balance, to: balance - amount, big: selected.line.price >= 200 })
       toast("Pick locked in.", "success")
       onPlaced()
     } catch (e) {
@@ -262,7 +298,35 @@ function Slip({
   }
 
   return (
-    <section className="fw-panel fw-trade sp-slip sp-sheet reveal" style={revealStyle(3)} aria-labelledby="sp-slip-title" data-closed={closed || undefined} data-open={selected ? "" : undefined}>
+    <section className="fw-panel fw-trade sp-slip sp-sheet reveal" style={{ ...revealStyle(3), "--sheet-drag": `${dragY}px`, ...(slipColor ? ({ "--tc": slipColor, "--tc-ink": onColor(slipColor) } as React.CSSProperties) : null) } as React.CSSProperties} aria-labelledby="sp-slip-title" data-dragging={dragStart.current != null || undefined} data-closed={closed || undefined} data-open={selected ? "" : undefined} data-themed={selected ? "" : undefined}>
+      {selected ? (
+        <button
+          type="button"
+          className="sp-sheet-handle"
+          aria-label="Dismiss pick slip"
+          disabled={pending}
+          onClick={() => { const wasDragged = dragged.current; dragged.current = false; if (!wasDragged) onClear() }}
+          onPointerDown={(event) => {
+            if (pending) return
+            dragged.current = false
+            dragStart.current = event.clientY
+            event.currentTarget.setPointerCapture(event.pointerId)
+          }}
+          onPointerMove={(event) => {
+            if (dragStart.current != null) setDragY(Math.max(0, event.clientY - dragStart.current))
+          }}
+          onPointerUp={(event) => {
+            const distance = dragStart.current == null ? 0 : event.clientY - dragStart.current
+            dragged.current = Math.abs(distance) > 5
+            dragStart.current = null
+            setDragY(0)
+            if (distance >= 65) onClear()
+            // Suppress the click after a short drag so it springs back instead of dismissing.
+            if (distance > 5) event.preventDefault()
+          }}
+          onPointerCancel={() => { dragStart.current = null; dragged.current = false; setDragY(0) }}
+        ><span /></button>
+      ) : null}
       <div className="fw-section-head">
         <h2 id="sp-slip-title">Pick slip</h2>
         {selected ? (
@@ -270,7 +334,7 @@ function Slip({
             <X aria-hidden /> Clear
           </button>
         ) : (
-          <p>{credits(balance)} credits</p>
+          <p>{credits(balance)} cash</p>
         )}
       </div>
       {!selected ? (
@@ -278,17 +342,27 @@ function Slip({
       ) : (
         <form onSubmit={submit}>
           <div className="sp-slip-pick">
-            <strong>{pickSentence(selected.market, selected.line)}</strong>
-            <span>
-              {marketTitle(selected.market)} · {formatOdds(selected.line.price)}
-            </span>
-            <span>
+            <div className="sp-slip-top">
+              {slipSide ? (
+                <TeamBadge sport={selected.market.event.sport} name={slipSide} size={48} />
+              ) : selected.market.kind === "player_prop" && selected.market.player ? (
+                <PlayerBadge sport={selected.market.event.sport} name={selected.market.player} size={48} />
+              ) : (
+                <span className="sp-slip-sport">{SPORT_LABEL[selected.market.event.sport] ?? ""}</span>
+              )}
+              <div>
+                <small>{marketTitle(selected.market)}</small>
+                <strong>{pickSentence(selected.market, selected.line)}</strong>
+              </div>
+              <span className="sp-slip-odds">{formatOdds(selected.line.price)}</span>
+            </div>
+            <span className="sp-slip-game">
               {eventTitle(selected.market.event)} · {lockLabel(selected.market.lockAt)}
             </span>
           </div>
           <div>
             <label className="fw-label" htmlFor="sp-stake">
-              Stake (credits)
+              Stake (play cash)
             </label>
             <input
               id="sp-stake"
@@ -307,7 +381,7 @@ function Slip({
           </div>
           <div className="fw-quick">
             {[limits.minStake, Math.round(cap / 4), Math.round(cap / 2), cap].map((v, i) => (
-              <button key={i} type="button" disabled={v < limits.minStake} aria-label={i === 3 ? `Stake the maximum, ${credits(cap)} credits` : `Stake ${credits(v)} credits`} onClick={() => setStake(String(Math.max(v, limits.minStake)))}>
+              <button key={i} type="button" disabled={v < limits.minStake} aria-label={i === 3 ? `Stake the maximum, ${credits(cap)} cash` : `Stake ${credits(v)} cash`} onClick={() => setStake(String(Math.max(v, limits.minStake)))}>
                 {i === 3 ? "Max" : credits(v)}
               </button>
             ))}
@@ -322,7 +396,7 @@ function Slip({
             {pending ? <span className="spin" aria-hidden /> : null}
             {pending ? "Locking in…" : "Lock in pick"}
           </button>
-          <p className="sp-fine">Play credits only. Picks can&apos;t be changed after they&apos;re locked in.</p>
+          <p className="sp-fine">Play money only, nothing real is at stake. Picks can&apos;t be changed after they&apos;re locked in.</p>
         </form>
       )}
     </section>
@@ -464,7 +538,7 @@ function LineButton({ market: m, line: l, selected, onSelect, disabled, team }: 
       data-picked={mine || undefined}
       disabled={disabled || !!m.picked}
       style={look ? ({ "--tc": look.color, "--tc-ink": onColor(look.color) } as React.CSSProperties) : undefined}
-      aria-label={`${pickSentence(m, l)}, ${formatOdds(l.price)}, 100 credits wins ${winOn100(l.price)}${mine ? `, your pick, ${m.picked!.stake} credits` : ""}`}
+      aria-label={`${pickSentence(m, l)}, ${formatOdds(l.price)}, 100 cash wins ${winOn100(l.price)}${mine ? `, your pick, ${m.picked!.stake} cash` : ""}`}
       onClick={() => onSelect(m, l)}
     >
       {team && side ? <TeamBadge sport={m.event.sport} name={side} size={32} /> : m.kind === "player_prop" && m.player ? <PlayerBadge sport={m.event.sport} name={m.player} size={32} /> : look ? <i className="sp-dot" aria-hidden /> : null}

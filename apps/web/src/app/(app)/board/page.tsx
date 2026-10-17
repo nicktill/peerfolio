@@ -1,5 +1,7 @@
 "use client"
 
+import { SampleLink } from "@web/components/sample/sample-link"
+import { EmptyGhost } from "@web/components/ui/empty-ghost"
 import "@web/components/app-4a.css"
 import "@web/components/board/board.css"
 import { useState } from "react"
@@ -124,6 +126,7 @@ export default function BoardPage() {
                     key={trader.handle ?? trader.rank}
                     style={revealStyle(Math.min(i, 8))}
                     className={cn("reveal bd-row", trader.isYou && "bd-you")}
+                    data-podium={trader.rank <= 3 ? trader.rank : undefined}
                   >
                     <span className="numeric pf-rank bd-rank font-bold" data-rank={trader.rank}>
                       {trader.rank}
@@ -141,6 +144,7 @@ export default function BoardPage() {
                           <span>{label}</span>
                         )}
                         {trader.isYou ? <span className="bd-you-tag">you</span> : null}
+                        {trader.rank === 1 ? <span className="bd-leader">Leader</span> : null}
                       </p>
                       <span className="bd-handle">
                         {trader.handle ? `@${trader.handle} · ` : ""}
@@ -150,7 +154,7 @@ export default function BoardPage() {
 
                     <div className="bd-chips">
                       {trader.holdings.length > 0 ? (
-                        withShownWeights(trader.holdings.slice(0, 5)).map((h) => <HoldingChip key={h.ticker} holding={h} />)
+                        withShownWeights(trader.holdings.slice(0, 5)).map((h, n) => <HoldingChip key={`${h.ticker}-${n}`} holding={h} />)
                       ) : (
                         <span className="bd-none">Nothing held yet</span>
                       )}
@@ -186,14 +190,18 @@ export default function BoardPage() {
               description="Follow traders from the Everyone tab to build your own board."
             />
           ) : (
-            <EmptyState
+            <EmptyGhost
+              kind="board"
               icon={Trophy}
               title="The board is still filling up"
-              description={`Traders show up after ${data?.minHistoryDays ?? 7} days of verified history, which needs a linked brokerage. Linking is coming soon. Until then, leagues are where the action is.`}
-              action={
-                <Button asChild>
-                  <Link href="/leagues?create=1">Start a league</Link>
-                </Button>
+              body={`Traders show up after ${data?.minHistoryDays ?? 7} days of verified history, which needs a linked brokerage. Until then, leagues are where the action is.`}
+              actions={
+                <>
+                  <Button asChild>
+                    <Link href="/leagues?create=1">Start a league</Link>
+                  </Button>
+                  <SampleLink href="/board/sample" />
+                </>
               }
             />
           )}

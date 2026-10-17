@@ -50,10 +50,17 @@ export type ResolveContext = {
   sourcesAnswered?: number
 }
 
+const STUCK_WAITS: ReadonlySet<string> = new Set(["void report without quorum", "waiting for a second source"])
+
 export function resolveResult(results: EventResult[], ctx: ResolveContext, cfg: ResolveConfig = DEFAULT_RESOLVE): Resolution {
   const r = resolveCore(results, ctx, cfg)
   // A disagreement nobody resolves must not hold credits forever: refund safely after the timeout.
   if (r.kind === "review" && ctx.now.getTime() - ctx.startsAt.getTime() > cfg.reviewTimeoutMs) return { kind: "void", reason: `review timeout (${r.reason})` }
+  // The same backstop for a game that is waiting on a source that never comes (a retirement only one feed reports, a final only
+  // one family has): without it those picks stay open forever. An outage ("no results source answered") is not one of these.
+  if (r.kind === "wait" && STUCK_WAITS.has(r.reason) && ctx.now.getTime() - ctx.startsAt.getTime() > cfg.reviewTimeoutMs) {
+    return { kind: "void", reason: `stuck timeout (${r.reason})` }
+  }
   return r
 }
 
@@ -101,6 +108,25 @@ function resolveCore(results: EventResult[], ctx: ResolveContext, cfg: ResolveCo
     }
   }
   return { kind: "final", result: { ...agreeing[0]!, playerStats } }
+}
+
+/**
+ * Whether a metered results source (one that bills per call) is worth asking about this event now. Free sources go first:
+ * the metered one is asked only once a free source shows a final AND the settle delay since it was first seen has passed,
+ * because that is the moment a second family's final decides the outcome. Retirements, postponements and cancellations are
+ * not asked: a score feed cannot report them, so a call could never supply the second family. With no free source at all,
+ * the metered one is the only way to settle and is asked every run (the caller still keeps it inside its credit pace).
+ */
+export function needsMeteredSource(
+  event: { finalFirstSeenAt: Date | null },
+  freeResults: EventResult[],
+  hasFreeSource: boolean,
+  now: Date,
+  cfg: ResolveConfig = DEFAULT_RESOLVE,
+): boolean {
+  if (!hasFreeSource) return true
+  if (!freeResults.some((r) => r.status === "final")) return false
+  return event.finalFirstSeenAt != null && now.getTime() - event.finalFirstSeenAt.getTime() >= cfg.settleDelayMs
 }
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "")

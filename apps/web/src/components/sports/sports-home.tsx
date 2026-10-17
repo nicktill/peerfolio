@@ -1,5 +1,6 @@
 "use client"
 
+import { SampleLink } from "@web/components/sample/sample-link"
 import "@web/components/fantasy/fantasy-workspace.css"
 import "@web/components/sports/sports-workspace.css"
 
@@ -9,6 +10,8 @@ import { ArrowRight, Clock, Infinity as Forever, Plus, Users } from "lucide-reac
 import { ModePanel } from "@web/components/sports/mode-switch"
 import { revealStyle } from "@web/components/motion/reveal"
 import { useToast } from "@web/components/ui/toast"
+import { SportsStandings } from "@web/components/fantasy/season/list-parts"
+import { EmptyScene } from "@web/components/ui/empty-scene"
 import { LeagueMark } from "@web/components/league/league-mark"
 import { CreateLeagueFlow } from "@web/components/fantasy/create-league-flow"
 import { timeLeft } from "@web/components/fantasy/time-left"
@@ -26,10 +29,11 @@ type SportsSummary = {
   memberCount: number
   credits: number
   startingCredits: number
+  leaders?: { name: string; credits: number; isYou: boolean }[]
 }
 
 /** The Sports side of the Fantasy page: your leagues, start one, or join with a code. */
-export function SportsHome({ switcher }: { switcher?: React.ReactNode }) {
+export function SportsHome() {
   const { data, loading, refetch } = useApi<{ leagues: SportsSummary[] }>("/api/sports/leagues")
   const [mode, setMode] = useState<"none" | "create" | "join">("none")
 
@@ -37,13 +41,12 @@ export function SportsHome({ switcher }: { switcher?: React.ReactNode }) {
     <>
       <header className="fw-intro reveal" style={revealStyle(0)}>
         <div>
-          {switcher}
-          <span className="fw-eyebrow">Pregame picks. Play credits.</span>
+          <span className="fw-eyebrow">Pregame picks. Play money.</span>
           <h1>Sports leagues</h1>
-          <p className="fw-lede">Everyone starts with the same credits. Back your picks on NFL, NBA and tennis, and climb the standings. Lines are fixed contest lines, not live odds. No real money, ever.</p>
+          <p className="fw-lede">Everyone starts with the same play cash. Back your picks on NFL, NBA and tennis, and climb the standings. Lines are fixed contest lines, not live odds. No real money, ever.</p>
         </div>
         <div className="fw-actions">
-          <span className="fw-pill">Play credits</span>
+          <span className="fw-pill">Play money</span>
           <button type="button" className="fw-btn" data-solid aria-expanded={mode === "create"} onClick={() => setMode(mode === "create" ? "none" : "create")}>
             <Plus aria-hidden /> Start sports league
           </button>
@@ -93,22 +96,28 @@ export function SportsHome({ switcher }: { switcher?: React.ReactNode }) {
                 </div>
                 <div className="fw-league-return">
                   <strong>{league.credits.toLocaleString()}</strong>
-                  <span className="fw-note">Credits</span>
+                  <span className="fw-note">Cash</span>
                 </div>
                 <ArrowRight aria-hidden />
+                <SportsStandings leaders={league.leaders ?? []} total={league.memberCount} />
               </Link>
             </li>
           ))}
         </ul>
       ) : (
-        <div className="fw-empty-state">
-          <svg className="fw-empty-art" viewBox="0 0 120 64" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <path d="M8 56h104" opacity=".4" />
-            <ellipse cx="60" cy="30" rx="26" ry="16" />
-            <path d="M44 30h32M60 14v32" opacity=".6" />
-          </svg>
-          <p>No sports leagues yet. Start one and drop the link in the group chat.</p>
-        </div>
+        <EmptyScene
+          kind="picks"
+          title="No sports leagues yet"
+          body="Start one and drop the link in the group chat."
+          action={
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <button type="button" className="fw-btn" data-solid onClick={() => setMode("create")}>
+                <Plus aria-hidden /> Start sports league
+              </button>
+              <SampleLink href="/fantasy/sports/sample">See a sample league</SampleLink>
+            </div>
+          }
+        />
       )}
       </ModePanel>
     </>

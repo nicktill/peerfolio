@@ -3,7 +3,8 @@
 import { useState } from "react"
 import { useToast } from "@web/components/ui/toast"
 import { mutate } from "@web/lib/use-api"
-import { cn } from "@web/lib/utils"
+import { Avatar } from "@web/components/ui/avatar"
+import { formatRelativeTime } from "@web/lib/format"
 import type { NoteView } from "@web/lib/fantasy-notes"
 
 /** The same six as the standings. */
@@ -142,13 +143,13 @@ export function NoteThread({
       <p className="fs-note-body">{note.body}</p>
       <div className="fs-note-bar">
         {note.reactions.map((r) => (
-          <button key={r.emoji} type="button" className="fw-react numeric" data-on={r.mine || undefined} aria-pressed={r.mine} onClick={() => react(r.emoji)}>
+          <button key={r.emoji} type="button" className="fw-react numeric" data-on={r.mine || undefined} aria-pressed={r.mine} aria-label={`${r.emoji}: ${r.count} ${r.count === 1 ? "reaction" : "reactions"}`} disabled={busy} onClick={() => react(r.emoji)}>
             <span aria-hidden>{r.emoji}</span>
             {r.count}
           </button>
         ))}
         <div className="fw-react-add">
-          <button type="button" className="fw-react" onClick={() => setPicker(!picker)} aria-expanded={picker} aria-label="React to this note">
+          <button type="button" className="fw-react" onClick={() => setPicker(!picker)} disabled={busy} aria-expanded={picker} aria-label="React to this note">
             +
           </button>
           {picker ? (
@@ -162,8 +163,8 @@ export function NoteThread({
             </div>
           ) : null}
         </div>
-        <button type="button" className="fs-add-note" style={{ marginLeft: 6 }} onClick={() => setReplying(!replying)} aria-expanded={replying}>
-          {note.replies.length > 0 ? `${note.replies.length} ${note.replies.length === 1 ? "reply" : "replies"}` : "Reply"}
+        <button type="button" className="fs-add-note" onClick={() => setReplying(!replying)} aria-expanded={replying}>
+          {replying ? "Cancel reply" : "Reply"}
         </button>
         {canEdit ? (
           <>
@@ -185,11 +186,17 @@ export function NoteThread({
         ) : null}
       </div>
       {replying || note.replies.length > 0 ? (
-        <ul className="fs-replies">
+        <ul className="fs-replies" aria-label={`${note.replies.length} ${note.replies.length === 1 ? "reply" : "replies"}`}>
           {note.replies.map((r) => (
-            <li key={r.id} className={cn("fs-reply")}>
-              <b>{r.isYours ? "You" : firstName(r.author)}</b>
-              <span>{r.body}</span>
+            <li key={r.id} className="fs-reply">
+              <Avatar src={r.author.image} name={r.author.name} handle={r.author.handle} size="sm" />
+              <div className="fs-reply-content">
+                <div className="fs-reply-meta">
+                  <b>{r.isYours ? "You" : firstName(r.author)}</b>
+                  <time dateTime={r.at}>{formatRelativeTime(r.at)}</time>
+                </div>
+                <p>{r.body}</p>
+              </div>
             </li>
           ))}
         </ul>

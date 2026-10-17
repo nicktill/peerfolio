@@ -2,12 +2,12 @@ import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm"
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js"
 import * as schema from "../../db/schema.ts"
 import { generateInviteCode } from "../crypto.ts"
-import type { UsageStore } from "./credit-budget.ts"
-import { DEFAULT_PUBLISH, detectMove, freshDrafts, marketsToLock, missingReason, planPublication, planSchedule } from "./lines.ts"
+import { canSpend, type UsageStore } from "./credit-budget.ts"
+import { DEFAULT_PUBLISH, detectMove, fetchBucket, fetchKind, freshDrafts, marketsToLock, missingReason, planPublication, planSchedule } from "./lines.ts"
 import { bucketOf, LIMITS, PRUNE_AFTER_WINDOWS, withinLimit, type LimitName } from "./rate-limit.ts"
 import { acceptPick, DEFAULT_LIMITS, PickRejected, type PickRequest } from "./picks.ts"
 import { mirroredPairs } from "./report.ts"
-import { DEFAULT_RESOLVE, gradePick, planSettlement, placeKey, resolveResult, resultsForEvent, type ResolveConfig, type SettlementPlan } from "./settlement.ts"
+import { DEFAULT_RESOLVE, gradePick, needsMeteredSource, planSettlement, placeKey, resolveResult, resultsForEvent, type ResolveConfig, type SettlementPlan } from "./settlement.ts"
 import type { EventRef, EventResult, MarketKind, OddsProvider, Outcome, ResultsProvider, Selection, Sport } from "./types.ts"
 import { SPORTS } from "./types.ts"
 
@@ -71,6 +71,9 @@ export async function pruneRateLimits(db: Db, now: Date = new Date()) {
   for (const [name, { windowMs }] of Object.entries(LIMITS)) {
     await db.execute(sql`DELETE FROM sports_rate_limits WHERE key LIKE ${name + ":%"} AND bucket < ${bucketOf(new Date(now.getTime() - PRUNE_AFTER_WINDOWS * windowMs), windowMs)}`)
   }
+  for (const kind of ["guard", "discover"] as const) {
+    await db.execute(sql`DELETE FROM sports_rate_limits WHERE key LIKE ${"fetch:" + kind + ":%"} AND bucket < ${fetchBucket(kind, now) - PRUNE_AFTER_WINDOWS}`)
+  }
   return cutoff
 }
 
@@ -133,7 +136,32 @@ export async function listSportsLeagues(db: Db, userId: string) {
         .groupBy(sportsMembers.leagueId)
     : []
   const countOf = new Map(counts.map((c) => [c.leagueId, c.n]))
+
+  // The top of each league's standings (credits plus stake still riding, as on the league page) for a preview on the list.
+  const leagueIds = rows.map((r) => r.league.id)
+  const everyone = leagueIds.length
+    ? await db
+        .select({ id: sportsMembers.id, leagueId: sportsMembers.leagueId, userId: sportsMembers.userId, credits: sportsMembers.credits, name: schema.users.name, image: schema.users.image })
+        .from(sportsMembers)
+        .innerJoin(schema.users, eq(schema.users.id, sportsMembers.userId))
+        .where(inArray(sportsMembers.leagueId, leagueIds))
+    : []
+  const riding = leagueIds.length
+    ? await db
+        .select({ memberId: sportsPicks.memberId, stake: sql<number>`coalesce(sum(${sportsPicks.stake}), 0)::int` })
+        .from(sportsPicks)
+        .where(and(inArray(sportsPicks.leagueId, leagueIds), eq(sportsPicks.status, "open")))
+        .groupBy(sportsPicks.memberId)
+    : []
+  const riskOf = new Map(riding.map((r) => [r.memberId, r.stake]))
+  const leadersOf = (leagueId: string) =>
+    everyone
+      .filter((m) => m.leagueId === leagueId)
+      .map((m) => ({ name: m.name ?? "Player", image: m.image, credits: m.credits + (riskOf.get(m.id) ?? 0), isYou: m.userId === userId }))
+      .sort((a, b) => b.credits - a.credits)
+      .slice(0, 3)
   return rows.map(({ league, credits }) => ({
+    leaders: leadersOf(league.id),
     id: league.id,
     name: league.name,
     emoji: league.emoji,
@@ -151,7 +179,7 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
   const [league] = await db.select().from(sportsLeagues).where(eq(sportsLeagues.id, leagueId)).limit(1)
   if (!league) throw new SportsError("League not found", 404)
   const members = await db
-    .select({ id: sportsMembers.id, userId: sportsMembers.userId, credits: sportsMembers.credits, name: schema.users.name })
+    .select({ id: sportsMembers.id, userId: sportsMembers.userId, credits: sportsMembers.credits, name: schema.users.name, image: schema.users.image })
     .from(sportsMembers)
     .innerJoin(schema.users, eq(schema.users.id, sportsMembers.userId))
     .where(eq(sportsMembers.leagueId, leagueId))
@@ -166,8 +194,14 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
     .where(and(eq(sportsPicks.leagueId, leagueId), eq(sportsPicks.status, "open")))
     .groupBy(sportsPicks.memberId)
   const risk = new Map(atRisk.map((r) => [r.memberId, r.stake]))
+  const records = await db.select({
+    memberId: sportsPicks.memberId,
+    won: sql<number>`count(*) filter (where ${sportsPicks.status} = 'won')::int`,
+    lost: sql<number>`count(*) filter (where ${sportsPicks.status} = 'lost')::int`,
+  }).from(sportsPicks).where(eq(sportsPicks.leagueId, leagueId)).groupBy(sportsPicks.memberId)
+  const recordOf = new Map(records.map((r) => [r.memberId, { won: r.won, lost: r.lost }]))
   const standings = members
-    .map((m) => ({ name: m.name ?? "Player", credits: m.credits + (risk.get(m.id) ?? 0), isYou: m.userId === userId }))
+    .map((m) => ({ name: m.name ?? "Player", image: m.image, record: recordOf.get(m.id) ?? { won: 0, lost: 0 }, credits: m.credits + (risk.get(m.id) ?? 0), isYou: m.userId === userId }))
     .sort((a, b) => b.credits - a.credits)
 
   const open = await db
@@ -437,9 +471,42 @@ export class DbUsageStore implements UsageStore {
 }
 
 /** Fetches (via the provider, normally cached/composite), guards what is published, then publishes new fixed lines. Idempotent. */
-export async function publishLines(db: Db, provider: OddsProvider, sports: readonly Sport[], now: Date, cfg = DEFAULT_PUBLISH) {
+/**
+ * Decides per sport whether this cron run may spend credits: an unlocked market wants a guard fetch (once per 2h), a game
+ * starting within 24h wants a publish fetch (once per 12h), anything else costs nothing. Claims the bucket in the shared
+ * rate-limit table, so every server and a late or doubled GitHub run agree on who fetches.
+ */
+export function makeFetchGate(db: Db, gameSoon: (sport: Sport, now: Date) => Promise<boolean | null>) {
+  return async (sport: Sport, now: Date): Promise<boolean> => {
+    const [open] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(sportsMarkets)
+      .innerJoin(sportsEvents, eq(sportsEvents.id, sportsMarkets.eventId))
+      .where(and(eq(sportsMarkets.status, "open"), gt(sportsMarkets.lockAt, now), eq(sportsEvents.sport, sport)))
+    const kind = fetchKind({ hasUnlockedMarket: (open?.n ?? 0) > 0, gameWithin24h: (open?.n ?? 0) > 0 ? null : await gameSoon(sport, now) })
+    if (!kind) return false
+    const claim = async (k: "guard" | "discover") => {
+      const [row] = await db
+        .insert(sportsRateLimits)
+        .values({ key: `fetch:${k}:${sport}`, bucket: fetchBucket(k, now), count: 1 })
+        .onConflictDoUpdate({ target: [sportsRateLimits.key, sportsRateLimits.bucket], set: { count: sql`${sportsRateLimits.count} + 1` } })
+        .returning({ count: sportsRateLimits.count })
+      return (row?.count ?? 1) === 1
+    }
+    const first = await claim(kind)
+    // A discovery fetch also serves as the guard fetch for this window: markets it publishes need no second fetch a cron tick later.
+    if (first && kind === "discover") await claim("guard")
+    return first
+  }
+}
+
+export async function publishLines(db: Db, provider: OddsProvider, sports: readonly Sport[], now: Date, cfg = DEFAULT_PUBLISH, gate?: (sport: Sport, now: Date) => Promise<boolean>) {
   const summary: { sport: Sport; published: number; frozen: number; rescheduled: number; rejected: string | null; notes: string[] }[] = []
   for (const sport of sports) {
+    if (gate && !(await gate(sport, now))) {
+      summary.push({ sport, published: 0, frozen: 0, rescheduled: 0, rejected: null, notes: ["no fetch: nothing unlocked and no game in the next 24h, or this window's fetch was already taken"] })
+      continue
+    }
     const snapshot = await provider.fetchOdds(sport, now)
     const guard = await guardPublished(db, snapshot, sport, now, cfg)
     const existing = await db
@@ -673,30 +740,52 @@ export async function sweepVoidedMarkets(db: Db, now: Date) {
  * from the `results` providers (a different source than the odds), and an
  * event only settles when `resolveResult` says so.
  */
-export async function settleDueEvents(db: Db, results: ResultsProvider[], now: Date, cfg: ResolveConfig = DEFAULT_RESOLVE) {
+export async function settleDueEvents(db: Db, results: ResultsProvider[], now: Date, cfg: ResolveConfig = DEFAULT_RESOLVE, usage?: UsageStore) {
   const events = await db
     .selectDistinct({ event: sportsEvents })
     .from(sportsEvents)
     .innerJoin(sportsMarkets, eq(sportsMarkets.eventId, sportsEvents.id))
     .where(and(inArray(sportsMarkets.status, ["open", "locked"]), sql`${sportsEvents.startsAt} < ${now.toISOString()}::timestamptz`))
-  const out = { settled: 0, voided: 0, waiting: 0, review: 0, failedSources: 0, swept: await sweepVoidedMarkets(db, now) }
+  const out = { settled: 0, voided: 0, waiting: 0, review: 0, failedSources: 0, swept: await sweepVoidedMarkets(db, now), meteredCalls: 0, meteredSkipped: 0 }
+  const free = results.filter((p) => !p.metered)
+  const metered = results.filter((p) => p.metered)
+
+  // A failed fetch is an outage, not "no result": count only sources that answered.
+  const ask = (p: ResultsProvider, sport: Sport, refs: EventRef[]) =>
+    p.fetchResults(sport, refs).then(
+      (r) => ({ ok: true as const, family: p.family ?? p.name, r }),
+      (error: unknown) => {
+        console.error(`[sports] results source ${p.name} failed:`, error instanceof Error ? error.message : error)
+        return { ok: false as const, family: p.family ?? p.name, r: [] as EventResult[] }
+      },
+    )
 
   for (const sport of SPORTS) {
     const ofSport = events.map((e) => e.event).filter((e) => e.sport === sport)
     if (!ofSport.length) continue
-    const refs: EventRef[] = ofSport.map((e) => ({ externalId: e.externalId, homeName: e.homeName, awayName: e.awayName, startsAt: e.startsAt }))
-    // A failed fetch is an outage, not "no result": count only sources that answered.
-    const answers = await Promise.all(
-      results.map((p) =>
-        p.fetchResults(sport, refs).then(
-          (r) => ({ ok: true as const, family: p.family ?? p.name, r }),
-          (error: unknown) => {
-            console.error(`[sports] results source ${p.name} failed:`, error instanceof Error ? error.message : error)
-            return { ok: false as const, family: p.family ?? p.name, r: [] as EventResult[] }
-          },
-        ),
-      ),
-    )
+    const toRef = (e: (typeof ofSport)[number]): EventRef => ({ externalId: e.externalId, homeName: e.homeName, awayName: e.awayName, startsAt: e.startsAt })
+    const answers = await Promise.all(free.map((p) => ask(p, sport, ofSport.map(toRef))))
+
+    // Metered sources (Odds API /scores) only for the events a free source has already finalised, and only inside their own credit pace.
+    const freeAll = answers.flatMap((a) => a.r)
+    const needing = ofSport.filter((e) => needsMeteredSource(e, resultsForEvent(e, freeAll).results, free.length > 0, now, cfg))
+    if (needing.length) {
+      for (const p of metered) {
+        const m = p.metered!
+        if (usage) {
+          const cost = await m.estimate(sport).catch(() => 2)
+          if (!canSpend(m.plan, await usage.usage(m.usageName, now), cost, now)) {
+            out.meteredSkipped++
+            continue
+          }
+        }
+        const answer = await ask(p, sport, needing.map(toRef))
+        out.meteredCalls++
+        // Charged even when the call failed or came back empty: the provider bills the request.
+        if (usage) await usage.record(m.usageName, m.lastCredits(), now)
+        answers.push(answer)
+      }
+    }
     const all = answers.flatMap((a) => a.r)
     const sourcesAnswered = new Set(answers.filter((a) => a.ok).map((a) => a.family)).size
     out.failedSources += answers.filter((a) => !a.ok).length
@@ -721,7 +810,7 @@ export async function settleDueEvents(db: Db, results: ResultsProvider[], now: D
       }
       else {
         const markets = await db.select().from(sportsMarkets).where(and(eq(sportsMarkets.eventId, event.id), inArray(sportsMarkets.status, ["open", "locked"])))
-        if (res.kind === "void" && res.reason.startsWith("review timeout")) {
+        if (res.kind === "void" && /^(review|stuck) timeout/.test(res.reason)) {
           await alertOwners(db, event.id, "review_timeout", `${event.awayName} @ ${event.homeName} was voided and refunded: ${res.reason}.`)
         }
         await withDeadlockRetry(() => db.transaction(async (tx) => {

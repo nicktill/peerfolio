@@ -48,11 +48,15 @@ export type OddsSnapshot = {
   notes?: string[]
   /** False when a source failed or was skipped, so absence from this snapshot proves nothing. Undefined means complete. */
   complete?: boolean
+  /** Credits the fetch actually cost, counted from the requests made. Absent: the caller's estimate stands. */
+  credits?: number
 }
 
 export interface OddsProvider {
   readonly name: string
   fetchOdds(sport: Sport, now: Date): Promise<OddsSnapshot>
+  /** What the next fetch for this sport will cost, from the real number of requests it will make (tennis: one per active tournament). */
+  estimateCost?(sport: Sport): Promise<number>
 }
 
 /* ---- provider results (what actually happened) ---- */
@@ -82,6 +86,17 @@ export interface ResultsProvider {
   readonly name: string
   readonly family?: string
   fetchResults(sport: Sport, events: EventRef[]): Promise<EventResult[]>
+  /**
+   * Set on sources that bill per call. Settlement asks these only when a free source already shows a final, within the
+   * plan's pace, and records what they cost under `usageName`. Free sources (ESPN) leave it unset.
+   */
+  metered?: {
+    usageName: string
+    plan: { monthly: number; safety: number; dayBurst: number }
+    estimate(sport: Sport): Promise<number>
+    /** Credits the most recent fetchResults actually used. */
+    lastCredits(): number
+  }
 }
 
 /* ---- lifecycle ---- */

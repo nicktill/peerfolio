@@ -78,7 +78,8 @@ export type TeamLook = { abbr: string; color: string; logo: string | null }
 export function teamLook(sport: string | undefined, name: string): TeamLook {
   const key = name.trim().toLowerCase()
   const table = sport === "nfl" ? NFL : sport === "nba" ? NBA : null
-  const hit = table?.[key]
+  // Full name first ("boston celtics"), then the nickname alone ("celtics"), which is how the sample league and some feeds write it.
+  const hit = table?.[key] ?? (table ? Object.entries(table).find(([full]) => full.endsWith(` ${key}`))?.[1] : undefined)
   if (hit && (sport === "nfl" || sport === "nba")) {
     return { abbr: hit.abbr, color: hit.color, logo: `https://a.espncdn.com/i/teamlogos/${sport}/500/${hit.abbr.toLowerCase()}.png` }
   }

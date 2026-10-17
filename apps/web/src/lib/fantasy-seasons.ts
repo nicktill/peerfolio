@@ -20,7 +20,12 @@ import {
 import { ApiError } from "@web/lib/api"
 import { isClosed, scoredValue } from "@web/lib/fantasy-rules"
 import {
+  asCadence,
   buildRecap,
+  checkSeasonStart,
+  isCadence,
+  nextPeriodStart,
+  type Cadence,
   dateKey,
   DEFAULT_PICKS,
   draftScore,
@@ -66,7 +71,7 @@ const MAX_ROUNDS_PER_CALL = 60
 
 export type SeasonConfig = { mode: SeasonMode; roundCount: number | null; picksPerRound: number | null }
 
-export const normalizeSeasonConfig = (input: { mode?: string; rounds?: number | null; picks?: number | null }): SeasonConfig => {
+export const normalizeSeasonConfig = (input: { mode?: string; rounds?: number | null; picks?: number | null; cadence?: string }): SeasonConfig => {
   const mode: SeasonMode = input.mode === "draft" ? "draft" : "trading"
   const roundCount = input.rounds == null ? null : Math.min(52, Math.max(1, Math.floor(input.rounds)))
   const picksPerRound = mode === "draft" ? Math.min(MAX_PICKS, Math.max(MIN_PICKS, Math.floor(input.picks ?? DEFAULT_PICKS))) : null
@@ -97,7 +102,7 @@ export async function latestSeason(leagueId: string): Promise<Season | undefined
 }
 
 /** Starts the next season (the rematch). Owner only, and only once the last one is over. */
-export async function startNextSeason(userId: string, leagueId: string, input: { mode?: string; rounds?: number | null; picks?: number | null }, now = new Date()) {
+export async function startNextSeason(userId: string, leagueId: string, input: { mode?: string; rounds?: number | null; picks?: number | null; cadence?: string }, now = new Date()) {
   const league = await db.query.fantasyLeagues.findFirst({ where: eq(fantasyLeagues.id, leagueId) })
   if (!league) throw new ApiError("League not found", 404)
   if (league.ownerId !== userId) throw new ApiError("Only the league owner can start a new season", 403)
@@ -107,17 +112,50 @@ export async function startNextSeason(userId: string, leagueId: string, input: {
   if (last && last.status !== "complete") throw new ApiError("The current season is still running. Wrap it up first.", 409)
 
   const cfg = normalizeSeasonConfig(input)
+  // A rematch keeps the cadence the league already plays. Draft seasons are always weekly.
+  const cadence: Cadence = cfg.mode === "draft" ? "weekly" : isCadence(input.cadence) ? input.cadence : asCadence(last?.cadence)
   // A league turning rounds on for the first time starts with the week already running, like a new league.
-  const startsAt = !last && cfg.mode === "trading" ? weekStart(now) : nextSeasonStart(now, cfg.mode)
+  const startsAt = !last && cfg.mode === "trading" && cadence === "weekly" ? weekStart(now) : nextSeasonStart(now, cfg.mode, 12, cadence)
   const inserted = await db
     .insert(fantasySeasons)
-    .values({ leagueId, number: (last?.number ?? 0) + 1, ...cfg, startsAt })
+    .values({ leagueId, number: (last?.number ?? 0) + 1, ...cfg, cadence, startsAt })
     .onConflictDoNothing()
     .returning()
   // Two quick taps: the second finds the season the first made.
   const season = inserted[0] ?? (await latestSeason(leagueId))!
   await emit(db, { leagueId, kind: "season_started", dedupeKey: `season_started:${season.id}`, payload: { seasonNumber: season.number, mode: season.mode, startsAt: season.startsAt.toISOString() } })
   return season
+}
+
+/**
+ * Turns seasons on for a league that has none: the owner picks a cadence and a start date.
+ * It only adds one season row. Members, positions, trades, snapshots and the long race are
+ * never read for writing, so nothing that already happened can change. Rounds are created
+ * and scored by `advanceLeague` once their time comes, from the nightly snapshots.
+ *
+ * Retry-safe: when a season is already running it is returned as it is (`created: false`),
+ * and two taps at once end up with one season through the (league, number) unique index.
+ */
+export async function enableSeasons(userId: string, leagueId: string, input: { cadence?: string; startsAt?: Date | string | null; rounds?: number | null }, now = new Date()) {
+  const league = await db.query.fantasyLeagues.findFirst({ where: eq(fantasyLeagues.id, leagueId) })
+  if (!league) throw new ApiError("League not found", 404)
+  if (league.ownerId !== userId) throw new ApiError("Only the league owner can turn on seasons", 403)
+  const existing = await latestSeason(leagueId)
+  if (existing && existing.status !== "complete") return { season: existing, created: false }
+  if (existing) throw new ApiError("This league already ran a season. Start the next one from the season page.", 409)
+  if (isClosed(league.endsAt, now)) throw new ApiError("This league has finished, so it can't start seasons", 409)
+
+  const cadence: Cadence = isCadence(input.cadence) ? input.cadence : "weekly"
+  const startsAt = input.startsAt ? new Date(input.startsAt) : nextPeriodStart(now, cadence)
+  const check = checkSeasonStart(startsAt, cadence, now)
+  if (!check.ok) throw new ApiError(check.message, 400)
+  if (league.endsAt && startsAt.getTime() >= league.endsAt.getTime()) throw new ApiError("The league ends before that date, so pick an earlier start", 400)
+
+  const cfg = normalizeSeasonConfig({ mode: "trading", rounds: input.rounds })
+  const inserted = await db.insert(fantasySeasons).values({ leagueId, number: 1, ...cfg, cadence, startsAt }).onConflictDoNothing().returning()
+  const season = inserted[0] ?? (await latestSeason(leagueId))!
+  if (inserted[0]) await emit(db, { leagueId, kind: "season_started", dedupeKey: `season_started:${season.id}`, payload: { seasonNumber: season.number, mode: season.mode, cadence, startsAt: season.startsAt.toISOString() } })
+  return { season, created: !!inserted[0] }
 }
 
 /** Ends an open-ended season after the round now in progress, or shortens a fixed one to it. */
@@ -128,7 +166,7 @@ export async function wrapUpSeason(userId: string, leagueId: string, now = new D
   await advanceLeague(leagueId, now)
   const season = await latestSeason(leagueId)
   if (!season || season.status === "complete") throw new ApiError("There's no season running", 409)
-  const current = roundNumberAt(season.startsAt, now, null)
+  const current = roundNumberAt(season.startsAt, now, null, asCadence(season.cadence))
   if (current < 1) {
     // Has not started: nothing to score, so close it out empty.
     await db.update(fantasySeasons).set({ status: "complete", completedAt: now }).where(and(eq(fantasySeasons.id, season.id), eq(fantasySeasons.status, "active")))
@@ -192,7 +230,8 @@ async function advanceSeason(tx: Tx, league: League, season: Season, now: Date) 
   // 1. Create only the rounds that don't exist yet (and, for a draft, the next one, open for picks).
   const existing = await tx.select().from(fantasyRounds).where(eq(fantasyRounds.seasonId, season.id)).orderBy(asc(fantasyRounds.number))
   const have = new Set(existing.map((r) => r.number))
-  const inProgress = roundNumberAt(season.startsAt, clock, season.roundCount)
+  const cadence = asCadence(season.cadence)
+  const inProgress = roundNumberAt(season.startsAt, clock, season.roundCount, cadence)
   const wanted: number[] = []
   // Everything from the first missing round up to now. Settling is what's capped per call, not creating.
   const last = existing.at(-1)?.number ?? 0
@@ -204,7 +243,7 @@ async function advanceSeason(tx: Tx, league: League, season: Season, now: Date) 
   if (wanted.length > 0) {
     const created = await tx
       .insert(fantasyRounds)
-      .values(wanted.map((number) => ({ seasonId: season.id, leagueId: league.id, number, ...roundWindow(season.startsAt, number) })))
+      .values(wanted.map((number) => ({ seasonId: season.id, leagueId: league.id, number, ...roundWindow(season.startsAt, number, cadence) })))
       .onConflictDoNothing()
       .returning()
     for (const round of created) {
@@ -258,7 +297,7 @@ async function advanceSeason(tx: Tx, league: League, season: Season, now: Date) 
 
   // 4. Complete the season when its last round is in.
   const settled = await tx.select({ n: sql<number>`count(*)::int` }).from(fantasyRounds).where(and(eq(fantasyRounds.seasonId, season.id), eq(fantasyRounds.status, "settled")))
-  const lastNeeded = closed ? roundNumberAt(season.startsAt, clock, season.roundCount) : season.roundCount
+  const lastNeeded = closed ? roundNumberAt(season.startsAt, clock, season.roundCount, cadence) : season.roundCount
   if (lastNeeded !== null && (settled[0]?.n ?? 0) >= lastNeeded) await completeSeason(tx, league, season)
 }
 

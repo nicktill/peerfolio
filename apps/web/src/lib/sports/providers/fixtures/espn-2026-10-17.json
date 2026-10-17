@@ -1,0 +1,636 @@
+{
+ "recordedAt": "2026-10-17T15:32Z",
+ "source": "site.api.espn.com scoreboard, trimmed to the fields the adapter reads",
+ "nfl": {
+  "events": [
+   {
+    "id": "401872995",
+    "date": "2026-10-16T00:15Z",
+    "competitions": [
+     {
+      "id": "401872995",
+      "date": "2026-10-16T00:15Z",
+      "status": {
+       "type": {
+        "name": "STATUS_FINAL",
+        "state": "post",
+        "completed": true
+       }
+      },
+      "competitors": [
+       {
+        "id": "7",
+        "homeAway": "home",
+        "order": 0,
+        "score": "17",
+        "winner": true,
+        "team": {
+         "displayName": "Denver Broncos"
+        },
+        "linescores": [
+         {
+          "value": 0
+         },
+         {
+          "value": 14
+         },
+         {
+          "value": 0
+         },
+         {
+          "value": 0
+         },
+         {
+          "value": 3
+         }
+        ]
+       },
+       {
+        "id": "26",
+        "homeAway": "away",
+        "order": 1,
+        "score": "14",
+        "winner": false,
+        "team": {
+         "displayName": "Seattle Seahawks"
+        },
+        "linescores": [
+         {
+          "value": 3
+         },
+         {
+          "value": 0
+         },
+         {
+          "value": 0
+         },
+         {
+          "value": 11
+         },
+         {
+          "value": 0
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "id": "401872996",
+    "date": "2026-10-18T13:30Z",
+    "competitions": [
+     {
+      "id": "401872996",
+      "date": "2026-10-18T13:30Z",
+      "status": {
+       "type": {
+        "name": "STATUS_SCHEDULED",
+        "state": "pre",
+        "completed": false
+       }
+      },
+      "competitors": [
+       {
+        "id": "30",
+        "homeAway": "home",
+        "order": 0,
+        "score": "0",
+        "team": {
+         "displayName": "Jacksonville Jaguars"
+        }
+       },
+       {
+        "id": "34",
+        "homeAway": "away",
+        "order": 1,
+        "score": "0",
+        "team": {
+         "displayName": "Houston Texans"
+        }
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "nba": {
+  "events": [
+   {
+    "id": "401909088",
+    "date": "2026-10-20T19:00Z",
+    "competitions": [
+     {
+      "id": "401909088",
+      "date": "2026-10-20T19:00Z",
+      "status": {
+       "type": {
+        "name": "STATUS_SCHEDULED",
+        "state": "pre",
+        "completed": false
+       }
+      },
+      "competitors": [
+       {
+        "id": "8",
+        "homeAway": "home",
+        "order": 0,
+        "score": "0",
+        "team": {
+         "displayName": "Detroit Pistons"
+        }
+       },
+       {
+        "id": "2",
+        "homeAway": "away",
+        "order": 1,
+        "score": "0",
+        "team": {
+         "displayName": "Boston Celtics"
+        }
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "tennis": {
+  "events": [
+   {
+    "id": "t",
+    "date": "2026-10-05T04:05Z",
+    "groupings": [
+     {
+      "competitions": [
+       {
+        "id": "186308",
+        "date": "2026-10-05T04:05Z",
+        "status": {
+         "type": {
+          "name": "STATUS_FINAL",
+          "state": "post",
+          "completed": true
+         }
+        },
+        "competitors": [
+         {
+          "id": "2498",
+          "homeAway": "away",
+          "order": 2,
+          "winner": true,
+          "athlete": {
+           "displayName": "Nikoloz Basilashvili"
+          },
+          "linescores": [
+           {
+            "value": 6
+           },
+           {
+            "value": 6
+           },
+           {
+            "value": 7
+           }
+          ]
+         },
+         {
+          "id": "13358",
+          "homeAway": "home",
+          "order": 1,
+          "winner": false,
+          "athlete": {
+           "displayName": "Andre Ilagan"
+          },
+          "linescores": [
+           {
+            "value": 3
+           },
+           {
+            "value": 7
+           },
+           {
+            "value": 5
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "id": "186309",
+        "date": "2026-10-05T04:10Z",
+        "status": {
+         "type": {
+          "name": "STATUS_FINAL",
+          "state": "post",
+          "completed": true
+         }
+        },
+        "competitors": [
+         {
+          "id": "3778",
+          "homeAway": "away",
+          "order": 2,
+          "winner": true,
+          "athlete": {
+           "displayName": "Liam Draxl"
+          },
+          "linescores": [
+           {
+            "value": 7
+           },
+           {
+            "value": 6
+           }
+          ]
+         },
+         {
+          "id": "3375",
+          "homeAway": "home",
+          "order": 1,
+          "winner": false,
+          "athlete": {
+           "displayName": "Hugo Gaston"
+          },
+          "linescores": [
+           {
+            "value": 5
+           },
+           {
+            "value": 4
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "id": "186292",
+        "date": "2026-10-05T05:40Z",
+        "status": {
+         "type": {
+          "name": "STATUS_RETIRED",
+          "state": "post",
+          "completed": true
+         }
+        },
+        "competitors": [
+         {
+          "id": "3371",
+          "homeAway": "away",
+          "order": 2,
+          "winner": true,
+          "athlete": {
+           "displayName": "Nicolas Mejia"
+          },
+          "linescores": [
+           {
+            "value": 6
+           },
+           {
+            "value": 0
+           }
+          ]
+         },
+         {
+          "id": "3347",
+          "homeAway": "home",
+          "order": 1,
+          "winner": false,
+          "athlete": {
+           "displayName": "Chun-Hsin Tseng"
+          },
+          "linescores": [
+           {
+            "value": 4
+           },
+           {
+            "value": 0
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "id": "186303",
+        "date": "2026-10-05T06:20Z",
+        "status": {
+         "type": {
+          "name": "STATUS_RETIRED",
+          "state": "post",
+          "completed": true
+         }
+        },
+        "competitors": [
+         {
+          "id": "1317",
+          "homeAway": "away",
+          "order": 2,
+          "winner": true,
+          "athlete": {
+           "displayName": "Bernard Tomic"
+          },
+          "linescores": [
+           {
+            "value": 6
+           },
+           {
+            "value": 4
+           },
+           {
+            "value": 5
+           }
+          ]
+         },
+         {
+          "id": "10638",
+          "homeAway": "home",
+          "order": 1,
+          "winner": false,
+          "athlete": {
+           "displayName": "Terence Atmane"
+          },
+          "linescores": [
+           {
+            "value": 3
+           },
+           {
+            "value": 6
+           },
+           {
+            "value": 3
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "id": "184927",
+        "date": "2026-10-09T07:00Z",
+        "status": {
+         "type": {
+          "name": "STATUS_WALKOVER",
+          "state": "post",
+          "completed": true
+         }
+        },
+        "competitors": [
+         {
+          "id": "2635",
+          "homeAway": "away",
+          "order": 2,
+          "winner": false,
+          "athlete": {
+           "displayName": "Alex Molcan"
+          }
+         },
+         {
+          "id": "2651",
+          "homeAway": "home",
+          "order": 1,
+          "winner": true,
+          "athlete": {
+           "displayName": "Alex de Minaur"
+          }
+         }
+        ]
+       },
+       {
+        "id": "184947",
+        "date": "2026-10-18T08:30Z",
+        "status": {
+         "type": {
+          "name": "STATUS_SCHEDULED",
+          "state": "pre",
+          "completed": false
+         }
+        },
+        "competitors": [
+         {
+          "id": "12657",
+          "homeAway": "away",
+          "order": 2,
+          "athlete": {
+           "displayName": "Rafael Jodar"
+          }
+         },
+         {
+          "id": "3212",
+          "homeAway": "home",
+          "order": 1,
+          "athlete": {
+           "displayName": "Alejandro Davidovich Fokina"
+          }
+         }
+        ]
+       },
+       {
+        "id": "186984",
+        "date": "2026-10-17T13:30Z",
+        "status": {
+         "type": {
+          "name": "STATUS_SCHEDULED",
+          "state": "pre",
+          "completed": false
+         }
+        },
+        "competitors": [
+         {
+          "id": "11636",
+          "homeAway": "away",
+          "order": 2,
+          "athlete": {
+           "displayName": "Andrea Guerrieri"
+          }
+         },
+         {
+          "id": "2009",
+          "homeAway": "home",
+          "order": 1,
+          "athlete": {
+           "displayName": "Kimmer Coppejans"
+          }
+         }
+        ]
+       },
+       {
+        "id": "184982",
+        "date": "2026-10-09T04:10Z",
+        "status": {
+         "type": {
+          "name": "STATUS_FINAL",
+          "state": "post",
+          "completed": true
+         }
+        },
+        "competitors": [
+         {
+          "id": "2292-3735",
+          "homeAway": "away",
+          "order": 2,
+          "winner": false,
+          "linescores": [
+           {
+            "value": 3
+           },
+           {
+            "value": 7
+           },
+           {
+            "value": 0
+           }
+          ],
+          "roster": {
+           "displayName": "Guido Andreozzi / Manuel Guinard"
+          }
+         },
+         {
+          "id": "11226-11396",
+          "homeAway": "home",
+          "order": 1,
+          "winner": true,
+          "linescores": [
+           {
+            "value": 6
+           },
+           {
+            "value": 6
+           },
+           {
+            "value": 1
+           }
+          ],
+          "roster": {
+           "displayName": "Ignacio Buse / Adolfo Daniel Vallejo"
+          }
+         }
+        ]
+       },
+       {
+        "id": "185080",
+        "date": "2026-10-23T04:00Z",
+        "status": {
+         "type": {
+          "name": "STATUS_CANCELED",
+          "state": "post",
+          "completed": false
+         }
+        },
+        "competitors": [
+         {
+          "id": "-4",
+          "homeAway": "away",
+          "order": 2,
+          "athlete": {
+           "displayName": "TBD"
+          }
+         },
+         {
+          "id": "-3",
+          "homeAway": "home",
+          "order": 1,
+          "athlete": {
+           "displayName": "TBD"
+          }
+         }
+        ]
+       },
+       {
+        "id": "186365",
+        "date": "2026-10-10T03:05Z",
+        "status": {
+         "type": {
+          "name": "STATUS_RETIRED",
+          "state": "post",
+          "completed": true
+         }
+        },
+        "competitors": [
+         {
+          "id": "5734",
+          "homeAway": "away",
+          "order": 2,
+          "winner": false,
+          "athlete": {
+           "displayName": "Moyuka Uchijima"
+          },
+          "linescores": [
+           {
+            "value": 4
+           },
+           {
+            "value": 1
+           }
+          ]
+         },
+         {
+          "id": "2672",
+          "homeAway": "home",
+          "order": 1,
+          "winner": true,
+          "athlete": {
+           "displayName": "Magdalena Frech"
+          },
+          "linescores": [
+           {
+            "value": 6
+           },
+           {
+            "value": 4
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "id": "185388",
+        "date": "2026-10-17T14:15Z",
+        "status": {
+         "type": {
+          "name": "STATUS_IN_PROGRESS",
+          "state": "in",
+          "completed": false
+         }
+        },
+        "competitors": [
+         {
+          "id": "636-2615",
+          "homeAway": "away",
+          "order": 2,
+          "linescores": [
+           {
+            "value": 7
+           },
+           {
+            "value": 4
+           }
+          ],
+          "roster": {
+           "displayName": "Sara Errani / Jasmine Paolini"
+          }
+         },
+         {
+          "id": "2140-2248",
+          "homeAway": "home",
+          "order": 1,
+          "linescores": [
+           {
+            "value": 5
+           },
+           {
+            "value": 2
+           }
+          ],
+          "roster": {
+           "displayName": "Storm Hunter / Katerina Siniakova"
+          }
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ }
+}

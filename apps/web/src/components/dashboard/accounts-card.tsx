@@ -229,7 +229,7 @@ export function AccountsCard({
   )
 
   const body = (
-      <div className={cn("space-y-5", variant === "card" ? "p-4" : "pt-2")}>
+      <div className={cn("space-y-2", variant === "card" ? "p-4" : "pt-2")}>
         {needsAttention.map((item) => (
           <div
             key={item.id}
@@ -280,9 +280,10 @@ export function AccountsCard({
 
         {grouped.map((group) => (
           <div key={group.key}>
-            <h3 className={cn("pf-notick mb-1.5 flex items-baseline justify-between font-mono text-[11px] font-medium uppercase tracking-[0.045em] text-muted-foreground", variant === "card" ? "px-2" : "px-0")}>
+            <h3 className={cn("pf-notick mb-0.5 mt-1 flex items-baseline justify-between font-mono text-[11px] font-medium uppercase tracking-[0.045em] text-muted-foreground", variant === "card" ? "px-2" : "px-0")}>
               <span>{group.label}</span>
-              <span className={cn("numeric normal-case tracking-normal", group.key === "credit" || group.key === "loan" ? "text-loss-ink" : "")}>
+              {/* A lone account already shows its balance a line below; repeating it in the header is noise. */}
+              <span className={cn("numeric normal-case tracking-normal", group.key === "credit" || group.key === "loan" ? "text-loss-ink" : "", group.rows.length === 1 && group.key !== "investment" && "hidden")}>
                 {group.key === "credit" || group.key === "loan" ? "−" : ""}
                 {formatCurrency(
                   group.rows.reduce((sum, a) => sum + a.balance, 0),
@@ -290,13 +291,13 @@ export function AccountsCard({
                 )}
               </span>
             </h3>
-            <ul className="space-y-1">
+            <ul className="space-y-0.5">
               {group.rows.map((account) => (
                 <li
                   key={account.id}
                   id={`account-${account.id}`}
                   className={cn(
-                    "group rounded-xl p-2 transition-[background-color,box-shadow] duration-300",
+                    "group rounded-xl px-2 py-1.5 transition-[background-color,box-shadow] duration-300",
                     variant === "rail" && "-mx-2",
                     account.category === "investment" && isOpen(account) ? "bg-secondary/50 shadow-[inset_0_0_0_1px_hsl(var(--border))]" : "hover:bg-secondary/50",
                     highlightId === account.id && "shadow-[0_0_0_2px_hsl(var(--primary))]",
@@ -424,7 +425,7 @@ export function AccountsCard({
               <div key={item.id} className="flex items-center gap-3 text-sm">
                 <InstitutionMark logo={item.institutionLogo} name={item.institutionName} size="sm" />
                 <span className="min-w-0 flex-1 truncate">{item.institutionName}</span>
-                <span className="shrink-0 text-xs text-muted-foreground" title="Last successful sync">
+                <span className="shrink-0 text-xs text-muted-foreground" title={isDemo ? "Simulated last sync for this sample connection" : "Last successful sync"}>
                   {item.lastSyncedAt ? `Synced ${formatRelativeTime(item.lastSyncedAt)}` : "Awaiting first sync"}
                 </span>
                 <Button
@@ -432,7 +433,8 @@ export function AccountsCard({
                   size="icon"
                   className="h-8 w-8 shrink-0"
                   onClick={() => void disconnect(item.id, item.institutionName)}
-                  disabled={busyId === item.id}
+                  disabled={isDemo || busyId === item.id}
+                  title={isDemo ? "Sample connection" : `Disconnect ${item.institutionName}`}
                 >
                   {busyId === item.id ? (
                     <RefreshCw className="h-3.5 w-3.5 animate-spin" aria-hidden />
@@ -494,17 +496,19 @@ function InstitutionMark({
 }) {
   const box = size === "sm" ? "h-7 w-7" : "h-9 w-9"
   // Manual accounts carry no artwork, so recognise the firm from its name.
-  const brand = logo ? null : brandFor(name)
-  const marked = Boolean(logo || brand)
+  // Bundled Vanguard's favicon sits on a white square, so that one falls through to a brand tile.
+  const remote = logo && !logo.endsWith("/vanguard.png") ? logo : null
+  const brand = remote ? null : brandFor(name)
+  const marked = Boolean(remote || brand)
 
   return (
     <span className={cn("relative shrink-0", box)}>
-      <span className={cn("flex h-full w-full items-center justify-center overflow-hidden rounded-xl border border-border/80 shadow-sm", !brand && "bg-gradient-to-br from-secondary to-background")}>
-        {logo ? (
+      <span className={cn("flex h-full w-full items-center justify-center overflow-hidden rounded-full border border-border/80 shadow-sm", !brand && "bg-gradient-to-br from-secondary to-background")}>
+        {remote ? (
           // Plaid returns institution logos as base64 data URIs, so there is no
           // remote host for next/image to optimise.
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={logo} alt="" className="h-full w-full object-contain p-1" />
+          <img src={remote} alt="" className="h-full w-full object-contain p-1" />
         ) : brand ? (
           <BrandTile brand={brand} />
         ) : (
@@ -531,10 +535,15 @@ function BrandTile({ brand }: { brand: Brand }) {
     const el = image.current
     if (el?.complete && el.naturalWidth === 0) setFailed(true)
   }, [])
-  const localLogo = brand.name === "Fidelity" ? "/landing/brokerages/fidelity.png" : brand.name === "Vanguard" ? "/landing/brokerages/vanguard.png" : null
-  if (localLogo && !failed) {
-    // eslint-disable-next-line @next/next/no-img-element -- bundled official brokerage mark
-    return <img ref={image} src={localLogo} alt="" className="h-full w-full bg-white object-contain p-1" onError={() => setFailed(true)} />
+  if (brand.glyph) {
+    return (
+      <span className="grid h-full w-full place-items-center" style={{ backgroundColor: brand.color }} aria-hidden>
+        <span
+          className="block h-[62%] w-[62%]"
+          style={{ backgroundColor: brand.ink ?? "#fff", maskImage: `url(${brand.glyph})`, WebkitMaskImage: `url(${brand.glyph})`, maskSize: "contain", WebkitMaskSize: "contain", maskRepeat: "no-repeat", WebkitMaskRepeat: "no-repeat", maskPosition: "center", WebkitMaskPosition: "center" }}
+        />
+      </span>
+    )
   }
   if (brand.ticker && !failed) {
     return (

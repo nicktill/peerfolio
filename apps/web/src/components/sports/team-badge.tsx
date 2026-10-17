@@ -38,12 +38,17 @@ function usePlayerPhoto(name: string, sport: string, enabled: boolean): string |
 }
 
 /** A team's mark: its logo when it loads, a tennis player's portrait, otherwise initials on the team colour. */
-export function TeamBadge({ sport, name, size = 36 }: { sport?: string; name: string; size?: number }) {
+export function TeamBadge({ sport, name, size = 36, bare }: { sport?: string; name: string; size?: number; bare?: boolean }) {
   const look = teamLook(sport, name)
   const [failed, setFailed] = useState(false)
   const photo = usePlayerPhoto(name, sport ?? "tennis", sport === "tennis")
   const src = sport === "tennis" ? photo : look.logo
   const isPhoto = sport === "tennis"
+  // Bare: just the team logo, floating, with no coloured disc or white square behind it.
+  if (bare && src && !failed && !isPhoto) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img className="sp-logo-bare" src={src} alt="" width={size} height={size} loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(true)} title={name} style={{ width: size, height: size }} />
+  }
   return (
     <span className="sp-badge" data-photo={isPhoto || undefined} style={{ width: size, height: size, background: look.color, color: onColor(look.color), fontSize: size * 0.34 }} aria-hidden title={name}>
       {src && !failed ? (

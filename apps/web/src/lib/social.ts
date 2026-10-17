@@ -35,7 +35,10 @@ export async function loadSharedHoldings(userIds: string[], limit = 5): Promise<
     // Plan funds known only by a code have no ticker worth showing to a league.
     if (!row.ticker || isPlanIdentifier(row.ticker) || row.value <= 0) continue
     const list = byUser.get(row.userId) ?? []
-    list.push({ ticker: row.ticker, name: row.name, value: row.value })
+    // The same ticker held in two accounts is one holding.
+    const same = list.find((h) => h.ticker === row.ticker)
+    if (same) same.value += row.value
+    else list.push({ ticker: row.ticker, name: row.name, value: row.value })
     byUser.set(row.userId, list)
   }
 

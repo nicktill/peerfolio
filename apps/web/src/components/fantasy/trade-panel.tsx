@@ -12,6 +12,8 @@ import { fillsAtOpen } from "@web/lib/fantasy-rules"
 import { formatCurrency } from "@web/lib/format"
 import { amountFromFraction, BUY_SPOTS, checkTradeInput, estimateShares, sanitizeAmount, SELL_SPOTS, snapFraction, snapThreshold } from "@web/lib/trade-input"
 import { mutate } from "@web/lib/use-api"
+import { inSampleView } from "@web/lib/sample/fixtures"
+import { sampleQuote } from "@web/lib/sample/store"
 import "@web/components/fantasy/season/fantasy-season.css"
 
 type Held = { ticker: string; shares: number; value: number; averageCost: number }
@@ -53,7 +55,7 @@ export function TradePanel({ leagueId, cash, positions, onTraded, closed = false
   const problem = touched && !check.ok ? check.message : null
   // Worked out each render, so a page left open across 9:30 or 4:00 ET catches up on its next refresh.
   // Only a label: the server decides whether an order fills now or queues.
-  const queues = fillsAtOpen("stock")
+  const queues = fillsAtOpen("stock") && !(typeof window !== "undefined" && inSampleView(window.location.pathname))
 
   // Show what you'd be trading at before you commit. Debounced, and a slow
   // response for an old ticker can never overwrite the one on screen.
@@ -69,7 +71,7 @@ export function TradePanel({ leagueId, cash, positions, onTraded, closed = false
     // not an answer about this ticker: keep "Looking up…" and ask again shortly.
     const look = async (retries: number) => {
       try {
-        const response = await fetch(`/api/market/quote?symbol=${encodeURIComponent(ticker)}&kind=stock`)
+        const response = inSampleView(window.location.pathname) ? sampleQuote(ticker) : await fetch(`/api/market/quote?symbol=${encodeURIComponent(ticker)}&kind=stock`)
         const body = await response.json().catch(() => ({}))
         if (cancelled) return
         if (response.status === 429 && retries > 0) {

@@ -2,8 +2,9 @@
 
 import "@web/components/fantasy/season/fantasy-season.css"
 
+import Link from "next/link"
 import { useEffect, useState } from "react"
-import { ChevronDown, Medal } from "lucide-react"
+import { ArrowRight, ChevronDown, Medal } from "lucide-react"
 import { LeagueBackdrop, watermark } from "@web/components/league/league-mark"
 import { Avatar } from "@web/components/ui/avatar"
 import { Delta } from "@web/components/ui/delta"
@@ -11,7 +12,7 @@ import { InfoTip } from "@web/components/ui/tip"
 import { HeadlineNumber } from "@web/components/ui/headline-number"
 import { Countdown } from "@web/components/fantasy/season/season-parts"
 import { SeasonTables, WeekBar } from "@web/components/fantasy/season/season-strip"
-import { formatPoints, ordinal } from "@web/components/fantasy/season/season-format"
+import { formatPoints, ordinal, periodWord, startsLabel } from "@web/components/fantasy/season/season-format"
 import { SplitBar } from "@web/components/fantasy/balance-cards"
 import { formatCurrency } from "@web/lib/format"
 import { cashSplit } from "@web/lib/fantasy-rules"
@@ -88,9 +89,9 @@ export function LeagueTop({ leagueId, rank, total, moved, percent, value, cash, 
                 <div>
                   <span className="lt-k">
                     Weekly game
-                    <InfoTip label="How weekly rounds work" text="The long race keeps running. On top, each Monday starts a new round: everyone is ranked on that week's return. 1st earns one point per player, last earns one. Most points wins the season." />
+                    <InfoTip label="How weekly rounds work" text={`The long race keeps running. On top, each ${periodWord(season.season.cadence)} is a new round: everyone is ranked on that ${periodWord(season.season.cadence)}'s return. 1st earns one point per player, last earns one. Most points wins the season.`} />
                   </span>
-                  <h2>{season.season.state === "complete" ? `Season ${season.season.number} done` : current ? <>Round {current.number}{season.season.roundCount ? <span> of {season.season.roundCount}</span> : null}</> : "Starts Monday"}</h2>
+                  <h2>{season.season.state === "complete" ? `Season ${season.season.number} done` : current ? <>Round {current.number}{season.season.roundCount ? <span> of {season.season.roundCount}</span> : null}</> : startsLabel(season.season.cadence, season.season.startsAt)}</h2>
                 </div>
                 {current ? (
                   <div className="lt-clock">
@@ -99,21 +100,26 @@ export function LeagueTop({ leagueId, rank, total, moved, percent, value, cash, 
                   </div>
                 ) : null}
               </div>
-              {current ? <WeekBar startsAt={current.startsAt} endsAt={current.endsAt} /> : null}
+              {current ? <WeekBar startsAt={current.startsAt} endsAt={current.endsAt} cadence={season.season.cadence} /> : null}
               <p className="lt-you">
-                {mine ? <>You&apos;re <b>{ordinal(mine.rank)}</b> this round · <b>{formatPoints(mine.points)} {mine.points === 1 ? "pt" : "pts"}</b> if it ended now</> : "Trade as usual. Round 1 ranks this week."}
+                {mine ? <>You&apos;re <b>{ordinal(mine.rank)}</b> this round · <b>{formatPoints(mine.points)} {mine.points === 1 ? "pt" : "pts"}</b> if it ended now</> : `Trade as usual. Round 1 ranks this ${periodWord(season.season.cadence)}.`}
               </p>
-              {top.length > 0 ? (
-                <div className="lt-chips" aria-label="Season leaders">
-                  {top.map((s) => (
-                    <span key={s.userId} className="fs-peek-chip" data-you={s.isYou || undefined}>
-                      <Avatar src={s.image} name={s.name} handle={s.handle} size="sm" />
-                      <em className="numeric">{formatPoints(s.points)}</em>
-                    </span>
-                  ))}
-                  <small>Season {season.season.number}</small>
-                </div>
-              ) : null}
+              <div className="lt-foot">
+                {top.length > 0 ? (
+                  <div className="lt-chips" aria-label="Season leaders">
+                    {top.map((s) => (
+                      <span key={s.userId} className="fs-peek-chip" data-you={s.isYou || undefined}>
+                        <Avatar src={s.image} name={s.name} handle={s.handle} size="sm" />
+                        <em className="numeric">{formatPoints(s.points)}</em>
+                      </span>
+                    ))}
+                    <small>Season {season.season.number}</small>
+                  </div>
+                ) : null}
+                <Link href={`/fantasy/${leagueId}/season`} className="lt-open">
+                  Season page <ArrowRight aria-hidden />
+                </Link>
+              </div>
             </>
           )}
         </div>

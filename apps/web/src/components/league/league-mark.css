@@ -1,8 +1,8 @@
 /* Drawn league marks and animated header scenery. */
 .lm { position: relative; display: inline-grid; place-items: center; flex: none; color: #fff; }
-.lm svg { position: absolute; inset: 0; filter: drop-shadow(0 6px 10px rgb(0 0 0 / .35)); }
+.lm .lm-shape { position: absolute; inset: 0; filter: drop-shadow(0 6px 10px rgb(0 0 0 / .35)); }
 .lm-glyph { position: relative; filter: drop-shadow(0 1px 1px rgb(0 0 0 / .35)); }
-.lm[data-fx="glow"] svg { animation: lm-glow 2.8s ease-in-out infinite; }
+.lm[data-fx="glow"] .lm-shape { animation: lm-glow 2.8s ease-in-out infinite; }
 .lm[data-fx="float"] { animation: lm-float 3.6s ease-in-out infinite; }
 .lm[data-fx="shimmer"] { overflow: hidden; border-radius: 22%; }
 .lm-shine { position: absolute; inset: -20%; background: linear-gradient(110deg, transparent 38%, rgb(255 255 255 / .55) 50%, transparent 62%); transform: translateX(-120%); animation: lm-shine 3.2s ease-in-out infinite; mix-blend-mode: overlay; }
@@ -26,4 +26,4 @@
 .lb[data-kind="stars"] i { position: absolute; left: calc((var(--i) * 37) * 1%); top: calc((var(--i) * 53) * 1%); width: 3px; height: 3px; border-radius: 50%; background: #fff; opacity: .15; animation: lb-twinkle calc(2s + (var(--i) * .13s)) ease-in-out infinite; animation-delay: calc(var(--i) * -.3s); }
 .lb[data-kind="stars"] i:nth-child(4n) { width: 2px; height: 2px; } .lb[data-kind="stars"] i:nth-child(5n) { background: var(--lg, #fff); width: 4px; height: 4px; }
 @keyframes lb-twinkle { 50% { opacity: .85; transform: scale(1.4); } }
-@media (prefers-reduced-motion: reduce) { .lm, .lm svg, .lm-shine, .lb *, .lb, .lb::before, .lb::after { animation: none !important; } }
+@media (prefers-reduced-motion: reduce) { .lm, .lm .lm-shape, .lm-shine, .lb *, .lb, .lb::before, .lb::after { animation: none !important; } }

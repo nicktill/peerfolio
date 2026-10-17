@@ -149,13 +149,13 @@
 .fs-stack { display: flex; flex-direction: column; gap: 8px; }
 
 /* ---- "Why I picked this": notes under trades and picks ---- */
-.fs-note { margin: 8px 0 0 38px; padding: 8px 0 0 12px; border-left: 2px solid var(--fw-line); display: flex; flex-direction: column; gap: 6px; }
-.fs-note-body { margin: 0; font: 400 12.5px/19px var(--fw-sans); color: var(--fw-fg); overflow-wrap: anywhere; }
-.fs-note-body::before { content: "\201C"; color: var(--fw-fg3); }
-.fs-note-body::after { content: "\201D"; color: var(--fw-fg3); }
-.fs-note-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.fs-note { min-width: 0; margin: 10px 0 0 38px; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.fs-note-body { margin: 0; padding: 10px 13px; border: 1px solid var(--fw-hair); border-radius: 4px 12px 12px; background: var(--fw-raise); font: 400 12.5px/19px var(--fw-sans); color: var(--fw-fg); overflow-wrap: anywhere; white-space: pre-wrap; }
+.fs-note-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.fs-note-bar > .fs-add-note { align-self: center; min-height: 32px; padding: 0 4px; text-decoration: none; }
+.fs-note-bar button:focus-visible { outline: 2px solid var(--fw-accent); outline-offset: 3px; }
 .fs-note-bar .fw-react[data-on] { background: var(--fw-raise); border-color: var(--fw-line); color: var(--fw-fg); }
-.fs-replies { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.fs-replies { list-style: none; margin: 0 0 0 6px; padding: 3px 0 3px 14px; border-left: 1px solid var(--fw-line); display: flex; flex-direction: column; gap: 14px; }
 .fs-reply { font-size: 12px; line-height: 18px; color: var(--fw-fg2); overflow-wrap: anywhere; }
 .fs-reply b { font-weight: 500; color: var(--fw-fg); }
 .fs-compose { display: flex; gap: 6px; }
@@ -178,10 +178,16 @@
 
 @media (prefers-reduced-motion: reduce) { .fs-progress i { transition: none; } }
 
-/* Replies: the name and the words sit apart, so a long name never runs into the text. */
-.fs-reply { display: flex; align-items: baseline; gap: 8px; }
-.fs-reply b { flex: none; }
-.fs-reply span { min-width: 0; }
+/* Replies sit one level below the trade note, with a consistent author and body column. */
+.fs-reply { display: flex; align-items: flex-start; gap: 8px; }
+.fs-reply-content { flex: 1; min-width: 0; }
+.fs-reply-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+.fs-reply-meta time { font-size: 10px; color: var(--fw-fg3); }
+.fs-reply-content p { margin: 2px 0 0; white-space: pre-wrap; }
+.fw-feed-sub .fs-note { margin-left: 0; }
+.fw-feed-sub > li { flex-wrap: wrap; }
+@media (max-width: 600px) { .fs-note { margin-left: 0; } .fs-replies { margin-left: 12px; padding-left: 12px; } }
+
 .fs-add-note:disabled { opacity: .5; pointer-events: none; }
 
 /* One column: the pick form and the live round come first, then the recap, then the tables, then the rest. */
@@ -303,7 +309,7 @@
 .fs-mini b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fs-mini em { font: 500 12px var(--fw-mono); font-style: normal; color: var(--fw-fg2); }
 .fs-mini-rank { font: 600 11px var(--fw-mono); color: var(--fw-fg3); text-align: center; }
-.fs-mini-rank[data-rank="1"] { color: #d4af37; }
+.fs-mini-rank[data-rank="1"] { color: var(--gold-ink, #d4af37); }
 .fs-card-you { display: flex; align-items: center; gap: 6px; margin: 10px 0 0; font-size: 12px; line-height: 18px; color: var(--fw-fg3); }
 .fs-card-you b { color: var(--fw-fg); font-weight: 500; }
 .fs-card-you svg { width: 13px; height: 13px; flex: none; }
@@ -516,3 +522,83 @@
 @media (max-width: 900px) { .lt-grid { grid-template-columns: 1fr; } .lt-week { border-left: 0; border-top: 1px solid var(--fw-hair); } .lt-rank { font-size: 44px; } }
 @media (max-width: 600px) { .lt-race, .lt-week, .lt-toggle { padding-left: 16px; padding-right: 16px; } .lt-hero { gap: 20px; } }
 .fw-league > .fw-leaders { flex: 0 0 calc(100% + var(--fw-ins) * 2); width: calc(100% + var(--fw-ins) * 2); max-width: none; box-sizing: border-box; }
+
+/* Trophies drop onto the shelf one after another, then tilt toward the cursor */
+.fs-shelf { perspective: 500px; }
+.fs-cup { animation: fs-cup-in .6s cubic-bezier(.2, .9, .3, 1.25) backwards; animation-delay: calc(var(--ci, 0) * 90ms + 150ms); transform-style: preserve-3d; }
+@keyframes fs-cup-in { from { opacity: 0; transform: translateY(-26px) scale(.7) rotate(-10deg); } 60% { opacity: 1; } }
+.fs-cup:hover { transform: translateY(-6px) scale(1.12) rotateY(14deg) rotateZ(-3deg); }
+.fs-cup:hover svg { filter: drop-shadow(0 0 12px rgb(242 201 76 / .65)) drop-shadow(0 8px 10px rgb(0 0 0 / .4)); }
+.fs-cup { transition: transform .25s cubic-bezier(.2, .8, .2, 1); }
+@media (prefers-reduced-motion: reduce) { .fs-cup { animation: none; } }
+
+/* ======== List row standings: long race and season, each with your place and a ringed top three ======== */
+.ls { display: grid; grid-template-columns: 1fr; flex: 0 0 calc(100% + var(--fw-ins) * 2); width: calc(100% + var(--fw-ins) * 2); box-sizing: border-box; margin: 6px calc(var(--fw-ins) * -1) -18px; border-top: 1px solid var(--fw-hair2); background: rgb(255 255 255 / .02); }
+.ls[data-two] { grid-template-columns: 1fr 1fr; }
+.ls-half { min-width: 0; padding: 12px var(--fw-ins) 14px; }
+.ls[data-two] .ls-half + .ls-half { border-left: 1px solid var(--fw-hair2); }
+.ls-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.ls-label { display: inline-flex; align-items: center; gap: 7px; font: 600 11px/16px var(--fw-sans); letter-spacing: .1em; text-transform: uppercase; color: var(--fw-fg3); }
+.ls-label svg { width: 13px; height: 13px; color: var(--gold-ink, #d4af37); }
+.ls-you { font: 400 26px/26px var(--fw-serif); letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.ls-you b { font-weight: 400; }
+.ls-you small { font: 500 12px var(--fw-sans); letter-spacing: 0; color: var(--fw-fg3); }
+.ls-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.fw-leaders-chip { display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px 4px 6px; border: 1px solid var(--fw-hair); border-radius: 999px; background: var(--fw-bg); font-size: 12.5px; min-width: 0; }
+.fw-leaders-chip[data-you] { border-color: var(--fw-line); background: var(--fw-raise); }
+.fw-leaders-chip b { font-weight: 500; }
+.fw-leaders-chip em { font: 500 11.5px var(--fw-mono); font-style: normal; color: var(--fw-fg2); }
+.fw-league > .ls { flex-basis: calc(100% + var(--fw-ins) * 2); }
+@media (max-width: 760px) { .ls[data-two] { grid-template-columns: 1fr; } .ls[data-two] .ls-half + .ls-half { border-left: 0; border-top: 1px solid var(--fw-hair2); } }
+
+/* The rank sits on its own, centred against the whole half, instead of hanging off the top corner */
+.ls-half { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.ls-main { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.ls-you { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 54px; line-height: 1; }
+.ls-you b { font: 400 34px/34px var(--fw-serif); letter-spacing: -.03em; }
+.ls-you small { margin-top: 4px; font: 500 11px var(--fw-sans); letter-spacing: .04em; color: var(--fw-fg3); }
+
+/* Marks a league row that runs weekly seasons, so "Season 1" below it reads as a game, not a label. */
+.fw-league-body h2 { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; }
+.fw-season-pill { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: 999px; font: 600 10.5px/1 var(--fw-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--gold-ink, #b8860b); border: 1px solid color-mix(in srgb, var(--gold-ink, #d4af37) 45%, transparent); background: color-mix(in srgb, var(--gold-ink, #d4af37) 12%, transparent); }
+.fw-season-pill i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: fs-pulse 2s infinite; }
+
+/* Light theme: league-accent text and the weekly panel. --lg is a fill colour; as text on white it is ~2.5:1,
+   so text and the white-on-accent LIVE tag use a darkened mix of it. */
+:root:not(.dark) .fs-clock strong, :root:not(.dark) .lt-clock strong, :root:not(.dark) .fs-archive-n, :root:not(.dark) .fs-card-link { color: color-mix(in srgb, var(--lg) 62%, #000); }
+:root:not(.dark) .fs-live { background: color-mix(in srgb, var(--lg) 72%, #000); }
+:root.dark .fs-live { background: color-mix(in srgb, var(--lg) 62%, #000); }
+:root:not(.dark) .lt-week { background: color-mix(in srgb, var(--lg) 7%, #fff); }
+:root:not(.dark) .lt-you, :root:not(.dark) .lt-week small { color: var(--fw-fg2); }
+
+/* Phones: the points figure never wraps ("5 / pts" was stacking in three lines) */
+@media (max-width: 700px) {
+  .fs-rows .fs-figure { max-width: none; white-space: nowrap; }
+  .fs-rows .fs-figure small { white-space: nowrap; }
+}
+:root:not(.dark) .fs-week-track b, :root:not(.dark) .fs-rail li:last-child span { background: color-mix(in srgb, var(--lg) 72%, #000); }
+:root:not(.dark) .fs-rail li span { color: color-mix(in srgb, var(--lg) 62%, #000); }
+
+/* A clear way into the season page from the weekly game panel */
+.lt-open { display: inline-flex; align-items: center; gap: 7px; align-self: flex-start; margin-top: 12px; height: 34px; padding: 0 14px; border: 1px solid color-mix(in srgb, var(--lg) 45%, var(--fw-hair)); border-radius: 999px; font: 500 12.5px var(--fw-sans); color: var(--lg); background: color-mix(in srgb, var(--lg) 8%, transparent); transition: background .15s, transform .15s; }
+.lt-open:hover { background: color-mix(in srgb, var(--lg) 16%, transparent); }
+.lt-open svg { width: 14px; height: 14px; transition: transform .15s; }
+.lt-open:hover svg { transform: translateX(3px); }
+:root:not(.dark) .lt-open { color: color-mix(in srgb, var(--lg) 62%, #000); }
+@media (max-width: 700px) { .lt-open { height: 40px; width: 100%; justify-content: center; } }
+
+
+/* Compact top card: same two halves, tighter type and padding, and the season link shares a row with the leaders. */
+.lt-race { padding: 14px 20px 12px; gap: 8px; }
+.lt-week { padding: 14px 20px 12px; gap: 6px; }
+.lt-hero { gap: 28px; }
+.lt-rank { font-size: 40px; line-height: 42px; }
+.lt-rank small { padding-bottom: 5px; }
+.lt-ret strong { font-size: 24px; line-height: 28px; }
+.lt-week-head h2 { font-size: 22px; line-height: 26px; }
+.lt-clock strong { font-size: 22px; line-height: 26px; }
+.lt-week .fs-week-track { margin-top: 16px; }
+.lt-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 2px; }
+.lt-foot .lt-open { margin-top: 0; height: 28px; padding: 0 11px; font-size: 12.5px; align-self: auto; margin-left: auto; }
+.lt-toggle { padding-top: 8px; padding-bottom: 8px; }
+@media (max-width: 600px) { .lt-race, .lt-week { padding: 12px 16px; } .lt-rank { font-size: 36px; line-height: 38px; } .lt-foot .lt-open { width: 100%; height: 36px; justify-content: center; margin-left: 0; } }

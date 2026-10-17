@@ -18,6 +18,7 @@
     "sports:stress": "node --experimental-strip-types scripts/sports-stress.ts",
     "sports:settle-demo": "node --experimental-strip-types scripts/sports-demo.ts settle",
     "db:reset": "drizzle-kit migrate && npm run db:seed",
+    "preview:seasons-check": "tsx --conditions=react-server scripts/seasons-enable-check.mts",
     "preview:fantasy": "tsx --conditions=react-server scripts/preview-fantasy.mts",
     "preview:sports": "node --experimental-strip-types scripts/preview-sports.ts",
     "preview:seed": "npm run db:seed && npm run preview:fantasy && npm run sports:seed && npm run sports:settle-demo && npm run preview:sports",

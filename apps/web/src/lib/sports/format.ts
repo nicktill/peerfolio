@@ -76,3 +76,17 @@ export function lockLabel(iso: string, now: Date = new Date()): string {
   const sameDay = d.toDateString() === now.toDateString()
   return sameDay ? `Locks ${time}` : `Locks ${d.toLocaleDateString("en-US", { weekday: "short" })} ${time}`
 }
+
+/**
+ * What an OPEN pick says about its game. We hold no live score, so before the start it shows when the game starts, after the
+ * start "In progress", and well past any normal game length "Awaiting result". Never "Live" and never a score.
+ */
+export function openPickPhase(startsAt: string | Date, now: Date, locale?: string): { phase: "upcoming" | "in_progress" | "awaiting"; label: string } {
+  const start = new Date(startsAt)
+  const since = now.getTime() - start.getTime()
+  if (since < 0) {
+    const label = `Starts ${start.toLocaleString(locale, { weekday: "short", hour: "numeric", minute: "2-digit" })}`
+    return { phase: "upcoming", label }
+  }
+  return since < 6 * 3600_000 ? { phase: "in_progress", label: "In progress" } : { phase: "awaiting", label: "Awaiting result" }
+}

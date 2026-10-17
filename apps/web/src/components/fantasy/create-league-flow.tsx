@@ -145,7 +145,7 @@ export function CreateLeagueFlow({ kind = "fantasy", onClose, onCreated }: { kin
     kind === "fantasy"
       ? [weekly ? "Long race + weekly rounds" : "The long race", money(cash), daysLabel(days), cap ? `max ${cap}% per pick` : "no pick cap"]
       : kind === "sports"
-        ? [sportKeys.map((k) => SPORTS.find((x) => x.key === k)?.label).join(" · "), `${credits.toLocaleString()} credits`, daysLabel(days)]
+        ? [sportKeys.map((k) => SPORTS.find((x) => x.key === k)?.label).join(" · "), `${credits.toLocaleString()} play cash`, daysLabel(days)]
         : ["Real portfolios", "Invite by link", description.trim() ? "Has a description" : "No description"]
 
   return createPortal(
@@ -194,7 +194,7 @@ export function CreateLeagueFlow({ kind = "fantasy", onClose, onCreated }: { kin
                 <span className="cf-livecard-mark"><LeagueMark value={look.emoji} accent={look.accent} size={48} /></span>
                 <div>
                   <b>{name.trim() || placeholder}</b>
-                  <small>{kind === "fantasy" ? "5 players · $100,000 each" : kind === "sports" ? "5 players · 1,000 credits each" : "Real portfolios · invite link"}</small>
+                  <small>{kind === "fantasy" ? "5 players · $100,000 each" : kind === "sports" ? "5 players · 1,000 play cash each" : "Real portfolios · invite link"}</small>
                 </div>
                 <i className="cf-livecard-ret">{kind === "sports" ? "976" : kind === "fantasy" ? "+0.00%" : "#1"}</i>
               </div>
@@ -273,7 +273,7 @@ export function CreateLeagueFlow({ kind = "fantasy", onClose, onCreated }: { kin
           {key === "Sports" ? (
             <>
               <h2>What are you betting on?</h2>
-              <p className="cf-sub">Pick one or more. Lines are fixed contest lines, never live odds, and it is all play credits.</p>
+              <p className="cf-sub">Pick one or more. Lines are fixed contest lines, never live odds, and it is all play money.</p>
               <div className="cf-sports" role="group" aria-label="Sports">
                 {SPORTS.map((sp) => {
                   const on = sportKeys.includes(sp.key)
@@ -295,7 +295,7 @@ export function CreateLeagueFlow({ kind = "fantasy", onClose, onCreated }: { kin
               <h2>Set the stakes.</h2>
               <p className="cf-sub">All play money. Everyone starts with the same. Slide to anything you like.</p>
               {kind === "sports" ? (
-                <StopSlider label="Starting credits" stops={CREDIT_STOPS} value={credits} onChange={setCredits} format={(n) => n.toLocaleString()} note={(n) => (n <= 500 ? "Every pick matters" : n === 1_000 ? "The standard bankroll" : n < 10_000 ? "Room to press" : "High roller")} />
+                <StopSlider label="Starting cash" stops={CREDIT_STOPS} value={credits} onChange={setCredits} format={(n) => n.toLocaleString()} note={(n) => (n <= 500 ? "Every pick matters" : n === 1_000 ? "The standard bankroll" : n < 10_000 ? "Room to press" : "High roller")} />
               ) : (
                 <StopSlider label="Starting cash" stops={CASH_STOPS} value={cash} onChange={setCash} format={money} note={cashNote} />
               )}
@@ -304,7 +304,7 @@ export function CreateLeagueFlow({ kind = "fantasy", onClose, onCreated }: { kin
                 <StopSlider label="Max per stock" tip="Caps how much of your cash can sit in one stock. 25% forces at least four stocks." stops={CAP_STOPS} value={cap} onChange={setCap} format={(c) => (c === null ? "No cap" : `${c}%`)} note={capNote} />
               ) : null}
               <p className="cf-vibe">
-                {kind === "sports" ? `${credits.toLocaleString()} credits` : money(cash)} · {daysLabel(days)}
+                {kind === "sports" ? `${credits.toLocaleString()} cash` : money(cash)} · {daysLabel(days)}
                 {kind === "fantasy" ? <> · {cap ? `${cap}% cap` : "no cap"} <b>= {cap !== null && cap <= 10 ? "a disciplined league" : cap === null && cash >= 1_000_000 ? "pure chaos" : days !== null && days <= 14 ? "a quick sprint" : "a relaxed league"}</b></> : <b> = {days !== null && days <= 14 ? "a quick sprint" : "a proper season"}</b>}
               </p>
             </>

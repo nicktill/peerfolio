@@ -154,8 +154,9 @@ export async function listFantasyLeaguesForUser(userId: string) {
   const ids = rows.map((r) => r.league.id)
   // Everyone in these leagues, so your rank is worked out the same way the league page ranks.
   const everyone = await db
-    .select({ id: fantasyMembers.id, leagueId: fantasyMembers.leagueId })
+    .select({ id: fantasyMembers.id, leagueId: fantasyMembers.leagueId, userId: fantasyMembers.userId, name: users.name, image: users.image })
     .from(fantasyMembers)
+    .innerJoin(users, eq(fantasyMembers.userId, users.id))
     .where(inArray(fantasyMembers.leagueId, ids))
   const everyoneIds = everyone.map((m) => m.id)
   const [values, lastSnapshots] = await Promise.all([memberValues(everyoneIds), latestSnapshots(everyoneIds)])
@@ -166,7 +167,13 @@ export async function listFantasyLeaguesForUser(userId: string) {
     const scored = (id: string) => returnPct(scoredValue(league.endsAt, lastSnapshots.get(id) ?? [], values.get(id) ?? startingCash), startingCash)
     const members = everyone.filter((m) => m.leagueId === league.id)
     const standings = rankReturns(members.map((m) => ({ id: m.id, percent: scored(m.id) })))
+    const level = standings.length > 1 && standings.every((s) => s.rank === 1)
+    const who = new Map(members.map((m) => [m.id, m]))
     return {
+      /** Top three by total return, for a preview on the list. Empty when everyone is level. */
+      longLeaders: level
+        ? []
+        : standings.slice(0, 3).map((s) => ({ name: who.get(s.id)?.name ?? null, image: who.get(s.id)?.image ?? null, percent: s.percent, rank: s.rank, isYou: s.id === memberId })),
       id: league.id,
       name: league.name,
       emoji: league.emoji,

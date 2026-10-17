@@ -18,8 +18,9 @@ import { SeasonOptIn } from "@web/components/fantasy/season/opt-in"
 import { DraftPicker } from "@web/components/fantasy/season/draft-picker"
 import { RecapCard } from "@web/components/fantasy/season/recap-card"
 import { Countdown, Cup, PersonRows, personName, useNow } from "@web/components/fantasy/season/season-parts"
-import { formatDay, formatDeadline, formatPoints, formatRecord, ordinal, roundProgress } from "@web/components/fantasy/season/season-format"
+import { formatDay, formatDeadline, formatPoints, formatRecord, ordinal, periodWord, roundProgress } from "@web/components/fantasy/season/season-format"
 import { LeagueMark, watermark } from "@web/components/league/league-mark"
+import { EmptyScene } from "@web/components/ui/empty-scene"
 import { InfoTip } from "@web/components/ui/tip"
 import { Delta } from "@web/components/ui/delta"
 import { plural } from "@web/lib/plural"
@@ -49,7 +50,7 @@ export default function SeasonPage({ params }: { params: Promise<{ id: string }>
 
   if (loading && !data) return <LeaguePageSkeleton />
   if (!data) return <p className="text-sm text-muted-foreground">{error ?? "Couldn't load this season."}</p>
-  if ("none" in data) return <SeasonOptIn leagueId={id} league={data.league} onStarted={refetch} />
+  if ("none" in data) return <SeasonOptIn leagueId={id} league={data.league} nextStarts={data.nextStarts} onStarted={refetch} />
 
   const { league, season, current, draft, standings, rounds, headToHead, trophies, seasons, recap } = data
   const mine = standings.find((s) => s.isYou)
@@ -68,14 +69,14 @@ export default function SeasonPage({ params }: { params: Promise<{ id: string }>
             <LeagueMark value={league.emoji} accent={league.accent} size={42} />
           </span>
           <div>
-            <span className="fw-eyebrow">Weekly rounds / Season {season.number}</span>
+            <span className="fw-eyebrow">{season.cadence === "weekly" ? "Weekly" : season.cadence === "monthly" ? "Monthly" : "Quarterly"} rounds / Season {season.number}</span>
             <h1>{league.name}</h1>
           </div>
         </div>
         <ul className="fw-meta" aria-label="Season rules">
           <li className="fw-meta-status">{season.state === "complete" ? "Complete" : season.state === "upcoming" ? `Starts ${formatDay(season.startsAt)}` : "In progress"}</li>
           <li>{season.roundCount ? `${season.roundCount} rounds` : "Open-ended"}</li>
-          <li>{plural(draft?.players ?? current?.rows.length ?? standings.length, "player")}</li>
+          {(draft?.players ?? current?.rows.length ?? standings.length) > 0 ? <li>{plural(draft?.players ?? current?.rows.length ?? standings.length, "player")}</li> : null}
           {mine ? <li>You: {formatPoints(mine.points)} {mine.points === 1 ? "pt" : "pts"}</li> : null}
         </ul>
         {season.mode === "draft" ? (
@@ -103,9 +104,9 @@ export default function SeasonPage({ params }: { params: Promise<{ id: string }>
         </summary>
         <div className="fs-how-body">
           <ol className="fs-rail">
-            <li><span><CalendarDays aria-hidden /></span><b>Monday</b><small>New week, fresh scoreboard</small></li>
-            <li><span><Repeat aria-hidden /></span><b>All week</b><small>Trade live like normal</small></li>
-            <li><span><Flag aria-hidden /></span><b>{formatDeadline(current?.endsAt ?? season.startsAt).split(" ")[0]} {new Date(current?.endsAt ?? season.startsAt).toLocaleTimeString("en-US", { hour: "numeric" })}</b><small>Round closes, ranked on the week</small></li>
+            <li><span><CalendarDays aria-hidden /></span><b>{season.cadence === "weekly" ? "Monday" : "New round"}</b><small>New {periodWord(season.cadence)}, fresh scoreboard</small></li>
+            <li><span><Repeat aria-hidden /></span><b>All {periodWord(season.cadence)}</b><small>Trade live like normal</small></li>
+            <li><span><Flag aria-hidden /></span><b>{formatDeadline(current?.endsAt ?? season.startsAt).split(" ")[0]} {new Date(current?.endsAt ?? season.startsAt).toLocaleTimeString("en-US", { hour: "numeric" })}</b><small>Round closes, ranked on the {periodWord(season.cadence)}</small></li>
             <li><span><Trophy aria-hidden /></span><b>Points</b><small>Rank becomes points</small></li>
           </ol>
           <div className="fs-ladder" aria-label="Points for each place">
@@ -118,7 +119,7 @@ export default function SeasonPage({ params }: { params: Promise<{ id: string }>
                 </span>
               ))}
             </div>
-            <small>Most points wins the season. Level on points? Combined weekly return decides.</small>
+            <small>Most points wins the season. Level on points? Combined round return decides.</small>
           </div>
         </div>
       </details>
@@ -150,11 +151,11 @@ export default function SeasonPage({ params }: { params: Promise<{ id: string }>
             <section className="fw-panel reveal" style={revealStyle(1)}>
               <div className="fw-section-head">
                 <h2>Round 1 starts {formatDay(season.startsAt)}</h2>
-                <p>Weekly, from Monday</p>
+                <p>{season.cadence === "weekly" ? "Weekly, from Monday" : season.cadence === "monthly" ? "Monthly rounds" : "Quarterly rounds"}</p>
               </div>
               <p className="fs-empty">
-                <strong>Weekly rounds, every Monday.</strong>
-                Each round ranks everyone by how their portfolio moves that week. Trade as usual: no sign-up needed.
+                <strong>{season.cadence === "weekly" ? "Weekly rounds, every Monday." : `One round every ${periodWord(season.cadence)}.`}</strong>
+                Each round ranks everyone by how their portfolio moves over the {periodWord(season.cadence)}. Trade as usual: no sign-up needed.
               </p>
             </section>
           ) : null}
@@ -162,7 +163,7 @@ export default function SeasonPage({ params }: { params: Promise<{ id: string }>
           <section className="fw-panel fs-after reveal" style={revealStyle(2)} aria-labelledby="fs-table-title">
             <div className="fw-section-head">
               <h2 id="fs-table-title">Season standings<InfoTip text="Each round you are ranked against everyone. 1st earns one point per player, last earns one. Ties split the points." label="How points work" /></h2>
-              <p>Most points wins. Ties: combined weekly return.</p>
+              <p>Most points wins. Ties: combined round return.</p>
             </div>
             {standings.length === 0 ? (
               <p className="fs-empty">
@@ -217,7 +218,7 @@ export default function SeasonPage({ params }: { params: Promise<{ id: string }>
             )}
           </section>
 
-          <section className="fw-panel fs-after reveal" style={revealStyle(3)} aria-labelledby="fs-rounds-title">
+          <section className="fw-panel fs-after reveal" data-flat style={revealStyle(3)} aria-labelledby="fs-rounds-title">
             <div className="fw-section-head">
               <h2 id="fs-rounds-title">Rounds</h2>
               <p>{rounds.length === 0 ? "None settled" : `${rounds.length} settled`}</p>
@@ -233,14 +234,14 @@ export default function SeasonPage({ params }: { params: Promise<{ id: string }>
               <p>This league</p>
             </div>
             {trophies.length === 0 ? (
-              <p className="fs-empty">Win a round to put the first one on the shelf.</p>
+              <EmptyScene kind="trophies" title="The shelf is empty" body="Win a round to put the first cup on it." />
             ) : (
               <TrophyCase trophies={trophies} standings={standings} />
             )}
           </section>
 
           {headToHead.length > 0 ? (
-            <section className="fw-panel fs-last" aria-labelledby="fs-h2h-title">
+            <section className="fw-panel fs-last" data-flat aria-labelledby="fs-h2h-title">
               <div className="fw-section-head">
                 <h2 id="fs-h2h-title">Head to head<InfoTip text="Each closed round, the higher finisher gets a win. 2-1 means you beat them twice and lost once." label="How records work" /></h2>
                 <p>You vs each player</p>
@@ -485,7 +486,7 @@ function TrophyCase({ trophies, standings }: { trophies: SeasonView["trophies"];
           </div>
           <div className="fs-shelf-row">
             {list.slice(0, 12).map((t, i) => (
-              <Cup key={`${t.kind}-${t.seasonNumber}-${t.roundNumber}-${i}`} kind={t.kind} label={t.roundNumber ? `R${t.roundNumber}` : `S${t.seasonNumber}`} title={`${TROPHY_LABELS[t.kind]?.label ?? t.kind}, season ${t.seasonNumber}${t.roundNumber ? `, round ${t.roundNumber}` : ""}`} />
+              <Cup key={`${t.kind}-${t.seasonNumber}-${t.roundNumber}-${i}`} index={i} kind={t.kind} label={t.roundNumber ? `R${t.roundNumber}` : `S${t.seasonNumber}`} title={`${TROPHY_LABELS[t.kind]?.label ?? t.kind}, season ${t.seasonNumber}${t.roundNumber ? `, round ${t.roundNumber}` : ""}`} />
             ))}
           </div>
         </div>

@@ -705,7 +705,9 @@ export const fantasySeasons = pgTable(
     roundCount: integer("round_count"),
     /** Draft seasons only: how many stocks each player picks. */
     picksPerRound: integer("picks_per_round"),
-    /** A Monday 00:00 UTC. Round n starts n-1 weeks later. */
+    /** "weekly" (the default, and every season before this column), "monthly" or "quarterly". Trading seasons only. */
+    cadence: text("cadence").notNull().default("weekly"),
+    /** A period boundary at 00:00 UTC (a Monday, the 1st, or a quarter's first day, by cadence). Round n starts n-1 periods later. */
     startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

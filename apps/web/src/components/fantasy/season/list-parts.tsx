@@ -2,8 +2,10 @@
 
 import "@web/components/fantasy/season/fantasy-season.css"
 
-import { CalendarDays, Crown, Lock, PenLine, Swords, Trophy } from "lucide-react"
+import { CalendarDays, Crown, Lock, PenLine, Swords, TrendingUp, Trophy } from "lucide-react"
 import { formatPoints } from "@web/components/fantasy/season/season-format"
+import { formatPercent } from "@web/lib/format"
+import { EmptyScene } from "@web/components/ui/empty-scene"
 import { Avatar } from "@web/components/ui/avatar"
 import { InfoTip } from "@web/components/ui/tip"
 import { Countdown } from "@web/components/fantasy/season/season-parts"
@@ -47,44 +49,87 @@ export function RoundMeta({ round }: { round: RoundChip | null | undefined }) {
   )
 }
 
-/** The top of a league's season table, under its row on the list: who is winning this season, at a glance. */
-export function SeasonLeaders({ round }: { round: RoundChip }) {
+type StandingPerson = { name: string | null; image?: string | null; value: string; isYou: boolean }
+
+/** One board's preview: where you stand, then the top three as ringed chips (gold, silver, bronze). */
+function StandingHalf({ label, tip, icon, you, total, people }: { label: string; tip: string; icon: React.ReactNode; you: number | null; total?: number; people: StandingPerson[] }) {
   return (
-    <div className="fw-leaders">
-      <span className="fw-leaders-label">
-        <Crown aria-hidden /> Season {round.seasonNumber} standings
-        <InfoTip text="Points from weekly rounds. 1st earns one point per player, last earns one. Most points wins the season." label="How season points work" />
-      </span>
-      <ol>
-        {(round.leaders ?? []).map((l, i) => (
-          <li key={l.userId} data-you={l.isYou || undefined}>
-            <span className="fw-leaders-av" data-place={i + 1}>
-              <Avatar src={l.image} name={l.name} size="sm" />
+    <div className="ls-half">
+      <div className="ls-main">
+        <span className="ls-label">
+          {icon} {label}
+          <InfoTip text={tip} label={`About ${label}`} />
+        </span>
+        <div className="ls-chips">
+          {people.map((l, i) => (
+            <span key={`${l.name}-${i}`} className="fw-leaders-chip" data-you={l.isYou || undefined}>
+              <span className="fw-leaders-av" data-place={i + 1}>
+                <Avatar src={l.image} name={l.name} size="sm" />
+              </span>
+              <b>{l.isYou ? "You" : (l.name?.split(" ")[0] ?? "Player")}</b>
+              <em className="numeric">{l.value}</em>
             </span>
-            <b>{l.isYou ? "You" : (l.name?.split(" ")[0] ?? "Player")}</b>
-            <em className="numeric">{formatPoints(l.points)} {l.points === 1 ? "pt" : "pts"}</em>
-          </li>
-        ))}
-      </ol>
+          ))}
+        </div>
+      </div>
+      {you ? (
+        <span className="ls-you" aria-label={`You are number ${you}${total ? ` of ${total}` : ""}`}>
+          <b>#{you}</b>
+          {total ? <small>of {total}</small> : <small>&nbsp;</small>}
+        </span>
+      ) : null}
     </div>
   )
 }
 
-/** First-run state: what the game is, in three lines, and what to do first. */
-export function FantasyEmpty() {
+/**
+ * Under a league row: the long race and (when weekly rounds are on) the season, side by side, each with
+ * your place and its top three. Sits inside the row's one link.
+ */
+export function ListStandings({
+  race,
+  raceYou,
+  total,
+  season,
+}: {
+  race: { name: string | null; image: string | null; percent: number; isYou: boolean }[]
+  raceYou: number | null
+  total: number
+  season?: RoundChip | null
+}) {
+  const seasonPeople = (season?.leaders ?? []).map((l) => ({ name: l.name, image: l.image, value: `${formatPoints(l.points)} ${l.points === 1 ? "pt" : "pts"}`, isYou: l.isYou }))
+  const racePeople = race.map((l) => ({ name: l.name, image: l.image, value: formatPercent(l.percent, 2), isYou: l.isYou }))
+  if (racePeople.length === 0 && seasonPeople.length === 0) return null
   return (
-    <div className="fw-empty-state">
-      <svg className="fw-empty-art" viewBox="0 0 120 64" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ margin: "0 auto 12px", width: 120 }}>
-        <path d="M8 56h104" opacity=".4" />
-        <path d="M14 48l22-14 18 8 24-22 20 10 10-12" />
-        <circle cx="108" cy="18" r="3.5" />
-      </svg>
-      <p style={{ font: "500 15px/22px var(--fw-sans)", color: "var(--fw-fg)" }}>No fantasy leagues yet</p>
-      <ol style={{ listStyle: "none", margin: "14px auto 0", padding: 0, maxWidth: 360, display: "grid", gap: 8, textAlign: "left", fontSize: 13, lineHeight: "20px" }}>
-        <li><b style={{ fontWeight: 500, color: "var(--fw-fg)" }}>1. Start a league.</b> Same play cash for everyone.</li>
-        <li><b style={{ fontWeight: 500, color: "var(--fw-fg)" }}>2. Send the invite link</b> to the group chat.</li>
-        <li><b style={{ fontWeight: 500, color: "var(--fw-fg)" }}>3. Win the week.</b> Optional weekly rounds: a new scoreboard every Monday, a champion at season end.</li>
-      </ol>
+    <div className="ls" data-two={seasonPeople.length > 0 && racePeople.length > 0 ? "" : undefined}>
+      {racePeople.length > 0 ? <StandingHalf label="Long race" icon={<TrendingUp aria-hidden />} tip="Ranked on total return since the league started." you={raceYou} total={total} people={racePeople} /> : null}
+      {seasonPeople.length > 0 && season ? (
+        <StandingHalf label={`Season ${season.seasonNumber}`} icon={<Crown aria-hidden />} tip="Points from weekly rounds. 1st each week earns one point per player, last earns one." you={season.seasonRank} total={season.seasonPlayers || undefined} people={seasonPeople} />
+      ) : null}
     </div>
   )
+}
+
+/** Sports list row: the top three by credits. */
+export function SportsStandings({ leaders, total }: { leaders: { name: string; image?: string | null; credits: number; isYou: boolean }[]; total: number }) {
+  if (leaders.length === 0) return null
+  const you = leaders.find((l) => l.isYou)
+  const rank = you ? leaders.indexOf(you) + 1 : null
+  return (
+    <div className="ls">
+      <StandingHalf
+        label="Standings"
+        icon={<Crown aria-hidden />}
+        tip="Ranked on credits, counting picks that are still riding."
+        you={rank}
+        total={total}
+        people={leaders.map((l) => ({ name: l.name, image: l.image, value: l.credits.toLocaleString(), isYou: l.isYou }))}
+      />
+    </div>
+  )
+}
+
+/** First-run state: what the game is, and what to do first. */
+export function FantasyEmpty({ action }: { action?: React.ReactNode }) {
+  return <EmptyScene kind="leagues" title="No fantasy leagues yet" body="Start a league with the same play cash for everyone, send the invite link to the group chat, and let the returns talk." action={action} />
 }

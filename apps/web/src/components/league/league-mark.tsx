@@ -44,7 +44,7 @@ export function LeagueMark({ value, accent, size = 40, className }: { value: str
   const id = `lm-${crest.shape}-${accent}`
   return (
     <span className={`lm ${className ?? ""}`} data-fx={crest.effect} style={{ width: size, height: size }} aria-hidden>
-      <svg viewBox="0 0 64 64" width={size} height={size}>
+      <svg className="lm-shape" viewBox="0 0 64 64" width={size} height={size}>
         <defs>
           <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
             <stop offset="0" stopColor={base} />

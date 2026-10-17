@@ -87,7 +87,7 @@ async function createDemoPerson(email: string) {
 
   const [created] = await db
     .insert(users)
-    .values({ email, name: known ? person.name : handle, handle, isPublic: true, bio: known ? person.bio : null })
+    .values({ email, name: known ? person.name : handle, handle, isPublic: true, bio: known ? person.bio : null, image: known ? `/demo/avatars/${handle}.png` : null })
     .onConflictDoNothing()
     .returning()
   // Lost a race with another request creating the same person.
@@ -119,12 +119,12 @@ async function createDemoPerson(email: string) {
 
   await db
     .insert(securities)
-    .values(SECURITIES.map((s) => ({ ...s, closePrice: "100", closePriceAsOf: isoDay(0) })))
-    .onConflictDoUpdate({ target: securities.id, set: { closePrice: sql`excluded.close_price`, closePriceAsOf: sql`excluded.close_price_as_of` } })
+    .values(SECURITIES.map(({ price, move, ...s }) => ({ ...s, closePrice: price.toFixed(4), previousClose: (price / (1 + move / 100)).toFixed(4), closePriceAsOf: isoDay(0) })))
+    .onConflictDoUpdate({ target: securities.id, set: { closePrice: sql`excluded.close_price`, previousClose: sql`excluded.previous_close`, closePriceAsOf: sql`excluded.close_price_as_of` } })
 
   const [item] = await db
     .insert(plaidItems)
-    .values({ userId, plaidItemId: `demo-item-${handle}`, accessToken: "demo-not-a-real-token", institutionName: "Fidelity", status: "active", lastSyncedAt: new Date() })
+    .values({ userId, plaidItemId: `demo-item-${handle}`, accessToken: "demo-not-a-real-token", institutionName: "Robinhood", status: "active", lastSyncedAt: new Date() })
     .returning({ id: plaidItems.id })
 
   const [brokerage] = await db
@@ -137,11 +137,11 @@ async function createDemoPerson(email: string) {
     .returning({ id: accounts.id })
 
   await db.insert(holdings).values(
-    (MIXES[handle] ?? MIXES.theo!).map(([securityId, value]) => ({
+    (MIXES[handle] ?? MIXES.theo!).brokerage.map(([securityId, value]) => ({
       accountId: brokerage!.id,
       userId,
       securityId,
-      quantity: (value / 100).toFixed(4),
+      quantity: (value / (SECURITIES.find((x) => x.id === securityId)?.price ?? 100)).toFixed(4),
       costBasis: (value * (0.6 + random() * 0.45)).toFixed(4),
       institutionValue: value.toFixed(4),
     })),

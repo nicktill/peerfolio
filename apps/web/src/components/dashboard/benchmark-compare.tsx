@@ -69,12 +69,14 @@ export function BenchmarkCompare({
   loading,
   error,
   result,
+  simulated = false,
 }: {
   choice: BenchmarkChoice
   onChoose: (next: BenchmarkChoice) => void
   loading: boolean
   error: string | null
   result: BenchmarkResponse | null
+  simulated?: boolean
 }) {
   const c = result?.comparison ?? null
   const ahead = c ? c.differencePoints >= 0 : null
@@ -147,7 +149,7 @@ export function BenchmarkCompare({
                 {ahead ? "▲ Ahead" : "▼ Behind"} {Math.abs(c.differencePoints).toFixed(2)} pts
               </span>
               <span className="pf-bm-note">
-                Deposits removed · {result?.symbol} price return, dividends excluded
+                {simulated ? "Simulated demo history · " : ""}Deposits removed · {result?.symbol} price return, dividends excluded
                 {c.coverage < 1 ? " · some days had no close" : ""}
               </span>
             </motion.div>
