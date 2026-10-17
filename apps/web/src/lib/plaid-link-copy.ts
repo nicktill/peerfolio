@@ -40,3 +40,24 @@ export function linkUnavailable(code: LinkUnavailableCode, userLimit?: { used: n
       return { label: "Brokerage linking soon", title: "Brokerage linking is coming soon." }
   }
 }
+
+export const PRE_LINK_TITLE = "Before you connect"
+export const PRE_LINK_CONTINUE = "Continue"
+
+export type PreLinkNotice = { title: string; body: string; remaining: string; continueLabel: string }
+
+/**
+ * The calm heads-up shown every time before Plaid Link opens for a new connection. Only where the cap applies
+ * (production) and a slot is left; in sandbox, for repairs, or at the cap there is nothing to confirm.
+ */
+export function preLinkNotice(input: { capApplies: boolean; used: number; limit: number }): PreLinkNotice | null {
+  if (!input.capApplies) return null
+  const left = Math.max(0, input.limit - input.used)
+  if (left === 0) return null
+  return {
+    title: PRE_LINK_TITLE,
+    body: `You can connect up to ${input.limit} brokerages. Only connect an account you plan to keep \u2014 disconnecting one still counts toward your ${input.limit}.`,
+    remaining: left === input.limit ? `You have ${left} left.` : `You have ${left} left of ${input.limit}.`,
+    continueLabel: PRE_LINK_CONTINUE,
+  }
+}

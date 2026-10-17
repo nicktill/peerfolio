@@ -13,7 +13,7 @@ type BrokerageUser = { id: string; email: string; name: string | null; allowed: 
 type AdminData = {
   users: BrokerageUser[]
   orphanedPool2Items?: number
-  credentials?: { pool: number; configured: boolean; clientId?: string }[]
+  credentials?: { pool: number; configured: boolean; state?: "enabled" | "disabled" | "not_set"; clientId?: string }[]
   capacity: { limit: number; used: number; reserved: number; uncertain: number; available: number; previouslyUsed: number; pool2Error?: string | null; pools: { pool: number; limit: number; used: number; reserved: number; uncertain: number; available: number; previouslyUsed: number }[] }
 }
 
@@ -75,7 +75,7 @@ export default function BrokerageAdminPage() {
               {data.credentials ? (
                 <ul className="space-y-1 text-xs text-muted-foreground">
                   {data.credentials.map((c) => (
-                    <li key={c.pool}>Trial team {c.pool}: {c.configured ? `credentials set (client ID ${c.clientId})` : "credentials not set"}</li>
+                    <li key={c.pool}>Trial team {c.pool}: {c.state === "not_set" || !c.configured ? "not set" : c.state === "disabled" ? `configured but disabled (client ID ${c.clientId}); set PLAID_TRIAL_2_ENABLED=1 to use it` : `enabled (client ID ${c.clientId})`}</li>
                   ))}
                 </ul>
               ) : null}

@@ -23,7 +23,7 @@ export type PoolBudget = PoolConfig & { attempts: number; used: number; reserved
 /**
  * Pools in failover order. Pool 1 is the original Trial team and is always present; its limit and offset keep using
  * PLAID_PRODUCTION_ITEM_LIMIT / PLAID_PRODUCTION_ITEMS_PREVIOUSLY_USED, so a deployment with one Trial pair behaves exactly as before.
- * Pool 2 exists only when its credentials validate (`trial2` argument) in production, with its own optional
+ * Pool 2 exists only when the caller says it is enabled (`trial2` argument: explicit PLAID_TRIAL_2_ENABLED=1 and valid credentials) in production, with its own optional
  * PLAID_TRIAL_ITEM_LIMIT_2 / PLAID_TRIAL_ITEMS_PREVIOUSLY_USED_2. Every pool is hard-capped at 10.
  */
 export function productionPoolsChecked(env: Record<string, string | undefined>, trial2: boolean): { pools: PoolConfig[]; pool2Error: string | null } {

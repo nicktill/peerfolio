@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
-import { PlaidProfileUnavailableError, verificationProfiles, decodePlaidToken, encodePlaidToken, maskClientId, newPlaidProfile, plaidCredentials, trial2Configured, trialCredentialSummary } from "./plaid-profile.ts"
+import { trial2Enabled, PlaidProfileUnavailableError, verificationProfiles, decodePlaidToken, encodePlaidToken, maskClientId, newPlaidProfile, plaidCredentials, trial2Configured, trialCredentialSummary } from "./plaid-profile.ts"
 
 const env = { PLAID_ENV: "production", PLAID_CLIENT_ID: "paid-id", PLAID_SECRET: "paid-secret", PLAID_TRIAL_CLIENT_ID: "trial-id", PLAID_TRIAL_SECRET: "trial-secret" }
 
@@ -119,7 +119,7 @@ test("masked client ids reveal at most 8 characters and never the secret", () =>
 test("a missing pool reports nothing about credentials", () => {
   const [one, two] = trialCredentialSummary(env)
   assert.equal(one!.configured, true)
-  assert.deepEqual(two, { pool: 2, profile: "trial2", configured: false })
+  assert.deepEqual(two, { pool: 2, profile: "trial2", configured: false, enabled: false, state: "not_set" })
 })
 
 test("webhook verification tries the profile new connections use, so sandbox webhooks still verify", () => {
@@ -135,4 +135,21 @@ test("a disabled paid profile contributes no verification key lookup", () => {
 })
 test("missing credentials raise a recognisable per-Item error", () => {
   assert.throws(() => plaidCredentials({ ...env, PLAID_TRIAL_CLIENT_ID_2: undefined }, "trial2"), PlaidProfileUnavailableError)
+})
+
+test("pool 2 needs the explicit flag exactly 1 as well as valid credentials", () => {
+  assert.equal(trial2Enabled(env2), false)
+  for (const value of ["true", "yes", "0", "", " 1", "1 ", "on", "TRUE"]) assert.equal(trial2Enabled({ ...env2, PLAID_TRIAL_2_ENABLED: value }), false, JSON.stringify(value))
+  assert.equal(trial2Enabled({ ...env2, PLAID_TRIAL_2_ENABLED: "1" }), true)
+  assert.equal(trial2Enabled({ ...env, PLAID_TRIAL_2_ENABLED: "1" }), false)
+  assert.equal(trial2Enabled({ ...env2, PLAID_TRIAL_2_ENABLED: "1", PLAID_ENV: "sandbox" }), false)
+})
+test("the admin summary distinguishes enabled, configured but disabled, and not set", () => {
+  assert.equal(trialCredentialSummary(env2)[1]!.state, "disabled")
+  assert.equal(trialCredentialSummary({ ...env2, PLAID_TRIAL_2_ENABLED: "1" })[1]!.state, "enabled")
+  assert.equal(trialCredentialSummary(env)[1]!.state, "not_set")
+  assert.equal(trialCredentialSummary(env)[0]!.state, "enabled")
+})
+test("credentials without the flag still verify webhooks for existing pool-2 Items", () => {
+  assert.deepEqual(verificationProfiles(env2), ["trial", "trial2"])
 })

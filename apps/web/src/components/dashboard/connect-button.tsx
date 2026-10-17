@@ -8,7 +8,8 @@ import { useToast } from "@web/components/ui/toast"
 import { connectionNotice } from "@web/lib/plaid-status"
 import { exchangePublicToken, pendingLinkToken } from "@web/lib/plaid-link"
 import { USER_LINK_LIMIT_NOTICE } from "@web/lib/plaid-access-core"
-import { linkUnavailable } from "@web/lib/plaid-link-copy"
+import { linkUnavailable, preLinkNotice, type PreLinkNotice } from "@web/lib/plaid-link-copy"
+import { PreLinkDialog } from "@web/components/dashboard/pre-link-dialog"
 import { CONTACT_EMAIL } from "@web/components/site-footer"
 import { Tip } from "@web/components/ui/tip"
 import { cn } from "@web/lib/utils"
@@ -38,7 +39,7 @@ type Access = {
 const CAPTION = "w-full text-xs leading-snug text-muted-foreground"
 
 export function ConnectButton(props: Props) {
-  const { data, error } = useApi<Access>(props.itemId ? null : "/api/plaid/access", [], { refreshMs: 60_000 })
+  const { data, error, refetch } = useApi<Access>(props.itemId ? null : "/api/plaid/access", [], { refreshMs: 60_000 })
   // Everyone sees the button. The server decides, live, whether it's usable for this account:
   // it's live for everyone not blocked, and greyed out (with a short pill and a muted note) otherwise.
   if (!props.itemId && (error || !data?.allowed)) {
@@ -81,7 +82,11 @@ export function ConnectButton(props: Props) {
   if (!props.itemId) {
     return (
       <>
-        <PlaidConnectButton {...props} />
+        <PlaidConnectButton
+          {...props}
+          preLink={preLinkNotice({ capApplies: data?.capApplies === true, used: data?.userLimit?.used ?? 0, limit: data?.userLimit?.limit ?? 0 })}
+          onConnected={() => { props.onConnected(); refetch() }}
+        />
         {data?.capApplies ? <p className={CAPTION}>{USER_LINK_LIMIT_NOTICE}</p> : null}
       </>
     )
@@ -89,7 +94,8 @@ export function ConnectButton(props: Props) {
   return <PlaidConnectButton {...props} />
 }
 
-function PlaidConnectButton({ onConnected, itemId, children, ...buttonProps }: Props) {
+function PlaidConnectButton({ onConnected, itemId, children, preLink = null, ...buttonProps }: Props & { preLink?: PreLinkNotice | null }) {
+  const [confirming, setConfirming] = useState(false)
   const { toast } = useToast()
   const [linkToken, setLinkToken] = useState<string | null>(null)
   const [exchanging, setExchanging] = useState(false)
@@ -165,22 +171,32 @@ function PlaidConnectButton({ onConnected, itemId, children, ...buttonProps }: P
     )
   }
 
+  function start() {
+    if (!Number.isFinite(expiration) || expiration <= Date.now()) {
+      setAttempt((value) => value + 1)
+      toast("Connection session expired. Please try again.", "info")
+      return
+    }
+    // Kept for /oauth-return in case an OAuth bank takes the user away.
+    pendingLinkToken.save(linkToken!, itemId, expiration, pool)
+    open()
+  }
+
   return (
-    <Button
-      {...buttonProps}
-      onClick={() => {
-        if (!Number.isFinite(expiration) || expiration <= Date.now()) {
-          setAttempt((value) => value + 1)
-          toast("Connection session expired. Please try again.", "info")
-          return
-        }
-        // Kept for /oauth-return in case an OAuth bank takes the user away.
-        pendingLinkToken.save(linkToken!, itemId, expiration, pool)
-        open()
-      }}
-      disabled={!ready || !linkToken || exchanging} loading={exchanging}>
-      {!exchanging ? <Building2 aria-hidden /> : null}
-      {children ?? (itemId ? "Reconnect" : "Connect account")}
-    </Button>
+    <>
+      <Button
+        {...buttonProps}
+        // New connections get the heads-up every time; repairs go straight to Link.
+        onClick={() => (preLink && !itemId ? setConfirming(true) : start())}
+        disabled={!ready || !linkToken || exchanging} loading={exchanging}>
+        {!exchanging ? <Building2 aria-hidden /> : null}
+        {children ?? (itemId ? "Reconnect" : "Connect account")}
+      </Button>
+      <PreLinkDialog
+        notice={confirming && !itemId ? preLink : null}
+        onCancel={() => setConfirming(false)}
+        onContinue={() => { setConfirming(false); start() }}
+      />
+    </>
   )
 }

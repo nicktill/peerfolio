@@ -8,7 +8,7 @@ import { plaidLinkingEnabled } from "@web/lib/plaid"
 import { plaidEnvironment } from "@web/lib/plaid-config"
 import { brokerageBlock, choosePool, firstAvailablePool, isAdminEmail, poolBudgets, productionPoolsChecked, totalCapacity, USER_LINK_LIMIT_NOTICE, USER_PRODUCTION_LINK_LIMIT } from "@web/lib/plaid-access-core"
 import { plaidPaused } from "@web/lib/plaid-switch"
-import { decodePlaidToken, newPlaidProfile, trial2Configured, type PlaidProfile } from "@web/lib/plaid-profile"
+import { decodePlaidToken, newPlaidProfile, trial2Configured, trial2Enabled, type PlaidProfile } from "@web/lib/plaid-profile"
 
 type Store = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0]
 
@@ -45,7 +45,7 @@ export async function orphanedPool2Items(store: Store = db) {
 }
 
 export async function productionCapacity(store: Store = db) {
-  const { pools, pool2Error } = productionPoolsChecked(process.env, trial2Configured(process.env))
+  const { pools, pool2Error } = productionPoolsChecked(process.env, trial2Enabled(process.env))
   if (pool2Error && pool2Error !== loggedPool2Error) {
     loggedPool2Error = pool2Error
     console.error(JSON.stringify({ level: "error", event: "plaid.pool2_misconfigured", reason: pool2Error }))

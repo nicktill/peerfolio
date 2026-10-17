@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { linkUnavailable } from "./plaid-link-copy.ts"
+import { preLinkNotice, linkUnavailable } from "./plaid-link-copy.ts"
 
 describe("disabled linking button copy", () => {
   it("shows a short pill and a contact caption when the global pool is full", () => {
@@ -22,5 +22,20 @@ describe("disabled linking button copy", () => {
   })
   it("keeps other states short", () => {
     for (const code of ["paused", "off", "unconfigured"] as const) assert.ok(linkUnavailable(code).label.length <= 30)
+  })
+})
+
+describe("pre-link heads-up", () => {
+  it("states the limit, the no-refund rule and what is left", () => {
+    const fresh = preLinkNotice({ capApplies: true, used: 0, limit: 2 })
+    assert.equal(fresh?.body, "You can connect up to 2 brokerages. Only connect an account you plan to keep \u2014 disconnecting one still counts toward your 2.")
+    assert.equal(fresh?.remaining, "You have 2 left.")
+    assert.equal(fresh?.continueLabel, "Continue")
+    assert.equal(preLinkNotice({ capApplies: true, used: 1, limit: 2 })?.remaining, "You have 1 left of 2.")
+  })
+  it("is skipped where the cap does not apply or no slot is left", () => {
+    assert.equal(preLinkNotice({ capApplies: false, used: 0, limit: 2 }), null)
+    assert.equal(preLinkNotice({ capApplies: true, used: 2, limit: 2 }), null)
+    assert.equal(preLinkNotice({ capApplies: true, used: 5, limit: 2 }), null)
   })
 })

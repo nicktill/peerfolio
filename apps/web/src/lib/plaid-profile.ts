@@ -77,6 +77,15 @@ export function verificationProfiles(env: Env): PlaidProfile[] {
   return profiles
 }
 
+/**
+ * Pool 2 is OFF unless PLAID_TRIAL_2_ENABLED is exactly "1" (anything else, including "true", is off) AND its credentials are valid.
+ * Credentials alone never route a single new connection to the second team; they only keep existing pool-2 Items working
+ * (sync, webhooks, removal), which needs no flag. Only the budget logic reads this.
+ */
+export function trial2Enabled(env: Env): boolean {
+  return env.PLAID_TRIAL_2_ENABLED === "1" && trial2Configured(env)
+}
+
 /** Whether the second Trial team is fully and validly configured. Pool 2 does not exist otherwise. */
 export function trial2Configured(env: Env): boolean {
   try { plaidCredentials(env, "trial2"); return true } catch { return false }
@@ -92,12 +101,14 @@ export function maskClientId(clientId: string): string {
 }
 
 /** Which Trial pools have valid credentials and a masked client id to recognise them by. Nothing for the paid pair. */
-export function trialCredentialSummary(env: Env): { pool: 1 | 2; profile: "trial" | "trial2"; configured: boolean; clientId?: string }[] {
+export function trialCredentialSummary(env: Env): { pool: 1 | 2; profile: "trial" | "trial2"; configured: boolean; enabled: boolean; state: "enabled" | "disabled" | "not_set"; clientId?: string }[] {
   return ([[1, "trial"], [2, "trial2"]] as const).map(([pool, profile]) => {
     try {
-      return { pool, profile, configured: true, clientId: maskClientId(plaidCredentials(env, profile).clientId) }
+      const clientId = maskClientId(plaidCredentials(env, profile).clientId)
+      const enabled = pool === 1 || trial2Enabled(env)
+      return { pool, profile, configured: true, enabled, state: enabled ? "enabled" : "disabled", clientId } as const
     } catch {
-      return { pool, profile, configured: false }
+      return { pool, profile, configured: false, enabled: false, state: "not_set" } as const
     }
   })
 }

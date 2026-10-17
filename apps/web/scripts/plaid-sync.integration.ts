@@ -483,6 +483,9 @@ try {
     assert.equal((await productionCapacity()).limit, 10)
     process.env.PLAID_TRIAL_CLIENT_ID_2 = 'trial2-test'
     process.env.PLAID_TRIAL_SECRET_2 = 'trial2-test-secret'
+    // Credentials alone never enable pool 2: still a single pool, and a full pool 1 means "full", not failover.
+    assert.equal((await productionCapacity()).pools.length, 1)
+    process.env.PLAID_TRIAL_2_ENABLED = '1'
     const base = await productionCapacity()
     assert.equal(base.pools.length, 2)
     assert.equal(base.limit, 20)
@@ -504,6 +507,17 @@ try {
     assert.equal(afterBoundary.pools[0]!.available, 0)
     assert.equal(afterBoundary.pools[1]!.available, 10)
     assert.equal((await getBrokerageAccess(u4.id)).allowed, true)
+    // Flag off with pool 1 full and valid pool-2 credentials: no failover, the existing "full" state, and no Plaid call.
+    process.env.PLAID_TRIAL_2_ENABLED = '0'
+    assert.equal((await productionCapacity()).pools.length, 1)
+    assert.equal((await getBrokerageAccess(u4.id)).code, 'full')
+    await assert.rejects(reserveProductionLinkAttempt(u4.id, 'flag-off', 2), /Production connection limit reached/)
+    const callsFlagOff = { link: linkRequests, exchange: exchangeRequests }
+    globalThis.plaidTestUser = u4.id
+    await assert.rejects(createLinkToken(new Request('http://localhost/api/plaid/link-token', { method: 'POST', body: '{}' }), {}), /limit reached/)
+    assert.equal(linkRequests, callsFlagOff.link)
+    assert.equal(exchangeRequests, callsFlagOff.exchange)
+    process.env.PLAID_TRIAL_2_ENABLED = '1'
     // Failover: a pool-2 request now succeeds with the trial2 profile and is recorded as pool 2.
     process.env.PLAID_TRIAL_ITEM_LIMIT_2 = '3'
     const second = await Promise.all([u2, u3].map((u, i) => reserveProductionLinkAttempt(u.id, `pool2-${i}`, 2)))
@@ -550,6 +564,7 @@ try {
     await assert.rejects(createLinkToken(new Request('http://localhost/api/plaid/link-token', { method: 'POST', body: JSON.stringify({ itemId: t2Item.id }) }), {}), /./)
     delete process.env.PLAID_CONNECTION_PROFILE
     delete process.env.PLAID_TRIAL_ITEM_LIMIT_2
+    delete process.env.PLAID_TRIAL_2_ENABLED
     process.env.PLAID_PRODUCTION_ITEMS_PREVIOUSLY_USED = '0'
     process.env.PLAID_PRODUCTION_ITEM_LIMIT = '1'
     process.env.PLAID_ENV = 'sandbox'
