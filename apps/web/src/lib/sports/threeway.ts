@@ -16,7 +16,6 @@ import type { BookQuote } from "./types.ts"
  *  - Exchange mapping: see threeway-exchange.ts (not imported here, so pricing and grading carry no exchange code).
  *  - Grading: a draw is a normal outcome, never a push. Invalid scores or unknown selections void (refund). Postponed,
  *    cancelled and abandoned games never reach here: the settlement resolver voids them before grading, as for two-way.
- *  - Integration edits are listed in the hand-off report, not here; nothing else imports this file yet.
  */
 
 export type ThreeSelection = "home" | "draw" | "away"

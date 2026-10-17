@@ -41,6 +41,7 @@ function harness(targets: RepriceTarget[], opts: { celticsMid?: number; half?: n
   const applied: { marketId: string; basis: number | null; prices: number[] }[] = []
   const frozen: { marketId: string; reason: string }[] = []
   const confirmed: string[][] = []
+  const reopened: string[] = []
   const lines: { level: string; ev: string; f: Record<string, unknown> }[] = []
   const calls: string[] = []
   const store: RepriceStore = {
@@ -54,6 +55,10 @@ function harness(targets: RepriceTarget[], opts: { celticsMid?: number; half?: n
       return true
     },
     confirm: async (ids) => void confirmed.push(ids),
+    reopen: async (marketId) => {
+      reopened.push(marketId)
+      return true
+    },
   }
   const mid = opts.celticsMid ?? 0.58
   const deps: WorkerDeps = {
@@ -71,7 +76,7 @@ function harness(targets: RepriceTarget[], opts: { celticsMid?: number; half?: n
     },
     emit: (level, ev, f) => void lines.push({ level, ev, f: f ?? {} }),
   }
-  return { deps, applied, frozen, confirmed, lines, calls }
+  return { deps, applied, frozen, confirmed, reopened, lines, calls }
 }
 
 describe("pregame repricing pass", () => {
@@ -184,5 +189,32 @@ describe("pregame repricing pass", () => {
     const h = harness([])
     await runRepricePass(h.deps, newWorkerState(), NOW)
     assert.deepEqual(h.calls, [])
+  })
+
+  describe("markets frozen for a dead worker", () => {
+    const locked = (over: Partial<MarketState> = {}) => target({ state: state({ status: "locked", exchangeOkAt: plus(-5 * 3600_000), ...over }) })
+
+    it("reopens and reprices only after a healthy exchange read, even though the old confirmation is hours old", async () => {
+      const h = harness([locked()], { celticsMid: BASIS + 0.02 })
+      await runRepricePass(h.deps, newWorkerState(), NOW)
+      assert.deepEqual(h.reopened, ["m1"])
+      assert.equal(h.applied.length, 1)
+    })
+
+    it("reopens a market whose price did not move, and stamps it", async () => {
+      const h = harness([locked()], { celticsMid: BASIS + 0.005 })
+      await runRepricePass(h.deps, newWorkerState(), NOW)
+      assert.deepEqual(h.reopened, ["m1"])
+      assert.deepEqual(h.confirmed, [["m1"]])
+    })
+
+    it("stays locked when the exchange read is unusable or the price jumped", async () => {
+      const thin = harness([locked()], { size: "10" })
+      await runRepricePass(thin.deps, newWorkerState(), NOW)
+      assert.deepEqual([thin.reopened, thin.frozen, thin.applied], [[], [], []])
+      const jump = harness([locked()], { celticsMid: BASIS + 0.2 })
+      await runRepricePass(jump.deps, newWorkerState(), NOW)
+      assert.deepEqual([jump.reopened, jump.applied], [[], []])
+    })
   })
 })

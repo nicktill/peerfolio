@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { EspnResultsProvider, mapStatus, normalizeScoreboard } from "./espn.ts"
+import { EspnResultsProvider, mapStatus, normalizeCompetition, normalizeScoreboard } from "./espn.ts"
 
 const nfl = {
   events: [
@@ -64,6 +64,14 @@ describe("ESPN results", () => {
     const m = rs.find((r) => r.externalId === "t1")!
     assert.deepEqual([m.status, m.homeScore, m.awayScore], ["final", 2, 1])
     assert.equal(rs.find((r) => r.externalId === "t2")!.status, "retired")
+  })
+
+  it("marks an MLS final that went to extra time or penalties as beyond regulation", () => {
+    const comp = (name: string) => ({ id: "m1", date: "2026-11-01T20:00Z", status: { type: { name, completed: true } }, competitors: [{ homeAway: "home", score: "1", team: { displayName: "A" } }, { homeAway: "away", score: "1", team: { displayName: "B" } }] })
+    assert.equal(normalizeCompetition(comp("STATUS_FINAL_PEN"), undefined, "mls")!.beyondRegulation, true)
+    assert.equal(normalizeCompetition(comp("STATUS_FINAL_AET"), undefined, "mls")!.beyondRegulation, true)
+    assert.equal(normalizeCompetition(comp("STATUS_FINAL"), undefined, "mls")!.beyondRegulation, undefined)
+    assert.equal(normalizeCompetition(comp("STATUS_FINAL_PEN"), undefined, "nba")!.beyondRegulation, undefined)
   })
 
   it("maps statuses", () => {

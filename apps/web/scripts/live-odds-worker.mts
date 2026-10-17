@@ -31,7 +31,7 @@ import { cycleFailed, EXIT_AFTER_FAILURES, shouldExit, WORKER_NAME } from "../sr
 import { clip, emit, type Fields, type Level } from "../src/lib/sports/log.ts"
 import { idleSleepMs, MAX_SLEEP_MS, pollDelay } from "../src/lib/sports/live/plan.ts"
 import { insertQuotes, loadLiveSlate, nextStartAfter, pruneLiveQuotes, upsertState, writeHeartbeat } from "../src/lib/sports/live/store.ts"
-import { applyReprice, confirmExchange, freezeForReason, listRepriceTargets } from "../src/lib/sports/store.ts"
+import { applyReprice, confirmExchange, freezeForReason, listRepriceTargets, reopenWorkerFrozen } from "../src/lib/sports/store.ts"
 import { runRepricePass } from "../src/lib/sports/live/reprice-pass.ts"
 import { MarketSocket } from "../src/lib/sports/live/ws.ts"
 import type { PassResult } from "../src/lib/sports/live/reprice-pass.ts"
@@ -83,6 +83,7 @@ const deps: WorkerDeps = {
     listTargets: (now) => listRepriceTargets(db, now),
     apply: (marketId, basis, decision, now) => applyReprice(db, marketId, basis, decision, now),
     freeze: (marketId, reason) => freezeForReason(db, marketId, reason),
+    reopen: (marketId, now) => reopenWorkerFrozen(db, marketId, now),
     confirm: (ids, now) => confirmExchange(db, ids, now),
   },
   wsBooks: socket?.books,

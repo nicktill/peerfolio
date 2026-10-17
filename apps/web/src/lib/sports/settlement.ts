@@ -124,6 +124,8 @@ function resolveCore(results: EventResult[], ctx: ResolveContext, cfg: ResolveCo
     const problem = scoreProblem(ctx.sport, r.homeScore, r.awayScore)
     if (problem) return { kind: "review", reason: `${problem} from ${r.source}` }
   }
+  // Soccer after extra time or penalties: the 90-minute (three-way) result is not what the feed's score says. A person looks.
+  if (reported.some((r) => r.beyondRegulation)) return { kind: "review", reason: "final went to extra time or penalties" }
   const finals = reported.filter((r) => validScore(r.homeScore) && validScore(r.awayScore))
   const groups = new Map<string, EventResult[]>()
   for (const r of finals) groups.set(`${r.homeScore}-${r.awayScore}`, [...(groups.get(`${r.homeScore}-${r.awayScore}`) ?? []), r])
@@ -226,9 +228,9 @@ export function resultsForEvent(
   event: { externalId: string; homeName: string; awayName: string; startsAt: Date; aliases?: Record<string, string> },
   all: EventResult[],
 ): { results: EventResult[]; matched: Record<string, string> } {
-  const results: EventResult[] = []
-  const matched: Record<string, string> = {}
   const family = event.aliases?._family
+  type Hit = { r: EventResult; swapped: boolean; byId: boolean }
+  const hits: Hit[] = []
   for (const r of all) {
     const inWindow = !r.startsAt || Math.abs(r.startsAt.getTime() - event.startsAt.getTime()) <= WINDOW_MS
     const byOwnId = r.externalId === event.externalId && (!family || (r.family ?? r.source) === family) && inWindow
@@ -237,8 +239,23 @@ export function resultsForEvent(
     const swapped = !!r.homeName && !!r.awayName && norm(r.homeName) === norm(event.awayName) && norm(r.awayName) === norm(event.homeName)
     const byName = !!r.startsAt && inWindow && (sameOrder || swapped)
     if (!byOwnId && !byAlias && !byName) continue
+    hits.push({ r, swapped, byId: byOwnId || byAlias })
+  }
+  // Doubleheaders and series: two games of the same teams inside the window. An id or alias match settles it; with names alone the
+  // closest start time wins, and a tie matches neither (the game waits rather than taking another game's score).
+  const kept = hits.filter((h) => {
+    if (h.byId) return true
+    const rivals = hits.filter((o) => o !== h && o.r.source === h.r.source)
+    if (rivals.some((o) => o.byId)) return false
+    if (rivals.length === 0) return true
+    const gap = (x: Hit) => Math.abs(x.r.startsAt!.getTime() - event.startsAt.getTime())
+    return rivals.every((o) => gap(h) < gap(o))
+  })
+  const results: EventResult[] = []
+  const matched: Record<string, string> = {}
+  for (const { r, swapped, byId } of kept) {
     results.push(swapped ? { ...r, homeScore: r.awayScore, awayScore: r.homeScore } : r)
-    if (!byOwnId && event.aliases?.[r.source] !== r.externalId) matched[r.source] = r.externalId
+    if (!byId) matched[r.source] = r.externalId
   }
   return { results, matched }
 }

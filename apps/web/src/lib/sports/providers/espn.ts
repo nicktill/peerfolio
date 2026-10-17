@@ -32,6 +32,9 @@ type Competition = { id?: string; date?: string; status?: Status; competitors?: 
 type RawEvent = { id?: string; date?: string; status?: Status; competitions?: Competition[]; groupings?: { competitions?: Competition[] }[] }
 export type EspnScoreboard = { events?: RawEvent[] }
 
+/** ESPN soccer finals decided after 90 minutes (STATUS_FINAL_AET, STATUS_FINAL_PEN, shootouts). */
+export const beyondRegulation = (status: Status | undefined): boolean => /FINAL_?(AET|PEN|OT|SO)|SHOOTOUT|EXTRA_TIME|PENALT/i.test(status?.type?.name ?? "")
+
 export function mapStatus(status: Status | undefined): ResultStatus {
   const name = status?.type?.name ?? ""
   if (/POSTPONED/.test(name)) return "postponed"
@@ -91,6 +94,7 @@ export function normalizeCompetition(c: Competition, fallbackDate: string | unde
     status: status === "final" && !final ? "in_progress" : status,
     homeScore: final ? hs : null,
     awayScore: final ? as : null,
+    ...(final && sport === "mls" && beyondRegulation(c.status) ? { beyondRegulation: true } : {}),
   }
 }
 

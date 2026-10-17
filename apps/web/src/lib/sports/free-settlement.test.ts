@@ -204,3 +204,29 @@ describe("the money path imports no exchange code", () => {
     }
   })
 })
+
+describe("review fixes: doubleheaders and soccer beyond regulation", () => {
+  const START = new Date("2026-10-20T19:00:00Z")
+  const ev = { externalId: "x1", homeName: "Boston Red Sox", awayName: "New York Yankees", startsAt: START }
+  const res = (id: string, startsAt: Date, h: number): EventResult => ({ source: "espn", externalId: id, homeName: "Boston Red Sox", awayName: "New York Yankees", startsAt, status: "final", homeScore: h, awayScore: 1 })
+
+  it("a doubleheader matches the game with the closest start, not both", () => {
+    const g1 = res("g1", new Date(START.getTime() - 60_000), 5)
+    const g2 = res("g2", new Date(START.getTime() + 2 * 3600_000), 9)
+    assert.deepEqual(resultsForEvent(ev, [g1, g2]).results.map((r) => r.externalId), ["g1"])
+    assert.deepEqual(resultsForEvent({ ...ev, startsAt: g2.startsAt! }, [g1, g2]).results.map((r) => r.externalId), ["g2"])
+  })
+
+  it("an id match beats a name match, and equal gaps match neither", () => {
+    const g1 = res("g1", new Date(START.getTime() - 3600_000), 5)
+    const g2 = res("g2", new Date(START.getTime() + 3600_000), 9)
+    assert.deepEqual(resultsForEvent({ ...ev, externalId: "g2" }, [g1, g2]).results.map((r) => r.externalId), ["g2"])
+    assert.deepEqual(resultsForEvent(ev, [g1, g2]).results, [])
+  })
+
+  it("an MLS final decided in extra time or penalties goes to review, never to a draw", () => {
+    const r: EventResult = { source: "espn", externalId: "m", status: "final", homeScore: 1, awayScore: 1, beyondRegulation: true }
+    const out = resolveResult([r], { now: new Date(START.getTime() + 20 * 3600_000), startsAt: START, finalFirstSeenAt: START, sport: "mls" } as never)
+    assert.equal(out.kind, "review")
+  })
+})

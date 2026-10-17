@@ -540,15 +540,9 @@ export const NO_WORKER_EARLY_LOCK_MS = 60 * 60_000
 export async function freezeUnguardedMarkets(db: Db, now: Date): Promise<{ checked: number; frozen: number; reopened: number; workerAlive: boolean }> {
   const alive = await workerAlive(db, now)
   if (alive) {
-    // Reversible: this freeze says nothing about the line itself, so once the worker beats again an unstarted market reopens
-    // (the repricer re-checks it on its next pass). Other freeze reasons (a price jump, a moved start) stay closed.
-    const reopened = await db
-      .update(sportsMarkets)
-      .set({ status: "open", frozenReason: null })
-      .where(and(eq(sportsMarkets.status, "locked"), eq(sportsMarkets.frozenReason, WORKER_FREEZE_REASON), gt(sportsMarkets.lockAt, now)))
-      .returning({ id: sportsMarkets.id })
-    if (reopened.length) emit("info", "sports.markets_reopened_worker_back", { reopened: reopened.length })
-    return { checked: 0, frozen: 0, reopened: reopened.length, workerAlive: true }
+    // Nothing reopens from the heartbeat alone: a market frozen for a dead worker sits on a price that may be hours old. The
+    // repricer lists such markets (see listRepriceTargets) and reopens one only after a healthy exchange read (reopenWorkerFrozen).
+    return { checked: 0, frozen: 0, reopened: 0, workerAlive: true }
   }
   const rows = await db
     .select({ id: sportsMarkets.id, lockAt: sportsMarkets.lockAt })
@@ -745,8 +739,14 @@ export async function guardPublished(db: Db, snapshot: Awaited<ReturnType<OddsPr
   const held = new Set(snapshot.held ?? [])
   for (const { market, event } of open) {
     // A gate hid this market this run (thin top of book, wide spread, Kalshi disagreement) but its game is still scheduled and not live:
-    // hold it as it is. The repricer and the pick-time checks already guard it; freezing on a transient miss would close it for good.
-    if (held.has(`${event.externalId}::${market.marketKey}`)) continue
+    // hold it as it is, so a transient miss does not close it for good. The hold ends when nothing has vouched for the line for
+    // staleFreezeMs: the exchange repricer freezes a market it manages, but one the exchange never confirmed (exchangeOkAt null)
+    // has no such clock, so it is measured from its last exchange confirmation, or from publication if it never had one.
+    if (held.has(`${event.externalId}::${market.marketKey}`)) {
+      const lastVouched = (market.exchangeOkAt ?? market.createdAt).getTime()
+      if (now.getTime() - lastVouched > REPRICE.staleFreezeMs) await freezeMarket(db, market.id, "price not confirmed while the guard feed was unavailable", market.lockAt, out)
+      continue
+    }
     const theirs = snapshot.events.find((e) => e.externalId === event.externalId)
     // Dropped from a trustworthy feed (event gone, prop pulled): close it. Freezing is one-way; a market that
     // comes back is not reopened, because picks taken in between were never checked against it. Existing picks settle normally.
@@ -803,7 +803,8 @@ export async function listRepriceTargets(db: Db, now: Date, kinds: readonly stri
     .innerJoin(sportsEvents, eq(sportsEvents.id, sportsMarkets.eventId))
     .where(
       and(
-        eq(sportsMarkets.status, "open"),
+        // Open markets, plus those the cron froze for a dead worker: those reopen only on a healthy exchange read (see the pass).
+        or(eq(sportsMarkets.status, "open"), and(eq(sportsMarkets.status, "locked"), eq(sportsMarkets.frozenReason, WORKER_FREEZE_REASON))),
         gt(sportsMarkets.lockAt, now),
         eq(sportsEvents.status, "scheduled"),
         gt(sportsEvents.startsAt, now),
@@ -910,6 +911,25 @@ export function applyReprice(db: Db, marketId: string, expected: { basis: number
 /** Stamps healthy exchange checks on markets whose price did not need to move. Cheap, no market lock needed. */
 export async function confirmExchange(db: Db, marketIds: string[], now: Date) {
   if (marketIds.length) await db.update(sportsMarkets).set({ exchangeOkAt: now }).where(and(inArray(sportsMarkets.id, marketIds), eq(sportsMarkets.status, "open")))
+}
+
+/**
+ * Reopens a market the cron froze because the worker was down, called by the repricer only after a healthy exchange read for it.
+ * Under the market lock; refuses unless it is still locked for exactly that reason, unstarted and before its lock time. Stamps
+ * exchangeOkAt so the market counts as exchange-managed from now on. The caller then applies or confirms the fresh price.
+ */
+export async function reopenWorkerFrozen(db: Db, marketId: string, now: Date): Promise<boolean> {
+  return withDeadlockRetry(() =>
+    db.transaction(async (tx) => {
+      const [m] = await tx.select().from(sportsMarkets).where(eq(sportsMarkets.id, marketId)).for("update")
+      if (!m || m.status !== "locked" || m.frozenReason !== WORKER_FREEZE_REASON || now.getTime() >= m.lockAt.getTime()) return false
+      const [ev] = await tx.select().from(sportsEvents).where(eq(sportsEvents.id, m.eventId)).limit(1)
+      if (!ev || ev.status !== "scheduled" || now.getTime() >= ev.startsAt.getTime()) return false
+      await tx.update(sportsMarkets).set({ status: "open", frozenReason: null, exchangeOkAt: now }).where(eq(sportsMarkets.id, marketId))
+      emit("info", "sports.market_reopened_exchange_ok", { marketId })
+      return true
+    }),
+  )
 }
 
 /** One-way close for a reason (jump, wide book, stale exchange). Takes the exclusive market lock like every freeze. */

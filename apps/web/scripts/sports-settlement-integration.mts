@@ -20,7 +20,7 @@ import * as schema from "../src/db/schema.ts"
 import { mockEvent } from "../src/lib/sports/providers/mock.ts"
 import { resolveConfigForSport } from "../src/lib/sports/settlement.ts"
 import { DEFAULT_RESOLVE } from "../src/lib/sports/settlement.ts"
-import { createSportsLeague, freezeForReason, freezeUnguardedMarkets, lockDueMarkets, placeSportsPick, publishLines, settleDueEvents, SportsError } from "../src/lib/sports/store.ts"
+import { createSportsLeague, freezeForReason, freezeUnguardedMarkets, lockDueMarkets, placeSportsPick, publishLines, reopenWorkerFrozen, settleDueEvents, SportsError } from "../src/lib/sports/store.ts"
 import type { EventRef, EventResult, OddsProvider, ProviderEvent, ResultsProvider, Sport } from "../src/lib/sports/types.ts"
 
 const url = process.env.DATABASE_URL ?? ""
@@ -199,7 +199,7 @@ console.log("2c re-settling is idempotent")
   console.log("5 kickoff lock ok")
 }
 
-// ---- 6. No worker heartbeat: close 60 min before kickoff; reopen when the worker is back ----
+// ---- 6. No worker heartbeat: close 60 min before kickoff; reopen only after a healthy exchange read ----
 {
   const e = { ...ev("nfl", 3, "nflworker"), startsAt: new Date(now.getTime() + 2 * 3600_000) }
   await publishLines(db, fixtureOdds([e]), ["nfl"], now)
@@ -211,8 +211,12 @@ console.log("2c re-settling is idempotent")
   const at = new Date(now.getTime() + 62 * 60_000)
   await db.insert(schema.liveWorker).values({ name: "live-odds", lastCycleAt: at }).onConflictDoUpdate({ target: schema.liveWorker.name, set: { lastCycleAt: at } })
   r = await freezeUnguardedMarkets(db, at)
-  assert.ok(r.workerAlive && r.reopened >= 1)
-  assert.equal((await db.select().from(schema.sportsMarkets).where(eq(schema.sportsMarkets.id, W.market.id)))[0]!.status, "open")
+  assert.ok(r.workerAlive && r.reopened === 0, "the heartbeat alone reopens nothing")
+  assert.equal((await db.select().from(schema.sportsMarkets).where(eq(schema.sportsMarkets.id, W.market.id)))[0]!.status, "locked")
+  assert.equal(await reopenWorkerFrozen(db, W.market.id, at), true, "a healthy exchange read reopens it")
+  const [back] = await db.select().from(schema.sportsMarkets).where(eq(schema.sportsMarkets.id, W.market.id))
+  assert.deepEqual([back!.status, back!.frozenReason, back!.exchangeOkAt?.getTime()], ["open", null, at.getTime()])
+  assert.equal(await reopenWorkerFrozen(db, W.market.id, at), false, "an open market is left alone")
   await sql`DELETE FROM live_worker WHERE name = 'live-odds'`
   console.log("6 no-worker early lock is reversible")
 }

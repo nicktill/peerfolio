@@ -88,6 +88,8 @@ applies unless lowered); the final must still be the same score when seen again 
 plausible range per sport (nfl 100, cfb 120, nba 200, nhl 20, mlb 40, mls 15, tennis 5 sets) or the game goes to `review`.
 Review never auto-settles; it refunds after the review timeout (7 days). If a second feed is switched off, its sport falls back to
 the single-source net rather than failing. The settle cron returns 503 only when no results source is configured at all.
+MLS playoffs: a game can go to extra time or penalties, and the three-way market grades the 90-minute result, which ESPN's final score does not give then. ESPN reports these as STATUS_FINAL_AET / STATUS_FINAL_PEN; the provider flags them (`beyondRegulation`) and settlement sends such a game to `review` (refund after the review timeout) instead of grading a draw or a winner. Other status names for the same case are not known, so a playoff game should still be glanced at.
+
 Residual risk: for ESPN-only sports a wrong-but-stable ESPN final would settle, and nothing independent checks it.
 
 ## Terms of use for displaying odds

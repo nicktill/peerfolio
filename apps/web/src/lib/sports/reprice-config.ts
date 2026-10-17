@@ -34,5 +34,5 @@ export const REPRICE = {
   passMs: 30_000,
   farPassMs: 5 * 60_000,
   /** The publish/guard cron stops trusting an exchange-managed market, and freezes it inside `windowMs` of the start, when the worker heartbeat is older than this. */
-  workerDeadMs: 15 * 60_000,
+  workerDeadMs: 20 * 60_000,
 } as const

@@ -108,8 +108,22 @@ export async function runRepricePass(deps: WorkerDeps, st: WorkerState, now: Dat
     const exchange3 = three ? buildView3(t, pmFor.get(t.eventId), books, kalshi.get(t.sport), now) : undefined
     if (exchange || exchange3) result.matched++
     else result.unmatched++
-    const d = decideReprice({ now, startsAt: t.startsAt, eventStatus: t.eventStatus, market: t.state, exchange, exchange3 })
+    // A locked target is a market the cron froze while the worker was down. It is judged as if open and reopens only on a healthy
+    // read (update or confirm); a freeze or hold decision leaves it closed. Never reopened straight from the heartbeat.
+    const wasLocked = t.state.status === "locked"
+    const d = decideReprice({ now, startsAt: t.startsAt, eventStatus: t.eventStatus, market: wasLocked ? { ...t.state, status: "open" } : t.state, exchange, exchange3 })
     const label = `${t.awayName} @ ${t.homeName}`
+    if (wasLocked) {
+      if (!(d.action === "update" || (d.action === "none" && d.confirm)) || !store.reopen || !(await store.reopen(t.marketId, now))) {
+        result.held++
+        continue
+      }
+      deps.emit?.("info", "sports.market_reopened_exchange_ok", { marketId: t.marketId, game: label })
+      if (d.action === "none") {
+        toConfirm.push(t.marketId)
+        continue
+      }
+    }
     if (d.action === "update") {
       const r = await store.apply(t.marketId, { basis: t.state.fairProbA, count: t.state.repriceCount }, d, now)
       if (r.applied) {

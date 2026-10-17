@@ -181,6 +181,11 @@ describe("game matching", () => {
   it("does not match on city alone", () => {
     assert.equal(sameTeam("Los Angeles Lakers", "Los Angeles Clippers"), false)
     assert.equal(sameTeam("New York Knicks", "New York Giants"), false)
+    // A bare one-word suffix of several teams needs the full name.
+    assert.equal(sameTeam("Virginia", "West Virginia"), false)
+    assert.equal(sameTeam("Carolina", "North Carolina"), false)
+    assert.equal(sameTeam("West Virginia", "West Virginia"), true)
+    assert.equal(sameTeam("Celtics", "Boston Celtics"), true)
     assert.equal(sameTeam("Portland Trail Blazers", "Trail Blazers"), true)
     assert.equal(sameTeam("Novak Djokovic", "Djokovic"), true)
   })

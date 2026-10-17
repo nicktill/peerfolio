@@ -174,5 +174,7 @@ export type RepriceStore = {
   listTargets(now: Date): Promise<RepriceTarget[]>
   apply(marketId: string, expected: { basis: number | null; count: number }, decision: Extract<Decision, { action: "update" }>, now: Date): Promise<RepriceResult>
   freeze(marketId: string, reason: string): Promise<boolean>
+  /** Reopens a market frozen for a dead worker, after a healthy exchange read for it. Optional: stores without it never reopen. */
+  reopen?(marketId: string, now: Date): Promise<boolean>
   confirm(marketIds: string[], now: Date): Promise<void>
 }

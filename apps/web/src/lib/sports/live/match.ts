@@ -69,7 +69,20 @@ export function sameTeam(a: string, b: string): boolean {
   const x = normName(a)
   const y = normName(b)
   if (!x || !y) return false
-  return x === y || x.endsWith(` ${y}`) || y.endsWith(` ${x}`)
+  return x === y || bareSuffix(x, y) || bareSuffix(y, x)
+}
+
+/** Words that qualify a place name into a different team: "Virginia" is not "West Virginia", "Carolina" is not "North Carolina". */
+const QUALIFIER = new Set(["west", "east", "north", "south", "central", "eastern", "western", "northern", "southern", "middle", "new", "old", "upper", "lower"])
+
+/**
+ * `long` ends with `short` as whole words. A single bare word is not enough when the rest of the long name starts with a
+ * qualifier (it would also be a suffix of several teams); the full name or an alias is required then.
+ */
+function bareSuffix(long: string, short: string): boolean {
+  if (!long.endsWith(` ${short}`)) return false
+  if (short.includes(" ")) return true
+  return !QUALIFIER.has(long.slice(0, long.length - short.length - 1).split(" ").pop()!)
 }
 
 /**
