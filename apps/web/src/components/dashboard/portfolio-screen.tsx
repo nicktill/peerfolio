@@ -1,5 +1,10 @@
 "use client"
 
+import { usePathname } from "next/navigation"
+import { inSampleView } from "@web/lib/sample/fixtures"
+import { SampleLink } from "@web/components/sample/sample-link"
+import { EmptyGhost } from "@web/components/ui/empty-ghost"
+import { LeagueMark } from "@web/components/league/league-mark"
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useSession } from "next-auth/react"
@@ -20,6 +25,7 @@ import { useToast } from "@web/components/ui/toast"
 import { type AllocationSlice } from "@web/components/charts/allocation-bar"
 import { PerformanceChart } from "@web/components/charts/performance-chart"
 import { BENCHMARK_OPTIONS, BENCHMARK_STYLE, BenchmarkCompare, type BenchmarkChoice, type BenchmarkResponse } from "@web/components/dashboard/benchmark-compare"
+import { useAssistantView } from "@web/components/assistant/view-context"
 import { ReplayControl } from "@web/components/dashboard/replay-control"
 import { AccountsCard, type AccountRow, type ItemRow } from "@web/components/dashboard/accounts-card"
 import { ConnectButton } from "@web/components/dashboard/connect-button"
@@ -30,6 +36,7 @@ import { formatCurrency, formatDate, formatPercent } from "@web/lib/format"
 import { isUsMarketOpen } from "@web/lib/market-hours"
 import { cn } from "@web/lib/utils"
 import "./portfolio-4a.css"
+import { demoBenchmark } from "@web/lib/demo-benchmark"
 import { mutate, useApi } from "@web/lib/use-api"
 import type { NewsResponse } from "@web/lib/news"
 import { defaultRange, rangeAvailability, RANGES, type Range } from "@web/lib/ranges"
@@ -95,12 +102,13 @@ export function PortfolioScreen({
   demo?: boolean
 }) {
   const { toast } = useToast()
+  const pathname = usePathname()
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
   // Portfolio replay: the date the playhead is on, or null when no replay is running.
   const [replayDate, setReplayDate] = useState<string | null>(null)
   const [range, setRange] = useState<Range>("1M")
   // "1D" is the day's move, which the stored snapshots (one a day) can't draw as a window of their own.
-  const [oneDay, setOneDay] = useState(true)
+  const [oneDay, setOneDay] = useState(!demo)
   // Until someone picks a range themselves, show the longest one their history can fill.
   const pickedRange = useRef(false)
   const [hidden, setHidden] = useState(false)
@@ -109,7 +117,7 @@ export function PortfolioScreen({
   const { data, loading, error, refetch } = useSource(range)
   const fantasy = useFantasy()
 
-  // Benchmark comparison: off until chosen, remembered per browser, never loaded for the demo portfolio.
+  // Benchmark comparison: off until chosen, remembered per browser, simulated locally for the demo portfolio.
   const [bench, setBench] = useState<BenchmarkChoice>("OFF")
   useEffect(() => {
     try {
@@ -129,9 +137,14 @@ export function PortfolioScreen({
     }
   }
   const benchUrl = !demo && bench !== "OFF" ? `/api/portfolio/benchmark?symbol=${bench}&range=${range}` : null
-  const cmp = useApi<BenchmarkResponse>(benchUrl, [bench, range])
+  const liveComparison = useApi<BenchmarkResponse>(benchUrl, [bench, range])
+  const cmp = demo
+    ? { data: bench !== "OFF" && data ? demoBenchmark(bench, data.performance.series) : null, loading: false, error: null }
+    : liveComparison
+  // The assistant answers about what is on screen: the selected window and the benchmark overlaid on it.
+  useAssistantView({ range: oneDay ? undefined : range, benchmark: !demo && bench !== "OFF" ? bench : undefined })
   // Today's path, five minutes at a time, for the 1D view (it falls back to a straight line when there are no bars).
-  const intraday = useApi<{ session: string; points: { t: string; delta: number }[] }>(!demo && oneDay ? "/api/portfolio/intraday" : null, [oneDay], { refreshMs: 120_000 })
+  const intraday = useApi<{ session: string; points: { t: string; delta: number }[] }>(oneDay && (!demo || inSampleView(pathname)) ? "/api/portfolio/intraday" : null, [oneDay], { refreshMs: 120_000 })
 
   useEffect(() => {
     if (!data || pickedRange.current) return
@@ -178,19 +191,19 @@ export function PortfolioScreen({
   if (data.accounts.length === 0) {
     return (
       <Card>
-        <CardContent className="pt-5">
-          <EmptyState
-            icon={Sparkles}
-            title="Let's see your portfolio"
-            description="Add an account and type in what you hold. We price it every night from market data and start your track record today, so the sooner you start, the longer your history. Linking a brokerage for verified returns is coming soon."
-            action={
-              <div className="flex flex-wrap justify-center gap-2">
-                <AddAccountButton onCreated={() => void refetch()}>Add an account</AddAccountButton>
-                <ConnectButton onConnected={refetch} />
-              </div>
-            }
-          />
-        </CardContent>
+        <EmptyGhost
+          kind="portfolio"
+          icon={Sparkles}
+          title="Let's see your portfolio"
+          body="Add an account and type in what you hold. We price it every night and start your track record today, so the sooner you start, the longer your history."
+          actions={
+            <>
+              <AddAccountButton onCreated={() => void refetch()}>Add an account</AddAccountButton>
+              <ConnectButton onConnected={refetch} />
+              <SampleLink href="/dashboard/sample" />
+            </>
+          }
+        />
       </Card>
     )
   }
@@ -276,7 +289,7 @@ export function PortfolioScreen({
 
       <Reveal index={0} className="pf-head flex flex-wrap items-end justify-between gap-4">
         <div>
-          <Greeting />
+          {demo ? null : <Greeting />}
           <h1 className="pf-h1">Portfolio</h1>
           <p className="mt-2 text-sm leading-[22px] text-muted-foreground">Your accounts and investments, in one place.</p>
         </div>
@@ -291,7 +304,7 @@ export function PortfolioScreen({
           )}
           {demo ? (
             <Badge variant="outline" className="border-dashed">
-              Demo data
+              Sample data
             </Badge>
           ) : null}
           <Button variant="ghost" size="icon" onClick={() => setHidden(!hidden)} title={hidden ? "Show amounts" : "Hide amounts (returns stay visible)"}>
@@ -466,8 +479,8 @@ export function PortfolioScreen({
                     valueFormatter={(v) => (hidden ? "Hidden" : formatCurrency(v))}
                   />
                 </div>
-                {!demo && !dayView ? (
-                  <BenchmarkCompare choice={bench} onChoose={chooseBench} loading={cmp.loading} error={cmp.error} result={bench === "OFF" ? null : cmp.data} />
+                {!dayView ? (
+                  <BenchmarkCompare choice={bench} onChoose={chooseBench} loading={cmp.loading} error={cmp.error} result={bench === "OFF" ? null : cmp.data} simulated={demo} />
                 ) : null}
                 {/* Keyed so a new range or a benchmark switch starts a fresh replay on the right frames. */}
                 {dayView ? null : (
@@ -666,9 +679,7 @@ function RailLink({ href, emoji, name, detail, end }: { href: string; emoji: str
   return (
     <li>
       <Link href={href} className="group -mx-2 flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-secondary/50">
-        <span className="text-lg" aria-hidden>
-          {emoji}
-        </span>
+        <LeagueMark value={emoji} accent="emerald" size={26} />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-medium">{name}</span>
           <span className="block text-xs text-muted-foreground">{detail}</span>

@@ -1,5 +1,7 @@
 "use client"
 
+import "./race-chart.css"
+
 import { useEffect, useId, useMemo, useRef, useState } from "react"
 import { groupEndLabels, groupName, monotonePath, niceTicks, pointIndexAt, spreadLabels, tickDigits, xAt } from "@web/lib/chart-math"
 import { formatPercent } from "@web/lib/format"
@@ -16,7 +18,7 @@ const MUTED = "hsl(var(--muted-foreground) / 0.35)"
 
 const toneOf = (returnPct: number) => {
   const v = visibleReturn(returnPct)
-  return v === 0 ? "hsl(var(--muted-foreground))" : v > 0 ? "var(--gain)" : "var(--loss)"
+  return v === 0 ? "hsl(var(--muted-foreground))" : v > 0 ? "var(--gain-ink)" : "var(--loss-ink)"
 }
 
 const initialsOf = (label: string, isYou: boolean) => {
@@ -120,7 +122,7 @@ export function RaceChart({
   // In the app every player gets a 22px avatar row at the line ends. With a big league the
   // rows don't fit in the base height and get squashed or pushed off the chart, so the chart
   // grows to give each player a row (capped, past which rows are squeezed together).
-  const height = rich ? Math.min(Math.max(minHeight, series.length * 30 + pad.top + pad.bottom + 12), 480) : minHeight
+  const height = rich ? Math.min(Math.max(minHeight, series.length * 35 + pad.top + pad.bottom + 12), 480) : minHeight
 
   const geometry = useMemo(() => {
     const usable = series
@@ -155,7 +157,7 @@ export function RaceChart({
     const groups = groupEndLabels(lines.map((l) => ({ id: l.id, label: l.label, isYou: l.isYou, value: l.last - 100, y: y(l.last) })))
     const twoLine = !rich && innerH >= groups.length * 28
     // In the app every player gets an avatar disc, so rows need room for a 22px disc.
-    const gap = rich ? 29 : twoLine ? 28 : 14
+    const gap = rich ? 34 : twoLine ? 28 : 14
     const labelYs = spreadLabels(groups.map((g) => g.y), gap, pad.top + 6, height - pad.bottom - 6)
 
     const byId = new Map(lines.map((l) => [l.id, l]))
@@ -191,11 +193,12 @@ export function RaceChart({
 
   return (
     <div ref={ref} className={cn("race-chart relative w-full", className)}>
+      {rich ? <div className="race-caption"><span>Return since start</span>{you ? <span><i aria-hidden />Your portfolio</span> : null}</div> : null}
       {rich && seen ? (
         <button
           type="button"
           onClick={() => setReplayKey((k) => k + 1)}
-          style={{ top: height - 24 }}
+          style={{ top: 6 }}
           className="press absolute right-0 z-10 inline-flex h-6 items-center gap-1.5 rounded-full border bg-card/80 px-2 text-[11px] font-medium text-muted-foreground backdrop-blur transition-colors hover:text-foreground"
         >
           <svg width="9" height="9" viewBox="0 0 12 12" aria-hidden><path d="M2 1.2v9.6L10.5 6z" fill="currentColor" /></svg>
@@ -236,9 +239,9 @@ export function RaceChart({
                     y1={ty}
                     y2={ty}
                     className="stroke-border"
-                    strokeOpacity={zero ? 0.8 : 0.35}
+                    strokeOpacity={zero ? 0.7 : 0.25}
                     strokeWidth={1}
-                    strokeDasharray={zero ? "4 4" : undefined}
+                    strokeDasharray={zero ? "3 5" : undefined}
                   />
                   <text x={pad.left - 8} y={ty} textAnchor="end" dominantBaseline="middle" className="fill-muted-foreground numeric" fontSize={11}>
                     {zero ? "0%" : formatPercent(t, geometry.digits)}
@@ -253,6 +256,11 @@ export function RaceChart({
             <text x={pad.left + geometry.plotW} y={height - 6} textAnchor="end" className="fill-muted-foreground" fontSize={11}>
               Now
             </text>
+
+            {geometry.length > 8 ? [1, 2].map((part) => {
+              const day = Math.round((geometry.length - 1) * part / 3)
+              return <text key={part} x={xAt(day, geometry.length, pad.left, geometry.plotW)} y={height - 6} textAnchor="middle" className="fill-muted-foreground numeric" fontSize={10}>Day {day}</text>
+            }) : null}
 
             {/* A soft wash under your line, toward the 0% line. */}
             {you ? (
@@ -280,7 +288,7 @@ export function RaceChart({
                   style={{ animationDelay: `${i * 90}ms` }}
                   fill="none"
                   stroke={l.color}
-                  strokeWidth={l.isYou ? 3 : 2.25}
+                  strokeWidth={l.isYou ? 2.8 : 1.8}
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
@@ -289,7 +297,7 @@ export function RaceChart({
 
             {geometry.lines.map((l) =>
               l.retraces ? (
-                <path key={`tie-${l.id}`} d={l.d} className={seen ? "race-end" : "opacity-0"} fill="none" stroke={l.color} strokeWidth={l.isYou ? 3 : 2.25} strokeDasharray="6 6" strokeLinecap="butt" />
+                <path key={`tie-${l.id}`} d={l.d} className={seen ? "race-end" : "opacity-0"} fill="none" stroke={l.color} strokeWidth={l.isYou ? 2.8 : 1.8} strokeDasharray="6 6" strokeLinecap="butt" />
               ) : null,
             )}
 
@@ -325,14 +333,14 @@ export function RaceChart({
                           </g>
                         )
                       })}
-                      <text x={textX} y={ly} dominantBaseline="central" fontSize={12}>
-                        {compact ? null : (
-                          <tspan className={g.hasYou ? "fill-foreground font-semibold" : "fill-muted-foreground"}>{groupName(g.names, 8)}</tspan>
-                        )}
-                        <tspan dx={compact ? 0 : 6} fontWeight={700} className="numeric" style={{ fill: toneOf(g.value) }}>
-                          {formatPercent(g.value)}
-                        </tspan>
-                      </text>
+                      {compact ? (
+                        <text x={textX} y={ly} dominantBaseline="central" fontSize={11} fontWeight={600} className="numeric" style={{ fill: toneOf(g.value) }}>{formatPercent(g.value)}</text>
+                      ) : (
+                        <>
+                          <text x={textX} y={ly - 6} dominantBaseline="central" fontSize={11} className={g.hasYou ? "fill-foreground font-semibold" : "fill-muted-foreground"}>{groupName(g.names, 11)}</text>
+                          <text x={textX} y={ly + 8} dominantBaseline="central" fontSize={11} fontWeight={600} className="numeric" style={{ fill: toneOf(g.value) }}>{formatPercent(g.value)}</text>
+                        </>
+                      )}
                     </g>
                   )
                 })}
@@ -418,6 +426,7 @@ export function RaceChart({
           <input
             id={sliderId}
             type="range"
+            style={{ "--race-progress": `${((scrubIdx ?? geometry.length - 1) / (geometry.length - 1)) * 100}%` } as React.CSSProperties}
             onPointerDown={() => { showDetails(); setHoverX(null); setScrubActive(true) }}
             onPointerUp={() => releaseDetails()}
             onPointerLeave={() => releaseDetails()}

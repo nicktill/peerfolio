@@ -1,5 +1,7 @@
 import {
+  bigint,
   bigserial,
+  check,
   boolean,
   date,
   doublePrecision,
@@ -681,6 +683,235 @@ export const fantasySnapshots = pgTable(
 )
 
 /* ------------------------------------------------------------------ *
+ * Fantasy seasons, rounds, drafts, recaps and notes
+ *
+ * Additive. A league with no season row is given an open-ended trading season
+ * the first time anyone loads it (see lib/fantasy-seasons.ts). Rounds are
+ * scored on percentages and ranks only; nothing here stores a balance.
+ * ------------------------------------------------------------------ */
+
+/** A run of weekly rounds. `mode` is "trading" or "draft"; `status` is "active" or "complete". */
+export const fantasySeasons = pgTable(
+  "fantasy_seasons",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    leagueId: uuid("league_id")
+      .notNull()
+      .references(() => fantasyLeagues.id, { onDelete: "cascade" }),
+    number: integer("number").notNull(),
+    mode: text("mode").notNull().default("trading"),
+    status: text("status").notNull().default("active"),
+    /** Null runs until the owner wraps it up. */
+    roundCount: integer("round_count"),
+    /** Draft seasons only: how many stocks each player picks. */
+    picksPerRound: integer("picks_per_round"),
+    /** "weekly" (the default, and every season before this column), "monthly" or "quarterly". Trading seasons only. */
+    cadence: text("cadence").notNull().default("weekly"),
+    /** A period boundary at 00:00 UTC (a Monday, the 1st, or a quarter's first day, by cadence). Round n starts n-1 periods later. */
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("fantasy_seasons_league_number_idx").on(t.leagueId, t.number)],
+)
+
+/** One week of a season. `status` is "open", "locked" (draft picks frozen) or "settled" (results written). */
+export const fantasyRounds = pgTable(
+  "fantasy_rounds",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    seasonId: uuid("season_id")
+      .notNull()
+      .references(() => fantasySeasons.id, { onDelete: "cascade" }),
+    leagueId: uuid("league_id")
+      .notNull()
+      .references(() => fantasyLeagues.id, { onDelete: "cascade" }),
+    number: integer("number").notNull(),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    status: text("status").notNull().default("open"),
+    /** Settled on whatever data existed once the grace period ran out. */
+    late: boolean("late").notNull().default(false),
+    settledAt: timestamp("settled_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("fantasy_rounds_season_number_idx").on(t.seasonId, t.number), index("fantasy_rounds_league_idx").on(t.leagueId, t.status)],
+)
+
+/** Frozen result of a settled round, per player. Percent only. */
+export const fantasyRoundResults = pgTable(
+  "fantasy_round_results",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    roundId: uuid("round_id")
+      .notNull()
+      .references(() => fantasyRounds.id, { onDelete: "cascade" }),
+    memberId: uuid("member_id")
+      .notNull()
+      .references(() => fantasyMembers.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    returnPct: numeric("return_pct", { precision: 14, scale: 4 }).notNull(),
+    /** Worst pick of the round (draft), the tie-break. */
+    floorPct: numeric("floor_pct", { precision: 14, scale: 4 }),
+    rank: integer("rank").notNull(),
+    points: numeric("points", { precision: 8, scale: 2 }).notNull(),
+  },
+  (t) => [uniqueIndex("fantasy_round_results_unique_idx").on(t.roundId, t.memberId), index("fantasy_round_results_user_idx").on(t.userId)],
+)
+
+/** A player's stock for a draft round. Entry is captured at the lock, exit at settlement. */
+export const fantasyDraftPicks = pgTable(
+  "fantasy_draft_picks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    roundId: uuid("round_id")
+      .notNull()
+      .references(() => fantasyRounds.id, { onDelete: "cascade" }),
+    memberId: uuid("member_id")
+      .notNull()
+      .references(() => fantasyMembers.id, { onDelete: "cascade" }),
+    securityId: text("security_id")
+      .notNull()
+      .references(() => securities.id),
+    slot: integer("slot").notNull(),
+    entryPrice: numeric("entry_price", { precision: 20, scale: 6 }),
+    entryAsOf: date("entry_as_of"),
+    exitPrice: numeric("exit_price", { precision: 20, scale: 6 }),
+    exitAsOf: date("exit_as_of"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("fantasy_draft_picks_unique_idx").on(t.roundId, t.memberId, t.securityId),
+    uniqueIndex("fantasy_draft_picks_slot_idx").on(t.roundId, t.memberId, t.slot),
+    index("fantasy_draft_picks_round_idx").on(t.roundId),
+  ],
+)
+
+/** Badges. `roundNumber` is 0 for season-level ones. */
+export const fantasyTrophies = pgTable(
+  "fantasy_trophies",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    leagueId: uuid("league_id")
+      .notNull()
+      .references(() => fantasyLeagues.id, { onDelete: "cascade" }),
+    seasonId: uuid("season_id")
+      .notNull()
+      .references(() => fantasySeasons.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    roundNumber: integer("round_number").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("fantasy_trophies_unique_idx").on(t.seasonId, t.userId, t.kind, t.roundNumber), index("fantasy_trophies_user_idx").on(t.userId)],
+)
+
+/** The generated weekly recap. `shareToken` unlocks the public, percentage-only image. */
+export const fantasyRecaps = pgTable(
+  "fantasy_recaps",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    roundId: uuid("round_id")
+      .notNull()
+      .references(() => fantasyRounds.id, { onDelete: "cascade" }),
+    leagueId: uuid("league_id")
+      .notNull()
+      .references(() => fantasyLeagues.id, { onDelete: "cascade" }),
+    shareToken: text("share_token").notNull(),
+    /** False once the owner stops sharing: the public page and image then answer 404, and the token is replaced. */
+    sharing: boolean("sharing").notNull().default(true),
+    payload: jsonb("payload").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("fantasy_recaps_round_idx").on(t.roundId), uniqueIndex("fantasy_recaps_token_idx").on(t.shareToken)],
+)
+
+/**
+ * Notification-ready records: one row per thing worth telling someone about.
+ * Nothing sends them yet; a push or email worker reads rows with a null
+ * `deliveredAt`. `userId` null means the whole league. `dedupeKey` makes writes idempotent.
+ */
+export const fantasyEvents = pgTable(
+  "fantasy_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    leagueId: uuid("league_id")
+      .notNull()
+      .references(() => fantasyLeagues.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    payload: jsonb("payload").notNull(),
+    dedupeKey: text("dedupe_key").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+  },
+  (t) => [uniqueIndex("fantasy_events_dedupe_idx").on(t.dedupeKey), index("fantasy_events_user_idx").on(t.userId, t.createdAt)],
+)
+
+/** "Why I picked this": a short note on a trade, a queued order or a draft pick. */
+export const fantasyNotes = pgTable(
+  "fantasy_notes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    leagueId: uuid("league_id")
+      .notNull()
+      .references(() => fantasyLeagues.id, { onDelete: "cascade" }),
+    memberId: uuid("member_id")
+      .notNull()
+      .references(() => fantasyMembers.id, { onDelete: "cascade" }),
+    tradeId: uuid("trade_id").references(() => fantasyTrades.id, { onDelete: "cascade" }),
+    orderId: uuid("order_id").references(() => fantasyOrders.id, { onDelete: "cascade" }),
+    pickId: uuid("pick_id").references(() => fantasyDraftPicks.id, { onDelete: "cascade" }),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("fantasy_notes_trade_idx").on(t.tradeId),
+    uniqueIndex("fantasy_notes_order_idx").on(t.orderId),
+    uniqueIndex("fantasy_notes_pick_idx").on(t.pickId),
+    index("fantasy_notes_league_idx").on(t.leagueId, t.createdAt),
+  ],
+)
+
+export const fantasyNoteReplies = pgTable(
+  "fantasy_note_replies",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    noteId: uuid("note_id")
+      .notNull()
+      .references(() => fantasyNotes.id, { onDelete: "cascade" }),
+    memberId: uuid("member_id")
+      .notNull()
+      .references(() => fantasyMembers.id, { onDelete: "cascade" }),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("fantasy_note_replies_note_idx").on(t.noteId, t.createdAt)],
+)
+
+/** Same emoji set as standings reactions, pointed at a note. */
+export const fantasyNoteReactions = pgTable(
+  "fantasy_note_reactions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    noteId: uuid("note_id")
+      .notNull()
+      .references(() => fantasyNotes.id, { onDelete: "cascade" }),
+    memberId: uuid("member_id")
+      .notNull()
+      .references(() => fantasyMembers.id, { onDelete: "cascade" }),
+    emoji: text("emoji").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("fantasy_note_reactions_unique_idx").on(t.noteId, t.memberId, t.emoji)],
+)
+
+/* ------------------------------------------------------------------ *
  * Relations
  * ------------------------------------------------------------------ */
 
@@ -845,3 +1076,219 @@ export const benchmarkPrices = pgTable(
 
 export type NewsItem = typeof newsItems.$inferSelect
 export type NewsBrief = typeof newsBriefs.$inferSelect
+
+/* ------------------------------------------------------------------ *
+ * Sports picks (feature flag `sportsEnabled`)
+ *
+ * A second league type with virtual credits only. Fully separate from the
+ * fantasy stock tables: nothing here references fantasy_* or real holdings.
+ * Events, markets and lines are GLOBAL (one published line serves every
+ * league); only members, picks and the ledger are per league.
+ * Lines are immutable once published; picks snapshot the accepted price.
+ * ------------------------------------------------------------------ */
+
+export const sportsLeagues = pgTable(
+  "sports_leagues",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    emoji: text("emoji").notNull().default("🏈"),
+    accent: text("accent").notNull().default("emerald"),
+    ownerId: uuid("owner_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    inviteCode: text("invite_code").notNull(),
+    /** Which sports picks are offered, e.g. ["nfl","nba"]. */
+    sports: jsonb("sports").$type<string[]>().notNull(),
+    /** Virtual credits every member starts with. Fixed at creation. */
+    startingCredits: integer("starting_credits").notNull().default(1000),
+    endsAt: timestamp("ends_at", { withTimezone: true }),
+    memberLimit: integer("member_limit").notNull().default(50),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("sports_leagues_invite_code_idx").on(t.inviteCode), index("sports_leagues_owner_idx").on(t.ownerId)],
+)
+
+export const sportsMembers = pgTable(
+  "sports_members",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    leagueId: uuid("league_id")
+      .notNull()
+      .references(() => sportsLeagues.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** Spendable credits. Changed only together with a ledger row, under a row lock. */
+    credits: integer("credits").notNull(),
+    joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("sports_members_unique_idx").on(t.leagueId, t.userId),
+    index("sports_members_user_idx").on(t.userId),
+    check("sports_members_credits_nonneg", sql`${t.credits} >= 0`),
+  ],
+)
+
+export const sportsEvents = pgTable(
+  "sports_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    sport: text("sport").notNull(),
+    /** The odds provider's id for the game. */
+    externalId: text("external_id").notNull(),
+    homeName: text("home_name").notNull(),
+    awayName: text("away_name").notNull(),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    /** scheduled | postponed | cancelled | final | void */
+    status: text("status").notNull().default("scheduled"),
+    homeScore: integer("home_score"),
+    awayScore: integer("away_score"),
+    /** When a settlement source first reported a final. Starts the settle delay. */
+    finalFirstSeenAt: timestamp("final_first_seen_at", { withTimezone: true }),
+    /** Other vendors' ids for this game, by source name, learned when a results source matched it by name and time. */
+    aliases: jsonb("aliases").$type<Record<string, string>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("sports_events_external_idx").on(t.sport, t.externalId), index("sports_events_starts_idx").on(t.startsAt)],
+)
+
+export const sportsMarkets = pgTable(
+  "sports_markets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => sportsEvents.id, { onDelete: "cascade" }),
+    /** `${key}|${player}`, unique per event. */
+    marketKey: text("market_key").notNull(),
+    kind: text("kind").notNull(),
+    player: text("player"),
+    statKey: text("stat_key"),
+    /** open | locked | settled | void */
+    status: text("status").notNull().default("open"),
+    lockAt: timestamp("lock_at", { withTimezone: true }).notNull(),
+    booksUsed: integer("books_used").notNull(),
+    voidReason: text("void_reason"),
+    /** Consensus at publish time, to notice when the true line has moved. */
+    fairProbA: doublePrecision("fair_prob_a"),
+    pointA: doublePrecision("point_a"),
+    /** Why a market was closed to new picks before its lock time (line moved, start moved earlier). */
+    frozenReason: text("frozen_reason"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("sports_markets_event_key_idx").on(t.eventId, t.marketKey), index("sports_markets_status_idx").on(t.status, t.lockAt)],
+)
+
+/** Immutable. A price change is a new market (after a void), never an UPDATE. */
+export const sportsLines = pgTable(
+  "sports_lines",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    marketId: uuid("market_id")
+      .notNull()
+      .references(() => sportsMarkets.id, { onDelete: "cascade" }),
+    selection: text("selection").notNull(),
+    /** American odds. */
+    price: integer("price").notNull(),
+    point: doublePrecision("point"),
+    publishedAt: timestamp("published_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("sports_lines_market_sel_idx").on(t.marketId, t.selection)],
+)
+
+export const sportsPicks = pgTable(
+  "sports_picks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    leagueId: uuid("league_id")
+      .notNull()
+      .references(() => sportsLeagues.id, { onDelete: "cascade" }),
+    memberId: uuid("member_id")
+      .notNull()
+      .references(() => sportsMembers.id, { onDelete: "cascade" }),
+    marketId: uuid("market_id")
+      .notNull()
+      .references(() => sportsMarkets.id),
+    lineId: uuid("line_id")
+      .notNull()
+      .references(() => sportsLines.id),
+    selection: text("selection").notNull(),
+    stake: integer("stake").notNull(),
+    /** Snapshot of the accepted line. */
+    price: integer("price").notNull(),
+    point: doublePrecision("point"),
+    /** Stake included, fixed at acceptance. */
+    totalReturn: integer("total_return").notNull(),
+    /** open | won | lost | push | void */
+    status: text("status").notNull().default("open"),
+    /** Client-supplied idempotency key so a double submit places one pick. */
+    requestId: text("request_id").notNull(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }).notNull().defaultNow(),
+    settledAt: timestamp("settled_at", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("sports_picks_member_market_idx").on(t.memberId, t.marketId),
+    uniqueIndex("sports_picks_request_idx").on(t.memberId, t.requestId),
+    index("sports_picks_market_idx").on(t.marketId, t.status),
+    check("sports_picks_stake_pos", sql`${t.stake} > 0`),
+  ],
+)
+
+/** Append-only credit ledger. A member's credits equal the sum of their rows. */
+export const sportsLedger = pgTable(
+  "sports_ledger",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    memberId: uuid("member_id")
+      .notNull()
+      .references(() => sportsMembers.id, { onDelete: "cascade" }),
+    pickId: uuid("pick_id").references(() => sportsPicks.id),
+    /** grant | place | settle_win | settle_refund */
+    type: text("type").notNull(),
+    /** Signed credits. */
+    amount: integer("amount").notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("sports_ledger_key_idx").on(t.idempotencyKey), index("sports_ledger_member_idx").on(t.memberId)],
+)
+
+/** Odds-provider credits spent per UTC day (see lib/sports/credit-budget.ts). */
+export const sportsProviderUsage = pgTable(
+  "sports_provider_usage",
+  {
+    provider: text("provider").notNull(),
+    day: date("day", { mode: "string" }).notNull(),
+    credits: integer("credits").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.provider, t.day] })],
+)
+
+/** Outbox for "your pick settled" messages: recorded now, delivered by push or email later. */
+export const sportsNotifications = pgTable(
+  "sports_notifications",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    pickId: uuid("pick_id").references(() => sportsPicks.id, { onDelete: "cascade" }),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+  },
+  (t) => [uniqueIndex("sports_notifications_pick_kind_idx").on(t.pickId, t.kind), index("sports_notifications_pending_idx").on(t.deliveredAt)],
+)
+
+/** Fixed-window request counters shared by every server (join, pick, create). Old windows are pruned by the publish cron. */
+export const sportsRateLimits = pgTable(
+  "sports_rate_limits",
+  {
+    key: text("key").notNull(),
+    bucket: bigint("bucket", { mode: "number" }).notNull(),
+    count: integer("count").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.key, t.bucket] })],
+)

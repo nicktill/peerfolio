@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto"
 import { NextResponse } from "next/server"
 import { getCurrentUserId } from "@web/lib/auth"
 
@@ -68,5 +69,8 @@ export async function readJson<T>(request: Request): Promise<T> {
 export function assertCronAuthorized(request: Request) {
   const secret = process.env.CRON_SECRET
   if (!secret) throw new ApiError("CRON_SECRET is not configured", 500)
-  if (request.headers.get("authorization") !== `Bearer ${secret}`) throw new ApiError("Forbidden", 403)
+  // Constant-time compare, so the secret can't be recovered from response timing.
+  const given = Buffer.from(request.headers.get("authorization") ?? "")
+  const wanted = Buffer.from(`Bearer ${secret}`)
+  if (given.length !== wanted.length || !timingSafeEqual(given, wanted)) throw new ApiError("Forbidden", 403)
 }

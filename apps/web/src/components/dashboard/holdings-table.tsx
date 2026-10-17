@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { useAssistantView } from "@web/components/assistant/view-context"
 import { ChevronDown, PieChart, Search } from "lucide-react"
 import { Card, CardContent } from "@web/components/ui/card"
 import { SectionLabel } from "@web/components/ui/section-card"
@@ -88,6 +89,9 @@ export function HoldingsTable({
 }) {
   const [sort, setSort] = useState<Sort>("value")
   const [query, setQuery] = useState("")
+  // Searching for a ticker that is held tells the assistant what "this stock" means.
+  const searched = query.trim().toUpperCase()
+  useAssistantView({ holding: searched && holdings.some((h) => h.ticker?.toUpperCase() === searched) ? searched : undefined })
   const [showAll, setShowAll] = useState(false)
   // Open by default; a person's choice is remembered on this device (best effort).
   const [open, setOpen] = useState(true)

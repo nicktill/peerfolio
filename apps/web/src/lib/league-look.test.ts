@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { ACCENT_KEYS, ACCENTS, EMOJI_GROUPS, isLeagueEmoji, randomLook } from "./league-look.ts"
+import { ACCENT_KEYS, ACCENTS, EMOJI_GROUPS, crestToken, isLeagueEmoji, parseCrest, randomLook } from "./league-look.ts"
 
 describe("league look", () => {
   const all = EMOJI_GROUPS.flatMap((g) => [...g.emojis])
@@ -19,6 +19,14 @@ describe("league look", () => {
     for (const bad of ["", "A", "hello", "🏈🏀", "<script>", "🏈 "]) assert.equal(isLeagueEmoji(bad), false, JSON.stringify(bad))
   })
 
+  it("accepts crests and rejects malformed ones", () => {
+    const token = crestToken({ shape: "hex", glyph: "flame", effect: "glow", backdrop: "aurora" })
+    assert.equal(isLeagueEmoji(token), true)
+    assert.deepEqual(parseCrest(token), { shape: "hex", glyph: "flame", effect: "glow", backdrop: "aurora" })
+    assert.equal(isLeagueEmoji("crest:hex:flame"), true)
+    for (const bad of ["crest:", "crest:blob:flame", "crest:hex:nope", "crest:hex:flame:wiggle", "crest:hex:flame:glow:aurora:x", "crest:hex:<script>"]) assert.equal(isLeagueEmoji(bad), false, bad)
+  })
+
   it("has a style for every accent", () => {
     for (const key of ACCENT_KEYS) assert.ok(ACCENTS[key].gradient.startsWith("from-"))
   })
@@ -29,7 +37,10 @@ describe("league look", () => {
       assert.ok(isLeagueEmoji(look.emoji))
       assert.ok(ACCENT_KEYS.includes(look.accent))
     }
-    assert.deepEqual(randomLook(() => 0), { emoji: all[0], accent: "emerald" })
+    // The first draw picks the colour, the second decides crest (under .5) or emoji.
+    assert.deepEqual(randomLook(() => 0), { emoji: "crest:shield:trophy:still:none", accent: "emerald" })
+    const seq = [0, 0.9, 0]
+    assert.deepEqual(randomLook(() => seq.shift() ?? 0), { emoji: all[0], accent: "emerald" })
     assert.ok(isLeagueEmoji(randomLook(() => 0.999999).emoji))
   })
 })

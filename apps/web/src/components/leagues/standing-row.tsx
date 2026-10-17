@@ -97,7 +97,7 @@ export function StandingRow({
 
       <div className="pf-standing-holdings mt-2 flex flex-wrap items-center gap-1.5 pl-20">
         {standing.shareHoldings && standing.holdings.length > 0 ? (
-          withShownWeights(standing.holdings.slice(0, 4)).map((h) => <HoldingChip key={h.ticker} holding={h} />)
+          withShownWeights(standing.holdings.slice(0, 4)).map((h, n) => <HoldingChip key={`${h.ticker}-${n}`} holding={h} />)
         ) : standing.shareHoldings ? (
           // Sharing is on but there's nothing to show yet (a new member who hasn't bought anything). Not the same as private.
           <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">Nothing held yet</span>

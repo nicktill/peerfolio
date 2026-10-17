@@ -4,7 +4,8 @@ import "@web/components/fantasy/fantasy-workspace.css"
 
 import { use, useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, Check, Clock, Flag, Infinity as Forever, Link2, Pencil } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { ArrowLeft, ArrowRight, CalendarDays, Check, Clock, Flag, Infinity as Forever, Link2, Pencil } from "lucide-react"
 import { initialsFor } from "@web/components/ui/avatar"
 import { RaceChart } from "@web/components/charts/race-chart"
 import { StandingsTable } from "@web/components/fantasy/standings-table"
@@ -12,6 +13,9 @@ import { EditLeagueDialog } from "@web/components/fantasy/edit-league-dialog"
 import { CashStat, PortfolioStat, RankStat, ReturnStat, SplitBar } from "@web/components/fantasy/balance-cards"
 import { TradePanel } from "@web/components/fantasy/trade-panel"
 import { TradeFeed, type FeedItem } from "@web/components/fantasy/trade-feed"
+import { LeagueMark } from "@web/components/league/league-mark"
+import { Tip } from "@web/components/ui/tip"
+import { LeagueTop } from "@web/components/fantasy/season/league-top"
 import { timeLeft } from "@web/components/fantasy/time-left"
 import { useRankBaseline } from "@web/components/fantasy/use-rank-baseline"
 import { AnimatedNumber } from "@web/components/ui/animated-number"
@@ -60,6 +64,8 @@ type LeagueData = {
   standings: (Standing & { value: number })[]
   you: { cash: number; value: number; percent: number; rank: number; positions: Position[]; orders: Order[] }
   feed: FeedItem[]
+  /** Null for a league that never turned weekly rounds on: it looks and works exactly as before. */
+  season: { mode: "trading" | "draft" } | null
 }
 
 /** Off-hours pace: standings only move when someone trades. While the market is open it's every minute, see liveRefreshMs. */
@@ -71,6 +77,12 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
   const [editing, setEditing] = useState(false)
   const { data, error, loading, refetch } = useApi<LeagueData>(`/api/fantasy/${id}`, [], { refreshMs: liveRefreshMs(CLOSED_REFRESH_MS) })
   const rankBefore = useRankBaseline(id, data?.you.rank ?? null)
+  const router = useRouter()
+  const isDraft = data?.season?.mode === "draft"
+  // A draft league has no portfolio to trade, so its home is the season page.
+  useEffect(() => {
+    if (isDraft) router.replace(`/fantasy/${id}/season`)
+  }, [isDraft, id, router])
 
   async function cancelOrder(orderId: string) {
     try {
@@ -92,6 +104,7 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
   }
 
   if (loading && !data) return <LeaguePageSkeleton />
+  if (isDraft) return <LeaguePageSkeleton />
 
   // A failed refresh keeps the page up with the last good data.
   if (!data) return <p className="text-sm text-muted-foreground">{error ?? "Couldn't load this league."}</p>
@@ -101,7 +114,7 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
   const status = league.isClosed ? "Final standings" : league.endsAt ? timeLeft(league.endsAt) : "All-time"
 
   return (
-    <div className="fw">
+    <div className="fw fw-play-space" data-play-world="stocks" data-accent={league.accent}>
       <Link href="/fantasy" className="fw-back">
         <ArrowLeft className="size-3.5" aria-hidden /> Fantasy leagues
       </Link>
@@ -109,7 +122,7 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
       <header className="fw-head reveal" data-accent={league.accent} style={revealStyle(0)}>
         <div className="fw-identity">
           <span className="fw-art" data-accent={league.accent} aria-hidden>
-            <span>{league.emoji}</span>
+            <LeagueMark value={league.emoji} accent={league.accent} size={42} />
           </span>
           <div>
             <span className="fw-eyebrow">Fantasy / Play money</span>
@@ -127,23 +140,42 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
             {league.isClosed ? <Flag aria-hidden /> : league.endsAt ? <Clock aria-hidden /> : <Forever aria-hidden />}
             {status}
           </span>
+          {data.season ? (
+            <Tip text="A fresh scoreboard each round. The best round earns the most points. Tap to see the season.">
+              <Link href={`/fantasy/${id}/season`} className="fw-pill fw-live-pill">
+                <i aria-hidden /> Seasons on <ArrowRight aria-hidden />
+              </Link>
+            </Tip>
+          ) : null}
           {league.isOwner && !league.isClosed ? (
             <button type="button" className="fw-btn" onClick={() => setEditing(true)}>
               <Pencil aria-hidden />
               Edit league
             </button>
           ) : null}
+          {league.isOwner && !league.isClosed && !data.season ? (
+            <Tip text="Add a second scoreboard in weekly, monthly or quarterly rounds. Your standings and trades stay as they are.">
+              <Link href={`/fantasy/${id}/season`} className="fw-btn">
+                <CalendarDays aria-hidden />
+                Turn on seasons
+              </Link>
+            </Tip>
+          ) : null}
           <InviteButton code={league.inviteCode} />
         </div>
       </header>
 
-      <dl className="fw-panel fw-scoreboard reveal" style={revealStyle(1)}>
-        <RankStat rank={you.rank} total={standings.length} moved={moved} />
-        <ReturnStat percent={you.percent} value={you.value} startingCash={league.startingCash} />
-        <PortfolioStat value={you.value} cash={you.cash} />
-        <CashStat cash={you.cash} value={you.value} />
-        <SplitBar value={you.value} cash={you.cash} />
-      </dl>
+      {data.season ? (
+        <LeagueTop leagueId={league.id} rank={you.rank} total={standings.length} moved={moved} percent={you.percent} value={you.value} cash={you.cash} startingCash={league.startingCash} />
+      ) : (
+        <dl className="fw-panel fw-scoreboard reveal" style={revealStyle(1)}>
+          <RankStat rank={you.rank} total={standings.length} moved={moved} />
+          <ReturnStat percent={you.percent} value={you.value} startingCash={league.startingCash} />
+          <PortfolioStat value={you.value} cash={you.cash} />
+          <CashStat cash={you.cash} value={you.value} />
+          <SplitBar value={you.value} cash={you.cash} />
+        </dl>
+      )}
 
       {league.isOwner && !league.isClosed ? (
         <EditLeagueDialog league={league} open={editing} onClose={() => setEditing(false)} onSaved={refetch} />
@@ -176,9 +208,9 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
         </div>
 
         <aside className="fw-rail reveal" style={revealStyle(3)}>
-          <TradePanel leagueId={league.id} cash={you.cash} positions={you.positions} onTraded={refetch} closed={league.isClosed} />
+          <TradePanel leagueId={league.id} cash={you.cash} positions={you.positions} onTraded={refetch} closed={league.isClosed} allowNote={!!data.season} />
           <Holdings positions={you.positions} orders={you.orders} onCancel={league.isClosed ? undefined : cancelOrder} />
-          <TradeFeed items={feed} />
+          <TradeFeed items={feed} leagueId={league.id} onChanged={refetch} />
         </aside>
       </div>
     </div>
@@ -190,7 +222,8 @@ function InviteButton({ code }: { code: string }) {
   return (
     <button
       type="button"
-      className="fw-btn"
+      className="fw-btn fw-invite"
+      aria-label={copied ? "Link copied" : "Copy league invite link"}
       data-solid
       onClick={() => {
         void navigator.clipboard.writeText(`${window.location.origin}/fantasy/join/${code}`)
@@ -199,7 +232,8 @@ function InviteButton({ code }: { code: string }) {
       }}
     >
       {copied ? <Check aria-hidden /> : <Link2 aria-hidden />}
-      {copied ? "Link copied" : "Invite friends"}
+      <span className="fw-invite-label-full">{copied ? "Link copied" : "Invite friends"}</span>
+      <span className="fw-invite-label-short">{copied ? "Copied" : "Invite"}</span>
     </button>
   )
 }

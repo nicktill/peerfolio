@@ -119,7 +119,7 @@ export default function SyncRunsPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-semibold"><Repeat aria-hidden className="size-6" />Brokerage syncs</h1>
-          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">Each connection's health and the last 100 sync attempts, kept 30 days. Counts and codes only: no balances, tickers, holdings, names or emails. People appear as an anonymous <span className="font-mono">user·tag</span> that stays the same across their connections.</p>
+          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">Each connection&apos;s health and the last 100 sync attempts, kept 30 days. Counts and codes only: no balances, tickers, holdings, names or emails. People appear as an anonymous <span className="font-mono">user·tag</span> that stays the same across their connections.</p>
         </div>
         <Button variant="outline" size="icon" onClick={() => void refetch()} aria-label="Refresh" title="Refresh"><RefreshCw aria-hidden className={cn("size-4", loading && "animate-spin")} /></Button>
       </div>
@@ -161,7 +161,7 @@ export default function SyncRunsPage() {
                     <p className={cn("font-medium", tone.text)}>{health.headline}</p>
                     <p className="mt-1 text-muted-foreground">{health.detail}</p>
                     {health.action ? <p className="mt-1.5"><span className="font-medium">Next: </span><span className="text-muted-foreground">{health.action}</span></p> : null}
-                    {it.status !== "active" ? <p className="mt-1.5 text-xs text-loss-ink">Connection status is “{it.status}”{it.errorCode ? ` (${it.errorCode})` : ""}. The user's dashboard is likely showing a reconnect prompt.</p> : null}
+                    {it.status !== "active" ? <p className="mt-1.5 text-xs text-loss-ink">Connection status is “{it.status}”{it.errorCode ? ` (${it.errorCode})` : ""}. The user&apos;s dashboard is likely showing a reconnect prompt.</p> : null}
                   </div>
 
                   <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">

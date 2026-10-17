@@ -1,16 +1,23 @@
 "use client"
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import Link from "next/link"
-import { AnimatePresence, MotionConfig, animate, motion, useDragControls, useMotionValue } from "motion/react"
-import { AppWindow, ArrowUp, ChevronLeft, ArrowUpRight, Check, FileText, Maximize2, MessageSquare, Minimize2, Minus, PanelRight, RotateCcw, Square, SquarePen, X } from "lucide-react"
+import { AnimatePresence, MotionConfig, animate, motion, useDragControls, useMotionValue, useReducedMotion } from "motion/react"
+import { AppWindow, ArrowUp, ChevronLeft, ArrowUpRight, Check, Copy, FileText, Maximize2, MessageSquare, Minimize2, Minus, PanelRight, RefreshCw, RotateCcw, Square, SquarePen, X } from "lucide-react"
 import { OPEN_EVENT } from "@web/components/assistant/open-event"
 import { Orb } from "@web/components/assistant/orb"
-import { PAGE_LABEL, copyFor, useAssistant, type Msg, type Phase } from "@web/components/assistant/use-assistant"
+import { PAGE_LABEL, copyFor, useAssistant, type Msg, type Page, type Phase } from "@web/components/assistant/use-assistant"
 import { XRayReport } from "@web/components/assistant/xray-report"
 import { VisualCard } from "@web/components/assistant/visuals"
+import { Markdown } from "@web/components/assistant/markdown"
+import { readAssistantView } from "@web/components/assistant/view-context"
+import { splitFollowUps } from "@web/lib/ai/followups"
+import { fallbackFollowUps } from "@web/lib/ai/fallbacks"
+import { domainOf, knownSet, collectUrls, type Source } from "@web/lib/ai/sources"
+import { nextRevealed } from "@web/lib/ai/reveal"
 import { formatCurrency } from "@web/lib/format"
 import type { XRay } from "@web/lib/ai/portfolio-xray"
+import { visualKey } from "@web/lib/ai/visuals"
 import { isWealthHref } from "@web/lib/wealth/link"
 import { useApi } from "@web/lib/use-api"
 import "@web/components/assistant/assistant.css"
@@ -188,7 +195,9 @@ function Launcher({ onOpen }: { onOpen: () => void }) {
 function Panel({ onClose }: { onClose: () => void }) {
   const narrow = useNarrow()
   const wide = useWide()
-  const { messages, phase, activity, busy, page, send, cancel, retry, reset, reportSeq } = useAssistant()
+  const { messages, phase, activity, steps, busy, page, send, cancel, retry, reset, reportSeq } = useAssistant()
+  // Web addresses that may be shown as links: seen in tool results or search citations, or typed by the person.
+  const known = useMemo(() => knownSet(messages.flatMap((m) => (m.role === "user" ? collectUrls(m.text) : (m.sources ?? []).map((x) => x.url)))), [messages])
   const [geo, setGeo] = useState<Geo>(() => loadGeo())
   const [dockPref, setDockPref] = useState<boolean>(() => {
     try {
@@ -410,6 +419,20 @@ function Panel({ onClose }: { onClose: () => void }) {
     [],
   )
 
+  // Text grows between renders (typing, cards unfolding): keep following the newest line unless the person scrolled up.
+  const thread = useRef<HTMLDivElement>(null)
+  const hasThread = messages.length > 0
+  useEffect(() => {
+    const el = thread.current
+    const box = scroller.current
+    if (!el || !box || typeof ResizeObserver === "undefined") return
+    const watch = new ResizeObserver(() => {
+      if (stick.current) box.scrollTop = box.scrollHeight
+    })
+    watch.observe(el)
+    return () => watch.disconnect()
+  }, [hasThread])
+
   const onScroll = () => {
     const el = scroller.current
     if (el) stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 140
@@ -555,15 +578,15 @@ function Panel({ onClose }: { onClose: () => void }) {
         {messages.length === 0 ? (
           <EmptyState onPick={ask} />
         ) : (
-          <div className="pf-ai-thread">
+          <div className="pf-ai-thread" ref={thread}>
             {messages.map((m, i) => (
-              <Message key={m.id} m={m} last={i === messages.length - 1} phase={phase} activity={activity} busy={busy} onAsk={ask} onRetry={retry} repeatReport={!!m.xray && messages.slice(0, i).some((x) => !!x.xray)} earlierKinds={new Set(messages.slice(0, i).flatMap((x) => (x.visuals ?? []).map((v) => v.kind)))} />
+              <Message key={m.id} m={m} last={i === messages.length - 1} phase={phase} activity={activity} steps={steps} known={known} asked={messages.slice(0, i).reverse().find((x) => x.role === "user")?.text ?? ""} busy={busy} onAsk={ask} onRetry={retry} repeatReport={!!m.xray && messages.slice(0, i).some((x) => !!x.xray)} earlierKinds={new Set(messages.slice(0, i).flatMap((x) => (x.visuals ?? []).map(visualKey)))} />
             ))}
           </div>
         )}
       </div>
 
-      <Composer busy={busy} onSend={ask} onStop={cancel} page={PAGE_LABEL[page]} />
+      <Composer busy={busy} onSend={ask} onStop={cancel} page={`${PAGE_LABEL[page]}${page === "portfolio" && readAssistantView().range ? ` · ${readAssistantView().range}` : ""}`} placeholder={PLACEHOLDER[page]} />
     </motion.section>
     </>
   )
@@ -647,34 +670,11 @@ function relativeDay(at: number): string {
   return new Date(at).toLocaleDateString("en-US", { month: "short", day: "numeric" })
 }
 
-const STAGES = [
-  { key: "reading", label: "Reading your holdings" },
-  { key: "analyzing", label: "Running the analysis" },
-  { key: "writing", label: "Writing the summary" },
-] as const
-
-/** Shown once a tool is genuinely running; each step is a real phase of the request, not a timer. */
-function Progress({ phase }: { phase: Phase }) {
-  const at = STAGES.findIndex((s) => s.key === phase)
-  return (
-    <ol className="pf-ai-prog" aria-label="Analysis progress">
-      {STAGES.map((s, i) => {
-        const state = i < at ? "done" : i === at ? "now" : "next"
-        return (
-          <motion.li key={s.key} className={`is-${state}`} initial={{ opacity: 0, x: -4 }} animate={{ opacity: state === "next" ? 0.4 : 1, x: 0 }} transition={{ delay: i * 0.06, duration: 0.25 }}>
-            <span className="pf-ai-pn">{state === "done" ? <Check size={11} strokeWidth={2.5} /> : String(i + 1).padStart(2, "0")}</span>
-            <span className={state === "now" ? "pf-ai-shimmer" : undefined}>{s.label}</span>
-          </motion.li>
-        )
-      })}
-    </ol>
-  )
-}
-
-const XRAY_LABEL = "Running the portfolio X-Ray"
-
-/** Before the first word: what the assistant is doing, in plain language, easing between steps instead of blinking. */
-function Thinking({ phase, activity }: { phase: Phase; activity: string | null }) {
+/**
+ * Before the first word: what the assistant is doing, in plain language. Finished steps stay above as quiet ticks
+ * and the current one shimmers, so a slow turn with several tools reads as a short plan being carried out.
+ */
+function Thinking({ phase, activity, steps }: { phase: Phase; activity: string | null; steps: string[] }) {
   const [slow, setSlow] = useState(0)
   useEffect(() => {
     const a = window.setTimeout(() => setSlow(1), 2800)
@@ -686,38 +686,65 @@ function Thinking({ phase, activity }: { phase: Phase; activity: string | null }
   }, [])
   const text = activity ?? (phase === "writing" ? "Writing" : slow === 0 ? "Thinking" : slow === 1 ? "Thinking it through" : "Still working on this")
   return (
-    <motion.div className="pf-ai-think" role="status" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -2, transition: { duration: 0.15 } }} transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}>
-      <Orb size={18} phase={phase} />
-      <span className="pf-ai-think-t">
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.span key={text} className="pf-ai-shimmer" initial={{ opacity: 0, y: 5, filter: "blur(3px)" }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} exit={{ opacity: 0, y: -5, filter: "blur(3px)" }} transition={{ duration: 0.22 }}>
-            {text}
-          </motion.span>
-        </AnimatePresence>
-        <span className="pf-ai-dots" aria-hidden>
-          <i />
-          <i />
-          <i />
+    <motion.div className="pf-ai-think" role="status" aria-live="polite" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -2, transition: { duration: 0.15 } }} transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}>
+      {steps.length > 0 ? (
+        <ol className="pf-ai-steps" aria-label="Steps done">
+          {steps.map((step) => (
+            <motion.li key={step} initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
+              <Check size={11} strokeWidth={2.5} aria-hidden />
+              {step}
+            </motion.li>
+          ))}
+        </ol>
+      ) : null}
+      <div className="pf-ai-think-row">
+        <Orb size={18} phase={phase} />
+        <span className="pf-ai-think-t">
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.span key={text} className="pf-ai-shimmer" initial={{ opacity: 0, y: 5, filter: "blur(3px)" }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} exit={{ opacity: 0, y: -5, filter: "blur(3px)" }} transition={{ duration: 0.22 }}>
+              {text}
+            </motion.span>
+          </AnimatePresence>
+          <span className="pf-ai-dots" aria-hidden>
+            <i />
+            <i />
+            <i />
+          </span>
         </span>
-      </span>
+      </div>
     </motion.div>
   )
 }
 
-/** The report's outline while its numbers are computed, so the real report replaces it in place. */
-function ReportSkeleton() {
+/** The web pages a search-backed answer cites: small chips with the site's icon and name. */
+function SourceChips({ sources }: { sources: Source[] }) {
+  const cited = sources.filter((s) => s.cited).slice(0, 4)
+  if (cited.length === 0) return null
   return (
-    <motion.div className="pf-sk-xr" aria-hidden initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15 }}>
-      <span className="pf-sk-b is-hero" />
-      <div className="pf-sk-row">
-        <span className="pf-sk-b" />
-        <span className="pf-sk-b" />
-        <span className="pf-sk-b" />
-      </div>
-      <span className="pf-sk-b is-bar" />
-      <span className="pf-sk-b" style={{ width: "72%" }} />
-      <span className="pf-sk-b" style={{ width: "58%" }} />
-    </motion.div>
+    <div className="pf-ai-srcs" role="group" aria-label="Sources">
+      {cited.map((s) => (
+        <SourceChip key={s.url} source={s} />
+      ))}
+    </div>
+  )
+}
+
+function SourceChip({ source }: { source: Source }) {
+  const domain = domainOf(source.url)
+  const [broken, setBroken] = useState(false)
+  return (
+    <a className="pf-ai-src" href={source.url} target="_blank" rel="noopener noreferrer" title={source.title ?? domain}>
+      {broken || !domain ? (
+        <span className="pf-ai-src-ic" aria-hidden>
+          {(domain[0] ?? "?").toUpperCase()}
+        </span>
+      ) : (
+        // eslint-disable-next-line @next/next/no-img-element -- a 14px site icon from the cited site itself
+        <img className="pf-ai-src-ic" src={`https://${domain}/favicon.ico`} alt="" width={14} height={14} loading="lazy" referrerPolicy="no-referrer" onError={() => setBroken(true)} />
+      )}
+      <span>{domain}</span>
+      <span className="pf-ai-sr"> (opens in a new tab)</span>
+    </a>
   )
 }
 
@@ -734,8 +761,98 @@ function CollapsedReport({ xray, onAsk, onSave }: { xray: XRay; onAsk: (q: strin
   )
 }
 
-function Message({ m, last, phase, activity, busy, onAsk, onRetry, repeatReport = false, earlierKinds }: { m: Msg; last: boolean; phase: Phase; activity: string | null; busy: boolean; onAsk: (q: string) => void; onRetry: () => void; repeatReport?: boolean; earlierKinds?: Set<string> }) {
-  const { saveReport } = useAssistant()
+/**
+ * Smooth typing: the text on screen trails the text received, a few characters per frame, so bursts from the
+ * network read as steady typing. It catches up quickly when far behind and shows everything at once for people
+ * who prefer reduced motion, and for answers that were already finished when the window opened.
+ */
+function useTyped(text: string, live: boolean) {
+  const reduce = useReducedMotion()
+  const [shown, setShown] = useState(live && !reduce ? 0 : text.length)
+  const target = useRef(text)
+  const at = useRef(shown)
+  target.current = text
+  const instant = !!reduce || (!live && at.current >= text.length)
+
+  useEffect(() => {
+    if (instant) {
+      at.current = text.length
+      setShown(text.length)
+      return
+    }
+    let frame = 0
+    let last = performance.now()
+    const tick = (now: number) => {
+      const next = nextRevealed(target.current, at.current, now - last)
+      last = now
+      if (next !== at.current) {
+        at.current = next
+        setShown(next)
+      }
+      // Keep going while text is waiting or more may still arrive.
+      if (at.current < target.current.length) frame = requestAnimationFrame(tick)
+    }
+    frame = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frame)
+    // Restart the loop whenever new text lands; it stops itself once caught up.
+  }, [text, instant])
+
+  const visible = instant ? text.length : Math.min(shown, text.length)
+  return { text: visible >= text.length ? text : text.slice(0, visible), typing: visible < text.length }
+}
+
+/** Copy, regenerate: the quiet row under a finished answer. */
+function Actions({ text, canRegenerate, onRegenerate }: { text: string; canRegenerate: boolean; onRegenerate: () => void }) {
+  const [copied, setCopied] = useState(false)
+  useEffect(() => {
+    if (!copied) return
+    const t = window.setTimeout(() => setCopied(false), 1600)
+    return () => window.clearTimeout(t)
+  }, [copied])
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      // Clipboard access can be refused (insecure context, permissions): fall back to a selection copy.
+      const area = document.createElement("textarea")
+      area.value = text
+      area.setAttribute("readonly", "")
+      area.style.position = "fixed"
+      area.style.opacity = "0"
+      document.body.appendChild(area)
+      area.select()
+      try {
+        document.execCommand("copy")
+      } catch {
+        area.remove()
+        return
+      }
+      area.remove()
+    }
+    setCopied(true)
+  }
+  return (
+    <div className="pf-ai-acts" role="group" aria-label="Answer actions">
+      <button type="button" className={`pf-ai-act ${copied ? "is-done" : ""}`} onClick={copy} aria-label={copied ? "Copied" : "Copy answer"} title="Copy answer">
+        {copied ? <Check size={13} aria-hidden /> : <Copy size={13} aria-hidden />}
+        {copied ? "Copied" : "Copy"}
+      </button>
+      {canRegenerate ? (
+        <button type="button" className="pf-ai-act" onClick={onRegenerate} aria-label="Regenerate answer" title="Regenerate answer">
+          <RefreshCw size={13} aria-hidden />
+          Regenerate
+        </button>
+      ) : null}
+    </div>
+  )
+}
+
+function Message({ m, last, phase, activity, steps, known, asked, busy, onAsk, onRetry, repeatReport = false, earlierKinds }: { m: Msg; last: boolean; phase: Phase; activity: string | null; steps: string[]; known: Set<string>; asked: string; busy: boolean; onAsk: (q: string) => void; onRetry: () => void; repeatReport?: boolean; earlierKinds?: Set<string> }) {
+  const { saveReport, page } = useAssistant()
+  const working = last && busy
+  // The reply is drawn through the typing pace; the follow-up trailer is lifted out of it before anything is drawn.
+  const { body, followUps } = splitFollowUps(m.text)
+  const typed = useTyped(body, working)
   if (m.role === "user") {
     return (
       <motion.div className="pf-ai-user" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 420, damping: 34 }}>
@@ -743,35 +860,25 @@ function Message({ m, last, phase, activity, busy, onAsk, onRetry, repeatReport 
       </motion.div>
     )
   }
-  const working = last && busy
-  const showProgress = working && !m.xray && phase === "analyzing" && activity === XRAY_LABEL
+  const streaming = working || typed.typing
+  const done = last && !busy && !typed.typing
+  // When the model leaves its suggestions out (or garbles them), the page's own still give a next step.
+  const suggestions = followUps.length >= 2 ? followUps : body ? fallbackFollowUps(page, asked) : []
   return (
     <div className="pf-ai-bot">
-      {/* The progress card folds away as the report arrives, so one replaces the other instead of popping in. */}
-      <AnimatePresence initial={false}>
-        {showProgress ? (
-          <motion.div key="progress" style={{ overflow: "hidden" }} initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0, transition: { duration: 0.3, ease: [0.22, 1, 0.36, 1] } }} transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}>
-            <Progress phase={phase} />
-            <ReportSkeleton />
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
-      <AnimatePresence initial={false}>{working && !showProgress && !m.text && !m.xray ? <Thinking key="think" phase={phase} activity={activity} /> : null}</AnimatePresence>
-      {m.xray ? repeatReport ? <CollapsedReport xray={m.xray} onAsk={onAsk} onSave={() => saveReport(m.xray!)} /> : <XRayReport xray={m.xray} onAsk={onAsk} onSave={() => saveReport(m.xray!)} /> : null}
-      {m.text ? (
-        <p className="pf-ai-text">
-          {m.text}
-          {working && phase === "writing" ? <span className="pf-ai-caret" aria-hidden /> : null}
-        </p>
-      ) : null}
+      <AnimatePresence initial={false}>{working && !body && !m.xray ? <Thinking key="think" phase={phase} activity={activity} steps={steps} /> : null}</AnimatePresence>
+      {m.xray ? repeatReport ? <CollapsedReport xray={m.xray} onAsk={onAsk} onSave={() => saveReport(m.xray!)} /> : <XRayReport xray={m.xray} onAsk={onAsk} onSave={() => saveReport(m.xray!)} showChips={!working && !m.text} /> : null}
+      {typed.text ? <Markdown text={typed.text} streaming={streaming} caret={streaming && !m.error} known={known} /> : null}
+      {!streaming && m.sources ? <SourceChips sources={m.sources} /> : null}
       {m.visuals?.map((v) => (
-        <VisualCard key={v.kind} v={v} repeat={earlierKinds?.has(v.kind)} />
+        <VisualCard key={v.kind} v={v} repeat={earlierKinds?.has(visualKey(v))} />
       ))}
-      {m.link && isWealthHref(m.link.href) && !(working && phase === "writing") ? (
+      {m.link && isWealthHref(m.link.href) && !streaming ? (
         <Link href={m.link.href} className="pf-ai-link">
           {m.link.label} <ArrowUpRight size={12} aria-hidden />
         </Link>
       ) : null}
+      {m.stopped && !busy ? <p className="pf-ai-stopped">{body ? "Stopped." : "Stopped before an answer."}</p> : null}
       {m.error ? (
         <div className="pf-ai-err" role="alert">
           <span>{m.error}</span>
@@ -782,11 +889,32 @@ function Message({ m, last, phase, activity, busy, onAsk, onRetry, repeatReport 
           ) : null}
         </div>
       ) : null}
+      {!streaming && !m.error && body && !(m.xray && !m.text) ? <Actions text={body} canRegenerate={last && !busy} onRegenerate={onRetry} /> : null}
+      {done && !m.error && !m.stopped && suggestions.length > 0 ? (
+        <div className="pf-ai-next" role="group" aria-label="Suggested follow-up questions">
+          {suggestions.map((q, i) => (
+            <button key={q} type="button" className="pf-ai-next-chip" style={{ "--i": i } as React.CSSProperties} onClick={() => onAsk(q)}>
+              <ArrowUp size={12} className="pf-ai-sug-ic" aria-hidden />
+              {q}
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   )
 }
 
-function Composer({ busy, onSend, onStop, page }: { busy: boolean; onSend: (q: string) => void; onStop: () => void; page: string }) {
+const PLACEHOLDER: Record<Page, string> = {
+  portfolio: "Ask about your portfolio…",
+  news: "Ask about the market or today's news…",
+  leagues: "Ask about your league…",
+  fantasy: "Ask about your fantasy league…",
+  wealth: "Ask a what-if…",
+  board: "Ask about your portfolio…",
+  other: "Ask about your portfolio…",
+}
+
+function Composer({ busy, onSend, onStop, page, placeholder }: { busy: boolean; onSend: (q: string) => void; onStop: () => void; page: string; placeholder: string }) {
   const [value, setValue] = useState("")
   const ref = useRef<HTMLTextAreaElement>(null)
 
@@ -817,7 +945,7 @@ function Composer({ busy, onSend, onStop, page }: { busy: boolean; onSend: (q: s
           value={value}
           rows={1}
           maxLength={2000}
-          placeholder="Ask about your portfolio…"
+          placeholder={placeholder}
           aria-label="Message Peerfolio Intelligence"
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => {

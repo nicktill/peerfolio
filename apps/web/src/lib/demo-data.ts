@@ -7,28 +7,75 @@ export function makeRandom(seed: number) {
 }
 
 export const DEMO_PEOPLE = [
-  { handle: "theo", name: "Theo Marsh", drift: 0.0016, volatility: 0.01, bio: "Index funds and patience." },
-  { handle: "maya", name: "Maya Chen", drift: 0.0024, volatility: 0.014, bio: "Concentrated in what I understand." },
-  { handle: "deshawn", name: "DeShawn Ellis", drift: 0.0009, volatility: 0.006, bio: "Boring on purpose." },
-  { handle: "priya", name: "Priya Raman", drift: 0.0031, volatility: 0.021, bio: "High conviction, high variance." },
-  { handle: "sam", name: "Sam Okafor", drift: 0.0019, volatility: 0.009, bio: "Three funds and a nap." },
+  { handle: "theo", name: "Nate Delaney", drift: 0.0016, volatility: 0.01, bio: "Index funds and patience." },
+  { handle: "maya", name: "Alex Moreno", drift: 0.0024, volatility: 0.014, bio: "Concentrated in what I understand." },
+  { handle: "deshawn", name: "Marcus Bell", drift: 0.0009, volatility: 0.006, bio: "Boring on purpose." },
+  { handle: "priya", name: "Tess Navarro", drift: 0.0031, volatility: 0.021, bio: "High conviction, high variance." },
+  { handle: "sam", name: "Jamie Mercer", drift: 0.0019, volatility: 0.009, bio: "Three funds and a nap." },
 ]
+
+/** `price` is the latest close, `move` the day's change in percent, so "today" has something to show. */
+const stock = (id: string, ticker: string, name: string, price: number, move: number) => ({ id: `demo-${id}`, tickerSymbol: ticker, name, type: "equity", price, move })
+const fund = (id: string, ticker: string, name: string, price: number, move: number, type = "etf") => ({ id: `demo-${id}`, tickerSymbol: ticker, name, type, price, move })
 
 export const SECURITIES = [
-  { id: "demo-vti", tickerSymbol: "VTI", name: "Vanguard Total Stock Market ETF", type: "etf" },
-  { id: "demo-vxus", tickerSymbol: "VXUS", name: "Vanguard Total International Stock ETF", type: "etf" },
-  { id: "demo-bnd", tickerSymbol: "BND", name: "Vanguard Total Bond Market ETF", type: "fixed_income" },
-  { id: "demo-nvda", tickerSymbol: "NVDA", name: "NVIDIA Corporation", type: "equity" },
-  { id: "demo-aapl", tickerSymbol: "AAPL", name: "Apple Inc.", type: "equity" },
-  { id: "demo-msft", tickerSymbol: "MSFT", name: "Microsoft Corporation", type: "equity" },
+  fund("vti", "VTI", "Vanguard Total Stock Market ETF", 312.4, 0.42),
+  fund("voo", "VOO", "Vanguard S&P 500 ETF", 561.8, 0.37),
+  fund("qqq", "QQQ", "Invesco QQQ Trust", 498.2, 0.81),
+  fund("vxus", "VXUS", "Vanguard Total International Stock ETF", 68.9, -0.18),
+  fund("bnd", "BND", "Vanguard Total Bond Market ETF", 73.1, 0.05, "fixed_income"),
+  fund("schd", "SCHD", "Schwab U.S. Dividend Equity ETF", 28.4, 0.22),
+  fund("vgt", "VGT", "Vanguard Information Technology ETF", 612.7, 1.05),
+  stock("nvda", "NVDA", "NVIDIA Corporation", 142.6, 1.94),
+  stock("aapl", "AAPL", "Apple Inc.", 231.5, -0.62),
+  stock("msft", "MSFT", "Microsoft Corporation", 428.3, 0.74),
+  stock("googl", "GOOGL", "Alphabet Inc.", 178.9, 1.12),
+  stock("amzn", "AMZN", "Amazon.com, Inc.", 204.7, -1.35),
+  stock("meta", "META", "Meta Platforms, Inc.", 589.4, 0.88),
+  stock("tsla", "TSLA", "Tesla, Inc.", 248.1, -2.34),
+  stock("nflx", "NFLX", "Netflix, Inc.", 702.5, 1.46),
+  stock("amd", "AMD", "Advanced Micro Devices, Inc.", 164.2, 2.61),
+  stock("avgo", "AVGO", "Broadcom Inc.", 171.8, 1.2),
+  stock("cost", "COST", "Costco Wholesale Corporation", 934.2, 0.28),
+  stock("lly", "LLY", "Eli Lilly and Company", 812.6, -2.1),
+  stock("jpm", "JPM", "JPMorgan Chase & Co.", 236.4, 0.51),
+  stock("v", "V", "Visa Inc.", 291.7, 0.33),
+  stock("ko", "KO", "The Coca-Cola Company", 68.3, -0.21),
+  stock("dis", "DIS", "The Walt Disney Company", 96.8, 0.94),
+  stock("unh", "UNH", "UnitedHealth Group Incorporated", 574.1, -0.77),
+  stock("pltr", "PLTR", "Palantir Technologies Inc.", 41.6, 3.82),
+  stock("coin", "COIN", "Coinbase Global, Inc.", 262.9, 4.17),
 ]
 
-export const MIXES: Record<string, [string, number][]> = {
-  theo: [["demo-vti", 21400], ["demo-vxus", 8200], ["demo-bnd", 5100], ["demo-nvda", 4300], ["demo-aapl", 2600]],
-  maya: [["demo-nvda", 19800], ["demo-msft", 11200], ["demo-aapl", 7400], ["demo-vti", 5100]],
-  deshawn: [["demo-vti", 28000], ["demo-bnd", 14000]],
-  priya: [["demo-nvda", 26500], ["demo-aapl", 9100], ["demo-msft", 4200]],
-  sam: [["demo-vti", 16000], ["demo-vxus", 9400], ["demo-msft", 6100]],
+/** [securityId, value] per account: the first list is the main brokerage, the second a retirement account. */
+export const MIXES: Record<string, { brokerage: [string, number][]; retirement: [string, number][] }> = {
+  theo: {
+    brokerage: [["demo-vti", 21400], ["demo-nvda", 6800], ["demo-aapl", 5200], ["demo-msft", 4300], ["demo-googl", 3100], ["demo-amzn", 2900], ["demo-cost", 2600], ["demo-v", 1900], ["demo-ko", 1400], ["demo-dis", 900]],
+    retirement: [["demo-voo", 14200], ["demo-vxus", 5200], ["demo-bnd", 4800], ["demo-schd", 3600]],
+  },
+  maya: {
+    brokerage: [["demo-nvda", 19800], ["demo-msft", 11200], ["demo-aapl", 7400], ["demo-meta", 6200], ["demo-googl", 4100], ["demo-avgo", 3800], ["demo-amd", 3300], ["demo-tsla", 2700], ["demo-vti", 5100]],
+    retirement: [["demo-qqq", 9600], ["demo-lly", 3300], ["demo-vgt", 2800]],
+  },
+  deshawn: {
+    brokerage: [["demo-vti", 28000], ["demo-bnd", 14000], ["demo-vxus", 5200], ["demo-schd", 4400], ["demo-ko", 2100], ["demo-jpm", 1800]],
+    retirement: [["demo-voo", 11800], ["demo-bnd", 6400], ["demo-vxus", 3100]],
+  },
+  priya: {
+    brokerage: [["demo-nvda", 26500], ["demo-aapl", 9100], ["demo-msft", 4200], ["demo-amzn", 3600], ["demo-pltr", 5200], ["demo-coin", 3400], ["demo-tsla", 4600], ["demo-nflx", 2900], ["demo-amd", 3800]],
+    retirement: [["demo-qqq", 7200], ["demo-googl", 2900], ["demo-meta", 2200]],
+  },
+  sam: {
+    brokerage: [["demo-vti", 16000], ["demo-vxus", 9400], ["demo-msft", 6100], ["demo-googl", 2400], ["demo-unh", 2200], ["demo-jpm", 1900], ["demo-cost", 1700], ["demo-dis", 1300]],
+    retirement: [["demo-voo", 8800], ["demo-bnd", 3100], ["demo-schd", 2600]],
+  },
+}
+
+/** Rough per-day drift and noise for the comparison ETFs, so the benchmark line has a believable shape. */
+export const BENCHMARK_SEEDS: Record<string, { start: number; drift: number; volatility: number }> = {
+  SPY: { start: 560, drift: 0.0009, volatility: 0.008 },
+  QQQ: { start: 470, drift: 0.0014, volatility: 0.011 },
+  VTI: { start: 290, drift: 0.0009, volatility: 0.008 },
 }
 
 export const DAYS = 120
@@ -53,7 +100,7 @@ export type DemoFantasyLeague = {
 
 export const FANTASY_START = 100_000
 
-/** Where each player stands in each demo league, on a $100,000 start. Theo (the signed-in demo user) sits third in all of them. */
+/** Where each player stands in each demo league, on a $100,000 start. Nate (the signed-in demo user) sits third in all of them. */
 export const DEMO_FANTASY_LEAGUES: DemoFantasyLeague[] = [
   {
     inviteCode: "DEMO2345", name: "Friday Draft", emoji: "🏈", accent: "emerald", owner: "maya", seed: 7, daysIn: 45, endsInDays: 59,

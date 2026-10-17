@@ -1,0 +1,603 @@
+{
+ "league": {
+  "id": "sample",
+  "name": "Friday Fund",
+  "emoji": "🏆",
+  "accent": "emerald",
+  "isOwner": false,
+  "isClosed": false,
+  "inviteCode": "SAMPLE",
+  "endsAt": null
+ },
+ "season": {
+  "id": "c9c5af70-4de6-4e7d-93ef-a3f113a47d8e",
+  "number": 1,
+  "mode": "trading",
+  "status": "active",
+  "roundCount": null,
+  "picksPerRound": null,
+  "startsAt": "@@-2907862240",
+  "endsAt": null,
+  "cadence": "weekly",
+  "state": "running"
+ },
+ "current": {
+  "number": 5,
+  "startsAt": "@@-488662240",
+  "endsAt": "@@116137760",
+  "locked": false,
+  "rows": [
+   {
+    "userId": "00000000-0000-4000-8000-000000000002",
+    "name": "Alex Moreno",
+    "handle": "maya",
+    "image": "/demo/avatars/maya.png",
+    "isYou": true,
+    "rank": 1,
+    "percent": 0.9858671783433373,
+    "points": 5
+   },
+   {
+    "userId": "00000000-0000-4000-8000-000000000003",
+    "name": "Marcus Bell",
+    "handle": "deshawn",
+    "image": "/demo/avatars/deshawn.png",
+    "isYou": false,
+    "rank": 2,
+    "percent": 0.7739325245482477,
+    "points": 4
+   },
+   {
+    "userId": "00000000-0000-4000-8000-000000000001",
+    "name": "Nate Delaney",
+    "handle": "theo",
+    "image": "/demo/avatars/theo.png",
+    "isYou": false,
+    "rank": 3,
+    "percent": 0.3815393186884288,
+    "points": 3
+   },
+   {
+    "userId": "00000000-0000-4000-8000-000000000004",
+    "name": "Tess Navarro",
+    "handle": "priya",
+    "image": "/demo/avatars/priya.png",
+    "isYou": false,
+    "rank": 4,
+    "percent": 0.20452037506181056,
+    "points": 2
+   },
+   {
+    "userId": "00000000-0000-4000-8000-000000000005",
+    "name": "Jamie Mercer",
+    "handle": "sam",
+    "image": "/demo/avatars/sam.png",
+    "isYou": false,
+    "rank": 5,
+    "percent": -0.07025735722118309,
+    "points": 1
+   }
+  ],
+  "late": false
+ },
+ "draft": null,
+ "standings": [
+  {
+   "userId": "00000000-0000-4000-8000-000000000005",
+   "name": "Jamie Mercer",
+   "handle": "sam",
+   "image": "/demo/avatars/sam.png",
+   "isYou": false,
+   "points": 16,
+   "wins": 2,
+   "rounds": 4,
+   "compounded": 4.839532462420748,
+   "best": 2.0119,
+   "rank": 1
+  },
+  {
+   "userId": "00000000-0000-4000-8000-000000000002",
+   "name": "Alex Moreno",
+   "handle": "maya",
+   "image": "/demo/avatars/maya.png",
+   "isYou": true,
+   "points": 14,
+   "wins": 1,
+   "rounds": 4,
+   "compounded": 2.2366823931367463,
+   "best": 2.7057,
+   "rank": 2
+  },
+  {
+   "userId": "00000000-0000-4000-8000-000000000004",
+   "name": "Tess Navarro",
+   "handle": "priya",
+   "image": "/demo/avatars/priya.png",
+   "isYou": false,
+   "points": 12,
+   "wins": 1,
+   "rounds": 4,
+   "compounded": 1.2421927428726054,
+   "best": 0.8861,
+   "rank": 3
+  },
+  {
+   "userId": "00000000-0000-4000-8000-000000000001",
+   "name": "Nate Delaney",
+   "handle": "theo",
+   "image": "/demo/avatars/theo.png",
+   "isYou": false,
+   "points": 10,
+   "wins": 0,
+   "rounds": 4,
+   "compounded": 2.5420105561187567,
+   "best": 2.5253,
+   "rank": 4
+  },
+  {
+   "userId": "00000000-0000-4000-8000-000000000003",
+   "name": "Marcus Bell",
+   "handle": "deshawn",
+   "image": "/demo/avatars/deshawn.png",
+   "isYou": false,
+   "points": 8,
+   "wins": 0,
+   "rounds": 4,
+   "compounded": -0.34087782753738916,
+   "best": 0.9089,
+   "rank": 5
+  }
+ ],
+ "rounds": [
+  {
+   "number": 4,
+   "startsAt": "@@-1093462240",
+   "endsAt": "@@-488662240",
+   "late": false,
+   "winners": [
+    "00000000-0000-4000-8000-000000000004"
+   ],
+   "yourRank": 2,
+   "yourPercent": 0.4315,
+   "players": 5,
+   "table": [
+    {
+     "userId": "00000000-0000-4000-8000-000000000004",
+     "name": "Tess Navarro",
+     "handle": "priya",
+     "image": "/demo/avatars/priya.png",
+     "isYou": false,
+     "rank": 1,
+     "percent": 0.8861,
+     "points": 5
+    },
+    {
+     "userId": "00000000-0000-4000-8000-000000000002",
+     "name": "Alex Moreno",
+     "handle": "maya",
+     "image": "/demo/avatars/maya.png",
+     "isYou": true,
+     "rank": 2,
+     "percent": 0.4315,
+     "points": 4
+    },
+    {
+     "userId": "00000000-0000-4000-8000-000000000005",
+     "name": "Jamie Mercer",
+     "handle": "sam",
+     "image": "/demo/avatars/sam.png",
+     "isYou": false,
+     "rank": 3,
+     "percent": 0.3534,
+     "points": 3
+    },
+    {
+     "userId": "00000000-0000-4000-8000-000000000003",
+     "name": "Marcus Bell",
+     "handle": "deshawn",
+     "image": "/demo/avatars/deshawn.png",
+     "isYou": false,
+     "rank": 4,
+     "percent": -0.1155,
+     "points": 2
+    },
+    {
+     "userId": "00000000-0000-4000-8000-000000000001",
+     "name": "Nate Delaney",
+     "handle": "theo",
+     "image": "/demo/avatars/theo.png",
+     "isYou": false,
+     "rank": 5,
+     "percent": -0.4031,
+     "points": 1
+    }
+   ],
+   "recapToken": "QAgQuFyLlpQHBiGt"
+  },
+  {
+   "number": 3,
+   "startsAt": "@@-1698262240",
+   "endsAt": "@@-1093462240",
+   "late": false,
+   "winners": [
+    "00000000-0000-4000-8000-000000000005"
+   ],
+   "yourRank": 5,
+   "yourPercent": -1.3961,
+   "players": 5,
+   "table": [
+    {
+     "userId": "00000000-0000-4000-8000-000000000005",
+     "name": "Jamie Mercer",
+     "handle": "sam",
+     "image": "/demo/avatars/sam.png",
+     "isYou": false,
+     "rank": 1,
+     "percent": 2.0119,
+     "points": 5
+    },
+    {
+     "userId": "00000000-0000-4000-8000-000000000003",
+     "name": "Marcus Bell",
+     "handle": "deshawn",
+     "image": "/demo/avatars/deshawn.png",
+     "isYou": false,
+     "rank": 2,
+     "percent": 0.9089,
+     "points": 4
+    },
+    {
+     "userId": "00000000-0000-4000-8000-000000000004",
+     "name": "Tess Navarro",
+     "handle": "priya",
+     "image": "/demo/avatars/priya.png",
+     "isYou": false,
+     "rank": 3,
+     "percent": 0.6758,
+     "points": 3
+    },
+    {
+     "userId": "00000000-0000-4000-8000-000000000001",
+     "name": "Nate Delaney",
+     "handle": "theo",
+     "image": "/demo/avatars/theo.png",
+     "isYou": false,
+     "rank": 4,
+     "percent": 0.3967,
+     "points": 2
+    },
+    {
+     "userId": "00000000-0000-4000-8000-000000000002",
+     "name": "Alex Moreno",
+     "handle": "maya",
+     "image": "/demo/avatars/maya.png",
+     "isYou": true,
+     "rank": 5,
+     "percent": -1.3961,
+     "points": 1
+    }
+   ],
+   "recapToken": "m9zJ49eG0t5ypkEM"
+  },
+  {
+   "number": 2,
+   "startsAt": "@@-2303062240",
+   "endsAt": "@@-1698262240",
+   "late": false,
+   "winners": [
+    "00000000-0000-4000-8000-000000000002"
+   ],
+   "yourRank": 1,
+   "yourPercent": 2.7057,
+   "players": 5,
+   "table": [
+    {
+     "userId": "00000000-0000-4000-8000-000000000002",
+     "name": "Alex Moreno",
+     "handle": "maya",
+     "image": "/demo/avatars/maya.png",
+     "isYou": true,
+     "rank": 1,
+     "percent": 2.7057,
+     "points": 5
+    },
+    {
+     "userId": "00000000-0000-4000-8000-000000000001",
+     "name": "Nate Delaney",
+     "handle": "theo",
+     "image": "/demo/avatars/theo.png",
+     "isYou": false,
+     "rank": 2,
+     "percent": 2.5253,
+     "points": 4
+    },
+    {
+     "userId": "00000000-0000-4000-8000-000000000005",
+     "name": "Jamie Mercer",
+     "handle": "sam",
+     "image": "/demo/avatars/sam.png",
+     "isYou": false,
+     "rank": 3,
+     "percent": 1.2978,
+     "points": 3
+    },
+    {
+     "userId": "00000000-0000-4000-8000-000000000004",
+     "name": "Tess Navarro",
+     "handle": "priya",
+     "image": "/demo/avatars/priya.png",
+     "isYou": false,
+     "rank": 4,
+     "percent": 0.6984,
+     "points": 2
+    },
+    {
+     "userId": "00000000-0000-4000-8000-000000000003",
+     "name": "Marcus Bell",
+     "handle": "deshawn",
+     "image": "/demo/avatars/deshawn.png",
+     "isYou": false,
+     "rank": 5,
+     "percent": 0.4875,
+     "points": 1
+    }
+   ],
+   "recapToken": "J0LvVgqS13f20Skc"
+  },
+  {
+   "number": 1,
+   "startsAt": "@@-2907862240",
+   "endsAt": "@@-2303062240",
+   "late": false,
+   "winners": [
+    "00000000-0000-4000-8000-000000000005"
+   ],
+   "yourRank": 2,
+   "yourPercent": 0.519,
+   "players": 5,
+   "table": [
+    {
+     "userId": "00000000-0000-4000-8000-000000000005",
+     "name": "Jamie Mercer",
+     "handle": "sam",
+     "image": "/demo/avatars/sam.png",
+     "isYou": false,
+     "rank": 1,
+     "percent": 1.0979,
+     "points": 5
+    },
+    {
+     "userId": "00000000-0000-4000-8000-000000000002",
+     "name": "Alex Moreno",
+     "handle": "maya",
+     "image": "/demo/avatars/maya.png",
+     "isYou": true,
+     "rank": 2,
+     "percent": 0.519,
+     "points": 4
+    },
+    {
+     "userId": "00000000-0000-4000-8000-000000000001",
+     "name": "Nate Delaney",
+     "handle": "theo",
+     "image": "/demo/avatars/theo.png",
+     "isYou": false,
+     "rank": 3,
+     "percent": 0.0243,
+     "points": 3
+    },
+    {
+     "userId": "00000000-0000-4000-8000-000000000004",
+     "name": "Tess Navarro",
+     "handle": "priya",
+     "image": "/demo/avatars/priya.png",
+     "isYou": false,
+     "rank": 4,
+     "percent": -1.012,
+     "points": 2
+    },
+    {
+     "userId": "00000000-0000-4000-8000-000000000003",
+     "name": "Marcus Bell",
+     "handle": "deshawn",
+     "image": "/demo/avatars/deshawn.png",
+     "isYou": false,
+     "rank": 5,
+     "percent": -1.604,
+     "points": 1
+    }
+   ],
+   "recapToken": "lhwa0zvjUVfg2-lU"
+  }
+ ],
+ "headToHead": [
+  {
+   "opponent": {
+    "userId": "00000000-0000-4000-8000-000000000001",
+    "name": "Nate Delaney",
+    "handle": "theo",
+    "image": "/demo/avatars/theo.png",
+    "isYou": false
+   },
+   "wins": 3,
+   "losses": 1,
+   "ties": 0
+  },
+  {
+   "opponent": {
+    "userId": "00000000-0000-4000-8000-000000000003",
+    "name": "Marcus Bell",
+    "handle": "deshawn",
+    "image": "/demo/avatars/deshawn.png",
+    "isYou": false
+   },
+   "wins": 3,
+   "losses": 1,
+   "ties": 0
+  },
+  {
+   "opponent": {
+    "userId": "00000000-0000-4000-8000-000000000005",
+    "name": "Jamie Mercer",
+    "handle": "sam",
+    "image": "/demo/avatars/sam.png",
+    "isYou": false
+   },
+   "wins": 2,
+   "losses": 2,
+   "ties": 0
+  },
+  {
+   "opponent": {
+    "userId": "00000000-0000-4000-8000-000000000004",
+    "name": "Tess Navarro",
+    "handle": "priya",
+    "image": "/demo/avatars/priya.png",
+    "isYou": false
+   },
+   "wins": 2,
+   "losses": 2,
+   "ties": 0
+  }
+ ],
+ "trophies": [
+  {
+   "userId": "00000000-0000-4000-8000-000000000004",
+   "name": "Tess Navarro",
+   "kind": "round_win",
+   "roundNumber": 4,
+   "seasonNumber": 1
+  },
+  {
+   "userId": "00000000-0000-4000-8000-000000000005",
+   "name": "Jamie Mercer",
+   "kind": "round_win",
+   "roundNumber": 3,
+   "seasonNumber": 1
+  },
+  {
+   "userId": "00000000-0000-4000-8000-000000000002",
+   "name": "Alex Moreno",
+   "kind": "round_win",
+   "roundNumber": 2,
+   "seasonNumber": 1
+  },
+  {
+   "userId": "00000000-0000-4000-8000-000000000005",
+   "name": "Jamie Mercer",
+   "kind": "round_win",
+   "roundNumber": 1,
+   "seasonNumber": 1
+  }
+ ],
+ "seasons": [
+  {
+   "number": 1,
+   "mode": "trading",
+   "status": "active",
+   "roundCount": null,
+   "champions": []
+  }
+ ],
+ "recap": {
+  "mode": "trading",
+  "loser": {
+   "name": "Nate",
+   "handle": "theo",
+   "userId": "00000000-0000-4000-8000-000000000001",
+   "percent": -0.4031093782703736
+  },
+  "table": [
+   {
+    "name": "Tess",
+    "rank": 1,
+    "handle": "priya",
+    "points": 5,
+    "userId": "00000000-0000-4000-8000-000000000004",
+    "percent": 0.8861345322755454
+   },
+   {
+    "name": "Alex",
+    "rank": 2,
+    "handle": "maya",
+    "points": 4,
+    "userId": "00000000-0000-4000-8000-000000000002",
+    "percent": 0.43145998679752107
+   },
+   {
+    "name": "Jamie",
+    "rank": 3,
+    "handle": "sam",
+    "points": 3,
+    "userId": "00000000-0000-4000-8000-000000000005",
+    "percent": 0.3534144616035076
+   },
+   {
+    "name": "Marcus",
+    "rank": 4,
+    "handle": "deshawn",
+    "points": 2,
+    "userId": "00000000-0000-4000-8000-000000000003",
+    "percent": -0.11551415070894248
+   },
+   {
+    "name": "Nate",
+    "rank": 5,
+    "handle": "theo",
+    "points": 1,
+    "userId": "00000000-0000-4000-8000-000000000001",
+    "percent": -0.4031093782703736
+   }
+  ],
+  "leader": {
+   "name": "Jamie",
+   "handle": "sam",
+   "points": 16,
+   "userId": "00000000-0000-4000-8000-000000000005"
+  },
+  "winners": [
+   {
+    "name": "Tess",
+    "handle": "priya",
+    "userId": "00000000-0000-4000-8000-000000000004",
+    "percent": 0.8861345322755454
+   }
+  ],
+  "headline": "Tess takes Round 4 with +0.89%",
+  "overtakes": [
+   {
+    "who": {
+     "name": "Tess",
+     "handle": "priya",
+     "userId": "00000000-0000-4000-8000-000000000004"
+    },
+    "passed": {
+     "name": "Nate",
+     "handle": "theo",
+     "userId": "00000000-0000-4000-8000-000000000001"
+    }
+   }
+  ],
+  "roundNumber": 4,
+  "bestDecision": {
+   "kind": "trade",
+   "name": "Jamie",
+   "handle": "sam",
+   "ticker": "MSFT",
+   "userId": "00000000-0000-4000-8000-000000000005",
+   "percent": 5.917474437380651
+  },
+  "seasonRounds": null,
+  "worstDecision": {
+   "kind": "trade",
+   "name": "Nate",
+   "handle": "theo",
+   "ticker": "MSFT",
+   "userId": "00000000-0000-4000-8000-000000000001",
+   "percent": -5.586872674989164
+  },
+  "token": "QAgQuFyLlpQHBiGt",
+  "sharing": true
+ },
+ "canStartNext": false
+}

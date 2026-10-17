@@ -13,7 +13,10 @@ import { benchmarkCloses } from "@web/lib/benchmark-data"
 import { MAX_LEAGUE_OVERVIEW, parseArgs, parseBenchmark, parseLimit, parseRange, planLeagueLookup, readAfterMembership, requestedLeagueId } from "@web/lib/ai/tool-args"
 import { loadPositions, loadXRay, trackedWindow } from "@web/lib/ai/portfolio-data"
 import type { XRay } from "@web/lib/ai/portfolio-xray"
-import type { Visual } from "@web/lib/ai/visuals"
+import { digestXRay } from "@web/lib/ai/xray-digest"
+import { FIGURES, figureFor, specToFigure, type FigureKind } from "@web/lib/ai/figures"
+import type { PageContext } from "@web/lib/ai/limits"
+import { thin, type Visual } from "@web/lib/ai/visuals"
 import { runProjectWealth } from "@web/lib/ai/tools-wealth"
 import { runEarnings, runGetQuotes, runMarketSnapshot, runTopMovers } from "@web/lib/ai/tools-market"
 
@@ -25,6 +28,10 @@ import { runEarnings, runGetQuotes, runMarketSnapshot, runTopMovers } from "@web
 
 export type ToolContext = {
   userId: string
+  /** The page the person is on, as verified by the server (the league id is dropped unless they belong to it). */
+  page?: PageContext["page"]
+  /** The time range selected on their portfolio chart, when there is one. */
+  range?: PageContext["range"]
   /** The league open on the page, when there is one. A hint only: membership is checked before any league data is read. */
   pageLeagueId?: string
   /** The fantasy league open on the page; same rule as `pageLeagueId`. */
@@ -34,12 +41,6 @@ export type ToolContext = {
 }
 
 export { TOOL_DEFS, type ToolDef } from "@web/lib/ai/tool-defs"
-
-const withoutFollowUp = <T extends { followUp: string }>(insight: T): Omit<T, "followUp"> => {
-  const copy: Partial<T> = { ...insight }
-  delete copy.followUp
-  return copy as Omit<T, "followUp">
-}
 
 const round = (v: number | null, places = 2) => (v == null ? null : Math.round(v * 10 ** places) / 10 ** places)
 
@@ -60,14 +61,22 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
   switch (name) {
     case "get_portfolio_xray": {
       const xray = await cachedXRay(ctx.userId)
-      ctx.emit({ type: "xray", data: xray })
-      // The screen shows the whole report; the model gets it without the follow-up prompts and long tails, which only cost tokens.
-      return {
-        ...xray,
-        sectors: { ...xray.sectors, slices: xray.sectors.slices.slice(0, 8) },
-        risks: xray.risks.map(withoutFollowUp),
-        nextSteps: xray.nextSteps.map(withoutFollowUp),
+      const args = parseArgs(rawArgs)
+      const kind = (FIGURES as readonly string[]).includes(args.figure as string) ? (args.figure as FigureKind) : "xray"
+      const focus = Array.isArray(args.focus) ? args.focus.filter((f): f is string => typeof f === "string").slice(0, 3) : null
+      if (kind === "xray") ctx.emit({ type: "xray", data: xray })
+      else {
+        const card = figureFor(kind, xray, focus)
+        if (card) ctx.emit({ type: "visual", data: card })
       }
+      // The screen draws the whole report; the model reads a digest of it, so its answer starts from the insight.
+      return digestXRay(xray)
+    }
+    case "show_figure": {
+      const card = specToFigure(parseArgs(rawArgs))
+      if (!card) return { error: "That spec could not be drawn. Answer in plain text." }
+      ctx.emit({ type: "visual", data: card })
+      return { shown: card.kind, note: "The app drew it. Don't repeat its rows." }
     }
     case "get_holdings": {
       const limit = parseLimit(parseArgs(rawArgs))
@@ -84,11 +93,6 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
           accounts: r.positions,
         })),
       }
-    }
-    case "get_my_leagues": {
-      const rows = await listLeaguesForUser(ctx.userId)
-      // Chosen fields only: no invite codes or owner ids.
-      return { leagues: rows.map((l) => ({ id: l.id, name: l.name, members: l.memberCount, yourRole: l.role })) }
     }
     case "get_league_standings": {
       const args = parseArgs(rawArgs)
@@ -158,7 +162,7 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
       const result = compareToBenchmark(window.series, await benchmarkCloses(symbol, window.series[0]!.date))
       if (!result.ok) return { reason: result.reason === "starts-late" ? "Benchmark prices don't reach back to the first tracked day." : "Benchmark prices aren't available right now." }
       const c = result.value
-      ctx.emit({ type: "visual", data: { kind: "benchmark", label: BENCHMARKS.find((b) => b.symbol === symbol)!.label, range, you: round(c.portfolioPercent) ?? 0, benchmark: round(c.benchmarkPercent) ?? 0 } })
+      ctx.emit({ type: "visual", data: { kind: "benchmark", label: BENCHMARKS.find((b) => b.symbol === symbol)!.label, range, you: round(c.portfolioPercent) ?? 0, benchmark: round(c.benchmarkPercent) ?? 0, lines: { you: thin(window.series.map((p) => p.indexed)).map((v) => round(v) ?? 100), bench: thin(c.series.map((p) => p.indexed)).map((v) => round(v) ?? 100) } } })
       return {
         benchmark: BENCHMARKS.find((b) => b.symbol === symbol)!.label,
         basis: "price return (dividends not included)",
@@ -178,6 +182,7 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
           : null,
         headlines: news.headlines.slice(0, 10).map((h) => ({
           title: h.title.slice(0, 200),
+          url: h.url,
           source: h.source,
           publishedAt: h.publishedAt,
           mentionsYourHoldings: matchHoldings(h, held),
@@ -194,6 +199,23 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
       return runGetQuotes(rawArgs)
     case "project_wealth":
       return runProjectWealth(rawArgs, ctx)
+    case "get_current_view": {
+      // One call for "this": whatever the person is looking at, summarized rather than dumped.
+      const page = ctx.page ?? "other"
+      if (page === "leagues") {
+        const view = (await runTool("get_league_standings", JSON.stringify({ leagueId: null, range: ctx.range ?? "1M" }), ctx)) as { standings?: { isYou: boolean }[] }
+        // Top of the table plus the person's own row; the long tail adds tokens, not insight.
+        return view.standings ? { page, ...view, standings: view.standings.filter((r, i) => i < 5 || r.isYou), note: "Top five and you." } : { page, ...view }
+      }
+      if (page === "fantasy") return { page, ...((await runTool("get_fantasy_league", JSON.stringify({ leagueId: null }), ctx)) as object) }
+      if (page === "news") {
+        const news = (await runTool("get_market_news", "{}", ctx)) as { recap: { headline: string; takeaways: unknown[] } | null; headlines: unknown[] }
+        return { page, recap: news.recap ? { headline: news.recap.headline, takeaways: news.recap.takeaways.slice(0, 3) } : null, headlines: news.headlines.slice(0, 5) }
+      }
+      if (page === "wealth") return { page, note: "They are in Wealth Lab. Use project_wealth for numbers; nothing else is on screen to read." }
+      const xray = await cachedXRay(ctx.userId)
+      return { page, portfolio: digestXRay(xray), chartRange: ctx.range ?? null }
+    }
     default:
       return { error: `Unknown tool: ${name}` }
   }

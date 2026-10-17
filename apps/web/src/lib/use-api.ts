@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { cacheGet, cacheSet } from "@web/lib/api-cache"
+import { isSampleUrl, sampleActive, sampleMutate, sampleResponse } from "@web/lib/sample/fixtures"
+import { SAMPLE_EVENT } from "@web/lib/sample/store"
 
 type State<T> = { data: T | null; error: string | null; loading: boolean }
 
@@ -22,7 +24,7 @@ type State<T> = { data: T | null; error: string | null; loading: boolean }
  */
 export function useApi<T>(url: string | null, deps: unknown[] = [], { refreshMs }: { refreshMs?: number } = {}) {
   const [state, setState] = useState<State<T>>(() => ({
-    data: url ? (cacheGet<T>(url)?.data ?? null) : null,
+    data: url && !sampleActive() ? (cacheGet<T>(url)?.data ?? null) : null,
     error: null,
     loading: !!url,
   }))
@@ -36,6 +38,12 @@ export function useApi<T>(url: string | null, deps: unknown[] = [], { refreshMs 
     }
 
     const id = ++requestId.current
+    // Sample views answer from static fixtures, never cached: nothing leaves the browser and nothing real is mixed in.
+    const fixture = sampleResponse(url, window.location.pathname)
+    if (fixture) {
+      setState({ data: fixture as T, error: null, loading: false })
+      return
+    }
     // A page (or range) seen before shows its last response straight away.
     const cached = cacheGet<T>(url)?.data ?? null
     setState((prev) => ({ data: cached ?? prev.data, error: null, loading: true }))
@@ -63,6 +71,13 @@ export function useApi<T>(url: string | null, deps: unknown[] = [], { refreshMs 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url, ...deps])
 
+  // A sample view's own trades and picks change its fixtures: reload when they do.
+  useEffect(() => {
+    if (!url || !sampleActive()) return
+    window.addEventListener(SAMPLE_EVENT, load)
+    return () => window.removeEventListener(SAMPLE_EVENT, load)
+  }, [url, load])
+
   useEffect(() => {
     if (!url || !refreshMs) return
     const tick = () => {
@@ -87,6 +102,7 @@ export async function mutate<T = unknown>(
   url: string,
   options: { method?: string; body?: unknown } = {},
 ): Promise<T> {
+  if (isSampleUrl(url) || sampleActive()) return sampleMutate(url, options.body) as T
   const response = await fetch(url, {
     method: options.method ?? "POST",
     headers: options.body ? { "Content-Type": "application/json" } : undefined,

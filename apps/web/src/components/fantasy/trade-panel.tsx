@@ -12,6 +12,9 @@ import { fillsAtOpen } from "@web/lib/fantasy-rules"
 import { formatCurrency } from "@web/lib/format"
 import { amountFromFraction, BUY_SPOTS, checkTradeInput, estimateShares, sanitizeAmount, SELL_SPOTS, snapFraction, snapThreshold } from "@web/lib/trade-input"
 import { mutate } from "@web/lib/use-api"
+import { inSampleView } from "@web/lib/sample/fixtures"
+import { sampleQuote } from "@web/lib/sample/store"
+import "@web/components/fantasy/season/fantasy-season.css"
 
 type Held = { ticker: string; shares: number; value: number; averageCost: number }
 type Quote = { symbol: string; name: string | null; price: number; asOf: string; live?: boolean }
@@ -31,7 +34,7 @@ const asOfLabel = (asOf: string) => new Date(`${asOf.slice(0, 10)}T12:00:00Z`).t
  * price the form shows; while it's closed the order queues and fills at the
  * first live price after the open.
  */
-export function TradePanel({ leagueId, cash, positions, onTraded, closed = false }: { leagueId: string; cash: number; positions: Held[]; onTraded: () => void; closed?: boolean }) {
+export function TradePanel({ leagueId, cash, positions, onTraded, closed = false, allowNote = false }: { leagueId: string; cash: number; positions: Held[]; onTraded: () => void; closed?: boolean; allowNote?: boolean }) {
   const { toast } = useToast()
   const confirm = useConfirm()
   const [side, setSide] = useState<"buy" | "sell">("buy")
@@ -42,6 +45,8 @@ export function TradePanel({ leagueId, cash, positions, onTraded, closed = false
   const [receipt, setReceipt] = useState<Receipt | null>(null)
   const closeReceipt = useCallback(() => setReceipt(null), [])
   const [touched, setTouched] = useState(false)
+  const [why, setWhy] = useState("")
+  const [whyOpen, setWhyOpen] = useState(false)
   const [lookup, setLookup] = useState<Lookup>({ state: "idle" })
 
   const ticker = symbol.trim().toUpperCase()
@@ -50,7 +55,7 @@ export function TradePanel({ leagueId, cash, positions, onTraded, closed = false
   const problem = touched && !check.ok ? check.message : null
   // Worked out each render, so a page left open across 9:30 or 4:00 ET catches up on its next refresh.
   // Only a label: the server decides whether an order fills now or queues.
-  const queues = fillsAtOpen("stock")
+  const queues = fillsAtOpen("stock") && !(typeof window !== "undefined" && inSampleView(window.location.pathname))
 
   // Show what you'd be trading at before you commit. Debounced, and a slow
   // response for an old ticker can never overwrite the one on screen.
@@ -66,7 +71,7 @@ export function TradePanel({ leagueId, cash, positions, onTraded, closed = false
     // not an answer about this ticker: keep "Looking up…" and ask again shortly.
     const look = async (retries: number) => {
       try {
-        const response = await fetch(`/api/market/quote?symbol=${encodeURIComponent(ticker)}&kind=stock`)
+        const response = inSampleView(window.location.pathname) ? sampleQuote(ticker) : await fetch(`/api/market/quote?symbol=${encodeURIComponent(ticker)}&kind=stock`)
         const body = await response.json().catch(() => ({}))
         if (cancelled) return
         if (response.status === 429 && retries > 0) {
@@ -101,7 +106,8 @@ export function TradePanel({ leagueId, cash, positions, onTraded, closed = false
 
     setPending(true)
     try {
-      const body = side === "buy" ? { side, symbol: ticker, amount: check.value } : { side, symbol: ticker, shares: check.value }
+      const note = allowNote ? why.trim() || undefined : undefined
+      const body = side === "buy" ? { side, symbol: ticker, amount: check.value, note } : { side, symbol: ticker, shares: check.value, note }
       const result = await mutate<{ queued: true; why: "closed" | "no-live-price"; ticker: string } | { queued?: undefined; ticker: string; shares: number; price: number }>(`/api/fantasy/${leagueId}/trade`, { body })
       if (result.queued) {
         setReceipt({ id: Date.now(), side, ticker: result.ticker, shares: 0, price: 0, averageCost: null, isNew: false, queued: true })
@@ -113,6 +119,8 @@ export function TradePanel({ leagueId, cash, positions, onTraded, closed = false
         )
         setAmount("")
         setTouched(false)
+        setWhy("")
+        setWhyOpen(false)
         onTraded()
         return
       }
@@ -125,6 +133,8 @@ export function TradePanel({ leagueId, cash, positions, onTraded, closed = false
       }
       setAmount("")
       setTouched(false)
+      setWhy("")
+      setWhyOpen(false)
       onTraded()
     } catch (error) {
       toast(error instanceof Error ? error.message : "Trade failed.", "error")
@@ -262,6 +272,20 @@ export function TradePanel({ leagueId, cash, positions, onTraded, closed = false
           amount={amount}
           onChange={setAmount}
         />
+        {allowNote ? (
+        <div className="fs-why-field">
+          {whyOpen ? (
+            <>
+              <input className="fw-input fs-why" value={why} maxLength={280} onChange={(e) => setWhy(e.target.value)} placeholder="Why this one? Your league will see it." aria-label="Why are you making this move?" />
+              <span className="fs-count numeric">{why.length}/280</span>
+            </>
+          ) : (
+            <button type="button" className="fs-add-note" onClick={() => setWhyOpen(true)}>
+              Add why (optional)
+            </button>
+          )}
+        </div>
+        ) : null}
         <button type="submit" className="fw-submit" data-side={side} disabled={pending || cashingOut} aria-busy={pending || undefined}>
           {pending ? <span className="spin" aria-hidden /> : null}
           {pending ? "Placing order…" : side === "buy" ? (queues ? "Queue buy" : "Buy") : queues ? "Queue sell" : "Sell"}

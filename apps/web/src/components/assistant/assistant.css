@@ -7,13 +7,17 @@
    ========================================================================== */
 
 .peerfolio-app {
+  --pf-link: #1a5fc2;
+  --pf-link-hover: #0f4a9e;
   --ai-violet: 155, 124, 240;
-  --ai-glass: color-mix(in srgb, var(--panel) 52%, transparent);
+  --ai-glass: color-mix(in srgb, var(--panel) 90%, transparent);
   --ai-edge: color-mix(in srgb, var(--fg) 14%, transparent);
   --ai-shadow: 0 1px 2px rgb(0 0 0 / 0.08), 0 24px 60px -18px rgb(10 14 24 / 0.38), 0 8px 24px -12px rgb(10 14 24 / 0.25);
 }
 .dark .peerfolio-app, .peerfolio-app:where(.dark *) {
-  --ai-glass: color-mix(in srgb, var(--panel) 46%, transparent);
+  --pf-link: #6aa8f7;
+  --pf-link-hover: #9cc4fb;
+  --ai-glass: color-mix(in srgb, var(--panel) 92%, transparent);
   --ai-edge: color-mix(in srgb, var(--fg) 16%, transparent);
   --ai-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 28px 70px -16px rgb(0 0 0 / 0.7), 0 10px 30px -14px rgb(0 0 0 / 0.5);
 }
@@ -135,7 +139,8 @@
 .pf-ai-edge.is-nw { top: -3px; left: -3px; cursor: nwse-resize; } .pf-ai-edge.is-se { bottom: -3px; right: -3px; cursor: nwse-resize; }
 
 .pf-ai-head {
-  position: relative; display: flex; align-items: center; gap: 11px; flex: none; min-height: 54px; padding: 0 10px 0 18px;
+  position: relative; z-index: 2; background: color-mix(in srgb, var(--panel) 96%, transparent);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); display: flex; align-items: center; gap: 11px; flex: none; min-height: 54px; padding: 0 10px 0 18px;
   border-bottom: 1px solid color-mix(in srgb, var(--hair) 80%, transparent); cursor: grab; touch-action: none;
 }
 .is-live .pf-ai-head { cursor: grabbing; }
@@ -277,7 +282,7 @@
   font: 400 13.5px/1.5 var(--sans); background: color-mix(in srgb, var(--raise) 90%, transparent); border: 1px solid color-mix(in srgb, var(--hair) 80%, transparent);
 }
 .pf-ai-bot { display: flex; flex-direction: column; gap: 14px; }
-.pf-ai-text { font: 400 13.5px/1.6 var(--sans); color: var(--fg); white-space: pre-wrap; overflow-wrap: anywhere; }
+.pf-ai-text { font: 400 13.5px/1.6 var(--sans); color: var(--fg); overflow-wrap: anywhere; }
 .pf-ai-caret { display: inline-block; width: 6px; height: 14px; margin-left: 2px; vertical-align: -2px; border-radius: 1px; background: var(--pf-accent); animation: pf-ai-blink 1s steps(2) infinite; }
 @keyframes pf-ai-blink { 50% { opacity: 0; } }
 .pf-ai-think { display: inline-flex; align-items: center; gap: 9px; font: 450 12.5px/1 var(--sans); color: var(--fg3); }
@@ -301,7 +306,7 @@
 @keyframes pf-ai-pulse { 50% { box-shadow: 0 0 0 7px rgba(var(--accent-a), 0); } }
 
 /* ---------- Composer ---------- */
-.pf-ai-foot { flex: none; padding: 8px 14px 12px; }
+.pf-ai-foot { flex: none; padding: 8px 14px max(12px, env(safe-area-inset-bottom)); }
 .pf-ai-box {
   position: relative; display: flex; align-items: flex-end; gap: 8px; padding: 8px 8px 8px 14px; border-radius: 14px;
   border: 1px solid color-mix(in srgb, var(--hair) 90%, transparent); background: color-mix(in srgb, var(--bg) 40%, transparent);
@@ -559,3 +564,196 @@
 .pf-nav-sub { display: flex; flex-direction: column; gap: 1px; margin: 2px 0 4px 15px; padding-left: 14px; border-left: 1px solid var(--hair); }
 .pf-nav-sub .peerfolio-nav-link { height: 34px; font-size: 13.5px; }
 @media (prefers-reduced-motion: reduce) { .pf-nav-reveal, .pf-nav-chev { transition: none; } }
+
+
+/* ---------- Answers: Markdown, links, typing ---------- */
+.pf-ai-md { font: 400 13.5px/1.6 var(--sans); color: var(--fg); overflow-wrap: anywhere; text-wrap: pretty; }
+.pf-ai-md > :first-child { margin-top: 0; }
+.pf-ai-md > :last-child { margin-bottom: 0; }
+.pf-ai-md p, .pf-ai-md ul, .pf-ai-md ol, .pf-ai-md blockquote, .pf-ai-md .pf-ai-pre, .pf-ai-md .pf-ai-tablewrap { margin: 0 0 10px; }
+.pf-ai-md strong { font-weight: 600; }
+.pf-ai-md ul, .pf-ai-md ol { padding-left: 20px; }
+.pf-ai-md ul { list-style: disc; }
+.pf-ai-md ol { list-style: decimal; }
+.pf-ai-md li { margin: 0 0 4px; padding-left: 2px; }
+.pf-ai-md li::marker { color: var(--fg3); }
+.pf-ai-md li > p { margin: 0 0 4px; }
+.pf-ai-md li > ul, .pf-ai-md li > ol { margin: 4px 0 0; }
+.pf-ai-md .pf-ai-h { margin: 14px 0 6px; font-weight: 600; letter-spacing: -0.005em; }
+.pf-ai-md .pf-ai-h1 { font-size: 16px; } .pf-ai-md .pf-ai-h2 { font-size: 14.5px; } .pf-ai-md .pf-ai-h3 { font-size: 13.5px; }
+.pf-ai-md blockquote { padding: 2px 0 2px 12px; border-left: 2px solid var(--line); color: var(--fg2); }
+.pf-ai-md hr { border: 0; border-top: 1px solid var(--hair); margin: 12px 0; }
+.pf-ai-ic { padding: 1px 5px; border-radius: 5px; border: 1px solid var(--hair); background: color-mix(in srgb, var(--raise) 70%, transparent); font: 450 12px/1.4 var(--mono); }
+.pf-ai-pre { overflow-x: auto; padding: 11px 13px; border-radius: 10px; border: 1px solid var(--hair); background: color-mix(in srgb, var(--raise) 70%, transparent); font: 400 12px/1.55 var(--mono); tab-size: 2; white-space: pre; scrollbar-width: thin; }
+.pf-ai-pre code { font: inherit; }
+.pf-ai-tablewrap { overflow-x: auto; border: 1px solid var(--hair); border-radius: 10px; scrollbar-width: thin; }
+.pf-ai-md table { width: 100%; border-collapse: collapse; font: 400 12.5px/1.4 var(--sans); font-variant-numeric: tabular-nums; }
+.pf-ai-md th { padding: 8px 12px; text-align: left; font: 500 11px/1.3 var(--mono); letter-spacing: 0.04em; color: var(--fg2); background: color-mix(in srgb, var(--raise) 60%, transparent); white-space: nowrap; }
+.pf-ai-md td { padding: 8px 12px; border-top: 1px solid var(--hair2); }
+.pf-ai-pre:focus-visible, .pf-ai-tablewrap:focus-visible { outline: none; box-shadow: var(--pf-ring); }
+
+/* Every address in an answer is a blue, underlined link: web links open in a new tab, app links navigate in place. */
+.pf-ai-a { color: var(--pf-link); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; text-decoration-color: color-mix(in srgb, var(--pf-link) 45%, transparent); border-radius: 3px; transition: color 0.15s, text-decoration-color 0.15s; cursor: pointer; }
+.pf-ai-a:hover { color: var(--pf-link-hover); text-decoration-color: currentColor; }
+.pf-ai-a:focus-visible { outline: none; box-shadow: var(--pf-ring); }
+.pf-ai-a-ic { display: inline-block; margin: 0 0 2px 2px; vertical-align: baseline; opacity: 0.75; }
+
+/* The caret sits at the end of the last line while text is arriving, so it reads as typing. */
+.pf-ai-md.has-caret > :last-child:not(ul):not(ol):not(blockquote):not(.pf-ai-pre):not(.pf-ai-tablewrap):not(hr)::after,
+.pf-ai-md.has-caret > :is(ul, ol):last-child > li:last-child > :last-child::after,
+.pf-ai-md.has-caret > blockquote:last-child > :last-child::after {
+  content: ""; display: inline-block; width: 7px; height: 14px; margin-left: 3px; vertical-align: -2px; border-radius: 2px; background: var(--pf-accent);
+  animation: pf-ai-blink 1.05s steps(2, jump-none) infinite;
+}
+.pf-ai-md.has-caret > .pf-ai-pre:last-child code::after { content: ""; display: inline-block; width: 7px; height: 13px; margin-left: 1px; vertical-align: -2px; background: var(--pf-accent); animation: pf-ai-blink 1.05s steps(2, jump-none) infinite; }
+
+/* ---------- Under an answer: copy, regenerate, follow-ups ---------- */
+.pf-ai-acts { display: flex; align-items: center; gap: 2px; margin: -6px 0 0 -6px; }
+.pf-ai-act { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--fg3); font: 450 11.5px/1 var(--sans); cursor: pointer; transition: background-color 0.15s, color 0.15s, transform 0.12s; }
+.pf-ai-act:hover { background: color-mix(in srgb, var(--raise) 85%, transparent); color: var(--fg); }
+.pf-ai-act:active { transform: scale(0.96); }
+.pf-ai-act:focus-visible { outline: none; box-shadow: var(--pf-ring); }
+.pf-ai-act.is-done { color: var(--gain-ink, var(--gain)); }
+.pf-ai-stopped { font: 450 11.5px/1.3 var(--sans); color: var(--fg3); }
+.pf-ai-next { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; }
+.pf-ai-next-chip { display: inline-flex; align-items: center; gap: 7px; max-width: 100%; min-height: 32px; padding: 6px 12px; border: 1px solid var(--hair); border-radius: 999px; background: color-mix(in srgb, var(--raise) 45%, transparent); color: var(--fg2); text-align: left; font: 450 12.5px/1.3 var(--sans); cursor: pointer; transition: color 0.15s, border-color 0.15s, background-color 0.15s, transform 0.12s; animation: pf-ai-rise 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; animation-delay: calc(var(--i, 0) * 70ms + 80ms); }
+.pf-ai-next-chip:hover { color: var(--fg); border-color: color-mix(in srgb, var(--pf-accent) 50%, var(--hair)); background: var(--raise); }
+.pf-ai-next-chip:active { transform: scale(0.98); }
+.pf-ai-next-chip:focus-visible { outline: none; box-shadow: var(--pf-ring); }
+.pf-ai-next-chip svg { color: var(--fg3); flex: none; }
+@media (prefers-reduced-motion: reduce) { .pf-ai-md.has-caret *::after, .pf-ai-next-chip { animation: none !important; } }
+
+/* ---------- X-Ray: headline, one chart, details on request ---------- */
+.pf-x2-figs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+.pf-x2-today { font: 550 12.5px/16px var(--sans); font-variant-numeric: tabular-nums; }
+.pf-x2-chart { display: flex; flex-direction: column; gap: 12px; padding: 2px 14px 16px; }
+.pf-x2-chart .pf-xr-stack { height: 10px; }
+.pf-x2-chart .pf-xr-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.pf-x2-chart .pf-xr-legend li { gap: 6px; font-size: 12px; }
+.pf-x2-chart .pf-xr-legend b { margin-left: 2px; }
+.pf-x2-details { position: relative; border-top: 1px solid var(--hair); }
+.pf-x2-toggle { display: grid; grid-template-columns: auto minmax(0, 1fr) 14px; align-items: center; gap: 12px; width: 100%; min-height: 42px; padding: 6px 14px; border: 0; background: none; color: inherit; text-align: left; cursor: pointer; transition: background-color var(--pf-d); }
+.pf-x2-toggle:hover { background: var(--raise); }
+.pf-x2-toggle:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--pf-accent); }
+.pf-x2-toggle span { font: 500 10px/16px var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg2); }
+.pf-x2-toggle em { font: 400 11.5px/16px var(--sans); font-style: normal; color: var(--fg3); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+
+/* ==========================================================================
+   Reply typography. The app's own system: Hanken for reading, mono caps for
+   labels, serif for hero figures (the X-Ray). Replies are read, not studied:
+   14px on a 1.62 line, one lead sentence a touch larger, bold rare and
+   semibold, figures tabular, gains and losses in the same colours as the
+   portfolio page.
+   ========================================================================== */
+.pf-ai-md { font: 400 14px/1.62 var(--sans); font-variant-numeric: lining-nums; letter-spacing: -0.003em; max-width: 72ch; }
+.pf-ai-md strong { font-weight: 600; font-variant-numeric: lining-nums tabular-nums; }
+.pf-ai-md > p:first-child:not(:last-child) { font-size: 15px; line-height: 1.5; font-weight: 400; letter-spacing: -0.008em; }
+.pf-ai-md p { margin-bottom: 11px; }
+.pf-ai-md ul, .pf-ai-md ol { margin-bottom: 11px; padding-left: 18px; }
+.pf-ai-md li { margin-bottom: 5px; line-height: 1.55; }
+.pf-ai-md ol { font-variant-numeric: tabular-nums; }
+.pf-ai-md ol > li::marker { font: 500 12px var(--mono); color: var(--fg3); }
+.pf-ai-md td, .pf-ai-md th { font-variant-numeric: tabular-nums; }
+.pf-ai-md td:not(:first-child), .pf-ai-md th:not(:first-child) { text-align: right; }
+.pf-ai-md td:first-child { font-weight: 500; }
+.pf-ai-md .pf-ai-h { font: 500 10.5px/1.3 var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg2); margin: 16px 0 6px; }
+.pf-ai-num { font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pf-ai-num.is-up { color: var(--gain-ink, var(--gain)); }
+.pf-ai-num.is-down { color: var(--loss-ink, var(--loss)); }
+.pf-ai-user { font-size: 14px; line-height: 1.5; }
+
+/* Blocks arrive with a short rise instead of popping in; the typing itself stays inline, so nothing below shifts. */
+.pf-ai-md > * { animation: pf-ai-block 0.32s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.pf-ai-md li { animation: pf-ai-block 0.28s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes pf-ai-block { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .pf-ai-md > *, .pf-ai-md li { animation: none; } }
+
+/* A link the model wrote from memory: shown, not linked. */
+.pf-ai-a.is-unverified { color: var(--fg2); text-decoration-style: dotted; text-decoration-color: var(--fg3); cursor: help; }
+.pf-ai-a.is-unverified:hover { color: var(--fg2); }
+
+/* ---------- Thinking: finished steps and the current one ---------- */
+.pf-ai-think { flex-direction: column; align-items: flex-start; gap: 7px; }
+.pf-ai-think-row { display: inline-flex; align-items: center; gap: 9px; }
+.pf-ai-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.pf-ai-steps li { display: inline-flex; align-items: center; gap: 7px; font: 400 12px/1.2 var(--sans); color: var(--fg3); }
+.pf-ai-steps svg { color: var(--gain-ink, var(--gain)); flex: none; }
+
+/* ---------- Sources ---------- */
+.pf-ai-srcs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: -4px; }
+.pf-ai-src { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; height: 26px; padding: 0 10px 0 7px; border: 1px solid var(--hair); border-radius: 999px; background: color-mix(in srgb, var(--raise) 45%, transparent); color: var(--fg2); font: 450 11.5px/1 var(--sans); text-decoration: none; transition: color 0.15s, border-color 0.15s, background-color 0.15s; }
+.pf-ai-src:hover { color: var(--fg); border-color: var(--line); background: var(--raise); }
+.pf-ai-src:focus-visible { outline: none; box-shadow: var(--pf-ring); }
+.pf-ai-src span:not(.pf-ai-sr) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-ai-src-ic { width: 14px; height: 14px; border-radius: 4px; flex: none; display: grid; place-items: center; background: var(--hair2); color: var(--fg2); font: 600 9px/1 var(--sans); object-fit: contain; }
+
+/* ---------- Benchmark card: the two lines ---------- */
+.pf-vz-lines { display: block; width: 100%; height: 64px; margin: 2px 0 10px; overflow: visible; }
+.pf-vz-lines path { fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.pf-vz-lines .is-you { stroke: var(--pf-accent); }
+.pf-vz-lines .is-bench { stroke: var(--fg3); stroke-dasharray: 3 4; }
+.pf-vz-key { display: flex; gap: 14px; margin: 0 0 8px; font: 450 11px/1 var(--sans); color: var(--fg3); }
+.pf-vz-key i { display: inline-block; width: 12px; height: 0; margin-right: 6px; vertical-align: middle; border-top: 2px solid var(--pf-accent); }
+.pf-vz-key i.is-bench { border-top: 2px dashed var(--fg3); }
+
+/* ---------- X-Ray: the one thing worth a look, inline ---------- */
+.pf-x2-top { display: flex; align-items: center; gap: 10px; margin: 0 14px 14px; padding: 9px 12px; border: 1px solid color-mix(in srgb, var(--pf-accent) 28%, var(--hair)); border-radius: 10px; background: rgba(var(--accent-a), 0.05); font: 450 12.5px/1.35 var(--sans); color: var(--fg); }
+.pf-x2-top i { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--pf-accent); box-shadow: 0 0 0 3px rgba(var(--accent-a), 0.18); }
+.pf-x2-top span { min-width: 0; flex: 1; }
+.pf-x2-top b { font: 500 12px/1 var(--mono); font-variant-numeric: tabular-nums; flex: none; }
+
+/* Question-shaped figures: share bars with a rule-of-thumb tick, a spotlight number, a facts row and a compare table. */
+.pf-vz-shares { display: grid; gap: 9px; list-style: none; margin: 0; padding: 0; }
+.pf-vz-shares li { display: grid; grid-template-columns: minmax(78px, 118px) 1fr 46px; align-items: center; gap: 10px; font: 450 12px/1 var(--sans); }
+.pf-vz-fill::after { display: none; }
+.pf-vz-fill i { left: 0; transform-origin: left; background: color-mix(in srgb, var(--pf-accent) 70%, transparent); }
+.pf-vz-fill i.is-over { background: var(--pf-accent); }
+.pf-vz-line { position: absolute; top: -3px; bottom: -3px; width: 1px; background: var(--fg2); }
+.pf-vz-tiles small { font: 500 11px/1 var(--mono); font-variant-numeric: tabular-nums; }
+.pf-vz-facts { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 0; padding: 0; }
+.pf-vz-facts div { display: flex; flex-direction: column; gap: 4px; }
+.pf-vz-facts dt { font: 450 11px/1 var(--sans); color: var(--fg3); }
+.pf-vz-facts dd { margin: 0; font: 600 13px/1 var(--mono); font-variant-numeric: tabular-nums; }
+.pf-vz-hero { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+.pf-vz-hero b { font: 600 26px/1 var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.pf-vz-hero span { font: 450 12px/1.2 var(--sans); color: var(--fg3); }
+.pf-vz-shares + .pf-vz-facts { margin-top: 14px; }
+.pf-vz-table { width: 100%; border-collapse: collapse; font: 500 12.5px/1 var(--mono); font-variant-numeric: tabular-nums; }
+.pf-vz-table th, .pf-vz-table td { padding: 8px 0; text-align: right; border-top: 1px solid color-mix(in srgb, var(--hair) 80%, transparent); }
+.pf-vz-table thead th { border-top: 0; padding-top: 0; color: var(--fg); }
+.pf-vz-table tbody th { text-align: left; font: 450 11.5px/1 var(--sans); color: var(--fg3); }
+
+.pf-vz-stats small { font: 450 11px/1.2 var(--sans); color: var(--fg3); }
+.pf-vz-stats b { font-size: 15px; }
+.pf-vz-donut { display: grid; grid-template-columns: 112px 1fr; gap: 16px; align-items: center; }
+.pf-vz-ring { position: relative; width: 112px; height: 112px; }
+.pf-vz-ring svg { width: 100%; height: 100%; }
+.pf-vz-ring circle { fill: none; stroke-width: 5; }
+.pf-vz-ring-bg { stroke: color-mix(in srgb, var(--fg) 7%, transparent); }
+.pf-vz-ring-seg { stroke: var(--pf-accent); }
+.pf-vz-ring > span { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; }
+.pf-vz-ring small { font: 450 10.5px/1 var(--sans); color: var(--fg3); }
+.pf-vz-ring b { font: 600 14px/1 var(--mono); font-variant-numeric: tabular-nums; }
+.pf-vz-legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+.pf-vz-legend li { display: grid; grid-template-columns: 10px 1fr auto; align-items: center; gap: 8px; font: 450 12px/1 var(--sans); color: var(--fg2); }
+.pf-vz-legend i { width: 8px; height: 8px; border-radius: 50%; background: var(--pf-accent); }
+.pf-vz-legend b { font: 600 12px/1 var(--mono); color: var(--fg); font-variant-numeric: tabular-nums; }
+.pf-vz-scn label { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; font: 450 12.5px/1.2 var(--sans); color: var(--fg2); }
+.pf-vz-scn label b { color: var(--fg); font-weight: 600; }
+.pf-vz-scn output { font: 600 14px/1 var(--mono); font-variant-numeric: tabular-nums; }
+.pf-vz-scn input[type="range"] { width: 100%; margin: 0 0 12px; accent-color: var(--pf-accent); }
+.pf-vz-check { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.pf-vz-check label { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; font: 500 12.5px/1.35 var(--sans); color: var(--fg); }
+.pf-vz-check input { margin: 2px 0 0; accent-color: var(--pf-accent); }
+.pf-vz-check small, .pf-vz-tl small { display: block; margin-top: 3px; font: 450 11.5px/1.4 var(--sans); color: var(--fg3); }
+.pf-vz-check .is-done span { color: var(--fg3); text-decoration: line-through; }
+.pf-vz-tl { list-style: none; margin: 0; padding: 0 0 0 14px; display: grid; gap: 12px; border-left: 1px solid color-mix(in srgb, var(--fg) 14%, transparent); }
+.pf-vz-tl li { position: relative; display: grid; grid-template-columns: 74px 1fr; gap: 10px; font: 450 12.5px/1.35 var(--sans); color: var(--fg2); }
+.pf-vz-tl li::before { content: ""; position: absolute; left: -18px; top: 4px; width: 7px; height: 7px; border-radius: 50%; background: var(--pf-accent); }
+.pf-vz-tl b { color: var(--fg); font-weight: 600; }
+.pf-vz-when { font: 500 11px/1.4 var(--mono); color: var(--fg3); }
+.pf-vz-cal { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.pf-vz-cal li { display: grid; grid-template-columns: 62px 1fr auto; gap: 10px; align-items: baseline; font: 450 12.5px/1.2 var(--sans); color: var(--fg2); }
+.pf-vz-cal b { font: 600 12.5px/1 var(--mono); color: var(--fg); font-variant-numeric: tabular-nums; }
+@media (max-width: 420px) { .pf-vz-donut { grid-template-columns: 1fr; justify-items: center; } }

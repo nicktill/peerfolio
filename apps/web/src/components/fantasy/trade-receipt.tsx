@@ -1,5 +1,6 @@
 "use client"
 
+import "./sell-flourish.css"
 import Image from "next/image"
 import { useEffect, useState } from "react"
 import { AnimatedNumber } from "@web/components/ui/animated-number"
@@ -50,6 +51,11 @@ export function TradeReceipt({ receipt, onDone }: { receipt: Receipt; onDone: ()
         <svg className="fw-trade-ring" viewBox="0 0 88 88"><circle cx="44" cy="44" r="41" pathLength="1" /></svg>
         <Image src="/logo.png" alt="" width={48} height={48} className="peerfolio-logo" />
       </span>
+      {receipt.side === "sell" && !receipt.queued ? (
+        <span className="fw-coins" aria-hidden>
+          {[-62, -38, -14, 14, 38, 62].map((x, i) => <i key={i} style={{ "--x": `${x}px`, "--d": `${0.25 + i * 0.07}s` } as React.CSSProperties} />)}
+        </span>
+      ) : null}
       <p className="fw-trade-confirmed relative z-10 mt-4 text-sm font-medium">{receipt.queued ? "Order queued" : "Confirmed"}</p>
       <p className="relative z-10 mt-3 font-display text-xl font-semibold tracking-tight">
         {receipt.queued ? (buy ? "Buy queued" : "Sell queued") : (buy ? "Bought" : "Sold")} <span className="font-mono">{receipt.ticker}</span>

@@ -2,12 +2,15 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { ArrowDownRight, ArrowUpRight, ChevronDown } from "lucide-react"
+import { EmptyScene } from "@web/components/ui/empty-scene"
 import { Avatar } from "@web/components/ui/avatar"
 import { formatCurrency, formatRelativeTime } from "@web/lib/format"
 import { groupFeed, tradeCount, type FeedEntry } from "@web/lib/feed-groups"
 import { cn } from "@web/lib/utils"
+import { NoteThread } from "@web/components/fantasy/season/note-thread"
+import type { NoteView } from "@web/lib/fantasy-notes"
 
-export type FeedItem = { id: string; name: string | null; handle: string | null; image: string | null; side: "buy" | "sell"; ticker: string; shares: number; price: number; at: string }
+export type FeedItem = { id: string; name: string | null; handle: string | null; image: string | null; side: "buy" | "sell"; ticker: string; shares: number; price: number; at: string; isYou?: boolean; note?: NoteView | null }
 
 /** Lines shown before the rest fold away. A burst of trades by one person is a single line. */
 const PREVIEW = 5
@@ -20,7 +23,9 @@ const SideIcon = ({ side }: { side: "buy" | "sell" }) => (
 )
 
 /** The league's trades, newest first. The pump.fun-style pulse of a league. */
-export function TradeFeed({ items }: { items: FeedItem[] }) {
+export function TradeFeed({ items, leagueId, onChanged }: { items: FeedItem[]; leagueId?: string; onChanged?: () => void }) {
+  const noteFor = (item: FeedItem) =>
+    leagueId && (item.note || item.isYou) ? <NoteThread leagueId={leagueId} note={item.note ?? null} target={item.isYou ? { tradeId: item.id } : undefined} onChanged={onChanged ?? (() => {})} /> : null
   const entries = useMemo(() => groupFeed(items), [items])
   const [showAll, setShowAll] = useState(false)
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set())
@@ -44,13 +49,13 @@ export function TradeFeed({ items }: { items: FeedItem[] }) {
     })
 
   return (
-    <section className="fw-panel" aria-labelledby="fw-feed-title">
+    <section className="fw-panel" data-flat aria-labelledby="fw-feed-title">
       <div className="fw-section-head">
         <h2 id="fw-feed-title">Trade feed</h2>
         <span className="fw-live" aria-hidden />
       </div>
       {items.length === 0 ? (
-        <p className="fw-empty">Quiet in here. Someone make the first move.</p>
+        <EmptyScene kind="feed" title="Quiet in here" body="Someone make the first move and it shows up right here." />
       ) : (
         <>
           <ol className="fw-feed">
@@ -69,9 +74,10 @@ export function TradeFeed({ items }: { items: FeedItem[] }) {
                     </p>
                     <SideIcon side={entry.item.side} />
                   </div>
+                  {noteFor(entry.item)}
                 </li>
               ) : (
-                <GroupLine key={entry.key} entry={entry} open={open.has(entry.key)} onToggle={() => toggle(entry.key)} fresh={isNew(entry.items[0]!.id)} />
+                <GroupLine key={entry.key} entry={entry} open={open.has(entry.key)} onToggle={() => toggle(entry.key)} fresh={isNew(entry.items[0]!.id)} noteFor={noteFor} />
               ),
             )}
           </ol>
@@ -88,7 +94,7 @@ export function TradeFeed({ items }: { items: FeedItem[] }) {
 }
 
 /** "Josh made 4 buys": one line that opens into the trades behind it. */
-function GroupLine({ entry, open, onToggle, fresh }: { entry: Extract<FeedEntry<FeedItem>, { kind: "group" }>; open: boolean; onToggle: () => void; fresh: boolean }) {
+function GroupLine({ entry, open, onToggle, fresh, noteFor }: { entry: Extract<FeedEntry<FeedItem>, { kind: "group" }>; open: boolean; onToggle: () => void; fresh: boolean; noteFor: (item: FeedItem) => React.ReactNode }) {
   const first = entry.items[0]!
   const noun = entry.side === "buy" ? "buys" : "sells"
   return (
@@ -112,6 +118,7 @@ function GroupLine({ entry, open, onToggle, fresh }: { entry: Extract<FeedEntry<
                 <b>{item.ticker}</b> · {formatCurrency(item.shares * item.price)}
               </span>
               <span>{formatRelativeTime(item.at)}</span>
+              {noteFor(item) ? <div style={{ flexBasis: "100%" }}>{noteFor(item)}</div> : null}
             </li>
           ))}
         </ul>

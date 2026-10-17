@@ -1,3 +1,4 @@
+import Image from "next/image"
 import { cn } from "@web/lib/utils"
 
 const SIZES = { sm: "h-7 w-7 text-[10px]", md: "h-8 w-8 text-[11px]", lg: "h-12 w-12 text-sm", xl: "h-20 w-20 text-xl" }
@@ -32,7 +33,9 @@ export function Avatar({
         className,
       )}
     >
-      {src ? (
+      {src?.startsWith("/demo/avatars/") && src.endsWith(".png") ? (
+        <Image src={src} alt="" width={80} height={80} sizes={size === "xl" ? "80px" : size === "lg" ? "48px" : "32px"} className="h-full w-full object-cover" />
+      ) : src ? (
         // Avatars come from arbitrary OAuth CDNs; next/image would need each
         // host allow-listed, so a plain img is the pragmatic choice here.
         // eslint-disable-next-line @next/next/no-img-element

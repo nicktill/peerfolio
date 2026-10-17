@@ -6,23 +6,25 @@
  * existing logo proxy (`ticker`). Private ones (Fidelity, Vanguard) have no
  * ticker, so they get a monogram tile in their brand colour.
  */
-export type Brand = { name: string; ticker?: string; color: string; monogram: string }
+/** `glyph` is a one-colour SVG (public/brokerages) drawn in `ink` on a `color` tile, so the mark never sits on a white square. */
+export type Brand = { name: string; ticker?: string; color: string; monogram: string; glyph?: string; ink?: string }
 
 const BRANDS: (Brand & { aliases: string[] })[] = [
-  { name: "Robinhood", ticker: "HOOD", color: "#00c805", monogram: "R", aliases: ["robinhood"] },
+  { name: "Robinhood", color: "#00c805", monogram: "R", glyph: "/brokerages/robinhood.svg", ink: "#0a1a0a", aliases: ["robinhood"] },
   { name: "Fidelity", color: "#368727", monogram: "F", aliases: ["fidelity", "fidelity investments", "netbenefits"] },
   { name: "Vanguard", color: "#96151d", monogram: "V", aliases: ["vanguard"] },
   { name: "Charles Schwab", ticker: "SCHW", color: "#00a0df", monogram: "S", aliases: ["schwab", "charles schwab", "td ameritrade", "ameritrade"] },
   { name: "Interactive Brokers", ticker: "IBKR", color: "#d81222", monogram: "IB", aliases: ["interactive brokers", "ibkr"] },
   { name: "E*TRADE", ticker: "MS", color: "#6633cc", monogram: "E", aliases: ["etrade", "e trade", "morgan stanley"] },
   { name: "SoFi", ticker: "SOFI", color: "#00a2c7", monogram: "S", aliases: ["sofi", "sofi invest"] },
-  { name: "Coinbase", ticker: "COIN", color: "#0052ff", monogram: "C", aliases: ["coinbase"] },
-  { name: "Merrill", ticker: "BAC", color: "#0060a9", monogram: "M", aliases: ["merrill", "merrill edge", "merrill lynch", "bank of america", "bofa"] },
-  { name: "J.P. Morgan", ticker: "JPM", color: "#117aca", monogram: "J", aliases: ["chase", "jpmorgan", "jp morgan", "j p morgan", "jpmorgan chase"] },
+  { name: "Coinbase", color: "#0052ff", monogram: "C", glyph: "/brokerages/coinbase.svg", ink: "#ffffff", aliases: ["coinbase"] },
+  { name: "Merrill", color: "#012169", monogram: "M", glyph: "/brokerages/merrill.svg", ink: "#ffffff", aliases: ["merrill", "merrill edge", "merrill lynch", "bank of america", "bofa"] },
+  { name: "Chase", color: "#117aca", monogram: "C", glyph: "/brokerages/chase.svg", ink: "#ffffff", aliases: ["chase"] },
+  { name: "J.P. Morgan", ticker: "JPM", color: "#117aca", monogram: "J", aliases: ["jpmorgan", "jp morgan", "j p morgan", "jpmorgan chase"] },
   { name: "Wells Fargo", ticker: "WFC", color: "#d71e28", monogram: "W", aliases: ["wells fargo"] },
   { name: "Ally", ticker: "ALLY", color: "#650360", monogram: "A", aliases: ["ally", "ally invest", "ally bank"] },
-  { name: "Capital One", ticker: "COF", color: "#004977", monogram: "C", aliases: ["capital one", "capitalone"] },
-  { name: "American Express", ticker: "AXP", color: "#016fd0", monogram: "A", aliases: ["american express", "amex"] },
+  { name: "Capital One", color: "#004977", monogram: "C", aliases: ["capital one", "capitalone"] },
+  { name: "American Express", color: "#016fd0", monogram: "A", glyph: "/brokerages/americanexpress.svg", ink: "#ffffff", aliases: ["american express", "amex"] },
   { name: "Goldman Sachs", ticker: "GS", color: "#7399c6", monogram: "G", aliases: ["goldman sachs", "marcus"] },
   { name: "Citi", ticker: "C", color: "#003b70", monogram: "C", aliases: ["citi", "citibank", "citigroup"] },
   { name: "U.S. Bank", ticker: "USB", color: "#0c2074", monogram: "U", aliases: ["us bank", "u s bank", "usbank"] },
@@ -51,5 +53,5 @@ export function brandFor(institution: string | null | undefined): Brand | null {
   // Whole-word match, so "Public" doesn't catch "Republic Bank" and "Citi" doesn't catch "Citizens".
   const words = ` ${text} `
   const found = BRANDS.find((b) => b.aliases.some((a) => words.includes(` ${a} `)))
-  return found ? { name: found.name, ticker: found.ticker, color: found.color, monogram: found.monogram } : null
+  return found ? { name: found.name, ticker: found.ticker, color: found.color, monogram: found.monogram, glyph: found.glyph, ink: found.ink } : null
 }

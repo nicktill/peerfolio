@@ -1,6 +1,6 @@
 import { describe, it } from "node:test"
 import assert from "node:assert/strict"
-import { applyEvent, historyForRetry, patchLastMessage, requestMessages, withoutErrors, type Msg } from "./chat-state.ts"
+import { applyEvent, historyForRetry, markStopped, patchLastMessage, requestMessages, withoutErrors, type Msg } from "./chat-state.ts"
 import type { XRay } from "./portfolio-xray.ts"
 
 const m = (role: Msg["role"], text: string, extra: Partial<Msg> = {}): Msg => ({ id: `${role}-${text}`, role, text, ...extra })
@@ -63,6 +63,11 @@ describe("requestMessages", () => {
     assert.deepEqual(out, [{ role: "user", content: "q1" }, { role: "user", content: "q2" }])
   })
 
+  it("sends an answer without its follow-up suggestions", () => {
+    const out = requestMessages([m("user", "hi"), m("assistant", "Short answer.\n<follow_ups>\n- More?\n</follow_ups>"), m("user", "more")])
+    assert.equal(out[1]!.content, "Short answer.")
+  })
+
   it("does not leak ids, reports or error text to the server", () => {
     const out = requestMessages([m("user", "hi"), m("assistant", "yo", { xray: { secret: 1 } as unknown as XRay })])
     for (const o of out) assert.deepEqual(Object.keys(o).sort(), ["content", "role"])
@@ -90,5 +95,25 @@ describe("withoutErrors / historyForRetry / patchLastMessage", () => {
     assert.deepEqual(out.map((x) => x.text), ["a", "B"])
     assert.equal(all[1]!.text, "b")
     assert.deepEqual(patchLastMessage([], (x) => x), [])
+  })
+})
+
+describe("markStopped", () => {
+  it("flags a partial answer as stopped and keeps its text", () => {
+    assert.deepEqual(markStopped(m("assistant", "half an ans")), { ...m("assistant", "half an ans"), stopped: true })
+  })
+  it("leaves failed answers and user messages alone", () => {
+    const failed = m("assistant", "x", { error: "boom" })
+    assert.equal(markStopped(failed), failed)
+    const user = m("user", "q")
+    assert.equal(markStopped(user), user)
+  })
+})
+
+describe("sources", () => {
+  it("collects sources, upgrading a mention to a citation, and drops junk", () => {
+    let msg = applyEvent(blank, { type: "sources", items: [{ url: "https://a.com/x" }, { url: "javascript:alert(1)" }] })
+    msg = applyEvent(msg, { type: "sources", items: [{ url: "http://www.a.com/x/", title: "A", cited: true }] })
+    assert.deepEqual(msg.sources, [{ url: "http://www.a.com/x/", title: "A", cited: true }])
   })
 })

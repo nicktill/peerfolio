@@ -546,3 +546,43 @@ a.pf-row:active, .pf-row.hov:active { background: var(--hair2); }
 
 .peerfolio-app:not(.pf-landing) { overflow:clip; }
 
+
+
+/* Podium tickets: the top three rows (Board and league standings) get a metal hairline, a tinted body,
+   an engraved rank numeral behind the row, and a slow shine across first place. */
+.peerfolio-app :is(.bd-row[data-podium], .pf-standing[data-medal]) { --pm: var(--medal-1); --pma: var(--medal-1-a); isolation: isolate; overflow: hidden; }
+.peerfolio-app :is(.bd-row[data-podium="2"], .pf-standing[data-medal="2"]) { --pm: var(--medal-2); --pma: var(--medal-2-a); }
+.peerfolio-app :is(.bd-row[data-podium="3"], .pf-standing[data-medal="3"]) { --pm: var(--medal-3); --pma: var(--medal-3-a); }
+.peerfolio-app :is(.bd-row[data-podium], .pf-standing[data-medal]) {
+  background: linear-gradient(90deg, rgba(var(--pma), .14), rgba(var(--pma), .03) 70%);
+  box-shadow: inset 0 0 0 1px rgba(var(--pma), .32);
+  border-radius: 10px;
+}
+.peerfolio-app :is(.bd-row[data-podium], .pf-standing[data-medal])::after {
+  content: attr(data-podium); position: absolute; right: 150px; top: 50%; transform: translateY(-50%); z-index: -1; pointer-events: none;
+  font: 400 64px/1 var(--font-display, var(--fw-serif, Georgia, serif)); color: rgba(var(--pma), .12);
+}
+.peerfolio-app .pf-standing[data-medal="1"]::after { content: "1"; right: 20px; }
+.peerfolio-app .pf-standing[data-medal="2"]::after { content: "2"; right: 20px; }
+.peerfolio-app .pf-standing[data-medal="3"]::after { content: "3"; right: 20px; }
+.peerfolio-app :is(.bd-row[data-podium="1"], .pf-standing[data-medal="1"])::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: linear-gradient(105deg, transparent 38%, rgba(var(--pma), .22) 50%, transparent 62%);
+  background-size: 250% 100%; animation: pf-podium-shine 6s ease-in-out 1.2s infinite;
+}
+@keyframes pf-podium-shine { 0%, 55% { background-position: 130% 0; } 100% { background-position: -30% 0; } }
+.peerfolio-app .bd-row[data-podium].bd-you::before { z-index: auto; background: var(--pf-accent); animation: none; inset: auto; }
+.peerfolio-app .bd-leader { flex: none; font: 600 9px/14px var(--font-mono, var(--font-plex-mono)), ui-monospace, monospace; letter-spacing: .1em; text-transform: uppercase; padding: 0 6px; border-radius: 999px; color: var(--medal-1); background: rgba(var(--medal-1-a), .16); }
+@media (prefers-reduced-motion: reduce) { .peerfolio-app :is(.bd-row, .pf-standing)::before { animation: none !important; } }
+@media (max-width: 640px) { .peerfolio-app .bd-row[data-podium]::after { right: 12px; font-size: 52px; } }
+
+/* Hover on a podium row deepens its metal instead of swapping in the plain row hover, which erased the tint. */
+.peerfolio-app .bd-row[data-podium]:hover, .peerfolio-app .pf-standing[data-medal]:hover {
+  background: linear-gradient(90deg, rgba(var(--pma), .24), rgba(var(--pma), .07) 70%);
+  box-shadow: inset 0 0 0 1px rgba(var(--pma), .5);
+}
+.peerfolio-app .bd-row[data-podium], .peerfolio-app .pf-standing[data-medal] { transition: background .2s, box-shadow .2s; }
+
+/* Light theme: the Leader chip's gold text was 4.3:1 on its tint. */
+.peerfolio-app .bd-leader { color: #6b4d00; }
+.dark .peerfolio-app .bd-leader { color: var(--medal-1); }

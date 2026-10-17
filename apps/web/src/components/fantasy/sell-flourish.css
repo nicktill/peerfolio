@@ -1,0 +1,20 @@
+/* Closing a position: the receipt's figure rolls up like cash coming in, and a sweep crosses the card once. */
+.fw-trade-confirmation[data-side="sell"]::after {
+  content: ""; position: absolute; inset: 0; z-index: 5; pointer-events: none;
+  background: linear-gradient(105deg, transparent 35%, color-mix(in srgb, var(--gain, #16a34a) 22%, transparent) 50%, transparent 65%);
+  transform: translateX(-100%); animation: sell-sweep 0.9s 0.15s ease-out forwards;
+}
+.fw-trade-confirmation[data-side="sell"] .fw-trade-logo { position: relative; animation: sell-tear 0.7s ease-out both; }
+.fw-trade-confirmation[data-side="sell"] .fw-trade-logo::after { content: ""; position: absolute; left: 50%; top: -4px; bottom: -4px; width: 2px; background: hsl(var(--card)); transform: scaleY(0); animation: sell-split 0.5s 0.15s ease-out both; }
+@keyframes sell-split { 0% { transform: scaleY(0); } 40% { transform: scaleY(1); } 100% { transform: scaleY(1); opacity: 0; } }
+.fw-trade-confirmation[data-side="sell"] .numeric.text-3xl { animation: sell-roll 0.6s 0.55s cubic-bezier(0.2, 1.2, 0.4, 1) both; padding: 2px 16px; border-radius: 10px; background: color-mix(in srgb, var(--gain, #16a34a) 12%, transparent); }
+.fw-coins { position: absolute; left: 50%; top: 38%; z-index: 6; pointer-events: none; }
+.fw-coins i { position: absolute; left: -6px; top: 0; width: 12px; height: 12px; border-radius: 50%; background: #f5c451; border: 1.5px solid #c9962a; opacity: 0; animation: sell-coin 0.75s var(--d) ease-in both; }
+@keyframes sell-coin { 0% { opacity: 0; transform: translate(0, -8px); } 20% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--x), 96px) rotate(200deg); } }
+@keyframes sell-sweep { to { transform: translateX(100%); } }
+@keyframes sell-tear { 0% { transform: rotate(0); } 30% { transform: rotate(-6deg) translateY(2px); } 60% { transform: rotate(4deg) translateY(-2px); } 100% { transform: none; } }
+@keyframes sell-roll { 0% { opacity: 0; transform: translateY(16px) scale(0.92); } 100% { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .fw-trade-confirmation[data-side="sell"]::after, .fw-trade-confirmation[data-side="sell"] .fw-trade-logo, .fw-trade-confirmation[data-side="sell"] .numeric.text-3xl { animation: none; }
+  .fw-coins { display: none; }
+}

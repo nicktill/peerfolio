@@ -1,4 +1,5 @@
 import { inviteMetadata } from "@web/lib/invite-metadata"
+import { LeagueMark } from "@web/components/league/league-mark"
 import Image from "next/image"
 import Link from "next/link"
 import { previewFantasyLeague } from "@web/lib/fantasy"
@@ -34,13 +35,14 @@ export default async function JoinFantasyPage({ params }: { params: Promise<{ co
         </>
       ) : (
         <div className="rounded-3xl border bg-card/80 p-6 shadow-xl backdrop-blur">
-          <span className="text-5xl" aria-hidden>{league.emoji}</span>
+          <LeagueMark value={league.emoji} accent="emerald" size={64} />
           <p className="mt-4 text-sm font-semibold text-primary">You&apos;ve been drafted</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">{league.name}</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             {league.memberCount} {league.memberCount === 1 ? "player" : "players"} · {formatCurrency(league.startingCash)} of play money each
             {league.endsAt ? ` · ends ${league.endsAt.toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : " · all-time"}
           </p>
+          <p className="mt-1 text-sm text-muted-foreground">{league.playsAs}. A new round every Monday.</p>
           <JoinFantasy code={normalized} leagueName={league.name} />
         </div>
       )}

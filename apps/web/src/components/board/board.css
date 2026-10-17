@@ -39,3 +39,9 @@
 }
 .bd-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
 .bd-controls [role="radiogroup"] button { min-height: 30px; }
+
+/* Phones: name + YOU/LEADER tags wrap instead of squeezing the name to one letter */
+@media (max-width: 700px) {
+  .bd-name { flex-wrap: wrap; row-gap: 2px; }
+  .bd-name > :first-child { max-width: 100%; }
+}

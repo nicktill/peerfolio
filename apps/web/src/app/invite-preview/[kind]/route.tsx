@@ -37,7 +37,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ kin
         <div style={{ display: "flex", flexDirection: "column" }}>
           <div style={{ display: "flex", color: "#8fb0e6", fontSize: 19, letterSpacing: 3, fontFamily: mono }}>{fantasy ? "FANTASY / PLAY MONEY" : "PRIVATE LEAGUE"}</div>
           <div style={{ display: "flex", flexDirection: "column", marginTop: 18, fontSize: 62, lineHeight: 1.04, fontWeight: 700 }}>
-            <div style={{ display: "flex" }}>You're invited</div>
+            <div style={{ display: "flex" }}>You&apos;re invited</div>
             <div style={{ display: "flex", color: "#8fb0e6" }}>{fantasy ? "to the draft." : "to the league."}</div>
           </div>
           <div style={{ display: "flex", marginTop: 22, fontSize: 24, lineHeight: 1.4, color: "#a7b0bc" }}>

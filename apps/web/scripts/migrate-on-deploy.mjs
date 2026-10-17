@@ -2,8 +2,8 @@
 //
 // Migrations were a manual step, so a deploy could ship code that expects a table that
 // isn't there yet. This runs the same migrations `npm run db:migrate` would, only for the
-// production build, and never fails the build: if it can't run, the old schema stays and
-// the app falls back where it was written to (see lib/plaid-switch.ts). Previews and local
+// production build. A failed or unsafe migration blocks deployment so new code cannot
+// ship against an old schema. Previews and local
 // builds skip it, so a preview can never touch the production database.
 import { readFileSync } from "node:fs"
 import postgres from "postgres"
@@ -13,7 +13,7 @@ import { migrate } from "drizzle-orm/postgres-js/migrator"
 
 if (process.env.VERCEL_ENV !== "production" || !process.env.DATABASE_URL) {
   console.log("[migrate] skipped (not a production build)")
-  process.exit(0)
+  process.exit(process.exitCode ?? 0)
 }
 
 const client = postgres(process.env.DATABASE_URL, { max: 1, onnotice: () => {} })
@@ -26,15 +26,15 @@ try {
   for (const entry of pending) {
     const risky = riskyStatement(readFileSync(`./drizzle/${entry.tag}.sql`, "utf8"))
     if (risky) {
-      console.error(`[migrate] NOT applying: ${entry.tag} contains a statement that could lose data (${risky}). Run db:migrate yourself after checking a backup. Continuing the build.`)
-      process.exit(0)
+      throw new Error(`${entry.tag} contains a statement that could lose data (${risky}). Apply it manually after checking a backup before deploying.`)
     }
   }
   await migrate(drizzle(client), { migrationsFolder: "./drizzle" })
   console.log("[migrate] database is up to date")
 } catch (error) {
-  console.error("[migrate] could not apply migrations; continuing the build:", error instanceof Error ? error.message : error)
+  process.exitCode = 1
+  console.error("[migrate] deployment blocked because migrations failed:", error instanceof Error ? error.message : error)
 } finally {
   await client.end({ timeout: 5 })
 }
-process.exit(0)
+process.exit(process.exitCode ?? 0)

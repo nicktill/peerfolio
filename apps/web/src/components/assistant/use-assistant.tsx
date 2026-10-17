@@ -2,9 +2,12 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
 import { usePathname } from "next/navigation"
+import { useSession } from "next-auth/react"
 import { parseStreamChunk } from "@web/lib/ai/stream-parse"
-import { applyEvent, historyForRetry, patchLastMessage, requestMessages, withoutErrors, type ChatEvent as Event, type Msg } from "@web/lib/ai/chat-state"
+import { applyEvent, historyForRetry, markStopped, patchLastMessage, requestMessages, withoutErrors, type ChatEvent as Event, type Msg } from "@web/lib/ai/chat-state"
 import type { XRay } from "@web/lib/ai/portfolio-xray"
+import { readAssistantView } from "@web/components/assistant/view-context"
+import { packThread, threadKey, unpackThread } from "@web/lib/ai/thread-store"
 import { addReport, parseConversations, parseReports, recentItems, removeById, titleFor, toSaved, upsertConversation, type RecentItem, type SavedConversation, type SavedReport } from "@web/lib/ai/saved"
 
 /**
@@ -24,6 +27,8 @@ type Assistant = {
   phase: Phase
   /** What the running tool is doing, in words ("Checking the market"), or null. */
   activity: string | null
+  /** The steps already finished in this turn, oldest first, so a slow turn reads as a short plan being carried out. */
+  steps: string[]
   busy: boolean
   page: Page
   /** A specific league (or similar) is open, rather than the section's list page. */
@@ -43,9 +48,14 @@ type Assistant = {
 
 const Ctx = createContext<Assistant | null>(null)
 
-const STORE = "pf-assistant-chat-v1"
 const CHATS = "pf-assistant-saved-chats-v1"
 const REPORTS = "pf-assistant-saved-reports-v1"
+/** Saved items are kept per person on a shared browser. Items saved before that was true are still read, and rewritten under the new key. */
+const userKey = (base: string, uid: string | null) => (uid ? `${base}:${uid.slice(0, 64)}` : base)
+function readUserJson(base: string, uid: string | null): unknown {
+  const own = readJson(userKey(base, uid))
+  return own ?? (uid ? readJson(base) : null)
+}
 
 function readJson(key: string): unknown {
   try {
@@ -75,6 +85,8 @@ export function pageOf(pathname: string): Page {
 
 export function AssistantProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const { data: session } = useSession()
+  const userId = session?.user?.id ?? null
   const page = pageOf(pathname)
   const entityId = pathname.split("/")[2]
   // /leagues/<id> and /fantasy/<id> are a specific league; /fantasy/join/<code> and the section roots are not.
@@ -83,6 +95,7 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
   const [messages, setMessages] = useState<Msg[]>([])
   const [phase, setPhase] = useState<Phase>("idle")
   const [activity, setActivity] = useState<string | null>(null)
+  const [steps, setSteps] = useState<string[]>([])
   const [reportSeq, setReportSeq] = useState(0)
   const abort = useRef<AbortController | null>(null)
   const hydrated = useRef(false)
@@ -94,17 +107,22 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
   const live = useRef({ messages, page, entityId })
   live.current = { messages, page, entityId }
 
+  // Everything is per person: the last thread, saved chats and saved reports are read once the signed-in user is known.
+  const loadedFor = useRef<string | null>(null)
   useEffect(() => {
+    if (!userId || loadedFor.current === userId) return
+    loadedFor.current = userId
+    hydrated.current = false
     try {
-      const saved = sessionStorage.getItem(STORE)
-      if (saved) setMessages((JSON.parse(saved) as Msg[]).filter((m) => m && typeof m.text === "string"))
+      setMessages(unpackThread(localStorage.getItem(threadKey(userId)), Date.now()))
     } catch {
-      // Storage can be blocked; the conversation just won't survive a reload.
+      // Storage can be blocked; the conversation just won't come back.
     }
-    setChats(parseConversations(readJson(CHATS)))
-    setReports(parseReports(readJson(REPORTS)))
+    setChats(parseConversations(readUserJson(CHATS, userId)))
+    setReports(parseReports(readUserJson(REPORTS, userId)))
+    convoId.current = null
     hydrated.current = true
-  }, [])
+  }, [userId])
 
   // Keep the saved copy of the current conversation up to date once an answer has settled.
   useEffect(() => {
@@ -115,19 +133,20 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
     const entry: SavedConversation = { id: convoId.current, title: titleFor(saved), updatedAt: Date.now(), messages: saved }
     setChats((all) => {
       const next = upsertConversation(all, entry, Date.now())
-      writeJson(CHATS, next)
+      writeJson(userKey(CHATS, userId), next)
       return next
     })
-  }, [messages, phase])
+  }, [messages, phase, userId])
 
   useEffect(() => {
     if (!hydrated.current || phase !== "idle") return
+    if (!userId) return
     try {
-      sessionStorage.setItem(STORE, JSON.stringify(messages.slice(-20)))
+      localStorage.setItem(threadKey(userId), packThread(messages, Date.now()))
     } catch {
       // See above.
     }
-  }, [messages, phase])
+  }, [messages, phase, userId])
 
   const patchLast = useCallback((fn: (m: Msg) => Msg) => {
     setMessages((all) => patchLastMessage(all, fn))
@@ -137,9 +156,13 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
     async (history: Msg[]) => {
       const controller = new AbortController()
       abort.current = controller
+      setSteps([])
       setPhase("reading")
+      // A run that was replaced (a new conversation was started) must not touch the one that replaced it.
+      const current = () => abort.current === controller
       const finish = () => {
-        if (abort.current === controller) abort.current = null
+        if (!current()) return
+        abort.current = null
         setPhase("idle")
         setActivity(null)
       }
@@ -151,11 +174,12 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
           signal: controller.signal,
           body: JSON.stringify({
             messages: requestMessages(history),
-            context: { page: live.current.page, entityId: live.current.entityId },
+            context: { page: live.current.page, entityId: live.current.entityId, ...(live.current.page === "portfolio" ? readAssistantView() : {}) },
           }),
         })
         if (!res.ok || !res.body) {
           const body = (await res.json().catch(() => null)) as { error?: string } | null
+          if (!current()) return
           patchLast((m) => ({ ...m, error: body?.error ?? "The assistant isn't available right now." }))
           return finish()
         }
@@ -166,6 +190,7 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
         for (;;) {
           const { value, done } = await reader.read()
           if (done) break
+          if (!current()) return
           const parsed = parseStreamChunk<Event>(buffer, decoder.decode(value, { stream: true }))
           buffer = parsed.rest
           // Text that arrives together is applied together: one render per network chunk, not one per token.
@@ -184,16 +209,21 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
             flush()
             if (event.type === "status") {
               setPhase(event.stage)
-              setActivity(event.stage === "analyzing" ? (event.label ?? null) : null)
+              const label = event.stage === "analyzing" ? (event.label ?? null) : null
+              setActivity((prev) => {
+                // The step that was running is finished once another begins.
+                if (prev && prev !== label) setSteps((all) => (all.includes(prev) ? all : [...all.slice(-3), prev]))
+                return label
+              })
             } else patchLast((m) => applyEvent(m, event))
             if (event.type === "xray") setReportSeq((n) => n + 1)
           }
           flush()
         }
       } catch (error) {
-        if (!(error instanceof DOMException && error.name === "AbortError")) {
-          patchLast((m) => ({ ...m, error: "The connection dropped. Try again." }))
-        }
+        if (!current()) return
+        if (error instanceof DOMException && error.name === "AbortError") patchLast(markStopped)
+        else patchLast((m) => ({ ...m, error: "The connection dropped. Try again." }))
       }
       finish()
     },
@@ -224,26 +254,30 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
   }, [run])
 
   const reset = useCallback(() => {
-    abort.current?.abort()
+    const running = abort.current
+    abort.current = null
+    running?.abort()
+    setPhase("idle")
+    setActivity(null)
     // The finished conversation stays in the saved list; the next one starts fresh.
     convoId.current = null
     viewingReport.current = false
     setMessages([])
     try {
-      sessionStorage.removeItem(STORE)
+      if (userId) localStorage.removeItem(threadKey(userId))
     } catch {
       // See above.
     }
-  }, [])
+  }, [userId])
 
   const saveReport = useCallback((xray: XRay) => {
     const now = Date.now()
     setReports((all) => {
       const next = addReport(all, { id: uid(), savedAt: now, xray }, now)
-      writeJson(REPORTS, next)
+      writeJson(userKey(REPORTS, userId), next)
       return next
     })
-  }, [])
+  }, [userId])
 
   const openRecent = useCallback(
     (kind: RecentItem["kind"], id: string) => {
@@ -270,23 +304,23 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
     if (kind === "chat") {
       setChats((all) => {
         const next = removeById(all, id)
-        writeJson(CHATS, next)
+        writeJson(userKey(CHATS, userId), next)
         return next
       })
     } else {
       setReports((all) => {
         const next = removeById(all, id)
-        writeJson(REPORTS, next)
+        writeJson(userKey(REPORTS, userId), next)
         return next
       })
     }
-  }, [])
+  }, [userId])
 
   const recent = useMemo(() => recentItems(chats, reports, 3), [chats, reports])
 
   const value = useMemo<Assistant>(
-    () => ({ messages, phase, activity, busy: phase !== "idle", page, detail, send, cancel, retry, reset, recent, saveReport, openRecent, removeRecent, reportSeq }),
-    [messages, phase, activity, page, detail, send, cancel, retry, reset, recent, saveReport, openRecent, removeRecent, reportSeq],
+    () => ({ messages, phase, activity, steps, busy: phase !== "idle", page, detail, send, cancel, retry, reset, recent, saveReport, openRecent, removeRecent, reportSeq }),
+    [messages, phase, activity, steps, page, detail, send, cancel, retry, reset, recent, saveReport, openRecent, removeRecent, reportSeq],
   )
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

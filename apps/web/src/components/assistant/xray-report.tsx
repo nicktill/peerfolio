@@ -5,7 +5,7 @@ import { useEffect, useId, useState } from "react"
 import { Bookmark, BookmarkCheck, ChevronRight, ArrowUpRight } from "lucide-react"
 import { formatCurrency, formatDate, formatPercent } from "@web/lib/format"
 import type { XRay } from "@web/lib/ai/portfolio-xray"
-import { chipsOf, flagsOf, verdictOf, type FlagView } from "@web/lib/ai/xray-view"
+import { chartSlices, chipsOf, flagsOf, verdictOf, type FlagView } from "@web/lib/ai/xray-view"
 
 const SLICE_COLORS = ["var(--series-1)", "var(--series-2)", "var(--series-3)", "var(--series-4)", "var(--series-5)", "var(--series-7)"]
 const NEUTRAL = "color-mix(in srgb, var(--fg3) 55%, transparent)"
@@ -144,7 +144,9 @@ function Fold({ title, preview, children }: { title: string; preview: React.Reac
  * as rows that open in place, and the detail folded away. Every figure comes from the server's result; the
  * words are derived from it in `xray-view`.
  */
-export function XRayReport({ xray, onAsk, onSave }: { xray: XRay; onAsk: (question: string) => void; onSave?: () => void }) {
+export function XRayReport({ xray, onAsk, onSave, showChips = true }: { xray: XRay; onAsk: (question: string) => void; onSave?: () => void; showChips?: boolean }) {
+  const detailsId = useId()
+  const [detailsOpen, setDetailsOpen] = useState(false)
   const [saved, setSaved] = useState(false)
   const [openFlag, setOpenFlag] = useState<string | null>(null)
   const [allFlags, setAllFlags] = useState(false)
@@ -172,6 +174,7 @@ export function XRayReport({ xray, onAsk, onSave }: { xray: XRay; onAsk: (questi
   }
 
   const flags = flagsOf(xray)
+  const slices = chartSlices(allocation)
   const shown = allFlags ? flags : flags.slice(0, SHOWN_FLAGS)
   const chips = chipsOf(xray)
   const top = overview.largest.slice(0, 2).map((h) => h.ticker ?? h.name).join(", ")
@@ -205,12 +208,52 @@ export function XRayReport({ xray, onAsk, onSave }: { xray: XRay; onAsk: (questi
         <div className="pf-x2-verdict">
           <span className="pf-x2-fig">{formatCurrency(hero)}</span>
           <span className="pf-x2-figs">
-            {overview.holdingCount} {overview.holdingCount === 1 ? "holding" : "holdings"}
-            {overview.positionCount !== overview.holdingCount ? ` · ${overview.positionCount} positions` : ""}
+            {p.today?.percent != null ? (
+              <span className="pf-x2-today" style={{ color: tone(p.today.percent) }}>
+                <span aria-hidden>{arrow(p.today.percent)} </span>
+                {formatPercent(p.today.percent)} today
+              </span>
+            ) : null}
+            <span>
+              {overview.holdingCount} {overview.holdingCount === 1 ? "holding" : "holdings"}
+            </span>
           </span>
           <p className="pf-x2-say">{verdictOf(xray)}</p>
         </div>
 
+        {flags[0] ? (
+          <div className="pf-x2-top">
+            <i aria-hidden />
+            <span>{flags[0].title}</span>
+            {flags[0].metric ? <b>{flags[0].metric}</b> : null}
+          </div>
+        ) : null}
+
+        <div className="pf-x2-chart">
+          <div className="pf-xr-stack" role="img" aria-label={`Allocation: ${slices.map((a) => `${a.name} ${pct(a.percent)}`).join(", ")}`}>
+            {slices.map((a, i) => (
+              <span key={a.name} className="pf-xr-seg" style={{ background: a.other ? NEUTRAL : SLICE_COLORS[i % SLICE_COLORS.length], flexGrow: a.percent }} />
+            ))}
+          </div>
+          <ul className="pf-xr-legend">
+            {slices.map((a, i) => (
+              <li key={a.name}>
+                <i style={{ background: a.other ? NEUTRAL : SLICE_COLORS[i % SLICE_COLORS.length] }} />
+                <span>{a.name}</span>
+                <b>{Math.round(a.percent)}%</b>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className={`pf-x2-details ${detailsOpen ? "is-open" : ""}`}>
+          <button type="button" className="pf-x2-toggle" aria-expanded={detailsOpen} aria-controls={detailsId} onClick={() => setDetailsOpen(!detailsOpen)}>
+            <span>{detailsOpen ? "Hide details" : "Details"}</span>
+            <em>{flags.length === 0 ? "nothing flagged" : `${flags.length} worth a look`}</em>
+            <ChevronRight size={13} className="pf-x2-chev" aria-hidden />
+          </button>
+          <div className="pf-x2-reveal" id={detailsId} role="region" aria-label="X-Ray details" aria-hidden={!detailsOpen}>
+            <div inert={!detailsOpen}>
         <div className="pf-x2-stats">
           <Stat label="Today" percent={p.today?.percent ?? null} amount={p.today?.amount} note="Not enough history" />
           <Stat label={p.period && periodShort(p.period) ? "Since start" : periodLabel(p.period)} percent={p.period?.percent ?? null} note={p.period ? periodNote(p.period) : "Needs more history"} />
@@ -235,35 +278,6 @@ export function XRayReport({ xray, onAsk, onSave }: { xray: XRay; onAsk: (questi
             Show {flags.length - SHOWN_FLAGS} more
           </button>
         ) : null}
-
-        <Fold
-          title="Allocation"
-          preview={
-            <>
-              <span className="pf-x2-mini" aria-hidden>
-                {allocation.map((a, i) => (
-                  <i key={a.name} style={{ background: SLICE_COLORS[i % SLICE_COLORS.length], flexGrow: a.percent }} />
-                ))}
-              </span>
-              {allocation.slice(0, 2).map((a) => `${a.name} ${Math.round(a.percent)}%`).join(" · ")}
-            </>
-          }
-        >
-          <div className="pf-xr-stack" role="img" aria-label={allocation.map((a) => `${a.name} ${pct(a.percent)}`).join(", ")}>
-            {allocation.map((a, i) => (
-              <span key={a.name} className="pf-xr-seg" style={{ background: SLICE_COLORS[i % SLICE_COLORS.length], flexGrow: a.percent }} title={`${a.name} ${pct(a.percent)}`} />
-            ))}
-          </div>
-          <ul className="pf-xr-legend">
-            {allocation.map((a, i) => (
-              <li key={a.name}>
-                <i style={{ background: SLICE_COLORS[i % SLICE_COLORS.length] }} />
-                <span>{a.name}</span>
-                <b>{pct(a.percent)}</b>
-              </li>
-            ))}
-          </ul>
-        </Fold>
 
         <Fold title="Concentration" preview={`Top 5 = ${pct(c.top5)}`}>
           <div className="pf-xr-bars">
@@ -360,9 +374,12 @@ export function XRayReport({ xray, onAsk, onSave }: { xray: XRay; onAsk: (questi
           </ul>
           <p>Observations from your stored holdings, not investment advice.</p>
         </details>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {chips.length > 0 ? (
+      {showChips && chips.length > 0 ? (
         <div className="pf-x2-chips" aria-label="Ask next">
           {chips.map((q) => (
             <button key={q} type="button" className="pf-x2-chip" onClick={() => onAsk(q)}>

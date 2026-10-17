@@ -1,0 +1,1 @@
+ALTER TABLE "fantasy_seasons" ADD COLUMN "cadence" text DEFAULT 'weekly' NOT NULL;

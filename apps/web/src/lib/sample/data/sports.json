@@ -1,0 +1,860 @@
+{
+ "league": {
+  "id": "sample",
+  "name": "Demo Sharps",
+  "emoji": "🏈",
+  "accent": "emerald",
+  "sports": [
+   "nfl",
+   "nba",
+   "tennis"
+  ],
+  "inviteCode": "SAMPLE",
+  "startingCredits": 1000,
+  "endsAt": null,
+  "isOwner": false
+ },
+ "you": {
+  "credits": 976
+ },
+ "limits": {
+  "minStake": 10,
+  "maxStake": 100,
+  "maxOpenPicks": 20
+ },
+ "standings": [
+  {
+   "name": "Tess Navarro",
+   "credits": 1045,
+   "isYou": false
+  },
+  {
+   "name": "Alex Moreno",
+   "credits": 1026,
+   "isYou": true
+  },
+  {
+   "name": "Nate Delaney",
+   "credits": 1012,
+   "isYou": false
+  },
+  {
+   "name": "Jamie Mercer",
+   "credits": 1000,
+   "isYou": false
+  },
+  {
+   "name": "Marcus Bell",
+   "credits": 950,
+   "isYou": false
+  }
+ ],
+ "markets": [
+  {
+   "id": "5721c2f6-55c8-4d8a-b058-c624a842b61d",
+   "kind": "moneyline",
+   "player": null,
+   "statKey": null,
+   "lockAt": "@@60915925",
+   "event": {
+    "sport": "nfl",
+    "home": "Kansas City Chiefs",
+    "away": "Buffalo Bills",
+    "startsAt": "@@68115925"
+   },
+   "lines": [
+    {
+     "id": "7c3fe05e-0e56-4806-9a8b-60ad7c0810f7",
+     "selection": "home",
+     "price": -150,
+     "point": null
+    },
+    {
+     "id": "e03f1b3f-8a48-4082-8b06-27c15bc91932",
+     "selection": "away",
+     "price": 125,
+     "point": null
+    }
+   ],
+   "picked": null
+  },
+  {
+   "id": "8dd17ccf-486c-4e06-9b6b-eaa10be0dbdf",
+   "kind": "moneyline",
+   "player": null,
+   "statKey": null,
+   "lockAt": "@@60915925",
+   "event": {
+    "sport": "nba",
+    "home": "Boston Celtics",
+    "away": "New York Knicks",
+    "startsAt": "@@68115925"
+   },
+   "lines": [
+    {
+     "id": "f82e07e8-dd1a-408f-a377-b946eaa3c7f9",
+     "selection": "home",
+     "price": -150,
+     "point": null
+    },
+    {
+     "id": "85fe284b-e5bd-4c29-bb77-63231f357bb5",
+     "selection": "away",
+     "price": 125,
+     "point": null
+    }
+   ],
+   "picked": null
+  },
+  {
+   "id": "57bbf031-3657-494b-baf0-b435cc701e07",
+   "kind": "moneyline",
+   "player": null,
+   "statKey": null,
+   "lockAt": "@@60915925",
+   "event": {
+    "sport": "tennis",
+    "home": "Carlos Alcaraz",
+    "away": "Jannik Sinner",
+    "startsAt": "@@68115925"
+   },
+   "lines": [
+    {
+     "id": "aac48b9c-45c7-43f9-8ecd-a5b7fa3e661a",
+     "selection": "home",
+     "price": -150,
+     "point": null
+    },
+    {
+     "id": "57a6632f-b05e-425e-a86f-c21cb5ee3700",
+     "selection": "away",
+     "price": 125,
+     "point": null
+    }
+   ],
+   "picked": null
+  },
+  {
+   "id": "c2f4b26f-e4e2-4107-bed0-079e49aab398",
+   "kind": "player_prop",
+   "player": "Patrick Mahomes",
+   "statKey": "player_pass_yds",
+   "lockAt": "@@60915925",
+   "event": {
+    "sport": "nfl",
+    "home": "Kansas City Chiefs",
+    "away": "Buffalo Bills",
+    "startsAt": "@@68115925"
+   },
+   "lines": [
+    {
+     "id": "103cf83b-2399-42aa-8b4a-a9084b4f26da",
+     "selection": "over",
+     "price": -115,
+     "point": 249.5
+    },
+    {
+     "id": "35d2a915-ef78-42c3-a426-bd8c14d3a40e",
+     "selection": "under",
+     "price": -105,
+     "point": 249.5
+    }
+   ],
+   "picked": null
+  },
+  {
+   "id": "874a5260-430e-407d-aa5e-f1b52ce9510f",
+   "kind": "player_prop",
+   "player": "Jayson Tatum",
+   "statKey": "player_points",
+   "lockAt": "@@60915925",
+   "event": {
+    "sport": "nba",
+    "home": "Boston Celtics",
+    "away": "New York Knicks",
+    "startsAt": "@@68115925"
+   },
+   "lines": [
+    {
+     "id": "3c12155a-f023-4a2a-8a28-c2bb0f790583",
+     "selection": "over",
+     "price": -115,
+     "point": 26.5
+    },
+    {
+     "id": "a979adc5-c76d-4494-9171-5f2ee45d36eb",
+     "selection": "under",
+     "price": -105,
+     "point": 26.5
+    }
+   ],
+   "picked": null
+  },
+  {
+   "id": "da75a3f7-8ff1-4793-9a22-61393ff1fbed",
+   "kind": "spread",
+   "player": null,
+   "statKey": null,
+   "lockAt": "@@60915925",
+   "event": {
+    "sport": "nfl",
+    "home": "Kansas City Chiefs",
+    "away": "Buffalo Bills",
+    "startsAt": "@@68115925"
+   },
+   "lines": [
+    {
+     "id": "06d2b584-d9f7-4768-ae55-e6e382069d24",
+     "selection": "home",
+     "price": -110,
+     "point": -3.5
+    },
+    {
+     "id": "8b3e21ab-0e4a-490a-822a-71130586caf3",
+     "selection": "away",
+     "price": -110,
+     "point": 3.5
+    }
+   ],
+   "picked": {
+    "selection": "away",
+    "stake": 50
+   }
+  },
+  {
+   "id": "7d2f75d4-497d-4c06-9d0e-c82b75b6ce13",
+   "kind": "spread",
+   "player": null,
+   "statKey": null,
+   "lockAt": "@@60915925",
+   "event": {
+    "sport": "nba",
+    "home": "Boston Celtics",
+    "away": "New York Knicks",
+    "startsAt": "@@68115925"
+   },
+   "lines": [
+    {
+     "id": "962c4dc0-cb4a-4a87-ac91-24f0acd44c4a",
+     "selection": "home",
+     "price": -110,
+     "point": -3.5
+    },
+    {
+     "id": "18d39c0a-661e-4847-b492-ec0888b45f91",
+     "selection": "away",
+     "price": -110,
+     "point": 3.5
+    }
+   ],
+   "picked": null
+  },
+  {
+   "id": "54225daa-4e9f-43f7-89c5-64b2bc213dc1",
+   "kind": "total",
+   "player": null,
+   "statKey": null,
+   "lockAt": "@@60915925",
+   "event": {
+    "sport": "nba",
+    "home": "Boston Celtics",
+    "away": "New York Knicks",
+    "startsAt": "@@68115925"
+   },
+   "lines": [
+    {
+     "id": "8f8d9405-cbb4-4b10-9725-ae05d1f66bf2",
+     "selection": "over",
+     "price": -110,
+     "point": 224.5
+    },
+    {
+     "id": "0d3fcc5b-2ef7-4552-86c2-247867c53e31",
+     "selection": "under",
+     "price": -110,
+     "point": 224.5
+    }
+   ],
+   "picked": null
+  },
+  {
+   "id": "a4e20a1c-ea36-4555-8eda-c433c08a535e",
+   "kind": "total",
+   "player": null,
+   "statKey": null,
+   "lockAt": "@@60915925",
+   "event": {
+    "sport": "nfl",
+    "home": "Kansas City Chiefs",
+    "away": "Buffalo Bills",
+    "startsAt": "@@68115925"
+   },
+   "lines": [
+    {
+     "id": "1b91be2a-44ec-48a6-b650-cf691e665e25",
+     "selection": "over",
+     "price": -110,
+     "point": 44.5
+    },
+    {
+     "id": "8a772200-539c-4623-b599-48d6fbcf136c",
+     "selection": "under",
+     "price": -110,
+     "point": 44.5
+    }
+   ],
+   "picked": null
+  },
+  {
+   "id": "3b157f83-d2c2-44f9-8733-9541cc334adc",
+   "kind": "moneyline",
+   "player": null,
+   "statKey": null,
+   "lockAt": "@@75315925",
+   "event": {
+    "sport": "nba",
+    "home": "Denver Nuggets",
+    "away": "Phoenix Suns",
+    "startsAt": "@@82515925"
+   },
+   "lines": [
+    {
+     "id": "29cf10ea-3f57-4293-8e59-fd5cd422fa89",
+     "selection": "home",
+     "price": -150,
+     "point": null
+    },
+    {
+     "id": "4cb469f1-4379-44c1-9269-7d9d705a1d3c",
+     "selection": "away",
+     "price": 125,
+     "point": null
+    }
+   ],
+   "picked": null
+  },
+  {
+   "id": "b9e038cc-be15-4aff-bbd0-829d90af6925",
+   "kind": "moneyline",
+   "player": null,
+   "statKey": null,
+   "lockAt": "@@75315925",
+   "event": {
+    "sport": "tennis",
+    "home": "Iga Swiatek",
+    "away": "Aryna Sabalenka",
+    "startsAt": "@@82515925"
+   },
+   "lines": [
+    {
+     "id": "5d827f27-1bb8-4d2e-9622-ece7e119cacd",
+     "selection": "home",
+     "price": -150,
+     "point": null
+    },
+    {
+     "id": "83b8f551-1303-4ff4-9088-6076c142166b",
+     "selection": "away",
+     "price": 125,
+     "point": null
+    }
+   ],
+   "picked": null
+  },
+  {
+   "id": "efd8e451-dea3-459e-9635-e9bf3e9d210f",
+   "kind": "moneyline",
+   "player": null,
+   "statKey": null,
+   "lockAt": "@@75315925",
+   "event": {
+    "sport": "nfl",
+    "home": "Philadelphia Eagles",
+    "away": "Dallas Cowboys",
+    "startsAt": "@@82515925"
+   },
+   "lines": [
+    {
+     "id": "a5341b91-97a3-4840-a6de-c001a259b30f",
+     "selection": "home",
+     "price": -150,
+     "point": null
+    },
+    {
+     "id": "fe1217c4-ede8-4390-abd3-2add755c393e",
+     "selection": "away",
+     "price": 125,
+     "point": null
+    }
+   ],
+   "picked": null
+  },
+  {
+   "id": "25d5efb6-cb8a-46c4-bba6-dbea46a91d52",
+   "kind": "player_prop",
+   "player": "Jalen Hurts",
+   "statKey": "player_pass_yds",
+   "lockAt": "@@75315925",
+   "event": {
+    "sport": "nfl",
+    "home": "Philadelphia Eagles",
+    "away": "Dallas Cowboys",
+    "startsAt": "@@82515925"
+   },
+   "lines": [
+    {
+     "id": "4185506a-5588-4fe9-9172-a75444766c0d",
+     "selection": "over",
+     "price": -115,
+     "point": 249.5
+    },
+    {
+     "id": "ea0d43f8-413c-4b6e-8542-6e47ef0821b2",
+     "selection": "under",
+     "price": -105,
+     "point": 249.5
+    }
+   ],
+   "picked": null
+  },
+  {
+   "id": "45609b21-bdd4-4c7a-acd8-c03889a41ad4",
+   "kind": "player_prop",
+   "player": "Nikola Jokic",
+   "statKey": "player_points",
+   "lockAt": "@@75315925",
+   "event": {
+    "sport": "nba",
+    "home": "Denver Nuggets",
+    "away": "Phoenix Suns",
+    "startsAt": "@@82515925"
+   },
+   "lines": [
+    {
+     "id": "14306baa-6162-45de-8504-01ecd195dc47",
+     "selection": "over",
+     "price": -115,
+     "point": 26.5
+    },
+    {
+     "id": "66c329e1-1caa-4f39-a42c-2dd35e4a9f54",
+     "selection": "under",
+     "price": -105,
+     "point": 26.5
+    }
+   ],
+   "picked": null
+  },
+  {
+   "id": "de9a4755-6c81-4b62-b3fa-31d1ef5563a0",
+   "kind": "spread",
+   "player": null,
+   "statKey": null,
+   "lockAt": "@@75315925",
+   "event": {
+    "sport": "nba",
+    "home": "Denver Nuggets",
+    "away": "Phoenix Suns",
+    "startsAt": "@@82515925"
+   },
+   "lines": [
+    {
+     "id": "aeb51978-a9fc-4368-9e80-e8b092e0cd36",
+     "selection": "home",
+     "price": -110,
+     "point": -3.5
+    },
+    {
+     "id": "dcc70195-a966-4998-9d31-f03d362adfa9",
+     "selection": "away",
+     "price": -110,
+     "point": 3.5
+    }
+   ],
+   "picked": null
+  },
+  {
+   "id": "9d764447-7990-4650-a2ae-49e6f49ac3c0",
+   "kind": "spread",
+   "player": null,
+   "statKey": null,
+   "lockAt": "@@75315925",
+   "event": {
+    "sport": "nfl",
+    "home": "Philadelphia Eagles",
+    "away": "Dallas Cowboys",
+    "startsAt": "@@82515925"
+   },
+   "lines": [
+    {
+     "id": "c641aa1d-77ba-477b-b766-ec3fed7fafa2",
+     "selection": "home",
+     "price": -110,
+     "point": -3.5
+    },
+    {
+     "id": "fffb0091-d166-46cb-90f5-2640a1510055",
+     "selection": "away",
+     "price": -110,
+     "point": 3.5
+    }
+   ],
+   "picked": null
+  },
+  {
+   "id": "c1aeb6c4-f505-47a3-9477-a8983e66b319",
+   "kind": "total",
+   "player": null,
+   "statKey": null,
+   "lockAt": "@@75315925",
+   "event": {
+    "sport": "nba",
+    "home": "Denver Nuggets",
+    "away": "Phoenix Suns",
+    "startsAt": "@@82515925"
+   },
+   "lines": [
+    {
+     "id": "af0cd685-128e-46c2-b07f-f44fae45a3a8",
+     "selection": "over",
+     "price": -110,
+     "point": 224.5
+    },
+    {
+     "id": "45562722-2e28-4f3d-9f45-33807e56e1a1",
+     "selection": "under",
+     "price": -110,
+     "point": 224.5
+    }
+   ],
+   "picked": null
+  },
+  {
+   "id": "9a5057f1-6076-4c8d-87f7-88acca421ebc",
+   "kind": "total",
+   "player": null,
+   "statKey": null,
+   "lockAt": "@@75315925",
+   "event": {
+    "sport": "nfl",
+    "home": "Philadelphia Eagles",
+    "away": "Dallas Cowboys",
+    "startsAt": "@@82515925"
+   },
+   "lines": [
+    {
+     "id": "b2dde99e-0ddc-4e5d-abf8-65239da25a6f",
+     "selection": "over",
+     "price": -110,
+     "point": 44.5
+    },
+    {
+     "id": "72f70e25-0b26-4562-a8a1-477cb8c8d933",
+     "selection": "under",
+     "price": -110,
+     "point": 44.5
+    }
+   ],
+   "picked": null
+  }
+ ],
+ "picks": [
+  {
+   "id": "c3ffa5b6-da32-47ad-ab1c-f7adbf7c0f5f",
+   "selection": "away",
+   "stake": 50,
+   "price": -110,
+   "point": 3.5,
+   "totalReturn": 95,
+   "payout": null,
+   "status": "open",
+   "acceptedAt": "@@-284075",
+   "market": {
+    "kind": "spread",
+    "player": null,
+    "statKey": null
+   },
+   "event": {
+    "sport": "nfl",
+    "home": "Kansas City Chiefs",
+    "away": "Buffalo Bills",
+    "startsAt": "@@68115925"
+   }
+  },
+  {
+   "id": "c09baff6-7373-4630-be84-2e2344796811",
+   "selection": "home",
+   "stake": 35,
+   "price": -110,
+   "point": -3.5,
+   "totalReturn": 66,
+   "payout": 66,
+   "status": "won",
+   "acceptedAt": "@@-285278",
+   "market": {
+    "kind": "spread",
+    "player": null,
+    "statKey": null
+   },
+   "event": {
+    "sport": "nfl",
+    "home": "San Francisco 49ers",
+    "away": "Detroit Lions",
+    "startsAt": "@@-11084674"
+   }
+  },
+  {
+   "id": "0030f276-f1ab-48e1-9580-4461bced5174",
+   "selection": "away",
+   "stake": 35,
+   "price": -110,
+   "point": 3.5,
+   "totalReturn": 66,
+   "payout": 0,
+   "status": "lost",
+   "acceptedAt": "@@-285278",
+   "market": {
+    "kind": "spread",
+    "player": null,
+    "statKey": null
+   },
+   "event": {
+    "sport": "nfl",
+    "home": "Philadelphia Eagles",
+    "away": "Dallas Cowboys",
+    "startsAt": "@@-11084674"
+   }
+  },
+  {
+   "id": "9cde6f52-304b-4be2-a8ac-4e408972938b",
+   "selection": "over",
+   "stake": 35,
+   "price": -115,
+   "point": 249.5,
+   "totalReturn": 65,
+   "payout": 65,
+   "status": "won",
+   "acceptedAt": "@@-285278",
+   "market": {
+    "kind": "player_prop",
+    "player": "Patrick Mahomes",
+    "statKey": "player_pass_yds"
+   },
+   "event": {
+    "sport": "nfl",
+    "home": "Kansas City Chiefs",
+    "away": "Buffalo Bills",
+    "startsAt": "@@-11084674"
+   }
+  }
+ ],
+ "leaguePicks": [
+  {
+   "id": "c7e4f259-950a-4752-a533-aa8c2084d3a1",
+   "selection": "over",
+   "stake": 55,
+   "price": -110,
+   "point": 44.5,
+   "totalReturn": 105,
+   "payout": 105,
+   "status": "won",
+   "acceptedAt": "@@-285278",
+   "market": {
+    "kind": "total",
+    "player": null,
+    "statKey": null
+   },
+   "event": {
+    "sport": "nfl",
+    "home": "San Francisco 49ers",
+    "away": "Detroit Lions",
+    "startsAt": "@@-11084674"
+   },
+   "name": "Tess Navarro"
+  },
+  {
+   "id": "ae612b7d-2746-4c8a-9f66-8767fdba0036",
+   "selection": "under",
+   "stake": 45,
+   "price": -110,
+   "point": 44.5,
+   "totalReturn": 85,
+   "payout": 0,
+   "status": "lost",
+   "acceptedAt": "@@-285278",
+   "market": {
+    "kind": "total",
+    "player": null,
+    "statKey": null
+   },
+   "event": {
+    "sport": "nfl",
+    "home": "San Francisco 49ers",
+    "away": "Detroit Lions",
+    "startsAt": "@@-11084674"
+   },
+   "name": "Marcus Bell"
+  },
+  {
+   "id": "88fbfe79-93e1-45de-a496-4839e1156a1c",
+   "selection": "over",
+   "stake": 25,
+   "price": -115,
+   "point": 249.5,
+   "totalReturn": 46,
+   "payout": 46,
+   "status": "won",
+   "acceptedAt": "@@-285278",
+   "market": {
+    "kind": "player_prop",
+    "player": "Jalen Hurts",
+    "statKey": "player_pass_yds"
+   },
+   "event": {
+    "sport": "nfl",
+    "home": "Philadelphia Eagles",
+    "away": "Dallas Cowboys",
+    "startsAt": "@@-11084674"
+   },
+   "name": "Nate Delaney"
+  },
+  {
+   "id": "dce322a6-4aa2-4f58-913f-ecb413542527",
+   "selection": "home",
+   "stake": 45,
+   "price": -110,
+   "point": -3.5,
+   "totalReturn": 85,
+   "payout": 85,
+   "status": "won",
+   "acceptedAt": "@@-285278",
+   "market": {
+    "kind": "spread",
+    "player": null,
+    "statKey": null
+   },
+   "event": {
+    "sport": "nfl",
+    "home": "Philadelphia Eagles",
+    "away": "Dallas Cowboys",
+    "startsAt": "@@-11084674"
+   },
+   "name": "Marcus Bell"
+  },
+  {
+   "id": "ce77829d-4248-48cf-9c0d-0fd4cafc4914",
+   "selection": "under",
+   "stake": 55,
+   "price": -110,
+   "point": 44.5,
+   "totalReturn": 105,
+   "payout": 0,
+   "status": "lost",
+   "acceptedAt": "@@-285278",
+   "market": {
+    "kind": "total",
+    "player": null,
+    "statKey": null
+   },
+   "event": {
+    "sport": "nfl",
+    "home": "Philadelphia Eagles",
+    "away": "Dallas Cowboys",
+    "startsAt": "@@-11084674"
+   },
+   "name": "Tess Navarro"
+  },
+  {
+   "id": "32401277-a86b-4528-b7de-3444ba5cafe3",
+   "selection": "home",
+   "stake": 25,
+   "price": -150,
+   "point": null,
+   "totalReturn": 41,
+   "payout": 41,
+   "status": "won",
+   "acceptedAt": "@@-285278",
+   "market": {
+    "kind": "moneyline",
+    "player": null,
+    "statKey": null
+   },
+   "event": {
+    "sport": "nfl",
+    "home": "Kansas City Chiefs",
+    "away": "Buffalo Bills",
+    "startsAt": "@@-11084674"
+   },
+   "name": "Nate Delaney"
+  },
+  {
+   "id": "1791f5f2-772b-4a8d-adef-36c7c6db2071",
+   "selection": "under",
+   "stake": 25,
+   "price": -105,
+   "point": 249.5,
+   "totalReturn": 48,
+   "payout": 0,
+   "status": "lost",
+   "acceptedAt": "@@-285278",
+   "market": {
+    "kind": "player_prop",
+    "player": "Patrick Mahomes",
+    "statKey": "player_pass_yds"
+   },
+   "event": {
+    "sport": "nfl",
+    "home": "Kansas City Chiefs",
+    "away": "Buffalo Bills",
+    "startsAt": "@@-11084674"
+   },
+   "name": "Nate Delaney"
+  },
+  {
+   "id": "cf113f50-3e49-4c1e-9482-d5f30754f9a4",
+   "selection": "away",
+   "stake": 45,
+   "price": -110,
+   "point": 3.5,
+   "totalReturn": 85,
+   "payout": 0,
+   "status": "lost",
+   "acceptedAt": "@@-285278",
+   "market": {
+    "kind": "spread",
+    "player": null,
+    "statKey": null
+   },
+   "event": {
+    "sport": "nfl",
+    "home": "Kansas City Chiefs",
+    "away": "Buffalo Bills",
+    "startsAt": "@@-11084674"
+   },
+   "name": "Marcus Bell"
+  },
+  {
+   "id": "3e2e7679-c105-4b9e-a93f-55edb07fc100",
+   "selection": "home",
+   "stake": 55,
+   "price": -110,
+   "point": -3.5,
+   "totalReturn": 105,
+   "payout": 105,
+   "status": "won",
+   "acceptedAt": "@@-285278",
+   "market": {
+    "kind": "spread",
+    "player": null,
+    "statKey": null
+   },
+   "event": {
+    "sport": "nfl",
+    "home": "Kansas City Chiefs",
+    "away": "Buffalo Bills",
+    "startsAt": "@@-11084674"
+   },
+   "name": "Tess Navarro"
+  }
+ ]
+}

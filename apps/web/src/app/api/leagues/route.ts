@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
+import { isLeagueEmoji } from "@web/lib/league-look"
 import { db, leagueMembers, leagues } from "@web/db"
 import { generateInviteCode } from "@web/lib/crypto"
 import { ApiError, readJson, withUser } from "@web/lib/api"
@@ -8,7 +9,7 @@ import { listLeaguesForUser } from "@web/lib/social"
 const CreateLeague = z.object({
   name: z.string().trim().min(2, "Name is too short").max(40, "Name is too long"),
   description: z.string().trim().max(160).optional(),
-  emoji: z.string().trim().min(1).max(8).default("🏆"),
+  emoji: z.string().trim().min(1).max(64).refine(isLeagueEmoji, "Pick a logo from the list").default("🏆"),
   accent: z.enum(["emerald", "violet", "amber", "sky", "rose"]).default("emerald"),
 })
 

@@ -176,6 +176,41 @@
       "when": 1792037718107,
       "tag": "0024_security_sectors",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1792195715478,
+      "tag": "0025_fantasy_seasons",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1792195800000,
+      "tag": "0026_sports_picks",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1792195900000,
+      "tag": "0027_sports_guards",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1792196000000,
+      "tag": "0028_sports_rate_limits",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1792251157973,
+      "tag": "0029_fantasy_season_cadence",
+      "breakpoints": true
     }
   ]
 }

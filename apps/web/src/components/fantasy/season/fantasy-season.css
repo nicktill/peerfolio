@@ -1,0 +1,604 @@
+/*
+ * Seasons, rounds, drafts, recaps and notes. Built on the Fantasy 5C tokens
+ * (--fw-*), so panels, hairlines, mono eyebrows, serif figures and the
+ * light/dark palettes are exactly the league page's. Nothing here sets a
+ * colour that the league page does not already use.
+ */
+
+/* ---- Strip on the league page: one quiet line that says where the round stands ---- */
+.fs-strip { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 4px 16px; padding: 14px var(--fw-ins); }
+.fs-strip-icon { display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid var(--fw-hair); border-radius: var(--fw-rs); background: var(--fw-bg); color: var(--fw-accent); }
+.fs-strip-icon svg { width: 17px; height: 17px; }
+.fs-strip-body { min-width: 0; }
+.fs-strip-body strong { display: block; font: 500 14px/20px var(--fw-sans); letter-spacing: -.01em; }
+.fs-strip-body span { display: block; font: 400 11px/17px var(--fw-mono); color: var(--fw-fg3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fs-strip-body span b { font-weight: 500; color: var(--fw-fg2); }
+.fs-strip-actions { display: flex; align-items: center; gap: 8px; }
+.fs-strip[data-urgent] .fs-strip-icon { color: var(--gold-ink, var(--fw-accent)); border-color: color-mix(in srgb, var(--series-4, #e0a23f) 50%, var(--fw-hair)); }
+.fs-strip-new { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px; border: 1px solid var(--fw-hair); border-radius: 999px; font: 500 10px var(--fw-mono); letter-spacing: .07em; text-transform: uppercase; color: var(--fw-fg2); transition: background .15s, color .15s; white-space: nowrap; }
+.fs-strip-new:hover { background: var(--fw-raise); color: var(--fw-fg); }
+.fs-strip-new i { width: 6px; height: 6px; border-radius: 50%; background: var(--fw-accent); }
+@media (max-width: 700px) {
+  .fs-strip { grid-template-columns: auto minmax(0, 1fr); padding: 14px 16px; }
+  .fs-strip-actions { grid-column: 1 / -1; }
+  .fs-strip-actions .fw-btn { flex: 1; }
+  .fs-strip-body span { white-space: normal; }
+}
+
+/* League colour for bands and heroes, same five as the league header. */
+.fs-accent[data-accent="emerald"] { --fw-art: #3fae7f; } .fs-accent[data-accent="violet"] { --fw-art: #8f6fe0; }
+.fs-accent[data-accent="amber"] { --fw-art: #e0a23f; } .fs-accent[data-accent="sky"] { --fw-art: #4aa3e0; } .fs-accent[data-accent="rose"] { --fw-art: #e0607a; }
+
+/* ---- Round hero ---- */
+.fs-hero { padding: 0; overflow: hidden; }
+.fs-hero-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding: 18px var(--fw-ins) 14px; background: linear-gradient(180deg, color-mix(in srgb, var(--fw-art, var(--fw-accent)) 9%, transparent), transparent); }
+.fs-hero-title { font: 400 34px/38px var(--fw-serif); letter-spacing: -.025em; margin: 6px 0 0; }
+.fs-hero-sub { margin-top: 4px; font: 400 11px/17px var(--fw-mono); color: var(--fw-fg3); }
+.fs-clock { text-align: right; flex: none; }
+.fs-clock strong { display: block; font: 400 28px/32px var(--fw-serif); letter-spacing: -.03em; font-variant-numeric: tabular-nums lining-nums; }
+.fs-clock span { font: 500 10px/16px var(--fw-mono); letter-spacing: .09em; text-transform: uppercase; color: var(--fw-fg3); }
+.fs-progress { height: 3px; background: var(--fw-line); }
+.fs-progress i { display: block; height: 100%; background: var(--fw-accent); transition: width .6s cubic-bezier(.22, 1, .36, 1); }
+.fs-hero-body { padding: 0 var(--fw-ins) 8px; }
+@media (max-width: 700px) {
+  .fs-hero-title { font-size: 28px; line-height: 32px; }
+  .fs-clock strong { font-size: 22px; line-height: 28px; }
+  .fs-hero-top { padding: 16px; }
+  .fs-hero-body { padding: 0 16px 8px; }
+}
+
+/* ---- Person rows (round table, season table, recap) ---- */
+.fs-rows { list-style: none; margin: 0; padding: 0; }
+.fs-row { position: relative; display: grid; grid-template-columns: 22px 34px minmax(0, 1fr) auto; align-items: center; column-gap: 12px; min-height: 58px; padding: 12px 0; border-top: 1px solid var(--fw-hair2); }
+.fs-row:first-child { border-top: 0; }
+.fs-row[data-you] { margin: 0 -12px; padding-left: 12px; padding-right: 12px; border-top-color: transparent; border-radius: calc(var(--fw-r) - 4px); background: var(--fw-raise); }
+.fs-row[data-you] + .fs-row, .fs-row:has(+ .fs-row[data-you]) { border-top-color: transparent; }
+.fs-rank { font: 500 11px/20px var(--fw-mono); color: var(--fw-fg3); text-align: center; }
+.fs-rank[data-rank="1"] { color: var(--gold-ink, var(--fw-accent)); }
+.fs-who { min-width: 0; }
+.fs-who strong { display: flex; align-items: center; gap: 7px; font-size: 13.5px; font-weight: 500; line-height: 20px; }
+.fs-who strong > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fs-who small { display: block; font: 400 10.5px/16px var(--fw-mono); color: var(--fw-fg3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fs-figure { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 1px; font-size: 13.5px; font-weight: 500; }
+.fs-figure small { font: 400 10.5px/16px var(--fw-mono); color: var(--fw-fg3); }
+.fs-picks { grid-column: 3 / -1; display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.fs-chip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px 2px 2px; border: 1px solid var(--fw-hair); border-radius: 999px; background: var(--fw-bg); font-size: 10px; }
+.fs-chip b { font: 600 10px var(--fw-mono); }
+.fs-chip em { font: 500 10px var(--fw-mono); font-style: normal; font-variant-numeric: tabular-nums; }
+.fs-chip em[data-tone="up"] { color: var(--gain-ink); }
+.fs-chip em[data-tone="down"] { color: var(--loss-ink); }
+.fs-sat { font: 400 11px var(--fw-mono); color: var(--fw-fg3); white-space: nowrap; }
+.fs-empty { padding: 22px 0 16px; font-size: 13px; line-height: 20px; color: var(--fw-fg3); }
+.fs-empty strong { display: block; margin-bottom: 4px; font: 500 14px/20px var(--fw-sans); color: var(--fw-fg); }
+.fs-note-line { margin: 0; padding: 12px 0 4px; font: 400 11px/17px var(--fw-mono); color: var(--fw-fg3); }
+
+/* ---- Draft ---- */
+.fs-draft { display: flex; flex-direction: column; gap: 14px; padding: 16px 0 14px; }
+.fs-slot { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 8px 12px; align-items: start; }
+.fs-slot-n { margin-top: 13px; font: 500 11px/16px var(--fw-mono); color: var(--fw-fg3); text-align: center; }
+.fs-slot-fields { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.fs-slot .fw-input { height: 42px; }
+.fs-why { height: 34px !important; font-size: 12.5px !important; }
+.fs-slot-x { margin-top: 5px; width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid var(--fw-hair); border-radius: var(--fw-rs); color: var(--fw-fg3); transition: background .15s, color .15s; }
+.fs-slot-x:hover { background: var(--fw-raise); color: var(--fw-fg); }
+.fs-slot-x svg { width: 14px; height: 14px; }
+.fs-draft-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.fs-waiting { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 12px 0 6px; border-top: 1px solid var(--fw-hair2); font: 400 11px/17px var(--fw-mono); color: var(--fw-fg3); }
+.fs-waiting b { font-weight: 500; color: var(--fw-fg2); }
+.fs-locked-tag { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px; border: 1px solid var(--fw-hair); border-radius: 999px; font: 500 10px var(--fw-mono); letter-spacing: .07em; text-transform: uppercase; color: var(--fw-fg2); }
+.fs-locked-tag svg { width: 11px; height: 11px; }
+@media (max-width: 700px) {
+  .fs-slot { grid-template-columns: 18px minmax(0, 1fr) auto; gap: 6px 10px; }
+  .fs-draft-foot .fw-btn { width: 100%; }
+}
+
+/* ---- Recap card ---- */
+.fs-recap { padding: 0; overflow: hidden; }
+.fs-recap-band { padding: 18px var(--fw-ins) 14px; background: linear-gradient(180deg, color-mix(in srgb, var(--fw-art, var(--fw-accent)) 14%, var(--fw-panel)), var(--fw-panel) 85%); border-bottom: 1px solid var(--fw-hair); }
+.fs-recap-band h3 { margin: 8px 0 0; font: 400 25px/30px var(--fw-serif); letter-spacing: -.02em; text-wrap: balance; }
+.fs-recap-body { display: flex; flex-direction: column; padding: 4px var(--fw-ins) var(--fw-ins); }
+.fs-moment { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; padding: 12px 0; border-top: 1px solid var(--fw-hair2); font-size: 12.5px; line-height: 19px; }
+.fs-moment:first-child { border-top: 0; }
+.fs-moment-ic { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid var(--fw-hair); border-radius: var(--fw-rs); color: var(--fw-fg2); }
+.fs-moment-ic svg { width: 14px; height: 14px; }
+.fs-moment b { font-weight: 500; }
+.fs-moment .fw-up, .fs-moment .fw-down { font-variant-numeric: tabular-nums; font-weight: 500; }
+.fs-moment small { display: block; font: 500 9.5px/16px var(--fw-mono); letter-spacing: .09em; text-transform: uppercase; color: var(--fw-fg3); }
+.fs-recap-foot { display: flex; gap: 8px; flex-wrap: wrap; padding-top: 14px; border-top: 1px solid var(--fw-hair2); }
+.fs-recap-foot .fw-btn { flex: 1; min-width: 120px; }
+@media (max-width: 700px) { .fs-recap-band, .fs-recap-body { padding-left: 16px; padding-right: 16px; } }
+
+/* ---- Trophies ---- */
+.fs-trophies { list-style: none; margin: 0; padding: 12px 0 8px; display: flex; flex-wrap: wrap; gap: 8px; }
+.fs-trophy { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 4px 12px 4px 6px; border: 1px solid var(--fw-hair); border-radius: 999px; background: var(--fw-bg); font-size: 12px; }
+.fs-trophy-ic { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: color-mix(in srgb, var(--series-4, #e0a23f) 16%, var(--fw-raise)); color: var(--gold-ink, var(--fw-accent)); }
+.fs-trophy-ic svg { width: 14px; height: 14px; }
+.fs-trophy[data-kind="season_champion"] .fs-trophy-ic, .fs-trophy[data-kind="perfect_season"] .fs-trophy-ic { background: color-mix(in srgb, var(--series-4, #e0a23f) 30%, var(--fw-raise)); }
+.fs-trophy small { font: 400 10px var(--fw-mono); color: var(--fw-fg3); }
+
+/* ---- Head to head ---- */
+.fs-h2h { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 11px 0; border-top: 1px solid var(--fw-hair2); font-size: 13px; }
+.fs-h2h:first-child { border-top: 0; }
+.fs-h2h-who { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.fs-h2h-who span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fs-record { font: 500 12px var(--fw-mono); font-variant-numeric: tabular-nums; color: var(--fw-fg2); letter-spacing: .02em; }
+.fs-record b[data-lead="up"] { color: var(--gain-ink); }
+.fs-record b[data-lead="down"] { color: var(--loss-ink); }
+
+/* ---- Round archive ---- */
+.fs-archive { list-style: none; margin: 0; padding: 0; }
+.fs-archive > li { border-top: 1px solid var(--fw-hair2); }
+.fs-archive > li:first-child { border-top: 0; }
+.fs-archive-head { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto 16px; align-items: center; gap: 12px; width: 100%; min-height: 58px; padding: 10px 0; text-align: left; }
+.fs-archive-n { font: 400 22px/26px var(--fw-serif); letter-spacing: -.02em; }
+.fs-archive-head > svg { width: 14px; height: 14px; color: var(--fw-fg3); transition: transform .2s; }
+.fs-archive-head[aria-expanded="true"] > svg { transform: rotate(180deg); }
+.fs-archive-win { min-width: 0; font-size: 13px; }
+.fs-archive-win small { display: block; font: 400 10.5px/16px var(--fw-mono); color: var(--fw-fg3); }
+.fs-archive-you { font: 500 10.5px var(--fw-mono); letter-spacing: .04em; color: var(--fw-fg2); text-align: right; white-space: nowrap; }
+.fs-archive-body { padding: 0 0 10px; }
+.fs-late { font: 400 11px/17px var(--fw-mono); color: var(--fw-fg3); padding: 0 0 8px; }
+
+/* ---- Past seasons, owner controls ---- */
+.fs-seasons { list-style: none; margin: 0; padding: 0; }
+.fs-seasons li { display: flex; justify-content: space-between; gap: 12px; padding: 11px 0; border-top: 1px solid var(--fw-hair2); font-size: 13px; }
+.fs-seasons li:first-child { border-top: 0; }
+.fs-seasons small { font: 400 10.5px var(--fw-mono); color: var(--fw-fg3); text-align: right; }
+.fs-owner { display: flex; flex-direction: column; gap: 16px; padding: 16px 0 12px; }
+.fs-owner p { font-size: 12.5px; line-height: 19px; color: var(--fw-fg3); }
+.fs-stack { display: flex; flex-direction: column; gap: 8px; }
+
+/* ---- "Why I picked this": notes under trades and picks ---- */
+.fs-note { min-width: 0; margin: 10px 0 0 38px; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.fs-note-body { margin: 0; padding: 10px 13px; border: 1px solid var(--fw-hair); border-radius: 4px 12px 12px; background: var(--fw-raise); font: 400 12.5px/19px var(--fw-sans); color: var(--fw-fg); overflow-wrap: anywhere; white-space: pre-wrap; }
+.fs-note-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.fs-note-bar > .fs-add-note { align-self: center; min-height: 32px; padding: 0 4px; text-decoration: none; }
+.fs-note-bar button:focus-visible { outline: 2px solid var(--fw-accent); outline-offset: 3px; }
+.fs-note-bar .fw-react[data-on] { background: var(--fw-raise); border-color: var(--fw-line); color: var(--fw-fg); }
+.fs-replies { list-style: none; margin: 0 0 0 6px; padding: 3px 0 3px 14px; border-left: 1px solid var(--fw-line); display: flex; flex-direction: column; gap: 14px; }
+.fs-reply { font-size: 12px; line-height: 18px; color: var(--fw-fg2); overflow-wrap: anywhere; }
+.fs-reply b { font-weight: 500; color: var(--fw-fg); }
+.fs-compose { display: flex; gap: 6px; }
+.fs-compose .fw-input { height: 34px; font-size: 12.5px; }
+.fs-compose .fw-btn { height: 34px; padding: 0 12px; }
+.fs-add-note { align-self: flex-start; font-size: 11px; color: var(--fw-fg3); text-decoration: underline; text-underline-offset: 3px; }
+.fs-add-note:hover { color: var(--fw-fg); }
+.fs-why-field { display: flex; flex-direction: column; gap: 6px; }
+.fs-count { font: 400 10.5px var(--fw-mono); color: var(--fw-fg3); text-align: right; }
+
+/* ---- New-season form ---- */
+.fs-form { display: flex; flex-direction: column; gap: 18px; padding: 16px 0 6px; }
+.fs-form label, .fs-form legend { display: block; margin-bottom: 8px; padding: 0; font: 500 10.5px/16px var(--fw-mono); text-transform: uppercase; letter-spacing: .09em; color: var(--fw-fg3); }
+.fs-form fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.fs-hint { margin-top: 8px; font-size: 12px; line-height: 18px; color: var(--fw-fg3); }
+
+/* ---- Public recap page ---- */
+.fs-public { position: relative; isolation: isolate; display: flex; flex-direction: column; justify-content: center; gap: 20px; min-height: 100vh; max-width: 520px; margin: 0 auto; padding: 32px 24px; }
+.fs-public .fw-panel { padding: 0; }
+
+@media (prefers-reduced-motion: reduce) { .fs-progress i { transition: none; } }
+
+/* Replies sit one level below the trade note, with a consistent author and body column. */
+.fs-reply { display: flex; align-items: flex-start; gap: 8px; }
+.fs-reply-content { flex: 1; min-width: 0; }
+.fs-reply-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+.fs-reply-meta time { font-size: 10px; color: var(--fw-fg3); }
+.fs-reply-content p { margin: 2px 0 0; white-space: pre-wrap; }
+.fw-feed-sub .fs-note { margin-left: 0; }
+.fw-feed-sub > li { flex-wrap: wrap; }
+@media (max-width: 600px) { .fs-note { margin-left: 0; } .fs-replies { margin-left: 12px; padding-left: 12px; } }
+
+.fs-add-note:disabled { opacity: .5; pointer-events: none; }
+
+/* One column: the pick form and the live round come first, then the recap, then the tables, then the rest. */
+@media (max-width: 1050px) {
+  .fs-recap-slot { order: 1; }
+  .fs-after { order: 2; }
+  .fs-last { order: 3; }
+}
+@media (max-width: 700px) {
+  .fs-who small { white-space: normal; overflow: visible; text-overflow: clip; }
+  .fs-row { column-gap: 10px; }
+  .fs-figure { max-width: 42%; }
+}
+
+/* ---- Season leaderboard under a league on the list ---- */
+.fw-leaders { display: flex; align-items: center; gap: 14px; padding: 10px var(--fw-ins) 12px; margin-top: -4px; transition: background .2s; flex-wrap: wrap; }
+.fw-leaders:hover { background: var(--fw-raise); }
+.fw-leaders-label { display: inline-flex; align-items: center; gap: 6px; font: 500 10px/16px var(--fw-mono); letter-spacing: .09em; text-transform: uppercase; color: var(--fw-fg3); }
+.fw-leaders-label svg { width: 12px; height: 12px; color: var(--gold-ink, var(--fw-accent)); }
+.fw-leaders ol { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; flex: 1; min-width: 0; }
+.fw-leaders li { display: inline-flex; align-items: center; gap: 6px; padding: 3px 11px 3px 8px; border: 1px solid var(--fw-hair); border-radius: 999px; background: var(--fw-bg); font-size: 12px; }
+.fw-leaders li[data-you] { border-color: var(--fw-line); background: var(--fw-raise); }
+.fw-leaders li b { font-weight: 500; }
+.fw-leaders li em { font: 500 10.5px var(--fw-mono); font-style: normal; color: var(--fw-fg3); }
+.fw-leaders > svg { width: 14px; height: 14px; color: var(--fw-fg3); flex: none; }
+
+/* "Weekly rounds on" pill in the league header */
+.fw-live-pill { color: var(--fw-fg); border-color: color-mix(in srgb, var(--fw-accent) 45%, var(--fw-hair)); background: color-mix(in srgb, var(--fw-accent) 8%, transparent); transition: background .15s; }
+.fw-live-pill:hover { background: color-mix(in srgb, var(--fw-accent) 16%, transparent); }
+.fw-live-pill i { width: 7px; height: 7px; border-radius: 50%; background: var(--fw-accent); box-shadow: 0 0 0 0 color-mix(in srgb, var(--fw-accent) 60%, transparent); animation: fs-pulse 2s infinite; }
+@keyframes fs-pulse { 70% { box-shadow: 0 0 0 7px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+@media (prefers-reduced-motion: reduce) { .fw-live-pill i { animation: none; } }
+
+/* ---- Season page: how it works, podium, record cards ---- */
+.fs-how { padding: 0; overflow: hidden; }
+.fs-how > summary { list-style: none; display: flex; align-items: center; gap: 12px; padding: 14px var(--fw-ins); cursor: pointer; font: 500 14px/20px var(--fw-sans); }
+.fs-how > summary::-webkit-details-marker { display: none; }
+.fs-how > summary svg:first-child { width: 18px; height: 18px; color: var(--fw-accent); flex: none; }
+.fs-how > summary span { flex: 1; }
+.fs-how > summary .fs-how-chev { width: 15px; height: 15px; color: var(--fw-fg3); transition: transform .2s; }
+.fs-how[open] > summary .fs-how-chev { transform: rotate(180deg); }
+.fs-how-steps { list-style: none; margin: 0; padding: 4px var(--fw-ins) var(--fw-ins); display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; counter-reset: how; }
+.fs-how-steps li { counter-increment: how; position: relative; padding: 14px 14px 14px 14px; border: 1px solid var(--fw-hair); border-radius: var(--fw-rs); background: var(--fw-bg); font-size: 12.5px; line-height: 19px; color: var(--fw-fg3); }
+.fs-how-steps li::before { content: counter(how); display: grid; place-items: center; width: 22px; height: 22px; margin-bottom: 8px; border-radius: 50%; background: color-mix(in srgb, var(--fw-accent) 18%, var(--fw-raise)); color: var(--fw-accent); font: 600 11px var(--fw-mono); }
+.fs-how-steps b { display: block; margin-bottom: 2px; font: 500 13.5px/20px var(--fw-sans); color: var(--fw-fg); }
+
+.fs-podium { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: 10px; padding: 16px 0 6px; }
+.fs-pod { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 8px 12px; border: 1px solid var(--fw-hair); border-radius: var(--fw-r); background: var(--fw-bg); text-align: center; min-width: 0; }
+.fs-pod[data-place="1"] { order: 2; padding-top: 22px; padding-bottom: 18px; border-color: color-mix(in srgb, var(--series-4, #e0a23f) 55%, var(--fw-hair)); background: linear-gradient(180deg, color-mix(in srgb, var(--series-4, #e0a23f) 14%, var(--fw-bg)), var(--fw-bg)); }
+.fs-pod[data-place="2"] { order: 1; } .fs-pod[data-place="3"] { order: 3; }
+.fs-pod[data-you] { box-shadow: 0 0 0 1px var(--fw-accent); }
+.fs-pod-medal { font-size: 22px; line-height: 26px; }
+.fs-pod-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 13px/18px var(--fw-sans); }
+.fs-pod-pts { font: 400 26px/30px var(--fw-serif); letter-spacing: -.02em; }
+.fs-pod-pts small { font: 500 9.5px var(--fw-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--fw-fg3); margin-left: 3px; }
+.fs-pod-ret { font: 400 10.5px var(--fw-mono); color: var(--fw-fg3); }
+
+.fs-vs-note { margin: 0; padding: 12px 0 4px; font-size: 12px; line-height: 18px; color: var(--fw-fg3); }
+.fs-vs { padding: 10px 0 6px; display: flex; flex-direction: column; gap: 6px; }
+.fs-vs-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 12px; padding: 8px 0; }
+.fs-vs-bar { grid-column: 1 / -1; display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: var(--fw-line); }
+.fs-vs-bar i { display: block; height: 100%; }
+.fs-vs-bar i[data-k="w"] { background: var(--gain, #3fae7f); }
+.fs-vs-bar i[data-k="t"] { background: var(--fw-fg3); opacity: .5; }
+.fs-vs-bar i[data-k="l"] { background: var(--loss, #e0607a); }
+.fs-vs-text { font: 400 10.5px var(--fw-mono); color: var(--fw-fg3); }
+@media (max-width: 700px) { .fs-pod-pts { font-size: 22px; } .fs-pod { padding: 12px 4px 10px; } }
+
+.fw-leaders { margin-top: 0; background: rgb(255 255 255 / .02); border-top: 1px solid rgb(255 255 255 / .05); padding: 12px var(--fw-ins); }
+.fw-leaders-av { display: inline-flex; border-radius: 50%; box-shadow: 0 0 0 2px var(--fw-bg), 0 0 0 3.5px var(--ring, var(--fw-line)); }
+.fw-leaders-av[data-place="1"] { --ring: #d4af37; } .fw-leaders-av[data-place="2"] { --ring: #b8bcc4; } .fw-leaders-av[data-place="3"] { --ring: #b87333; }
+.fw-leaders li { padding: 4px 12px 4px 6px; gap: 8px; }
+.fw-leaders li em { font-size: 11px; color: var(--fw-fg2); }
+
+/* ---- Review pass: hero round, podium, archive motion, spacing ---- */
+.fs-clock strong { color: var(--fw-accent); font-size: 34px; line-height: 38px; font-weight: 400; }
+.fs-progress { height: 6px; border-radius: 3px; margin: 0 var(--fw-ins); background: var(--fw-line); overflow: hidden; }
+.fs-progress i { background: linear-gradient(90deg, color-mix(in srgb, var(--fw-accent) 55%, transparent), var(--fw-accent)); border-radius: 3px; }
+.fs-hero-top { padding-bottom: 18px; }
+.fs-hero-body { padding-top: 6px; }
+.fw-section-head h2 { display: inline-flex; align-items: center; }
+.fs-pod-medal { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; font: 600 12px var(--fw-mono); color: var(--fw-fg3); border: 1px solid var(--fw-hair); }
+.fs-pod[data-place="1"] .fs-pod-medal { width: 30px; height: 30px; border: 0; color: #d4af37; background: color-mix(in srgb, #d4af37 18%, transparent); }
+.fs-pod-medal svg { width: 16px; height: 16px; }
+.fs-pod[data-place="1"] { background: radial-gradient(120% 100% at 50% 0, rgb(212 175 55 / .18), transparent 62%), var(--fw-bg); border-color: color-mix(in srgb, #d4af37 40%, var(--fw-hair)); }
+.fs-pod[data-you] { box-shadow: none; }
+.fs-pod[data-you] .fs-pod-name::after { content: ""; display: inline-block; width: 6px; height: 6px; margin-left: 6px; border-radius: 50%; background: var(--fw-accent); vertical-align: middle; }
+.fs-archive-wrap { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .22s cubic-bezier(.2, .8, .2, 1); }
+.fs-archive-wrap[data-open] { grid-template-rows: 1fr; }
+.fs-archive-wrap > .fs-archive-body { overflow: hidden; min-height: 0; }
+.fw { gap: 24px; }
+@media (prefers-reduced-motion: reduce) { .fs-archive-wrap { transition: none; } }
+
+/* ---- Season card on the league page: one card, one click ---- */
+.fs-card { position: relative; padding: 0 !important; overflow: hidden; background-image: radial-gradient(90% 120% at 0% 0%, color-mix(in srgb, var(--fw-accent) 10%, transparent), transparent 60%), linear-gradient(180deg, rgb(255 255 255 / .03), transparent 60%) !important; transition: border-color .18s, transform .18s; }
+.fs-card:hover { border-color: var(--fw-line); }
+.fs-card-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; padding: 20px 24px 16px; }
+.fs-card-kicker { display: inline-flex; align-items: center; font: 500 10.5px/16px var(--fw-mono); letter-spacing: .09em; text-transform: uppercase; color: var(--fw-fg3); }
+.fs-card-kicker i { width: 7px; height: 7px; margin-right: 8px; border-radius: 50%; background: var(--fw-accent); box-shadow: 0 0 10px var(--fw-accent); }
+.fs-card-title { margin: 6px 0 0; font: 400 34px/38px var(--fw-serif); letter-spacing: -.025em; }
+.fs-card-title span { color: var(--fw-fg3); }
+.fs-card-clock { text-align: right; }
+.fs-card-clock strong { display: block; font: 400 30px/34px var(--fw-serif); letter-spacing: -.02em; color: var(--fw-accent); font-variant-numeric: tabular-nums; }
+.fs-card-clock span { font: 500 10px var(--fw-mono); letter-spacing: .09em; text-transform: uppercase; color: var(--fw-fg3); }
+.fs-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; padding: 0 24px 4px; }
+.fs-week-day { position: relative; padding-top: 10px; }
+.fs-week-day::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 5px; border-radius: 3px; background: var(--fw-line); }
+.fs-week-day i { position: absolute; left: 0; top: 0; height: 5px; border-radius: 3px; background: linear-gradient(90deg, color-mix(in srgb, var(--fw-accent) 60%, transparent), var(--fw-accent)); }
+.fs-week-day span { font: 500 9.5px var(--fw-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--fw-fg3); }
+.fs-week-day[data-state="now"] span { color: var(--fw-fg); }
+.fs-card-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border-top: 1px solid var(--fw-hair); margin-top: 14px; }
+.fs-col { padding: 16px 24px 18px; min-width: 0; }
+.fs-col + .fs-col { border-left: 1px solid var(--fw-hair); }
+.fs-col h3 { display: flex; align-items: center; gap: 7px; margin: 0 0 8px; font: 500 10.5px/16px var(--fw-mono); letter-spacing: .09em; text-transform: uppercase; color: var(--fw-fg3); }
+.fs-col h3 svg { width: 13px; height: 13px; }
+.fs-mini { list-style: none; margin: 0; padding: 0; }
+.fs-mini li { display: grid; grid-template-columns: 20px 26px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 7px 8px; margin: 0 -8px; border-radius: 9px; font-size: 13px; }
+.fs-mini li[data-you] { background: var(--fw-raise); }
+.fs-mini b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fs-mini em { font: 500 12px var(--fw-mono); font-style: normal; color: var(--fw-fg2); }
+.fs-mini-rank { font: 600 11px var(--fw-mono); color: var(--fw-fg3); text-align: center; }
+.fs-mini-rank[data-rank="1"] { color: var(--gold-ink, #d4af37); }
+.fs-card-you { display: flex; align-items: center; gap: 6px; margin: 10px 0 0; font-size: 12px; line-height: 18px; color: var(--fw-fg3); }
+.fs-card-you b { color: var(--fw-fg); font-weight: 500; }
+.fs-card-you svg { width: 13px; height: 13px; flex: none; }
+.fs-card-empty { margin: 0; padding: 8px 0; font-size: 12.5px; line-height: 19px; color: var(--fw-fg3); }
+.fs-card-cta { position: static; display: flex; align-items: center; justify-content: space-between; padding: 14px 24px; border-top: 1px solid var(--fw-hair); font: 500 13px var(--fw-sans); color: var(--fw-fg); background: rgb(255 255 255 / .02); transition: background .15s; }
+.fs-card-cta svg { width: 15px; height: 15px; transition: transform .2s; }
+.fs-card:hover .fs-card-cta { background: var(--fw-raise); }
+.fs-card:hover .fs-card-cta svg { transform: translateX(3px); }
+.fs-card-hit { position: absolute; inset: -9999px; z-index: 0; }
+.fs-card-hit { inset: auto; top: -520px; bottom: 0; left: 0; right: 0; height: 600px; }
+.fs-card .tip { z-index: 2; }
+@media (max-width: 760px) { .fs-card-cols { grid-template-columns: 1fr; } .fs-col + .fs-col { border-left: 0; border-top: 1px solid var(--fw-hair); } .fs-card-title { font-size: 28px; line-height: 32px; } .fs-card-head, .fs-col, .fs-card-cta, .fs-week { padding-left: 16px; padding-right: 16px; } }
+
+/* ---- Podium: real steps ---- */
+.fs-podium { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: 0; padding: 26px 8px 0; margin: 0 -4px; border-bottom: 1px solid var(--fw-line); background: radial-gradient(70% 90% at 50% 100%, color-mix(in srgb, var(--fw-accent) 10%, transparent), transparent 70%); }
+.fs-step { display: flex; flex-direction: column; align-items: stretch; min-width: 0; }
+.fs-step-who { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 0 6px 12px; text-align: center; position: relative; }
+.fs-step-who b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 13.5px/18px var(--fw-sans); }
+.fs-step[data-you] .fs-step-who b::after { content: " (you)"; font-weight: 400; color: var(--fw-fg3); }
+.fs-step-av { display: inline-flex; border-radius: 50%; padding: 3px; background: var(--ringc, var(--fw-line)); box-shadow: 0 8px 22px -8px var(--ringc, transparent); }
+.fs-step[data-place="1"] { --ringc: linear-gradient(145deg, #ffe27a, #b8860b); }
+.fs-step[data-place="2"] { --ringc: linear-gradient(145deg, #eef0f3, #8b93a1); }
+.fs-step[data-place="3"] { --ringc: linear-gradient(145deg, #e3a56b, #8a4f1d); }
+.fs-step-pts { font: 400 34px/36px var(--fw-serif); letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.fs-step-pts small { margin-left: 4px; font: 500 10px var(--fw-mono); letter-spacing: .09em; text-transform: uppercase; color: var(--fw-fg3); }
+.fs-step-ret { font-size: 11px; }
+.fs-crown { width: 24px; height: 24px; color: #f2c94c; filter: drop-shadow(0 0 8px rgb(242 201 76 / .6)); animation: fs-bob 3s ease-in-out infinite; margin-bottom: -2px; }
+@keyframes fs-bob { 50% { transform: translateY(-3px) rotate(-4deg); } }
+.fs-step-block { position: relative; display: grid; place-items: center; border-radius: 12px 12px 0 0; border: 1px solid var(--fw-hair); border-bottom: 0; overflow: hidden; background: linear-gradient(180deg, rgb(255 255 255 / .09), rgb(255 255 255 / .02)); }
+.fs-step[data-place="1"] .fs-step-block { height: 104px; background: linear-gradient(180deg, rgb(242 201 76 / .32), rgb(242 201 76 / .06)); border-color: rgb(242 201 76 / .35); }
+.fs-step[data-place="2"] .fs-step-block { height: 74px; background: linear-gradient(180deg, rgb(200 206 217 / .22), rgb(200 206 217 / .04)); }
+.fs-step[data-place="3"] .fs-step-block { height: 52px; background: linear-gradient(180deg, rgb(205 140 80 / .24), rgb(205 140 80 / .04)); }
+.fs-step-block span { font: 400 54px/1 var(--fw-serif); letter-spacing: -.04em; color: transparent; -webkit-text-stroke: 1.5px rgb(255 255 255 / .35); }
+.fs-step[data-place="1"] .fs-step-block span { -webkit-text-stroke-color: rgb(242 201 76 / .8); font-size: 72px; }
+.fs-step-block::before { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(115deg, rgb(255 255 255 / .03) 0 2px, transparent 2px 9px); }
+.fs-podium + .fs-rows { margin-top: 6px; }
+@media (max-width: 700px) { .fs-step-pts { font-size: 26px; } .fs-step-block span { font-size: 40px; } .fs-step[data-place="1"] .fs-step-block span { font-size: 52px; } .fs-step[data-place="1"] .fs-step-block { height: 84px; } .fs-step[data-place="2"] .fs-step-block { height: 60px; } .fs-step[data-place="3"] .fs-step-block { height: 42px; } }
+
+/* ---- Trophy case: a shelf per player, cups with the round engraved ---- */
+.fs-case { display: flex; flex-direction: column; gap: 4px; padding: 14px 0 12px; }
+.fs-shelf { padding: 10px 0 0; }
+.fs-shelf-who { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 13px; }
+.fs-shelf-who small { margin-left: auto; font: 400 10.5px var(--fw-mono); color: var(--fw-fg3); }
+.fs-shelf-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 2px 8px; min-height: 66px; padding: 4px 10px 0; border-bottom: 5px solid transparent; border-image: linear-gradient(180deg, rgb(255 255 255 / .12), rgb(255 255 255 / .03)) 1; background: linear-gradient(180deg, transparent 60%, rgb(0 0 0 / .18)); border-radius: 8px 8px 0 0; }
+.fs-cup { position: relative; margin: 0; display: flex; flex-direction: column; align-items: center; width: 40px; transition: transform .2s cubic-bezier(.2, .8, .2, 1); }
+.fs-cup:hover { transform: translateY(-4px) scale(1.06); }
+.fs-cup svg { width: 36px; height: 42px; filter: drop-shadow(0 6px 8px rgb(0 0 0 / .4)); }
+.fs-cup[data-big] svg { width: 44px; height: 52px; filter: drop-shadow(0 0 14px rgb(242 201 76 / .5)) drop-shadow(0 6px 8px rgb(0 0 0 / .4)); }
+.fs-cup figcaption { margin-top: -2px; padding-bottom: 5px; font: 600 9.5px var(--fw-mono); letter-spacing: .06em; color: var(--fw-fg3); }
+.fs-cup-ic { position: absolute; top: 9px; display: grid; place-items: center; color: #4a3604; }
+.fs-cup-ic svg { width: 14px; height: 14px; filter: none; }
+
+/* ---- How it works: a week on a rail, and the points ladder ---- */
+.fs-how { background-image: radial-gradient(80% 140% at 100% 0%, color-mix(in srgb, var(--fw-accent) 12%, transparent), transparent 60%) !important; }
+.fs-how-body { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 28px; padding: 6px var(--fw-ins) 20px; align-items: center; }
+.fs-rail { list-style: none; margin: 0; padding: 0; position: relative; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.fs-rail::before { content: ""; position: absolute; left: 12%; right: 12%; top: 19px; height: 2px; background: repeating-linear-gradient(90deg, var(--fw-line) 0 6px, transparent 6px 12px); }
+.fs-rail li { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 2px; }
+.fs-rail li span { display: grid; place-items: center; width: 40px; height: 40px; margin-bottom: 8px; border: 1px solid var(--fw-line); border-radius: 50%; background: var(--fw-bg); color: var(--fw-accent); box-shadow: 0 0 0 5px var(--fw-panel); }
+.fs-rail li:last-child span { background: var(--fw-accent); color: #fff; border-color: transparent; }
+.fs-rail li span svg { width: 17px; height: 17px; }
+.fs-rail b { font: 500 13px/18px var(--fw-sans); }
+.fs-rail small { font-size: 11.5px; line-height: 16px; color: var(--fw-fg3); max-width: 120px; }
+.fs-ladder { padding: 14px 16px; border: 1px dashed var(--fw-line); border-radius: var(--fw-r); background: color-mix(in srgb, var(--fw-bg) 70%, transparent); }
+.fs-ladder > p { margin: 0 0 10px; font: 500 10px var(--fw-mono); letter-spacing: .09em; text-transform: uppercase; color: var(--fw-fg3); }
+.fs-ladder > div { display: flex; align-items: flex-end; gap: 6px; }
+.fs-ladder span { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.fs-ladder span em { width: 100%; display: grid; place-items: center; border-radius: 8px 8px 3px 3px; font: 400 20px/1 var(--fw-serif); font-style: normal; background: color-mix(in srgb, var(--fw-accent) calc(var(--w, 10) * 1%), var(--fw-raise)); height: calc(18px + var(--h, 0px)); }
+.fs-ladder span b { font: 500 10px var(--fw-mono); color: var(--fw-fg3); }
+.fs-ladder span[data-place="1"] { --h: 34px; --w: 40; } .fs-ladder span[data-place="2"] { --h: 24px; --w: 26; } .fs-ladder span[data-place="3"] { --h: 14px; --w: 18; }
+.fs-ladder small { display: block; margin-top: 10px; font-size: 11.5px; line-height: 17px; color: var(--fw-fg3); }
+@media (max-width: 760px) { .fs-how-body { grid-template-columns: 1fr; } .fs-rail small { max-width: 90px; } }
+
+.fs-card-cta::after { content: ""; position: absolute; inset: 0; z-index: 1; }
+.fs-card .tip { position: relative; z-index: 2; }
+.fs-card:focus-within { outline: 2px solid var(--fw-accent); outline-offset: 2px; }
+.fs-card .tip-info { width: 28px; height: 28px; }
+
+/* The leaders strip sits inside the league row's link, so the whole row is one click target. */
+.fw-league { flex-wrap: wrap; }
+.fw-league > .fw-leaders { flex-basis: 100%; margin: 6px calc(var(--fw-ins) * -1) -18px; padding: 12px var(--fw-ins); width: calc(100% + var(--fw-ins) * 2); }
+.fw-leaders { cursor: pointer; }
+
+/* ======== Broadcast Night: every league is a channel; its colour runs through the season ======== */
+.fw[data-accent="emerald"] { --lg: #3fae7f; --lg-2: #1f6b4c; } .fw[data-accent="violet"] { --lg: #8f6fe0; --lg-2: #4b3a9a; }
+.fw[data-accent="amber"] { --lg: #e0a23f; --lg-2: #8a5a10; } .fw[data-accent="sky"] { --lg: #4aa3e0; --lg-2: #1f5f93; } .fw[data-accent="rose"] { --lg: #e0607a; --lg-2: #8f2b42; }
+.fw { --lg: var(--fw-accent); --lg-2: var(--fw-accent); }
+
+/* Live scorebug (season hero) */
+.fs-hero { border-left: 4px solid var(--lg); background-image: linear-gradient(100deg, color-mix(in srgb, var(--lg) 20%, var(--fw-panel)), var(--fw-panel) 58%) !important; }
+.fs-hero::after, .fs-card::after { content: attr(data-emoji); position: absolute; right: -16px; bottom: -44px; font-size: 230px; line-height: 1; opacity: .07; filter: grayscale(1); pointer-events: none; }
+.fs-live { display: inline-flex; align-items: center; gap: 7px; padding: 3px 14px 3px 10px; background: var(--lg); color: #fff; font: 700 11px/16px var(--fw-sans); letter-spacing: .12em; text-transform: uppercase; clip-path: polygon(0 0, 100% 0, 90% 100%, 0 100%); }
+.fs-live i { width: 6px; height: 6px; border-radius: 50%; background: #fff; animation: fs-pulse2 1.6s infinite; }
+@keyframes fs-pulse2 { 50% { opacity: .25; } }
+.fs-clock strong { color: var(--lg); font-size: 52px; line-height: 54px; }
+.fs-progress i { background: linear-gradient(90deg, var(--lg-2), var(--lg)); }
+
+/* Season card on the league page */
+.fs-card { border-left: 4px solid var(--lg); background-image: radial-gradient(90% 120% at 0% 0%, color-mix(in srgb, var(--lg) 16%, transparent), transparent 60%), linear-gradient(180deg, rgb(255 255 255 / .03), transparent 60%) !important; }
+.fs-card-kicker i { background: var(--lg); box-shadow: 0 0 10px var(--lg); }
+.fs-card-clock strong { color: var(--lg); font-size: 40px; line-height: 42px; }
+.fs-week { padding: 0 24px 10px; }
+.fs-week-track { position: relative; height: 8px; border-radius: 4px; background: var(--fw-line); margin-top: 22px; }
+.fs-week-track::after { content: ""; position: absolute; inset: 0; border-radius: 4px; background: repeating-linear-gradient(90deg, transparent 0 calc(100% / 7 - 2px), rgb(0 0 0 / .45) calc(100% / 7 - 2px) calc(100% / 7)); }
+.fs-week-track i { position: absolute; left: 0; top: 0; height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--lg-2), var(--lg)); }
+.fs-week-track b { position: absolute; top: -22px; transform: translateX(-50%); padding: 1px 7px; border-radius: 999px; background: var(--lg); color: #fff; font: 700 9.5px/14px var(--fw-sans); letter-spacing: .08em; text-transform: uppercase; z-index: 1; }
+.fs-week-day { display: none; }
+.fs-col h3, .fs-card-kicker { text-transform: none; letter-spacing: 0; font: 600 12px/16px var(--fw-sans); color: var(--fw-fg2); }
+.fs-mini li[data-you] { background: color-mix(in srgb, var(--lg) 13%, transparent); box-shadow: inset 3px 0 0 var(--lg); }
+.fs-mini-rank { font-family: var(--fw-serif); font-size: 17px; font-weight: 400; }
+
+/* Header pill, explainer, ladder use the channel colour */
+.fw-live-pill i { background: var(--lg); }
+.fs-how { background-image: radial-gradient(80% 140% at 100% 0%, color-mix(in srgb, var(--lg) 14%, transparent), transparent 60%) !important; }
+.fs-rail li span { color: var(--lg); } .fs-rail li:last-child span { background: var(--lg); color: #fff; }
+.fs-ladder span em { background: color-mix(in srgb, var(--lg) calc(var(--w, 10) * 1%), var(--fw-raise)); }
+.fs-how > summary svg:first-child { color: var(--lg); }
+
+/* Podium: solid metals that rise */
+.fs-podium { background: radial-gradient(70% 90% at 50% 100%, color-mix(in srgb, var(--lg) 16%, transparent), transparent 70%); }
+.fs-step-block::before { display: none; }
+.fs-step[data-place="1"] .fs-step-block { height: 150px; background: linear-gradient(180deg, #f6d768, #a9780f); border: 0; }
+.fs-step[data-place="2"] .fs-step-block { height: 108px; background: linear-gradient(180deg, #d7dbe2, #7c8493); border: 0; }
+.fs-step[data-place="3"] .fs-step-block { height: 76px; background: linear-gradient(180deg, #d99a62, #7a4318); border: 0; }
+.fs-step-block { box-shadow: inset 0 1px 0 rgb(255 255 255 / .55); transform-origin: bottom; animation: fs-rise .7s cubic-bezier(.2, .9, .2, 1) both; }
+.fs-step[data-place="2"] .fs-step-block { animation-delay: .12s; } .fs-step[data-place="1"] .fs-step-block { animation-delay: .24s; }
+.fs-step-block span, .fs-step[data-place="1"] .fs-step-block span { color: rgb(27 20 5 / .8); -webkit-text-stroke: 0; font-size: 56px; }
+.fs-step[data-place="1"] .fs-step-block span { font-size: 80px; }
+.fs-step-block::after { content: ""; position: absolute; inset: 0; background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / .45) 50%, transparent 65%); transform: translateX(-120%); animation: fs-sweep 1.4s .9s ease-out 1 both; }
+@keyframes fs-rise { from { transform: scaleY(.15); opacity: 0; } }
+@keyframes fs-sweep { to { transform: translateX(120%); } }
+.fs-step-who { animation: fs-fade-up .5s .5s both; }
+@keyframes fs-fade-up { from { opacity: 0; transform: translateY(8px); } }
+@media (max-width: 700px) { .fs-step[data-place="1"] .fs-step-block { height: 110px; } .fs-step[data-place="2"] .fs-step-block { height: 80px; } .fs-step[data-place="3"] .fs-step-block { height: 56px; } .fs-step-block span { font-size: 40px; } .fs-step[data-place="1"] .fs-step-block span { font-size: 56px; } .fs-clock strong { font-size: 36px; } }
+@media (prefers-reduced-motion: reduce) { .fs-step-block, .fs-step-block::after, .fs-step-who, .fs-live i { animation: none; } }
+
+/* Head to head bars in channel colour, not red/green */
+.fs-vs-bar i[data-k="w"] { background: var(--lg); } .fs-vs-bar i[data-k="l"] { background: color-mix(in srgb, var(--fw-fg) 22%, transparent); } .fs-vs-bar i[data-k="t"] { background: color-mix(in srgb, var(--fw-fg) 40%, transparent); }
+.fs-record b[data-lead="up"] { color: var(--lg); } .fs-record b[data-lead="down"] { color: var(--fw-fg3); }
+
+/* Rounds as tickets */
+.fs-archive > li { position: relative; margin: 8px 0; border: 1px dashed var(--fw-line); border-radius: 12px; background: var(--fw-bg); }
+.fs-archive > li:first-child, .fs-archive > li { border-top: 1px dashed var(--fw-line); }
+.fs-archive > li::before, .fs-archive > li::after { content: ""; position: absolute; top: 28px; width: 12px; height: 12px; border-radius: 50%; background: var(--fw-panel); border: 1px dashed var(--fw-line); }
+.fs-archive > li::before { left: -7px; clip-path: inset(0 0 0 50%); } .fs-archive > li::after { right: -7px; clip-path: inset(0 50% 0 0); }
+.fs-archive-head { padding: 12px 18px; }
+.fs-archive-n { font-size: 30px; color: var(--lg); }
+.fs-archive-body { padding: 0 18px; }
+
+/* Collapsible season card: a preview line, then the full tables */
+.fs-card-cta::after { display: none; }
+.fs-card:focus-within { outline: none; }
+.fs-card-peek { position: relative; z-index: 1; display: flex; align-items: center; gap: 14px; width: 100%; padding: 12px 24px 14px; margin-top: 12px; border-top: 1px solid var(--fw-hair); text-align: left; font-size: 13px; color: var(--fw-fg3); transition: background .15s; }
+.fs-card-peek:hover { background: rgb(255 255 255 / .03); }
+.fs-card-peek:focus-visible { outline: 2px solid var(--lg); outline-offset: -2px; }
+.fs-peek-you { flex: 1; min-width: 0; }
+.fs-peek-you b { color: var(--fw-fg); font-weight: 500; }
+.fs-peek-leaders { display: inline-flex; gap: 6px; }
+.fs-peek-chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px 2px 2px; border: 1px solid var(--fw-hair); border-radius: 999px; background: var(--fw-bg); }
+.fs-peek-chip[data-you] { border-color: var(--lg); }
+.fs-peek-chip em { font: 500 11px var(--fw-mono); font-style: normal; color: var(--fw-fg2); }
+.fs-peek-toggle { display: inline-flex; align-items: center; gap: 4px; font: 500 12px var(--fw-sans); color: var(--fw-fg2); }
+.fs-peek-toggle svg { width: 15px; height: 15px; transition: transform .25s cubic-bezier(.2, .8, .2, 1); }
+.fs-card[data-open] .fs-peek-toggle svg { transform: rotate(180deg); }
+.fs-card-fold { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .32s cubic-bezier(.2, .8, .2, 1); }
+.fs-card-fold[data-open] { grid-template-rows: 1fr; }
+.fs-card-fold-in { overflow: hidden; min-height: 0; }
+.fs-card-fold .fs-card-cols { margin-top: 0; border-top: 1px solid var(--fw-hair); }
+@media (max-width: 760px) { .fs-card-peek { flex-wrap: wrap; padding: 12px 16px; } .fs-peek-you { flex-basis: 100%; } }
+@media (prefers-reduced-motion: reduce) { .fs-card-fold { transition: none; } }
+
+/* ======== League top: one card, long race left, weekly game right ======== */
+.lt { position: relative; padding: 0 !important; overflow: hidden; border-left: 4px solid var(--lg); background-image: radial-gradient(70% 140% at 100% 0%, color-mix(in srgb, var(--lg) 14%, transparent), transparent 60%), linear-gradient(180deg, rgb(255 255 255 / .03), transparent 60%) !important; }
+.lt::after { content: attr(data-emoji); position: absolute; right: -14px; bottom: -40px; font-size: 200px; line-height: 1; opacity: .06; filter: grayscale(1); pointer-events: none; }
+.lt-grid { position: relative; z-index: 1; display: grid; grid-template-columns: 1.3fr 1fr; }
+.lt-race { padding: 18px 24px 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.lt-week { padding: 18px 24px 16px; border-left: 1px solid var(--fw-hair); background: rgb(0 0 0 / .12); display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.lt-k { display: inline-flex; align-items: center; font: 600 12px/16px var(--fw-sans); color: var(--fw-fg2); }
+.lt-hero { display: flex; align-items: flex-end; gap: 36px; flex-wrap: wrap; }
+.lt-rank { display: flex; align-items: center; gap: 8px; font: 400 52px/54px var(--fw-serif); letter-spacing: -.035em; font-variant-numeric: tabular-nums; }
+.lt-rank small { font: 500 14px var(--fw-sans); letter-spacing: 0; color: var(--fw-fg3); margin-left: 2px; align-self: flex-end; padding-bottom: 8px; }
+.lt-ret strong { display: block; font: 400 30px/34px var(--fw-serif); letter-spacing: -.03em; }
+.lt-ret strong .fw-delta { font: inherit !important; }
+.lt-sub { display: block; font-size: 12px; line-height: 18px; color: var(--fw-fg3); }
+.lt-sub b[data-tone="up"], .lt-sub[data-tone="up"] { color: var(--gain-ink); } .lt-sub b[data-tone="down"], .lt-sub[data-tone="down"] { color: var(--loss-ink); }
+.lt-money { display: flex; align-items: baseline; gap: 18px; flex-wrap: wrap; font-size: 12.5px; color: var(--fw-fg3); }
+.lt-money b { font: 500 13.5px var(--fw-sans); color: var(--fw-fg); margin-left: 4px; font-variant-numeric: tabular-nums; }
+.lt-money b span { font: inherit; }
+.lt-pct { margin-left: auto; }
+.lt .fw-split { margin-top: -2px; }
+.lt-week-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.lt-week-head h2 { margin: 2px 0 0; font: 400 26px/30px var(--fw-serif); letter-spacing: -.02em; }
+.lt-week-head h2 span { color: var(--fw-fg3); }
+.lt-clock { text-align: right; }
+.lt-clock strong { display: block; font: 400 26px/30px var(--fw-serif); color: var(--lg); font-variant-numeric: tabular-nums; }
+.lt-clock span { font-size: 11px; color: var(--fw-fg3); }
+.lt-week .fs-week { padding: 0 0 4px; }
+.lt-week .fs-week-track { margin-top: 20px; }
+.lt-you { margin: 0; font-size: 12.5px; line-height: 18px; color: var(--fw-fg3); }
+.lt-you b { color: var(--fw-fg); font-weight: 500; }
+.lt-chips { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.lt-chips small { font-size: 11px; color: var(--fw-fg3); margin-left: 4px; }
+.lt-toggle { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 10px 24px; border-top: 1px solid var(--fw-hair); font-size: 12.5px; color: var(--fw-fg3); transition: background .15s; text-align: left; }
+.lt-toggle:hover { background: rgb(255 255 255 / .03); color: var(--fw-fg); }
+.lt-toggle:focus-visible { outline: 2px solid var(--lg); outline-offset: -2px; }
+.lt .fs-card-fold { position: relative; z-index: 1; }
+.fs-card-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; font: 500 12.5px var(--fw-sans); color: var(--lg); }
+.fs-card-link svg { width: 14px; height: 14px; transition: transform .2s; }
+.fs-card-link:hover svg { transform: translateX(3px); }
+@media (max-width: 900px) { .lt-grid { grid-template-columns: 1fr; } .lt-week { border-left: 0; border-top: 1px solid var(--fw-hair); } .lt-rank { font-size: 44px; } }
+@media (max-width: 600px) { .lt-race, .lt-week, .lt-toggle { padding-left: 16px; padding-right: 16px; } .lt-hero { gap: 20px; } }
+.fw-league > .fw-leaders { flex: 0 0 calc(100% + var(--fw-ins) * 2); width: calc(100% + var(--fw-ins) * 2); max-width: none; box-sizing: border-box; }
+
+/* Trophies drop onto the shelf one after another, then tilt toward the cursor */
+.fs-shelf { perspective: 500px; }
+.fs-cup { animation: fs-cup-in .6s cubic-bezier(.2, .9, .3, 1.25) backwards; animation-delay: calc(var(--ci, 0) * 90ms + 150ms); transform-style: preserve-3d; }
+@keyframes fs-cup-in { from { opacity: 0; transform: translateY(-26px) scale(.7) rotate(-10deg); } 60% { opacity: 1; } }
+.fs-cup:hover { transform: translateY(-6px) scale(1.12) rotateY(14deg) rotateZ(-3deg); }
+.fs-cup:hover svg { filter: drop-shadow(0 0 12px rgb(242 201 76 / .65)) drop-shadow(0 8px 10px rgb(0 0 0 / .4)); }
+.fs-cup { transition: transform .25s cubic-bezier(.2, .8, .2, 1); }
+@media (prefers-reduced-motion: reduce) { .fs-cup { animation: none; } }
+
+/* ======== List row standings: long race and season, each with your place and a ringed top three ======== */
+.ls { display: grid; grid-template-columns: 1fr; flex: 0 0 calc(100% + var(--fw-ins) * 2); width: calc(100% + var(--fw-ins) * 2); box-sizing: border-box; margin: 6px calc(var(--fw-ins) * -1) -18px; border-top: 1px solid var(--fw-hair2); background: rgb(255 255 255 / .02); }
+.ls[data-two] { grid-template-columns: 1fr 1fr; }
+.ls-half { min-width: 0; padding: 12px var(--fw-ins) 14px; }
+.ls[data-two] .ls-half + .ls-half { border-left: 1px solid var(--fw-hair2); }
+.ls-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.ls-label { display: inline-flex; align-items: center; gap: 7px; font: 600 11px/16px var(--fw-sans); letter-spacing: .1em; text-transform: uppercase; color: var(--fw-fg3); }
+.ls-label svg { width: 13px; height: 13px; color: var(--gold-ink, #d4af37); }
+.ls-you { font: 400 26px/26px var(--fw-serif); letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.ls-you b { font-weight: 400; }
+.ls-you small { font: 500 12px var(--fw-sans); letter-spacing: 0; color: var(--fw-fg3); }
+.ls-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.fw-leaders-chip { display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px 4px 6px; border: 1px solid var(--fw-hair); border-radius: 999px; background: var(--fw-bg); font-size: 12.5px; min-width: 0; }
+.fw-leaders-chip[data-you] { border-color: var(--fw-line); background: var(--fw-raise); }
+.fw-leaders-chip b { font-weight: 500; }
+.fw-leaders-chip em { font: 500 11.5px var(--fw-mono); font-style: normal; color: var(--fw-fg2); }
+.fw-league > .ls { flex-basis: calc(100% + var(--fw-ins) * 2); }
+@media (max-width: 760px) { .ls[data-two] { grid-template-columns: 1fr; } .ls[data-two] .ls-half + .ls-half { border-left: 0; border-top: 1px solid var(--fw-hair2); } }
+
+/* The rank sits on its own, centred against the whole half, instead of hanging off the top corner */
+.ls-half { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.ls-main { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.ls-you { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 54px; line-height: 1; }
+.ls-you b { font: 400 34px/34px var(--fw-serif); letter-spacing: -.03em; }
+.ls-you small { margin-top: 4px; font: 500 11px var(--fw-sans); letter-spacing: .04em; color: var(--fw-fg3); }
+
+/* Marks a league row that runs weekly seasons, so "Season 1" below it reads as a game, not a label. */
+.fw-league-body h2 { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; }
+.fw-season-pill { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: 999px; font: 600 10.5px/1 var(--fw-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--gold-ink, #b8860b); border: 1px solid color-mix(in srgb, var(--gold-ink, #d4af37) 45%, transparent); background: color-mix(in srgb, var(--gold-ink, #d4af37) 12%, transparent); }
+.fw-season-pill i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: fs-pulse 2s infinite; }
+
+/* Light theme: league-accent text and the weekly panel. --lg is a fill colour; as text on white it is ~2.5:1,
+   so text and the white-on-accent LIVE tag use a darkened mix of it. */
+:root:not(.dark) .fs-clock strong, :root:not(.dark) .lt-clock strong, :root:not(.dark) .fs-archive-n, :root:not(.dark) .fs-card-link { color: color-mix(in srgb, var(--lg) 62%, #000); }
+:root:not(.dark) .fs-live { background: color-mix(in srgb, var(--lg) 72%, #000); }
+:root.dark .fs-live { background: color-mix(in srgb, var(--lg) 62%, #000); }
+:root:not(.dark) .lt-week { background: color-mix(in srgb, var(--lg) 7%, #fff); }
+:root:not(.dark) .lt-you, :root:not(.dark) .lt-week small { color: var(--fw-fg2); }
+
+/* Phones: the points figure never wraps ("5 / pts" was stacking in three lines) */
+@media (max-width: 700px) {
+  .fs-rows .fs-figure { max-width: none; white-space: nowrap; }
+  .fs-rows .fs-figure small { white-space: nowrap; }
+}
+:root:not(.dark) .fs-week-track b, :root:not(.dark) .fs-rail li:last-child span { background: color-mix(in srgb, var(--lg) 72%, #000); }
+:root:not(.dark) .fs-rail li span { color: color-mix(in srgb, var(--lg) 62%, #000); }
+
+/* A clear way into the season page from the weekly game panel */
+.lt-open { display: inline-flex; align-items: center; gap: 7px; align-self: flex-start; margin-top: 12px; height: 34px; padding: 0 14px; border: 1px solid color-mix(in srgb, var(--lg) 45%, var(--fw-hair)); border-radius: 999px; font: 500 12.5px var(--fw-sans); color: var(--lg); background: color-mix(in srgb, var(--lg) 8%, transparent); transition: background .15s, transform .15s; }
+.lt-open:hover { background: color-mix(in srgb, var(--lg) 16%, transparent); }
+.lt-open svg { width: 14px; height: 14px; transition: transform .15s; }
+.lt-open:hover svg { transform: translateX(3px); }
+:root:not(.dark) .lt-open { color: color-mix(in srgb, var(--lg) 62%, #000); }
+@media (max-width: 700px) { .lt-open { height: 40px; width: 100%; justify-content: center; } }
+
+
+/* Compact top card: same two halves, tighter type and padding, and the season link shares a row with the leaders. */
+.lt-race { padding: 14px 20px 12px; gap: 8px; }
+.lt-week { padding: 14px 20px 12px; gap: 6px; }
+.lt-hero { gap: 28px; }
+.lt-rank { font-size: 40px; line-height: 42px; }
+.lt-rank small { padding-bottom: 5px; }
+.lt-ret strong { font-size: 24px; line-height: 28px; }
+.lt-week-head h2 { font-size: 22px; line-height: 26px; }
+.lt-clock strong { font-size: 22px; line-height: 26px; }
+.lt-week .fs-week-track { margin-top: 16px; }
+.lt-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 2px; }
+.lt-foot .lt-open { margin-top: 0; height: 28px; padding: 0 11px; font-size: 12.5px; align-self: auto; margin-left: auto; }
+.lt-toggle { padding-top: 8px; padding-bottom: 8px; }
+@media (max-width: 600px) { .lt-race, .lt-week { padding: 12px 16px; } .lt-rank { font-size: 36px; line-height: 38px; } .lt-foot .lt-open { width: 100%; height: 36px; justify-content: center; margin-left: 0; } }
