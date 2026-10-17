@@ -358,3 +358,14 @@ describe("the-odds-api normalisation", () => {
     assert.equal(e.startsAt.toISOString(), "2026-10-25T17:00:00.000Z")
   })
 })
+
+import { formatCredits, signedCredits } from "./format.ts"
+describe("credit formatting", () => {
+  it("formats sports credits as dollars with a true minus", () => {
+    assert.equal(formatCredits(10000), "$10,000")
+    assert.equal(formatCredits(-100), "\u2212$100")
+    assert.equal(signedCredits(250), "+$250")
+    assert.equal(signedCredits(-100), "\u2212$100")
+    assert.equal(signedCredits(0), "$0")
+  })
+})

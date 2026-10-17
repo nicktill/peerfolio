@@ -85,7 +85,7 @@ export function ModeSwitch({ mode, onChange }: { mode: FantasyMode; onChange: (m
 
   const COPY: Record<FantasyMode, { name: string; line: string; tag: string }> = {
     stocks: { name: "Stocks", line: "Play-money portfolios. Beat your friends' returns.", tag: "The Floor" },
-    sports: { name: "Sports", line: "Pregame picks on NFL, NBA, NHL, MLB, MLS and college football.", tag: "The Arena" },
+    sports: { name: "Sports", line: "Pregame picks on NFL, NBA, NHL, MLB, MLS, CFB.", tag: "The Arena" },
   }
   return (
     <div className="sp-stage" role="tablist" aria-label="Fantasy type" data-mode={mode} onKeyDown={onKeyDown}>

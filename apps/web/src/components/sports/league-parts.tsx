@@ -9,7 +9,7 @@ import { EmptyScene } from "@web/components/ui/empty-scene"
 import { InfoTip } from "@web/components/ui/tip"
 import { Stat } from "@web/components/fantasy/balance-cards"
 import { PlayerBadge, TeamBadge } from "@web/components/sports/team-badge"
-import { eventTitle, formatOdds, marketTitle, openPickPhase, pickSentence, sideTeam, SPORT_LABEL, type DisplayMarket } from "@web/lib/sports/format"
+import { eventTitle, formatCredits, formatOdds, marketTitle, openPickPhase, pickSentence, sideTeam, SPORT_LABEL, signedCredits, type DisplayMarket } from "@web/lib/sports/format"
 import { teamLook } from "@web/lib/sports/teams"
 import { Avatar, initialsFor } from "@web/components/ui/avatar"
 import { LiveGameStrip } from "@web/components/sports/live-game"
@@ -31,8 +31,8 @@ export type PickRow = {
 }
 export type Standing = { name: string; credits: number; isYou: boolean; image?: string | null; record?: { won: number; lost: number } }
 
-const credits = (n: number) => Math.round(n).toLocaleString()
-const signed = (n: number) => (n > 0 ? `+${credits(n)}` : n < 0 ? `−${credits(-n)}` : "0")
+const credits = formatCredits
+const signed = signedCredits
 const hue = (name: string) => [...name].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7)
 const asMarket = (p: PickRow): DisplayMarket => ({ ...p.market, event: p.event })
 const settled = (p: PickRow) => p.status === "won" || p.status === "lost"

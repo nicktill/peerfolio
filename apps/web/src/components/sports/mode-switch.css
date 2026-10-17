@@ -271,13 +271,13 @@
   .sp-world .fb-bubble, .sp-world .am-card { zoom: .86; }
   .sp-world[aria-selected="true"] .fb-bubble[data-k="0"] { left: 40%; top: 9%; }
   .sp-world[aria-selected="true"] .fb-bubble[data-k="1"] { left: auto; right: 5%; top: 24%; }
-  .sp-world[aria-selected="true"] .fb-bubble[data-k="2"] { left: 50%; top: 56%; }
+  .sp-world[aria-selected="true"] .fb-bubble[data-k="2"] { left: 50%; top: 44%; }
   .sp-world[aria-selected="true"] .fb-bubble[data-k="3"] { display: none; }
   .am-card[data-k="0"] { top: 8%; }
-  .am-card[data-k="1"] { top: 38%; }
-  .am-card[data-k="2"] { top: 62%; }
-  .sp-world:not([aria-selected="true"]) .fb-bubble[data-k="1"] { top: 52%; }
-  .sp-world:not([aria-selected="true"]) .am-card[data-k="1"] { top: 52%; }
+  .am-card[data-k="1"] { top: 34%; }
+  .am-card[data-k="2"] { display: none; }
+  .sp-world:not([aria-selected="true"]) .fb-bubble[data-k="1"] { top: 44%; }
+  .sp-world:not([aria-selected="true"]) .am-card[data-k="1"] { top: 44%; }
 }
 @media (max-width: 760px) {
   .sp-stage .sp-world[data-world] { aspect-ratio: 1 / .8; max-height: 150px; padding: 12px; }
@@ -287,3 +287,5 @@
 }
 @media (max-width: 380px) { .sp-world-copy strong { font-size: 22px; line-height: 24px; } }
 .sp-world-sk .sp-world-copy .pf-sk { max-width: 100%; }
+/* Light theme used to leave the collapsed card's one-liner showing (clipped at the edge). */
+:root:not(.dark) .sp-world:not([aria-selected="true"]) .sp-world-copy em { opacity: 0; visibility: hidden; }
