@@ -15,6 +15,11 @@ import { Choice, Row } from "@web/components/fantasy/choice"
 import { LookPicker } from "@web/components/fantasy/league-look-picker"
 import { FantasyEmpty, RoundMeta, SeasonFormatRow } from "@web/components/fantasy/season/list-parts"
 import type { RoundChip } from "@web/lib/fantasy-season-view"
+import dynamic from "next/dynamic"
+import { ModePanel, ModeSwitch, useFantasyMode } from "@web/components/sports/mode-switch"
+
+// Loaded only when someone opens the Sports side, so the flag-off Fantasy bundle carries no sports code or CSS.
+const SportsHome = dynamic(() => import("@web/components/sports/sports-home").then((m) => m.SportsHome), { ssr: false })
 
 type FantasySummary = {
   id: string
@@ -32,11 +37,22 @@ type FantasySummary = {
 export default function FantasyPage() {
   const { data, loading, refetch } = useApi<{ leagues: FantasySummary[] }>("/api/fantasy")
   const [mode, setMode] = useState<"none" | "create" | "join">("none")
+  const [side, setSide] = useFantasyMode()
+
+  // Sports sits behind the `sportsEnabled` flag; with it off `side` is always "stocks" and the switch renders nothing.
+  if (side === "sports") {
+    return (
+      <div className="fw">
+        <SportsHome switcher={<ModeSwitch mode={side} onChange={setSide} />} />
+      </div>
+    )
+  }
 
   return (
     <div className="fw">
       <header className="fw-intro reveal" style={revealStyle(0)}>
         <div>
+          <ModeSwitch mode={side} onChange={setSide} />
           <span className="fw-eyebrow">The market. Your group chat.</span>
           <h1>Fantasy leagues</h1>
           <p className="fw-lede">Everyone starts with the same cash. Pick your stocks, compete with friends, and let the returns talk.</p>
@@ -52,6 +68,7 @@ export default function FantasyPage() {
         </div>
       </header>
 
+      <ModePanel mode={side}>
       {mode === "create" ? <CreateForm onCancel={() => setMode("none")} /> : null}
       {mode === "join" ? <JoinForm onDone={() => { setMode("none"); void refetch() }} /> : null}
 
@@ -110,6 +127,7 @@ export default function FantasyPage() {
       ) : (
         <FantasyEmpty />
       )}
+      </ModePanel>
     </div>
   )
 }
