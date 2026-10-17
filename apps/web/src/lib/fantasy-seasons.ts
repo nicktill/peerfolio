@@ -39,6 +39,7 @@ import {
   seasonTrophies,
   settleDecision,
   weekStart,
+  DAY_MS,
   type Decision,
   type Person,
   type RoundResult,
@@ -106,7 +107,8 @@ export async function startNextSeason(userId: string, leagueId: string, input: {
   if (last && last.status !== "complete") throw new ApiError("The current season is still running. Wrap it up first.", 409)
 
   const cfg = normalizeSeasonConfig(input)
-  const startsAt = nextSeasonStart(now, cfg.mode)
+  // A league turning rounds on for the first time starts with the week already running, like a new league.
+  const startsAt = !last && cfg.mode === "trading" ? weekStart(now) : nextSeasonStart(now, cfg.mode)
   const inserted = await db
     .insert(fantasySeasons)
     .values({ leagueId, number: (last?.number ?? 0) + 1, ...cfg, startsAt })
@@ -134,6 +136,7 @@ export async function wrapUpSeason(userId: string, leagueId: string, now = new D
   }
   const roundCount = season.roundCount === null ? current : Math.min(season.roundCount, current)
   await db.update(fantasySeasons).set({ roundCount }).where(eq(fantasySeasons.id, season.id))
+  await emit(db, { leagueId, kind: "season_wrapup", dedupeKey: `season_wrapup:${season.id}:${roundCount}`, payload: { seasonNumber: season.number, lastRound: roundCount } })
   await advanceLeague(leagueId, now)
   return { roundCount }
 }
@@ -164,8 +167,9 @@ async function emit(w: Writer, e: { leagueId: string; userId?: string | null; ki
 export async function advanceLeague(leagueId: string, now = new Date()): Promise<void> {
   const league = await db.query.fantasyLeagues.findFirst({ where: eq(fantasyLeagues.id, leagueId) })
   if (!league) return
-  const season = await ensureSeason(leagueId, undefined, now)
-  if (season.status === "complete") return
+  // A league that never turned rounds on has no season, and reading it must not create one.
+  const season = await latestSeason(leagueId)
+  if (!season || season.status === "complete") return
 
   // Fresh closes before they are used as marks. Throttled inside, and a failure must not block the page.
   if (season.mode === "draft") await refreshStalePrices().catch(() => {})
@@ -185,18 +189,22 @@ async function advanceSeason(tx: Tx, league: League, season: Season, now: Date) 
   const closed = isClosed(league.endsAt, now)
   const clock = closed && league.endsAt ? league.endsAt : now
 
-  // 1. The rounds that exist by now (and, for a draft, the next one, open for picks).
+  // 1. Create only the rounds that don't exist yet (and, for a draft, the next one, open for picks).
+  const existing = await tx.select().from(fantasyRounds).where(eq(fantasyRounds.seasonId, season.id)).orderBy(asc(fantasyRounds.number))
+  const have = new Set(existing.map((r) => r.number))
   const inProgress = roundNumberAt(season.startsAt, clock, season.roundCount)
-  const numbers: number[] = []
-  for (let k = 1; k <= Math.min(inProgress, MAX_ROUNDS_PER_CALL); k++) numbers.push(k)
+  const wanted: number[] = []
+  // Everything from the first missing round up to now. Settling is what's capped per call, not creating.
+  const last = existing.at(-1)?.number ?? 0
+  for (let k = last + 1; k <= Math.min(inProgress, last + 120); k++) wanted.push(k)
   if (season.mode === "draft" && !closed) {
     const next = inProgress + 1
-    if (season.roundCount === null || next <= season.roundCount) numbers.push(next)
+    if (season.roundCount === null || next <= season.roundCount) if (!have.has(next)) wanted.push(next)
   }
-  if (numbers.length > 0) {
+  if (wanted.length > 0) {
     const created = await tx
       .insert(fantasyRounds)
-      .values(numbers.map((number) => ({ seasonId: season.id, leagueId: league.id, number, ...roundWindow(season.startsAt, number) })))
+      .values(wanted.map((number) => ({ seasonId: season.id, leagueId: league.id, number, ...roundWindow(season.startsAt, number) })))
       .onConflictDoNothing()
       .returning()
     for (const round of created) {
@@ -205,22 +213,24 @@ async function advanceSeason(tx: Tx, league: League, season: Season, now: Date) 
       }
     }
   }
+  const rounds = wanted.length > 0 ? await tx.select().from(fantasyRounds).where(eq(fantasyRounds.seasonId, season.id)).orderBy(asc(fantasyRounds.number)) : existing
 
-  const rounds = await tx.select().from(fantasyRounds).where(eq(fantasyRounds.seasonId, season.id)).orderBy(asc(fantasyRounds.number))
-
-  // 2. Draft marks and locks. Entry prices follow the close until the deadline, exit prices
-  // until the round ends; after that they stand. So a request that arrives late still scores
-  // everyone on the closes of the right day.
+  // 2. Draft marks and locks. Entry marks take the latest final close dated before the round starts
+  // (the last session before the lock, usually Friday's); exit marks the latest final close up to the
+  // round's last session. Both only move forward, and a later close can never replace them, so a request
+  // that arrives days late still scores everyone on the closes of the right day.
   if (season.mode === "draft") {
     await tx.execute(sql`
       UPDATE fantasy_draft_picks p SET entry_price = s.close_price, entry_as_of = s.close_price_as_of
       FROM securities s, fantasy_rounds r
       WHERE p.security_id = s.id AND p.round_id = r.id AND r.season_id = ${season.id}
-        AND r.status = 'open' AND r.starts_at > ${now.toISOString()}::timestamptz AND s.close_price IS NOT NULL AND s.close_price_final`)
+        AND r.status IN ('open', 'locked') AND s.close_price IS NOT NULL AND s.close_price_final
+        AND s.close_price_as_of < r.starts_at::date
+        AND (p.entry_as_of IS NULL OR p.entry_as_of < s.close_price_as_of)`)
     for (const round of rounds.filter((r) => r.status === "open" && r.startsAt.getTime() <= now.getTime())) {
       const [claimed] = await tx.update(fantasyRounds).set({ status: "locked" }).where(and(eq(fantasyRounds.id, round.id), eq(fantasyRounds.status, "open"))).returning({ id: fantasyRounds.id })
       if (!claimed) continue
-      // A pick that never got a mark (no final close on file) takes the latest price now.
+      // A pick with no close before the lock on file takes the latest price now.
       await tx.execute(sql`
         UPDATE fantasy_draft_picks p SET entry_price = s.close_price, entry_as_of = s.close_price_as_of
         FROM securities s WHERE p.security_id = s.id AND p.round_id = ${round.id} AND p.entry_price IS NULL AND s.close_price IS NOT NULL`)
@@ -230,10 +240,13 @@ async function advanceSeason(tx: Tx, league: League, season: Season, now: Date) 
       UPDATE fantasy_draft_picks p SET exit_price = s.close_price, exit_as_of = s.close_price_as_of
       FROM securities s, fantasy_rounds r
       WHERE p.security_id = s.id AND p.round_id = r.id AND r.season_id = ${season.id}
-        AND r.status = 'locked' AND r.ends_at > ${now.toISOString()}::timestamptz AND s.close_price IS NOT NULL AND s.close_price_final`)
+        AND r.status = 'locked' AND s.close_price IS NOT NULL AND s.close_price_final
+        AND s.close_price_as_of <= (r.ends_at - interval '3 days')::date
+        AND (p.exit_as_of IS NULL OR p.exit_as_of < s.close_price_as_of)`)
+    await remindToPick(tx, league, season, rounds, now)
   }
 
-  // 3. Settle rounds in order, as far as their data allows.
+  // 3. Settle rounds in order, as far as their data allows. At most MAX_ROUNDS_PER_CALL per call.
   const due = rounds.filter((r) => r.status !== "settled" && effectiveEnd(league, r).getTime() <= now.getTime())
   if (due.length > 0) {
     const people = await loadMembers(tx, league.id)
@@ -247,6 +260,19 @@ async function advanceSeason(tx: Tx, league: League, season: Season, now: Date) 
   const settled = await tx.select({ n: sql<number>`count(*)::int` }).from(fantasyRounds).where(and(eq(fantasyRounds.seasonId, season.id), eq(fantasyRounds.status, "settled")))
   const lastNeeded = closed ? roundNumberAt(season.startsAt, clock, season.roundCount) : season.roundCount
   if (lastNeeded !== null && (settled[0]?.n ?? 0) >= lastNeeded) await completeSeason(tx, league, season)
+}
+
+/** A nudge for players who haven't picked, once, when a draft round is a day from its lock. */
+async function remindToPick(tx: Tx, league: League, season: Season, rounds: Round[], now: Date) {
+  const soon = rounds.find((r) => r.status === "open" && r.startsAt.getTime() > now.getTime() && r.startsAt.getTime() - now.getTime() <= DAY_MS)
+  if (!soon || (season.roundCount !== null && soon.number > season.roundCount)) return
+  const waiting = await tx.execute<{ user_id: string }>(sql`
+    SELECT m.user_id FROM fantasy_members m
+    WHERE m.league_id = ${league.id} AND m.joined_at < ${soon.startsAt.toISOString()}::timestamptz
+      AND NOT EXISTS (SELECT 1 FROM fantasy_draft_picks p WHERE p.round_id = ${soon.id} AND p.member_id = m.id)`)
+  for (const w of waiting) {
+    await emit(tx, { leagueId: league.id, userId: w.user_id, kind: "draft_closing", dedupeKey: `draft_closing:${soon.id}:${w.user_id}`, payload: { roundNumber: soon.number, seasonNumber: season.number, deadline: soon.startsAt.toISOString() } })
+  }
 }
 
 type MemberRow = { id: string; userId: string; joinedAt: Date; cash: number; name: string | null; handle: string | null }
@@ -267,7 +293,8 @@ type Scored = { memberId: string; userId: string; percent: number; floor?: numbe
 /** Scores a round that is over. Returns "wait" when its data isn't in yet, otherwise settles it. */
 async function settleRound(tx: Tx, league: League, season: Season, round: Round, members: MemberRow[], now: Date): Promise<"wait" | "settled"> {
   const end = effectiveEnd(league, round)
-  const playing = members.filter((m) => m.joinedAt.getTime() < end.getTime())
+  // In the league when the round began, so nobody joins on Thursday and takes a share of the points.
+  const playing = members.filter((m) => m.joinedAt.getTime() <= round.startsAt.getTime())
   const scored: Scored[] = []
   let late = false
   let decisions: Decision[] = []
@@ -287,9 +314,13 @@ async function settleRound(tx: Tx, league: League, season: Season, round: Round,
       .where(eq(fantasyDraftPicks.roundId, round.id))
       .orderBy(asc(fantasyDraftPicks.slot))
     const slots = season.picksPerRound ?? DEFAULT_PICKS
-    // The last session before the round ended is its final close. Exits older than that are flagged.
-    const finalDay = dateKey(new Date(end.getTime() - 3 * 86_400_000))
-    late = picks.some((p) => !p.exitAsOf || p.exitAsOf < finalDay)
+    // The last session of the round is its final close. Wait for every exit to carry it, then give up
+    // after the grace period and settle on what exists, flagged.
+    const finalDay = dateKey(new Date(end.getTime() - 3 * DAY_MS))
+    const dataIsIn = picks.every((p) => !!p.exitAsOf && p.exitAsOf >= finalDay)
+    const decision = settleDecision(end, now, dataIsIn)
+    if (decision === "wait") return "wait"
+    late = decision === "settle-late"
     for (const m of playing) {
       const mine = picks.filter((p) => p.memberId === m.id)
       if (mine.length === 0) continue // sat the round out: not ranked, no points, no head-to-head
@@ -469,7 +500,11 @@ async function completeSeason(tx: Tx, league: League, season: Season) {
 
 /** Nightly backstop: advance every league that has a season still running, or none yet. */
 export async function advanceAllLeagues(now = new Date()) {
-  const rows = await db.select({ id: fantasyLeagues.id }).from(fantasyLeagues)
+  // Only leagues with a season still running: finished seasons and leagues that never turned rounds on cost nothing.
+  const rows = await db
+    .selectDistinct({ id: fantasySeasons.leagueId })
+    .from(fantasySeasons)
+    .where(eq(fantasySeasons.status, "active"))
   let failed = 0
   for (const { id } of rows) {
     try {
@@ -482,3 +517,22 @@ export async function advanceAllLeagues(now = new Date()) {
   return { leagues: rows.length, failed }
 }
 
+
+/** Owner only: turn the public recap link off (the old link dies), or on again with a new one. */
+export async function setRecapSharing(userId: string, leagueId: string, roundNumber: number, on: boolean) {
+  const league = await db.query.fantasyLeagues.findFirst({ where: eq(fantasyLeagues.id, leagueId) })
+  if (!league) throw new ApiError("League not found", 404)
+  if (league.ownerId !== userId) throw new ApiError("Only the league owner can change sharing", 403)
+  const rows = await db
+    .select({ id: fantasyRecaps.id })
+    .from(fantasyRecaps)
+    .innerJoin(fantasyRounds, eq(fantasyRecaps.roundId, fantasyRounds.id))
+    .where(and(eq(fantasyRecaps.leagueId, leagueId), eq(fantasyRounds.number, roundNumber)))
+  if (rows.length === 0) throw new ApiError("That recap doesn't exist", 404)
+  // A new token either way, so a link that was ever shared can't come back to life by turning sharing on.
+  await db
+    .update(fantasyRecaps)
+    .set({ sharing: on, shareToken: randomBytes(12).toString("base64url") })
+    .where(inArray(fantasyRecaps.id, rows.map((r) => r.id)))
+  return { sharing: on }
+}

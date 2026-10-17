@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { ArrowUpRight, Check, Crown, Download, Link2, Share2, Skull, Sparkles, Trophy } from "lucide-react"
 import { useToast } from "@web/components/ui/toast"
+import { mutate } from "@web/lib/use-api"
 import { formatPercent } from "@web/lib/format"
 import { visibleReturn } from "@web/lib/return-display"
 import { formatPoints } from "@web/components/fantasy/season/season-format"
@@ -11,11 +12,22 @@ import type { RoundRecap } from "@web/lib/fantasy-season"
 const tone = (v: number) => (visibleReturn(v) > 0 ? "fw-up" : visibleReturn(v) < 0 ? "fw-down" : undefined)
 
 /** The week in four lines, with a share link to the percentage-only card. */
-export function RecapCard({ recap, token, accent, shareable = true }: { recap: RoundRecap; token: string; accent: string; shareable?: boolean }) {
+export function RecapCard({ recap, token, accent, leagueId, isOwner = false, onSharingChanged }: { recap: RoundRecap; token: string | null; accent: string; leagueId: string; isOwner?: boolean; onSharingChanged?: () => void }) {
   const { toast } = useToast()
   const [copied, setCopied] = useState(false)
 
+  async function setSharing(on: boolean) {
+    try {
+      await mutate(`/api/fantasy/${leagueId}/season`, { body: { action: on ? "share" : "stop", round: recap.roundNumber } })
+      toast(on ? "Sharing is on, with a new link." : "Sharing is off. The old link no longer works.", "success")
+      onSharingChanged?.()
+    } catch (error) {
+      toast(error instanceof Error ? error.message : "Couldn't change sharing.", "error")
+    }
+  }
+
   async function share() {
+    if (!token) return
     const url = `${window.location.origin}/recap/${token}`
     try {
       if (typeof navigator.share === "function") {
@@ -62,7 +74,7 @@ export function RecapCard({ recap, token, accent, shareable = true }: { recap: R
               <Skull aria-hidden />
             </span>
             <p>
-              <small>Rough week</small>
+              <small>{recap.loser.percent < 0 ? "Rough week" : "Last place"}</small>
               <b>{recap.loser.name}</b> <span className={tone(recap.loser.percent)}>{formatPercent(recap.loser.percent, 2)}</span>
             </p>
           </div>
@@ -100,7 +112,7 @@ export function RecapCard({ recap, token, accent, shareable = true }: { recap: R
             </p>
           </div>
         ) : null}
-        {shareable ? (
+        {token ? (
           <div className="fs-recap-foot">
             <button type="button" className="fw-btn" data-solid onClick={share}>
               {copied ? <Check aria-hidden /> : typeof navigator !== "undefined" && "share" in navigator ? <Share2 aria-hidden /> : <Link2 aria-hidden />}
@@ -110,6 +122,25 @@ export function RecapCard({ recap, token, accent, shareable = true }: { recap: R
               <Download aria-hidden /> Image
             </a>
           </div>
+        ) : null}
+        {isOwner ? (
+          <p className="fs-note-line" style={{ padding: "10px 0 0" }}>
+            {token ? (
+              <>
+                Anyone with the link sees names and percentages only.{" "}
+                <button type="button" className="fs-add-note" onClick={() => setSharing(false)}>
+                  Stop sharing
+                </button>
+              </>
+            ) : (
+              <>
+                Sharing is off.{" "}
+                <button type="button" className="fs-add-note" onClick={() => setSharing(true)}>
+                  Share again
+                </button>
+              </>
+            )}
+          </p>
         ) : null}
       </div>
     </section>

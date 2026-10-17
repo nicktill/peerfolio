@@ -30,7 +30,8 @@ export async function saveDraftPicks(userId: string, leagueId: string, input: { 
   for (const symbol of check.tickers) {
     const market = toMarketTicker(symbol, "stock")
     if (!market) throw new ApiError(`${symbol} doesn't look like a ticker`, 422)
-    const { securityId } = await ensurePriced(market, "stock")
+    // A close more than half a day old is refreshed first, so a pick starts from the latest price on file.
+    const { securityId } = await ensurePriced(market, "stock", { maxAgeHours: 12 })
     resolved.push({ ticker: symbol, securityId })
   }
 
@@ -43,10 +44,13 @@ export async function saveDraftPicks(userId: string, leagueId: string, input: { 
       SELECT r.id, r.status, (r.starts_at > now()) AS open
       FROM fantasy_rounds r
       WHERE r.season_id = ${season.id} AND r.status = 'open' AND r.starts_at > now()
+        AND (${season.roundCount}::int IS NULL OR r.number <= ${season.roundCount}::int)
       ORDER BY r.number LIMIT 1 FOR SHARE`)
     if (!round || !round.open) throw new ApiError("Picks are locked for this round", 409)
 
     const keep = resolved.map((r) => r.securityId)
+    // Park the slots out of the way, so reordering never trips the one-pick-per-slot rule midway.
+    await tx.execute(sql`UPDATE fantasy_draft_picks SET slot = slot + 1000 WHERE round_id = ${round.id} AND member_id = ${member.id}`)
     await tx.delete(fantasyDraftPicks).where(and(eq(fantasyDraftPicks.roundId, round.id), eq(fantasyDraftPicks.memberId, member.id), notInArray(fantasyDraftPicks.securityId, keep)))
     const saved: { id: string; ticker: string; slot: number }[] = []
     for (const [i, r] of resolved.entries()) {
@@ -62,6 +66,9 @@ export async function saveDraftPicks(userId: string, leagueId: string, input: { 
           .insert(fantasyNotes)
           .values({ leagueId, memberId: member.id, pickId: pick!.id, body: note })
           .onConflictDoUpdate({ target: fantasyNotes.pickId, set: { body: note } })
+      } else if (input.notes && r.ticker in input.notes) {
+        // A note field cleared in the form removes the note.
+        await tx.delete(fantasyNotes).where(eq(fantasyNotes.pickId, pick!.id))
       }
     }
     // First entry mark, so the pick has a price on file straight away.

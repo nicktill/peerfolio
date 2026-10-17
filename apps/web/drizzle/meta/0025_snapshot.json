@@ -1,5 +1,5 @@
 {
-  "id": "33645a87-8203-447d-9b07-7cfce0de9d59",
+  "id": "3f18661f-37cb-45bd-a94b-9de30e952755",
   "prevId": "272251db-2fa2-4488-83b3-d64aef3710a6",
   "version": "7",
   "dialect": "postgresql",
@@ -609,6 +609,33 @@
             },
             {
               "expression": "security_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "fantasy_draft_picks_slot_idx": {
+          "name": "fantasy_draft_picks_slot_idx",
+          "columns": [
+            {
+              "expression": "round_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "member_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "slot",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -1873,6 +1900,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "sharing": {
+          "name": "sharing",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         },
         "payload": {
           "name": "payload",

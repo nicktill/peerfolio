@@ -12,7 +12,7 @@ import {
   users,
 } from "@web/db"
 import { ApiError } from "@web/lib/api"
-import { cleanNote } from "@web/lib/fantasy-season"
+import { cleanNote, NOTE_MAX } from "@web/lib/fantasy-season"
 import { requireFantasyMember } from "@web/lib/fantasy"
 import { isReactionEmoji } from "@web/lib/social"
 
@@ -107,13 +107,16 @@ export async function loadNotesFor(targets: { tradeIds?: string[]; pickIds?: str
 export async function saveNote(userId: string, leagueId: string, target: { tradeId?: string; pickId?: string }, text: unknown) {
   const { member } = await requireFantasyMember(userId, leagueId)
   const body = cleanNote(text)
-  if (!body) throw new ApiError("Write a few words first")
   const isId = (v: string | undefined) => !!v && /^[0-9a-f-]{36}$/i.test(v)
 
   if (isId(target.tradeId)) {
     const trade = await db.query.fantasyTrades.findFirst({ where: and(eq(fantasyTrades.id, target.tradeId!), eq(fantasyTrades.leagueId, leagueId)) })
     if (!trade) throw new ApiError("Trade not found", 404)
     if (trade.memberId !== member.id) throw new ApiError("You can only explain your own trades", 403)
+    if (!body) {
+      await db.delete(fantasyNotes).where(eq(fantasyNotes.tradeId, trade.id))
+      return { removed: true }
+    }
     const [row] = await db
       .insert(fantasyNotes)
       .values({ leagueId, memberId: member.id, tradeId: trade.id, body })
@@ -129,6 +132,10 @@ export async function saveNote(userId: string, leagueId: string, target: { trade
       .where(and(eq(fantasyDraftPicks.id, target.pickId!), eq(fantasyMembers.leagueId, leagueId)))
     if (!pick) throw new ApiError("Pick not found", 404)
     if (pick.memberId !== member.id) throw new ApiError("You can only explain your own picks", 403)
+    if (!body) {
+      await db.delete(fantasyNotes).where(eq(fantasyNotes.pickId, pick.id))
+      return { removed: true }
+    }
     const [row] = await db
       .insert(fantasyNotes)
       .values({ leagueId, memberId: member.id, pickId: pick.id, body })
@@ -163,6 +170,7 @@ async function requireNote(leagueId: string, noteId: string) {
 export async function addReply(userId: string, leagueId: string, noteId: string, text: unknown) {
   const { member } = await requireFantasyMember(userId, leagueId)
   const note = await requireNote(leagueId, noteId)
+  if (typeof text === "string" && text.trim().length > NOTE_MAX) throw new ApiError(`Keep it under ${NOTE_MAX} characters`)
   const body = cleanNote(text)
   if (!body) throw new ApiError("Write a reply first")
   const [{ count }] = (await db.select({ count: sql<number>`count(*)::int` }).from(fantasyNoteReplies).where(eq(fantasyNoteReplies.noteId, note.id))) as [{ count: number }]

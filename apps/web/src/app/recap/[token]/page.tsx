@@ -60,7 +60,7 @@ export default async function PublicRecapPage({ params }: Props) {
 
         {recap.bestDecision ? (
           <p className="mt-4 text-sm text-muted-foreground">
-            Best {recap.mode === "draft" ? "pick" : "trade"}: <b className="font-medium text-foreground">{recap.bestDecision.name}</b> on {recap.bestDecision.ticker}{" "}
+            Best {recap.mode === "draft" ? "pick" : "trade"}: <b className="font-medium text-foreground">{recap.bestDecision.name}</b>{" "}
             <span className="numeric text-gain-ink">{formatSigned(recap.bestDecision.percent)}</span>
           </p>
         ) : null}

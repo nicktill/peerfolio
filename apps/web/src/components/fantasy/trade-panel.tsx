@@ -32,7 +32,7 @@ const asOfLabel = (asOf: string) => new Date(`${asOf.slice(0, 10)}T12:00:00Z`).t
  * price the form shows; while it's closed the order queues and fills at the
  * first live price after the open.
  */
-export function TradePanel({ leagueId, cash, positions, onTraded, closed = false }: { leagueId: string; cash: number; positions: Held[]; onTraded: () => void; closed?: boolean }) {
+export function TradePanel({ leagueId, cash, positions, onTraded, closed = false, allowNote = false }: { leagueId: string; cash: number; positions: Held[]; onTraded: () => void; closed?: boolean; allowNote?: boolean }) {
   const { toast } = useToast()
   const confirm = useConfirm()
   const [side, setSide] = useState<"buy" | "sell">("buy")
@@ -104,7 +104,7 @@ export function TradePanel({ leagueId, cash, positions, onTraded, closed = false
 
     setPending(true)
     try {
-      const note = why.trim() || undefined
+      const note = allowNote ? why.trim() || undefined : undefined
       const body = side === "buy" ? { side, symbol: ticker, amount: check.value, note } : { side, symbol: ticker, shares: check.value, note }
       const result = await mutate<{ queued: true; why: "closed" | "no-live-price"; ticker: string } | { queued?: undefined; ticker: string; shares: number; price: number }>(`/api/fantasy/${leagueId}/trade`, { body })
       if (result.queued) {
@@ -270,6 +270,7 @@ export function TradePanel({ leagueId, cash, positions, onTraded, closed = false
           amount={amount}
           onChange={setAmount}
         />
+        {allowNote ? (
         <div className="fs-why-field">
           {whyOpen ? (
             <>
@@ -282,6 +283,7 @@ export function TradePanel({ leagueId, cash, positions, onTraded, closed = false
             </button>
           )}
         </div>
+        ) : null}
         <button type="submit" className="fw-submit" data-side={side} disabled={pending || cashingOut} aria-busy={pending || undefined}>
           {pending ? <span className="spin" aria-hidden /> : null}
           {pending ? "Placing order…" : side === "buy" ? (queues ? "Queue buy" : "Buy") : queues ? "Queue sell" : "Sell"}

@@ -77,10 +77,10 @@ export default function FantasyPage() {
                         <Users aria-hidden />
                         <span className="numeric">{league.memberCount}</span> {league.memberCount === 1 ? "player" : "players"}
                       </span>
-                      {league.yourRank && league.memberCount > 1 ? (
+                      {(league.round?.mode === "draft" ? league.round.seasonRank : league.yourRank) && league.memberCount > 1 ? (
                         <span>
                           <Trophy aria-hidden />
-                          <span className="numeric">#{league.yourRank}</span> of {league.memberCount}
+                          <span className="numeric">#{league.round?.mode === "draft" ? league.round.seasonRank : league.yourRank}</span> of {league.memberCount}
                         </span>
                       ) : null}
                       <RoundMeta round={league.round} />
@@ -90,10 +90,17 @@ export default function FantasyPage() {
                       </span>
                     </p>
                   </div>
-                  <div className="fw-league-return">
-                    <strong className={shown > 0 ? "fw-up" : shown < 0 ? "fw-down" : undefined}>{formatPercent(league.yourReturn, 2)}</strong>
-                    <span className="fw-note">Your return</span>
-                  </div>
+                  {league.round?.mode === "draft" ? (
+                    <div className="fw-league-return">
+                      <strong>{league.round.seasonPoints ?? 0}</strong>
+                      <span className="fw-note">Season points</span>
+                    </div>
+                  ) : (
+                    <div className="fw-league-return">
+                      <strong className={shown > 0 ? "fw-up" : shown < 0 ? "fw-down" : undefined}>{formatPercent(league.yourReturn, 2)}</strong>
+                      <span className="fw-note">Your return</span>
+                    </div>
+                  )}
                   <ArrowRight aria-hidden />
                 </Link>
               </li>

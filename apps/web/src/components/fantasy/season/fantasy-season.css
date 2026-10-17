@@ -177,3 +177,21 @@
 .fs-public .fw-panel { padding: 0; }
 
 @media (prefers-reduced-motion: reduce) { .fs-progress i { transition: none; } }
+
+/* Replies: the name and the words sit apart, so a long name never runs into the text. */
+.fs-reply { display: flex; align-items: baseline; gap: 8px; }
+.fs-reply b { flex: none; }
+.fs-reply span { min-width: 0; }
+.fs-add-note:disabled { opacity: .5; pointer-events: none; }
+
+/* One column: the pick form and the live round come first, then the recap, then the tables, then the rest. */
+@media (max-width: 1050px) {
+  .fs-recap-slot { order: 1; }
+  .fs-after { order: 2; }
+  .fs-last { order: 3; }
+}
+@media (max-width: 700px) {
+  .fs-who small { white-space: normal; overflow: visible; text-overflow: clip; }
+  .fs-row { column-gap: 10px; }
+  .fs-figure { max-width: 42%; }
+}

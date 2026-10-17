@@ -4,7 +4,8 @@ import "@web/components/fantasy/fantasy-workspace.css"
 
 import { use, useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, Check, Clock, Flag, Infinity as Forever, Link2, Pencil } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { ArrowLeft, CalendarDays, Check, Clock, Flag, Infinity as Forever, Link2, Pencil } from "lucide-react"
 import { initialsFor } from "@web/components/ui/avatar"
 import { RaceChart } from "@web/components/charts/race-chart"
 import { StandingsTable } from "@web/components/fantasy/standings-table"
@@ -61,6 +62,8 @@ type LeagueData = {
   standings: (Standing & { value: number })[]
   you: { cash: number; value: number; percent: number; rank: number; positions: Position[]; orders: Order[] }
   feed: FeedItem[]
+  /** Null for a league that never turned weekly rounds on: it looks and works exactly as before. */
+  season: { mode: "trading" | "draft" } | null
 }
 
 /** Off-hours pace: standings only move when someone trades. While the market is open it's every minute, see liveRefreshMs. */
@@ -72,6 +75,12 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
   const [editing, setEditing] = useState(false)
   const { data, error, loading, refetch } = useApi<LeagueData>(`/api/fantasy/${id}`, [], { refreshMs: liveRefreshMs(CLOSED_REFRESH_MS) })
   const rankBefore = useRankBaseline(id, data?.you.rank ?? null)
+  const router = useRouter()
+  const isDraft = data?.season?.mode === "draft"
+  // A draft league has no portfolio to trade, so its home is the season page.
+  useEffect(() => {
+    if (isDraft) router.replace(`/fantasy/${id}/season`)
+  }, [isDraft, id, router])
 
   async function cancelOrder(orderId: string) {
     try {
@@ -93,6 +102,7 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
   }
 
   if (loading && !data) return <LeaguePageSkeleton />
+  if (isDraft) return <LeaguePageSkeleton />
 
   // A failed refresh keeps the page up with the last good data.
   if (!data) return <p className="text-sm text-muted-foreground">{error ?? "Couldn't load this league."}</p>
@@ -134,6 +144,12 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
               Edit league
             </button>
           ) : null}
+          {league.isOwner && !league.isClosed && !data.season ? (
+            <Link href={`/fantasy/${id}/season`} className="fw-btn">
+              <CalendarDays aria-hidden />
+              Weekly rounds
+            </Link>
+          ) : null}
           <InviteButton code={league.inviteCode} />
         </div>
       </header>
@@ -146,7 +162,7 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
         <SplitBar value={you.value} cash={you.cash} />
       </dl>
 
-      <SeasonStrip leagueId={league.id} />
+      {data.season ? <SeasonStrip leagueId={league.id} /> : null}
 
       {league.isOwner && !league.isClosed ? (
         <EditLeagueDialog league={league} open={editing} onClose={() => setEditing(false)} onSaved={refetch} />
@@ -179,7 +195,7 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
         </div>
 
         <aside className="fw-rail reveal" style={revealStyle(3)}>
-          <TradePanel leagueId={league.id} cash={you.cash} positions={you.positions} onTraded={refetch} closed={league.isClosed} />
+          <TradePanel leagueId={league.id} cash={you.cash} positions={you.positions} onTraded={refetch} closed={league.isClosed} allowNote={!!data.season} />
           <Holdings positions={you.positions} orders={you.orders} onCancel={league.isClosed ? undefined : cancelOrder} />
           <TradeFeed items={feed} leagueId={league.id} onChanged={refetch} />
         </aside>

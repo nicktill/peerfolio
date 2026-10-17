@@ -778,7 +778,11 @@ export const fantasyDraftPicks = pgTable(
     exitAsOf: date("exit_as_of"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("fantasy_draft_picks_unique_idx").on(t.roundId, t.memberId, t.securityId), index("fantasy_draft_picks_round_idx").on(t.roundId)],
+  (t) => [
+    uniqueIndex("fantasy_draft_picks_unique_idx").on(t.roundId, t.memberId, t.securityId),
+    uniqueIndex("fantasy_draft_picks_slot_idx").on(t.roundId, t.memberId, t.slot),
+    index("fantasy_draft_picks_round_idx").on(t.roundId),
+  ],
 )
 
 /** Badges. `roundNumber` is 0 for season-level ones. */
@@ -814,6 +818,8 @@ export const fantasyRecaps = pgTable(
       .notNull()
       .references(() => fantasyLeagues.id, { onDelete: "cascade" }),
     shareToken: text("share_token").notNull(),
+    /** False once the owner stops sharing: the public page and image then answer 404, and the token is replaced. */
+    sharing: boolean("sharing").notNull().default(true),
     payload: jsonb("payload").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },

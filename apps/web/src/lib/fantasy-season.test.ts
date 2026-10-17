@@ -309,15 +309,30 @@ describe("trophies", () => {
     assert.deepEqual(t.map((x) => [x.userId, x.kind]), [["a", "round_win"], ["b", "round_win"]])
   })
 
+  it("gives nothing when everyone shares first (three players all at 0%)", () => {
+    const t = roundTrophies(1, [result(1, "a", 0, 1, 2), result(1, "b", 0, 1, 2), result(1, "c", 0, 1, 2)], [])
+    assert.deepEqual(t, [])
+  })
+
+  it("still gives a trophy to a two-way tie for first in a field of three", () => {
+    const t = roundTrophies(1, [result(1, "a", 2, 1, 2.5), result(1, "b", 2, 1, 2.5), result(1, "c", 0, 3, 1)], [])
+    assert.equal(t.length, 2)
+  })
+
+  it("does not award a hat trick in a two-player league", () => {
+    const earlier = [result(1, "a", 3, 1, 2), result(1, "b", 1, 2, 1), result(2, "a", 3, 1, 2), result(2, "b", 1, 2, 1)]
+    assert.ok(!roundTrophies(3, [result(3, "a", 3, 1, 2), result(3, "b", 1, 2, 1)], earlier).some((x) => x.kind === "hat_trick"))
+  })
+
   it("gives nothing in a field of one", () => {
     assert.deepEqual(roundTrophies(1, [result(1, "a", 2, 1, 1)], []), [])
   })
 
   it("awards a hat trick on the third straight win, and not when the streak was broken", () => {
-    const earlier = [result(1, "a", 3, 1, 2), result(1, "b", 1, 2, 1), result(2, "a", 3, 1, 2), result(2, "b", 1, 2, 1)]
-    const now = [result(3, "a", 3, 1, 2), result(3, "b", 1, 2, 1)]
+    const earlier = [result(1, "a", 3, 1, 3), result(1, "b", 1, 2, 2), result(1, "c", 0, 3, 1), result(2, "a", 3, 1, 3), result(2, "b", 1, 2, 2), result(2, "c", 0, 3, 1)]
+    const now = [result(3, "a", 3, 1, 3), result(3, "b", 1, 2, 2), result(3, "c", 0, 3, 1)]
     assert.ok(roundTrophies(3, now, earlier).some((t) => t.userId === "a" && t.kind === "hat_trick"))
-    const broken = [result(1, "a", 3, 1, 2), result(1, "b", 1, 2, 1), result(2, "a", 0, 2, 1), result(2, "b", 3, 1, 2)]
+    const broken = [result(1, "a", 3, 1, 3), result(1, "b", 1, 2, 2), result(1, "c", 0, 3, 1), result(2, "a", 0, 3, 1), result(2, "b", 3, 1, 3), result(2, "c", 1, 2, 2)]
     assert.ok(!roundTrophies(3, now, broken).some((t) => t.kind === "hat_trick"))
   })
 

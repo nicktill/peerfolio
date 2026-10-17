@@ -69,7 +69,7 @@ export function DraftPicker({ leagueId, draft, onSaved }: { leagueId: string; dr
   return (
     <form className="fs-draft" onSubmit={save}>
       <div className="fw-note">
-        Pick up to {plural(draft.slots, "stock")}. Equal weight, scored from the close at the lock to the close on Friday. Locks {formatDeadline(draft.deadline)}, in <Countdown to={draft.deadline} />.
+        Pick up to {plural(draft.slots, "stock")}, equal weight. Each pick is scored from the last close before the lock (usually Friday&apos;s) to the round&apos;s last close. Locks {formatDeadline(draft.deadline)} your time, in <Countdown to={draft.deadline} />.
       </div>
       {tickers.map((ticker, i) => (
         <div key={i} className="fs-slot">

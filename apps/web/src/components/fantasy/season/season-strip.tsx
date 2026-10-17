@@ -17,6 +17,7 @@ import type { SeasonView } from "@web/lib/fantasy-season-view"
 export function SeasonStrip({ leagueId }: { leagueId: string }) {
   const { data } = useApi<SeasonView>(`/api/fantasy/${leagueId}/season`, [], { refreshMs: 60_000 })
   if (!data) return <div className="fw-skeleton animate-pulse" style={{ height: 64 }} aria-hidden />
+  if ("none" in data) return null
 
   const { season, current, draft, standings, recap } = data
   const hub = `/fantasy/${leagueId}/season`

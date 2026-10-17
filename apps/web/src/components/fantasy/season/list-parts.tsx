@@ -58,7 +58,7 @@ export function SeasonFormatRow({ mode, picks, onChange }: { mode: "trading" | "
         </Choice>
       </Row>
       <p className="fs-hint" style={{ marginTop: -10 }}>
-        {mode === "draft" ? "Each week everyone picks stocks before Sunday night. Equal weight, scored Friday to Friday." : "Trade whenever you like. Every Monday a new round ranks the week's returns."}
+        {mode === "draft" ? "Each week everyone picks stocks before the weekly lock. Equal weight, scored on the closes." : "Trade whenever you like. Every Monday a new round ranks the week's returns."}
       </p>
       {mode === "draft" ? (
         <Row label="Picks per week">

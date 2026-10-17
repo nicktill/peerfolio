@@ -55,6 +55,7 @@ CREATE TABLE "fantasy_recaps" (
 	"round_id" uuid NOT NULL,
 	"league_id" uuid NOT NULL,
 	"share_token" text NOT NULL,
+	"sharing" boolean DEFAULT true NOT NULL,
 	"payload" jsonb NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -132,6 +133,7 @@ ALTER TABLE "fantasy_trophies" ADD CONSTRAINT "fantasy_trophies_league_id_fantas
 ALTER TABLE "fantasy_trophies" ADD CONSTRAINT "fantasy_trophies_season_id_fantasy_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."fantasy_seasons"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "fantasy_trophies" ADD CONSTRAINT "fantasy_trophies_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "fantasy_draft_picks_unique_idx" ON "fantasy_draft_picks" USING btree ("round_id","member_id","security_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "fantasy_draft_picks_slot_idx" ON "fantasy_draft_picks" USING btree ("round_id","member_id","slot");--> statement-breakpoint
 CREATE INDEX "fantasy_draft_picks_round_idx" ON "fantasy_draft_picks" USING btree ("round_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "fantasy_events_dedupe_idx" ON "fantasy_events" USING btree ("dedupe_key");--> statement-breakpoint
 CREATE INDEX "fantasy_events_user_idx" ON "fantasy_events" USING btree ("user_id","created_at");--> statement-breakpoint

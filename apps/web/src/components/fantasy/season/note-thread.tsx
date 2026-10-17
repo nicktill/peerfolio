@@ -36,6 +36,7 @@ export function NoteThread({
   const [reply, setReply] = useState("")
   const [picker, setPicker] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [editing, setEditing] = useState(false)
 
   async function run(action: () => Promise<unknown>, fallback: string) {
     setBusy(true)
@@ -60,6 +61,11 @@ export function NoteThread({
     }
   }
 
+  async function removeNote() {
+    if (!target) return
+    await run(() => mutate(`/api/fantasy/${leagueId}/notes`, { body: { ...target, body: "" } }), "Couldn't remove that.")
+  }
+
   const sendReply = async (event: React.FormEvent) => {
     event.preventDefault()
     if (!note || !reply.trim()) return
@@ -70,6 +76,31 @@ export function NoteThread({
     if (!note) return
     setPicker(false)
     void run(() => mutate(`/api/fantasy/${leagueId}/notes/${note.id}/react`, { body: { emoji } }), "Couldn't react.")
+  }
+
+  const canEdit = !!note?.isYours && !!target
+
+  if (note && editing) {
+    return (
+      <form
+        className="fs-note fs-why-field"
+        onSubmit={async (event) => {
+          event.preventDefault()
+          if (!target || !draft.trim()) return
+          if (await run(() => mutate(`/api/fantasy/${leagueId}/notes`, { body: { ...target, body: draft } }), "Couldn't save that.")) setEditing(false)
+        }}
+      >
+        <input className="fw-input fs-why" autoFocus value={draft} maxLength={MAX} onChange={(e) => setDraft(e.target.value)} aria-label="Why did you pick this?" />
+        <div className="fs-compose" style={{ justifyContent: "flex-end" }}>
+          <button type="button" className="fw-btn" onClick={() => setEditing(false)}>
+            Cancel
+          </button>
+          <button type="submit" className="fw-btn" data-solid disabled={busy || !draft.trim()}>
+            Save
+          </button>
+        </div>
+      </form>
+    )
   }
 
   if (!note && !writing) {
@@ -134,12 +165,31 @@ export function NoteThread({
         <button type="button" className="fs-add-note" style={{ marginLeft: 6 }} onClick={() => setReplying(!replying)} aria-expanded={replying}>
           {note.replies.length > 0 ? `${note.replies.length} ${note.replies.length === 1 ? "reply" : "replies"}` : "Reply"}
         </button>
+        {canEdit ? (
+          <>
+            <button
+              type="button"
+              className="fs-add-note"
+              style={{ marginLeft: 6 }}
+              onClick={() => {
+                setDraft(note.body)
+                setEditing(true)
+              }}
+            >
+              Edit
+            </button>
+            <button type="button" className="fs-add-note" style={{ marginLeft: 6 }} onClick={removeNote} disabled={busy}>
+              Remove
+            </button>
+          </>
+        ) : null}
       </div>
       {replying || note.replies.length > 0 ? (
         <ul className="fs-replies">
           {note.replies.map((r) => (
             <li key={r.id} className={cn("fs-reply")}>
-              <b>{r.isYours ? "You" : firstName(r.author)}</b> {r.body}
+              <b>{r.isYours ? "You" : firstName(r.author)}</b>
+              <span>{r.body}</span>
             </li>
           ))}
         </ul>

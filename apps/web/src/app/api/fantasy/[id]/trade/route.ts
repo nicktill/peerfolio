@@ -12,14 +12,14 @@ const Trade = z.discriminatedUnion("side", [
     symbol: z.string().trim().min(1).max(12),
     kind: z.enum(["stock", "crypto"]).default("stock"),
     amount: z.number().positive("Enter an amount to buy"),
-    note: z.string().max(600).optional(),
+    note: z.string().max(280, "Keep the note under 280 characters").optional(),
   }),
   z.object({
     side: z.literal("sell"),
     symbol: z.string().trim().min(1).max(12),
     kind: z.enum(["stock", "crypto"]).default("stock"),
     shares: z.union([z.number().positive("Enter how many shares to sell"), z.literal("all")]),
-    note: z.string().max(600).optional(),
+    note: z.string().max(280, "Keep the note under 280 characters").optional(),
   }),
 ])
 

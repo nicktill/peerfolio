@@ -58,8 +58,11 @@ export function staleHeldSecurities(cutoff: Date, catchUp?: CatchUp) {
   return and(
     isNotNull(securities.marketTicker),
     catchUp?.marketClosed ? behind : or(lt(securities.updatedAt, cutoff), behind),
+    // Draft picks of a round still in play count too: a league that only drafts holds no positions,
+    // and without this its entry and exit prices would never move.
     sql`(EXISTS (SELECT 1 FROM holdings h WHERE h.security_id = ${securities.id})
-      OR EXISTS (SELECT 1 FROM fantasy_positions f WHERE f.security_id = ${securities.id}))`,
+      OR EXISTS (SELECT 1 FROM fantasy_positions f WHERE f.security_id = ${securities.id})
+      OR EXISTS (SELECT 1 FROM fantasy_draft_picks d JOIN fantasy_rounds r ON r.id = d.round_id WHERE d.security_id = ${securities.id} AND r.status <> 'settled'))`,
   )
 }
 
@@ -86,7 +89,8 @@ export function claimLiveQuotesSql(maxAgeSeconds: number, limit: number) {
         AND s.type IS DISTINCT FROM 'mutual_fund'
         AND s.updated_at < now() - make_interval(secs => ${maxAgeSeconds}::double precision)
         AND (EXISTS (SELECT 1 FROM holdings h WHERE h.security_id = s.id)
-          OR EXISTS (SELECT 1 FROM fantasy_positions f WHERE f.security_id = s.id))
+          OR EXISTS (SELECT 1 FROM fantasy_positions f WHERE f.security_id = s.id)
+          OR EXISTS (SELECT 1 FROM fantasy_draft_picks d JOIN fantasy_rounds r ON r.id = d.round_id WHERE d.security_id = s.id AND r.status <> 'settled'))
       ORDER BY s.updated_at ASC
       LIMIT ${limit}::int
       FOR UPDATE SKIP LOCKED
@@ -202,7 +206,8 @@ export function unsettledHeldSql(expectedDate: string, due?: { recheckBefore: Da
         OR s.close_price_as_of < ${expectedDate}::date
         OR (s.close_price_as_of = ${expectedDate}::date AND NOT s.close_price_final))
       AND (EXISTS (SELECT 1 FROM holdings h WHERE h.security_id = s.id)
-        OR EXISTS (SELECT 1 FROM fantasy_positions f WHERE f.security_id = s.id))`
+        OR EXISTS (SELECT 1 FROM fantasy_positions f WHERE f.security_id = s.id)
+        OR EXISTS (SELECT 1 FROM fantasy_draft_picks d JOIN fantasy_rounds r ON r.id = d.round_id WHERE d.security_id = s.id AND r.status <> 'settled'))`
 }
 
 /**

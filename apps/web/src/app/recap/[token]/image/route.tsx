@@ -42,7 +42,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tok
           <div style={{ display: "flex", marginTop: 20, fontSize: 56, lineHeight: 1.08, fontWeight: 700 }}>{recap.headline}</div>
           {call ? (
             <div style={{ display: "flex", marginTop: 26, fontSize: 22, color: "#a7b0bc" }}>
-              {`${unit}: ${call.name} on ${call.ticker}`}
+              {`${unit}: ${call.name}`}
               <span style={{ display: "flex", marginLeft: 10, color: UP, fontWeight: 700 }}>{formatSigned(call.percent)}</span>
             </div>
           ) : null}
@@ -71,7 +71,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tok
         ) : null}
       </div>
     </div>,
-    // A settled round never changes, so the card can be cached hard.
-    { width: 1200, height: 630, headers: { "Cache-Control": "public, max-age=3600, s-maxage=86400" } },
+    // Short: stopping sharing replaces the token, so a cached copy must not outlive it for long.
+    { width: 1200, height: 630, headers: { "Cache-Control": "public, max-age=300, s-maxage=300" } },
   )
 }

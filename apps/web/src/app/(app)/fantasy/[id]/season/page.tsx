@@ -5,13 +5,16 @@ import "@web/components/fantasy/season/fantasy-season.css"
 
 import { use, useEffect, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, ChevronDown, Flag, Repeat } from "lucide-react"
+import { ArrowLeft, ChevronDown, Flag, Pencil, Repeat } from "lucide-react"
 import { Avatar } from "@web/components/ui/avatar"
 import { useConfirm } from "@web/components/ui/confirm"
 import { useToast } from "@web/components/ui/toast"
 import { revealStyle } from "@web/components/motion/reveal"
 import { LeaguePageSkeleton } from "@web/components/skeletons"
 import { Choice, Row } from "@web/components/fantasy/choice"
+import { EditLeagueDialog } from "@web/components/fantasy/edit-league-dialog"
+import { InviteButton } from "@web/components/fantasy/season/invite-button"
+import { SeasonOptIn } from "@web/components/fantasy/season/opt-in"
 import { DraftPicker } from "@web/components/fantasy/season/draft-picker"
 import { RecapCard } from "@web/components/fantasy/season/recap-card"
 import { Countdown, PersonRows, TrophyChip, personName, useNow } from "@web/components/fantasy/season/season-parts"
@@ -20,7 +23,7 @@ import { Delta } from "@web/components/ui/delta"
 import { plural } from "@web/lib/plural"
 import { liveRefreshMs } from "@web/lib/live-refresh"
 import { mutate, useApi } from "@web/lib/use-api"
-import type { SeasonView } from "@web/lib/fantasy-season-view"
+import type { NoSeason, SeasonView } from "@web/lib/fantasy-season-view"
 
 const LENGTHS = [
   { label: "4 rounds", value: 4 },
@@ -31,23 +34,25 @@ const LENGTHS = [
 
 export default function SeasonPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
-  const { data, error, loading, refetch } = useApi<SeasonView>(`/api/fantasy/${id}/season`, [], { refreshMs: liveRefreshMs(60_000) })
+  const { data, error, loading, refetch } = useApi<SeasonView | NoSeason>(`/api/fantasy/${id}/season`, [], { refreshMs: liveRefreshMs(60_000) })
+  const [editing, setEditing] = useState(false)
 
   // Land on the section the strip linked to (#recap) once the content exists.
   useEffect(() => {
     if (data && window.location.hash) document.getElementById(window.location.hash.slice(1))?.scrollIntoView({ block: "start" })
-  }, [data?.season.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [data && "season" in data ? data.season.id : null]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading && !data) return <LeaguePageSkeleton />
   if (!data) return <p className="text-sm text-muted-foreground">{error ?? "Couldn't load this season."}</p>
+  if ("none" in data) return <SeasonOptIn leagueId={id} league={data.league} onStarted={refetch} />
 
   const { league, season, current, draft, standings, rounds, headToHead, trophies, seasons, recap } = data
   const mine = standings.find((s) => s.isYou)
 
   return (
     <div className="fw">
-      <Link href={`/fantasy/${id}`} className="fw-back">
-        <ArrowLeft className="size-3.5" aria-hidden /> {league.name}
+      <Link href={season.mode === "draft" ? "/fantasy" : `/fantasy/${id}`} className="fw-back">
+        <ArrowLeft className="size-3.5" aria-hidden /> {season.mode === "draft" ? "Fantasy leagues" : league.name}
       </Link>
 
       <header className="fw-head reveal" data-accent={league.accent} style={revealStyle(0)}>
@@ -56,8 +61,8 @@ export default function SeasonPage({ params }: { params: Promise<{ id: string }>
             <span>{league.emoji}</span>
           </span>
           <div>
-            <span className="fw-eyebrow">Fantasy / Season</span>
-            <h1>Season {season.number}</h1>
+            <span className="fw-eyebrow">Fantasy / Season {season.number}</span>
+            <h1>{season.mode === "draft" ? league.name : `Season ${season.number}`}</h1>
           </div>
         </div>
         <ul className="fw-meta" aria-label="Season rules">
@@ -66,7 +71,22 @@ export default function SeasonPage({ params }: { params: Promise<{ id: string }>
           <li>{plural(draft?.players ?? current?.rows.length ?? standings.length, "player")}</li>
           {mine ? <li>You: {formatPoints(mine.points)} pts</li> : null}
         </ul>
+        {season.mode === "draft" ? (
+          <div className="fw-actions">
+            {league.isOwner && !league.isClosed ? (
+              <button type="button" className="fw-btn" onClick={() => setEditing(true)}>
+                <Pencil aria-hidden />
+                Edit league
+              </button>
+            ) : null}
+            <InviteButton code={league.inviteCode} />
+          </div>
+        ) : null}
       </header>
+
+      {season.mode === "draft" && league.isOwner && !league.isClosed ? (
+        <EditLeagueDialog league={{ id, name: league.name, emoji: league.emoji, accent: league.accent, endsAt: league.endsAt }} open={editing} onClose={() => setEditing(false)} onSaved={refetch} />
+      ) : null}
 
       <div className="fw-grid">
         <div className="fw-main">
@@ -95,7 +115,7 @@ export default function SeasonPage({ params }: { params: Promise<{ id: string }>
             <section className="fw-panel reveal" style={revealStyle(1)}>
               <div className="fw-section-head">
                 <h2>Round 1 starts {formatDay(season.startsAt)}</h2>
-                <p>Mon 00:00 UTC</p>
+                <p>Weekly, from Monday</p>
               </div>
               <p className="fs-empty">
                 <strong>Weekly rounds, every Monday.</strong>
@@ -104,7 +124,7 @@ export default function SeasonPage({ params }: { params: Promise<{ id: string }>
             </section>
           ) : null}
 
-          <section className="fw-panel reveal" style={revealStyle(2)} aria-labelledby="fs-table-title">
+          <section className="fw-panel fs-after reveal" style={revealStyle(2)} aria-labelledby="fs-table-title">
             <div className="fw-section-head">
               <h2 id="fs-table-title">Season standings</h2>
               <p>Points, then total return</p>
@@ -141,7 +161,7 @@ export default function SeasonPage({ params }: { params: Promise<{ id: string }>
             )}
           </section>
 
-          <section className="fw-panel reveal" style={revealStyle(3)} aria-labelledby="fs-rounds-title">
+          <section className="fw-panel fs-after reveal" style={revealStyle(3)} aria-labelledby="fs-rounds-title">
             <div className="fw-section-head">
               <h2 id="fs-rounds-title">Rounds</h2>
               <p>{rounds.length === 0 ? "None settled" : `${rounds.length} settled`}</p>
@@ -152,12 +172,12 @@ export default function SeasonPage({ params }: { params: Promise<{ id: string }>
 
         <aside className="fw-rail reveal" style={revealStyle(2)}>
           {recap ? (
-            <div id="recap" style={{ order: -1, scrollMarginTop: 72 }}>
-              <RecapCard recap={recap} token={recap.token} accent={league.accent} />
+            <div id="recap" className="fs-recap-slot" style={{ scrollMarginTop: 72 }}>
+              <RecapCard recap={recap} token={recap.token} accent={league.accent} leagueId={id} isOwner={league.isOwner} onSharingChanged={refetch} />
             </div>
           ) : null}
 
-          <section className="fw-panel" aria-labelledby="fs-trophy-title">
+          <section className="fw-panel fs-last" aria-labelledby="fs-trophy-title">
             <div className="fw-section-head">
               <h2 id="fs-trophy-title">Trophies</h2>
               <p>This league</p>
@@ -174,7 +194,7 @@ export default function SeasonPage({ params }: { params: Promise<{ id: string }>
           </section>
 
           {headToHead.length > 0 ? (
-            <section className="fw-panel" aria-labelledby="fs-h2h-title">
+            <section className="fw-panel fs-last" aria-labelledby="fs-h2h-title">
               <div className="fw-section-head">
                 <h2 id="fs-h2h-title">Head to head</h2>
                 <p>You vs each player</p>
@@ -196,7 +216,7 @@ export default function SeasonPage({ params }: { params: Promise<{ id: string }>
           ) : null}
 
           {seasons.length > 1 ? (
-            <section className="fw-panel" aria-labelledby="fs-seasons-title">
+            <section className="fw-panel fs-last" aria-labelledby="fs-seasons-title">
               <div className="fw-section-head">
                 <h2 id="fs-seasons-title">Past seasons</h2>
               </div>
@@ -334,7 +354,7 @@ function OwnerControls({ leagueId, data, onChanged }: { leagueId: string; data: 
   if (!canStartNext && season.status === "complete") return null
 
   return (
-    <section className="fw-panel" aria-labelledby="fs-owner-title">
+    <section className="fw-panel fs-last" aria-labelledby="fs-owner-title">
       <div className="fw-section-head">
         <h2 id="fs-owner-title">{canStartNext ? "Run it back" : "Season controls"}</h2>
         <p>Owner</p>
@@ -342,7 +362,7 @@ function OwnerControls({ leagueId, data, onChanged }: { leagueId: string; data: 
       <div className="fs-owner">
         {canStartNext ? (
           <>
-            <p>Start Season {season.number + 1} with the same friends. Everyone begins level; trophies and records carry on.</p>
+            <p>Start Season {season.number + 1} with the same friends. The table starts from zero; trophies and head-to-head records carry on.</p>
             <div className="fs-stack">
               <button type="button" className="fw-btn" data-solid disabled={busy} onClick={() => start({ mode: season.mode, rounds: season.roundCount, picks: season.picksPerRound ?? 5 })}>
                 <Repeat aria-hidden /> Rematch: {describeSeason(season)}
@@ -357,7 +377,7 @@ function OwnerControls({ leagueId, data, onChanged }: { leagueId: string; data: 
                   <Choice active={mode === "trading"} onClick={() => setMode("trading")}>Trading</Choice>
                   <Choice active={mode === "draft"} onClick={() => setMode("draft")}>Weekly draft</Choice>
                 </Row>
-                <p className="fs-hint">{mode === "draft" ? "Everyone picks stocks before Sunday night. Equal weight, scored Friday to Friday." : "Trade as normal. Each week ranks portfolio returns."}</p>
+                <p className="fs-hint">{mode === "draft" ? "Everyone picks stocks before the weekly lock. Equal weight, scored on the closes." : "Trade as normal. Each week ranks portfolio returns."}</p>
                 <Row label="Length">
                   {LENGTHS.map((l) => (
                     <Choice key={l.label} active={length === l.value} onClick={() => setLength(l.value)}>

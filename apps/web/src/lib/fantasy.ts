@@ -175,7 +175,8 @@ export async function listFantasyLeaguesForUser(userId: string) {
       isClosed: isClosed(league.endsAt),
       memberCount: members.length || 1,
       yourReturn: scored(memberId),
-      yourRank: standings.find((s) => s.id === memberId)?.rank ?? null,
+      // Everyone level (a new league, all at 0.00%) has no ranking worth showing.
+      yourRank: standings.length > 1 && standings.every((s) => s.rank === 1) ? null : (standings.find((s) => s.id === memberId)?.rank ?? null),
     }
   })
 }

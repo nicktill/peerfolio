@@ -5,9 +5,9 @@ import { saveNote } from "@web/lib/fantasy-notes"
 
 type Ctx = { params: Promise<{ id: string }> }
 
-const Note = z.object({ tradeId: z.string().uuid().optional(), pickId: z.string().uuid().optional(), body: z.string().max(600) })
+const Note = z.object({ tradeId: z.string().uuid().optional(), pickId: z.string().uuid().optional(), body: z.string().max(280, "Keep it under 280 characters") })
 
-/** Writes (or rewrites) the note on one of your own trades or picks. */
+/** Writes (or rewrites) the note on one of your own trades or picks. An empty body removes it. */
 export const POST = withUser<Ctx>(async (userId, request, { params }) => {
   const { id } = await params
   const parsed = Note.safeParse(await readJson(request))

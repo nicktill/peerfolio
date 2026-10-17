@@ -5,6 +5,7 @@ import { db, fantasyLeagues } from "@web/db"
 import { ApiError, readJson, withUser } from "@web/lib/api"
 import { loadFantasyLeague, requireFantasyMember, updateFantasyLeague } from "@web/lib/fantasy"
 import { loadNotesFor } from "@web/lib/fantasy-notes"
+import { latestSeason } from "@web/lib/fantasy-seasons"
 import { ACCENT_KEYS, isLeagueEmoji } from "@web/lib/league-look"
 
 type Ctx = { params: Promise<{ id: string }> }
@@ -13,8 +14,10 @@ export const GET = withUser<Ctx>(async (userId, _request, { params }) => {
   const { id } = await params
   const league = await loadFantasyLeague(userId, id)
   // "Why I picked this" notes ride along with the trade feed.
-  const notes = await loadNotesFor({ tradeIds: league.feed.map((f) => f.id) }, userId)
-  return NextResponse.json({ ...league, feed: league.feed.map(({ userId: author, ...f }) => ({ ...f, isYou: author === userId, note: notes.get(`trade:${f.id}`) ?? null })) })
+  const [notes, season] = await Promise.all([loadNotesFor({ tradeIds: league.feed.map((f) => f.id) }, userId), latestSeason(id)])
+  // A league that never turned weekly rounds on looks exactly as it did before: no "Add why" prompts.
+  const withRounds = !!season
+  return NextResponse.json({ ...league, season: season ? { mode: season.mode } : null, feed: league.feed.map(({ userId: author, ...f }) => ({ ...f, isYou: withRounds && author === userId, note: notes.get(`trade:${f.id}`) ?? null })) })
 })
 
 /** `.strict()` so an attempt to change starting cash or the pick cap is an error, not silently ignored. */

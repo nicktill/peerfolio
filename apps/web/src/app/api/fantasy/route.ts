@@ -26,7 +26,11 @@ const CreateFantasyLeague = z.object({
 
 export const GET = withUser<unknown>(async (userId) => {
   const leagues = await listFantasyLeaguesForUser(userId)
-  const chips = await loadRoundChips(userId, leagues.map((l) => l.id)).catch(() => new Map())
+  const chips = await loadRoundChips(userId, leagues.map((l) => l.id)).catch((error) => {
+    // The list still works without round chips, but a failure here should be seen.
+    console.error("[fantasy] loading round chips failed:", error instanceof Error ? error.message : error)
+    return new Map()
+  })
   return NextResponse.json({ leagues: leagues.map((l) => ({ ...l, round: chips.get(l.id) ?? null })) })
 })
 

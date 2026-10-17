@@ -307,15 +307,16 @@ export const TROPHY_LABELS: Record<TrophyKind, { label: string; detail: string }
   perfect_season: { label: "Perfect season", detail: "Won every round of a season" },
 }
 
-/** Trophies earned by one settled round: the winner(s), plus a hat trick on a third straight win. */
+/** Trophies earned by one settled round: the winner(s), plus a hat trick on a third straight win (fields of three or more). */
 export function roundTrophies(roundNumber: number, results: RoundResult[], earlier: RoundResult[]): TrophyAward[] {
   const winners = results.filter((r) => r.rank === 1).map((r) => r.userId)
-  // Nobody wins a round alone in a field of one.
-  if (results.length < 2) return []
+  // Nobody wins a round alone in a field of one, and a round where everyone shares first (all level,
+  // or all at 0%) was not won by anyone.
+  if (results.length < 2 || winners.length === results.length) return []
   const awards: TrophyAward[] = winners.map((userId) => ({ userId, kind: "round_win", roundNumber }))
   for (const userId of winners) {
     const wonBefore = (n: number) => earlier.some((r) => r.userId === userId && r.roundNumber === n && r.rank === 1)
-    if (roundNumber >= 3 && wonBefore(roundNumber - 1) && wonBefore(roundNumber - 2)) awards.push({ userId, kind: "hat_trick", roundNumber })
+    if (results.length >= 3 && roundNumber >= 3 && wonBefore(roundNumber - 1) && wonBefore(roundNumber - 2)) awards.push({ userId, kind: "hat_trick", roundNumber })
   }
   return awards
 }

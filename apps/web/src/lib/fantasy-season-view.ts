@@ -6,6 +6,7 @@ import {
   fantasyMembers,
   fantasyLeagues,
   fantasyRecaps,
+  fantasyRoundResults,
   fantasyRounds,
   fantasySeasons,
   fantasySnapshots,
@@ -16,6 +17,7 @@ import {
 import { isClosed } from "@web/lib/fantasy-rules"
 import {
   dateKey,
+  formatSigned,
   DEFAULT_PICKS,
   draftScore,
   headToHead,
@@ -31,7 +33,7 @@ import {
   type RoundRecap,
   type TrophyKind,
 } from "@web/lib/fantasy-season"
-import { advanceLeague, ensureSeason, latestSeason, loadResultsForSeason } from "@web/lib/fantasy-seasons"
+import { advanceLeague, latestSeason, loadResultsForSeason } from "@web/lib/fantasy-seasons"
 import { requireFantasyMember } from "@web/lib/fantasy"
 import { loadNotesFor, type NoteView } from "@web/lib/fantasy-notes"
 import { displaySymbol } from "@web/lib/market-data"
@@ -45,7 +47,7 @@ export type PickView = { id: string; ticker: string; name: string | null; slot: 
 export type RoundRow = SeasonPerson & { rank: number; percent: number; points: number; picks?: PickView[]; picked?: boolean }
 
 export type SeasonView = {
-  league: { id: string; name: string; emoji: string; accent: string; isOwner: boolean; isClosed: boolean }
+  league: { id: string; name: string; emoji: string; accent: string; isOwner: boolean; isClosed: boolean; inviteCode: string; endsAt: string | null }
   season: {
     id: string
     number: number
@@ -67,11 +69,15 @@ export type SeasonView = {
   headToHead: { opponent: SeasonPerson; wins: number; losses: number; ties: number }[]
   trophies: { userId: string; name: string | null; kind: TrophyKind; roundNumber: number; seasonNumber: number }[]
   seasons: { number: number; mode: "trading" | "draft"; status: string; roundCount: number | null; champions: string[] }[]
-  recap: (RoundRecap & { token: string }) | null
+  /** The latest recap. `token` is null while the owner has sharing off. */
+  recap: (RoundRecap & { token: string | null; sharing: boolean }) | null
   canStartNext: boolean
 }
 
-export async function loadSeasonView(userId: string, leagueId: string, now = new Date()): Promise<SeasonView> {
+/** A league that never turned weekly rounds on. Reading it creates nothing. */
+export type NoSeason = { none: true; league: { id: string; name: string; emoji: string; accent: string; isOwner: boolean; isClosed: boolean; inviteCode: string; endsAt: string | null } }
+
+export async function loadSeasonView(userId: string, leagueId: string, now = new Date()): Promise<SeasonView | NoSeason> {
   const { league } = await requireFantasyMember(userId, leagueId)
   try {
     await advanceLeague(leagueId, now)
@@ -79,8 +85,10 @@ export async function loadSeasonView(userId: string, leagueId: string, now = new
     // Show the last good state rather than a broken page.
     console.error("[seasons] advance failed:", error instanceof Error ? error.message : error)
   }
-  const season = (await latestSeason(leagueId))!
+  const season = await latestSeason(leagueId)
   const closed = isClosed(league.endsAt, now)
+  const leagueView = { id: league.id, name: league.name, emoji: league.emoji, accent: league.accent, isOwner: league.ownerId === userId, isClosed: closed, inviteCode: league.inviteCode, endsAt: league.endsAt?.toISOString() ?? null }
+  if (!season) return { none: true, league: leagueView }
 
   const members = await db
     .select({ id: fantasyMembers.id, userId: fantasyMembers.userId, joinedAt: fantasyMembers.joinedAt, name: users.name, handle: users.handle, image: users.image })
@@ -96,7 +104,7 @@ export async function loadSeasonView(userId: string, leagueId: string, now = new
     db.select().from(fantasyRounds).where(eq(fantasyRounds.seasonId, season.id)).orderBy(asc(fantasyRounds.number)),
     loadResultsForSeason(season.id),
     db
-      .select({ roundId: fantasyRecaps.roundId, token: fantasyRecaps.shareToken, payload: fantasyRecaps.payload })
+      .select({ roundId: fantasyRecaps.roundId, token: fantasyRecaps.shareToken, sharing: fantasyRecaps.sharing, payload: fantasyRecaps.payload })
       .from(fantasyRecaps)
       .innerJoin(fantasyRounds, eq(fantasyRecaps.roundId, fantasyRounds.id))
       .where(eq(fantasyRounds.seasonId, season.id)),
@@ -133,7 +141,7 @@ export async function loadSeasonView(userId: string, leagueId: string, now = new
         yourPercent: mine?.percent ?? null,
         players: list.length,
         table: list.map((x) => ({ ...person(x.userId), rank: x.rank, percent: x.percent, points: x.points, picks: byMember?.get(members.find((m) => m.userId === x.userId)?.id ?? "") })),
-        recapToken: recapByRound.get(r.id)?.token ?? null,
+        recapToken: recapByRound.get(r.id)?.sharing ? (recapByRound.get(r.id)?.token ?? null) : null,
       }
     })
     .sort((a, b) => b.number - a.number)
@@ -153,7 +161,7 @@ export async function loadSeasonView(userId: string, leagueId: string, now = new
 
   /* The draft open for picks. */
   let draft: SeasonView["draft"] = null
-  const open = season.mode === "draft" && season.status === "active" ? rounds.find((r) => r.status === "open" && r.startsAt.getTime() > now.getTime()) : undefined
+  const open = season.mode === "draft" && season.status === "active" ? rounds.find((r) => r.status === "open" && r.startsAt.getTime() > now.getTime() && (season.roundCount === null || r.number <= season.roundCount)) : undefined
   if (open) {
     const picks = await loadPicks([open.id], userId, true)
     const byMember = picks.get(open.id) ?? new Map<string, PickView[]>()
@@ -180,7 +188,7 @@ export async function loadSeasonView(userId: string, leagueId: string, now = new
   const champions = (num: number) => trophyRows.filter((t) => t.kind === "season_champion" && t.seasonNumber === num).map((t) => person(t.userId).name ?? "Player")
 
   return {
-    league: { id: league.id, name: league.name, emoji: league.emoji, accent: league.accent, isOwner: league.ownerId === userId, isClosed: closed },
+    league: leagueView,
     season: {
       id: season.id,
       number: season.number,
@@ -199,7 +207,7 @@ export async function loadSeasonView(userId: string, leagueId: string, now = new
     headToHead: headToHeadView,
     trophies: trophyRows.map((t) => ({ userId: t.userId, name: person(t.userId).name, kind: t.kind as TrophyKind, roundNumber: t.roundNumber, seasonNumber: t.seasonNumber })),
     seasons: allSeasons.map((s) => ({ number: s.number, mode: s.mode as "trading" | "draft", status: s.status, roundCount: s.roundCount, champions: champions(s.number) })),
-    recap: lastRecap ? { ...(lastRecap.payload as RoundRecap), token: lastRecap.token } : null,
+    recap: lastRecap ? { ...(await resolveRecapNames(lastRecap.payload as RoundRecap)), token: lastRecap.sharing ? lastRecap.token : null, sharing: lastRecap.sharing } : null,
     canStartNext: league.ownerId === userId && season.status === "complete" && !closed,
   }
 }
@@ -209,7 +217,9 @@ export async function loadSeasonView(userId: string, leagueId: string, now = new
 type League = Awaited<ReturnType<typeof requireFantasyMember>>["league"]
 type MemberLite = { id: string; userId: string; joinedAt: Date }
 
-async function liveTradingRows(league: League, members: MemberLite[], start: Date, person: (id: string) => SeasonPerson): Promise<RoundRow[]> {
+async function liveTradingRows(league: League, everyone: MemberLite[], start: Date, person: (id: string) => SeasonPerson): Promise<RoundRow[]> {
+  // Same rule as settling: in the league when the round began.
+  const members = everyone.filter((m) => m.joinedAt.getTime() <= start.getTime())
   const ids = members.map((m) => m.id)
   if (ids.length === 0) return []
   const startingCash = n(league.startingCash)
@@ -304,10 +314,47 @@ async function loadPicks(roundIds: string[], viewer: string, hideOthers: boolean
 
 /* ------------------------------------------------------------------ */
 
+/** Names in a stored recap are current, not frozen: someone who has left or deleted their account becomes "A former member". */
+export async function resolveRecapNames(recap: RoundRecap): Promise<RoundRecap> {
+  const ids = new Set<string>()
+  const collect = (p: { userId: string } | null | undefined) => p && ids.add(p.userId)
+  recap.winners.forEach(collect)
+  collect(recap.loser)
+  recap.table.forEach(collect)
+  recap.overtakes.forEach((o) => (collect(o.who), collect(o.passed)))
+  collect(recap.bestDecision)
+  collect(recap.worstDecision)
+  collect(recap.leader)
+  if (ids.size === 0) return recap
+  const rows = await db.select({ id: users.id, name: users.name, handle: users.handle }).from(users).where(inArray(users.id, [...ids]))
+  const live = new Map(rows.map((r) => [r.id, { name: r.name?.split(" ")[0] ?? r.handle ?? "A former member", handle: r.handle }]))
+  const fix = <T extends { userId: string; name: string; handle: string | null }>(p: T): T => ({ ...p, ...(live.get(p.userId) ?? { name: "A former member", handle: null }) })
+  const headline = recap.headline
+  let next = headline
+  // The headline was written with the name at the time; rewrite it from the live winners.
+  if (recap.winners.length > 0) {
+    const names = recap.winners.map((w) => fix(w).name)
+    const pct = recap.winners[0]!.percent
+    next = names.length === 1 ? `${names[0]} takes Round ${recap.roundNumber} with ${formatSigned(pct)}` : `${names.join(" and ")} share Round ${recap.roundNumber} at ${formatSigned(pct)}`
+  }
+  return {
+    ...recap,
+    headline: next,
+    winners: recap.winners.map(fix),
+    loser: recap.loser ? fix(recap.loser) : null,
+    table: recap.table.map(fix),
+    overtakes: recap.overtakes.map((o) => ({ who: fix(o.who), passed: fix(o.passed) })),
+    bestDecision: recap.bestDecision ? fix(recap.bestDecision) : null,
+    worstDecision: recap.worstDecision ? fix(recap.worstDecision) : null,
+    leader: recap.leader ? fix(recap.leader) : null,
+  }
+}
+
 /**
- * A recap by its share token, for the public page and image. Returns names and
- * percentages only (that is all a recap holds) plus the league's look. The token
- * is the permission: it is random, and only members can see it in the app.
+ * A recap by its share token, for the public page and image. Percentages and
+ * first names only, and not what anyone bought: tickers are removed. The token is
+ * the permission: it is random, it only works while the owner has sharing on, and
+ * stopping sharing replaces it.
  */
 export async function loadPublicRecap(token: string): Promise<{ recap: RoundRecap; league: { name: string; emoji: string; accent: string }; seasonNumber: number } | null> {
   if (!/^[A-Za-z0-9_-]{10,40}$/.test(token)) return null
@@ -317,9 +364,11 @@ export async function loadPublicRecap(token: string): Promise<{ recap: RoundReca
     .innerJoin(fantasyRounds, eq(fantasyRecaps.roundId, fantasyRounds.id))
     .innerJoin(fantasySeasons, eq(fantasyRounds.seasonId, fantasySeasons.id))
     .innerJoin(fantasyLeagues, eq(fantasyRecaps.leagueId, fantasyLeagues.id))
-    .where(eq(fantasyRecaps.shareToken, token))
+    .where(and(eq(fantasyRecaps.shareToken, token), eq(fantasyRecaps.sharing, true)))
   if (!row) return null
-  return { recap: row.payload as RoundRecap, league: { name: row.name, emoji: row.emoji, accent: row.accent }, seasonNumber: row.seasonNumber }
+  const recap = await resolveRecapNames(row.payload as RoundRecap)
+  const scrub = <T extends { ticker: string } | null>(d: T): T => (d ? { ...d, ticker: "" } : d)
+  return { recap: { ...recap, bestDecision: scrub(recap.bestDecision), worstDecision: scrub(recap.worstDecision) }, league: { name: row.name, emoji: row.emoji, accent: row.accent }, seasonNumber: row.seasonNumber }
 }
 
 export type RoundChip = {
@@ -332,36 +381,51 @@ export type RoundChip = {
   at: string | null
   kind: "draft-open" | "round-live" | "round-locked" | "upcoming" | "complete"
   needsPicks: boolean
+  /** Your place in the season table, once a round has settled. */
+  seasonRank: number | null
+  seasonPoints: number | null
+  seasonPlayers: number
 }
 
 /**
- * One-line round status for each league on the list. Reads the season rows and
- * the clock only (no pricing, no settling), so the list stays quick. A league
- * that has never been opened since seasons shipped gets its default season here.
+ * One-line round status for each league on the list. Read-only and batched: three
+ * queries however many leagues, no pricing, no settling, and no writes. A league that
+ * never turned rounds on has no season and gets no chip.
  */
 export async function loadRoundChips(userId: string, leagueIds: string[], now = new Date()): Promise<Map<string, RoundChip>> {
   const out = new Map<string, RoundChip>()
   if (leagueIds.length === 0) return out
-  for (const leagueId of leagueIds) await ensureSeason(leagueId, undefined, now)
   const seasons = await db.select().from(fantasySeasons).where(inArray(fantasySeasons.leagueId, leagueIds)).orderBy(desc(fantasySeasons.number))
   const latest = new Map<string, (typeof seasons)[number]>()
   for (const s of seasons) if (!latest.has(s.leagueId)) latest.set(s.leagueId, s)
+  if (latest.size === 0) return out
+  const seasonIds = [...latest.values()].map((s) => s.id)
 
-  const draftIds = [...latest.values()].filter((s) => s.mode === "draft" && s.status === "active").map((s) => s.id)
-  const mine = draftIds.length
-    ? await db
-        .select({ seasonId: fantasyRounds.seasonId, roundNumber: fantasyRounds.number })
-        .from(fantasyDraftPicks)
-        .innerJoin(fantasyRounds, eq(fantasyDraftPicks.roundId, fantasyRounds.id))
-        .innerJoin(fantasyMembers, eq(fantasyDraftPicks.memberId, fantasyMembers.id))
-        .where(and(inArray(fantasyRounds.seasonId, draftIds), eq(fantasyMembers.userId, userId)))
-    : []
+  const [mine, resultRows] = await Promise.all([
+    db
+      .select({ seasonId: fantasyRounds.seasonId, roundNumber: fantasyRounds.number })
+      .from(fantasyDraftPicks)
+      .innerJoin(fantasyRounds, eq(fantasyDraftPicks.roundId, fantasyRounds.id))
+      .innerJoin(fantasyMembers, eq(fantasyDraftPicks.memberId, fantasyMembers.id))
+      .where(and(inArray(fantasyRounds.seasonId, seasonIds), eq(fantasyMembers.userId, userId))),
+    db
+      .select({ seasonId: fantasyRounds.seasonId, number: fantasyRounds.number, userId: fantasyRoundResults.userId, pct: fantasyRoundResults.returnPct, rank: fantasyRoundResults.rank, points: fantasyRoundResults.points })
+      .from(fantasyRoundResults)
+      .innerJoin(fantasyRounds, eq(fantasyRoundResults.roundId, fantasyRounds.id))
+      .where(inArray(fantasyRounds.seasonId, seasonIds)),
+  ])
   const picked = new Set(mine.map((m) => `${m.seasonId}:${m.roundNumber}`))
+  const bySeason = new Map<string, { roundNumber: number; userId: string; percent: number; rank: number; points: number }[]>()
+  for (const r of resultRows) bySeason.set(r.seasonId, [...(bySeason.get(r.seasonId) ?? []), { roundNumber: r.number, userId: r.userId, percent: n(r.pct), rank: r.rank, points: n(r.points) }])
 
   for (const [leagueId, s] of latest) {
     const mode = s.mode as "trading" | "draft"
+    const table = seasonStandings(bySeason.get(s.id) ?? [])
+    const you = table.find((t) => t.userId === userId)
+    // Everyone level (all 0%, or a first round nobody played) is not a ranking worth showing.
+    const level = table.length > 0 && table.every((t) => t.rank === 1)
+    const base = { mode, seasonNumber: s.number, seasonRank: you && !level ? you.rank : null, seasonPoints: you ? you.points : null, seasonPlayers: table.length }
     const current = roundNumberAt(s.startsAt, now, s.roundCount)
-    const base = { mode, seasonNumber: s.number }
     if (s.status === "complete") {
       out.set(leagueId, { ...base, state: "complete", round: s.roundCount ?? current, at: null, kind: "complete", needsPicks: false })
     } else if (current === 0) {
