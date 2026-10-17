@@ -99,11 +99,11 @@ describe("settlement never holds credits forever", () => {
 })
 
 describe("start and lock times are epoch arithmetic, so daylight saving cannot shift them", () => {
-  it("locks 2 hours before kickoff across the US fall-back night, whatever the machine's zone", () => {
+  it("locks exactly at kickoff across the US fall-back night, whatever the machine's zone", () => {
     for (const start of ["2026-11-01T06:30:00Z", "2026-11-01T18:00:00Z", "2026-03-08T07:30:00Z", "2026-03-29T00:30:00Z"]) {
       const s = new Date(start)
-      assert.equal(s.getTime() - lockAtFor(s, "moneyline").getTime(), 2 * H)
-      assert.equal(s.getTime() - lockAtFor(s, "player_prop").getTime(), 2 * H)
+      assert.equal(s.getTime() - lockAtFor(s, "moneyline").getTime(), 0)
+      assert.equal(s.getTime() - lockAtFor(s, "player_prop").getTime(), 0)
     }
   })
   it("parses the offset spellings providers use to the same instant", () => {

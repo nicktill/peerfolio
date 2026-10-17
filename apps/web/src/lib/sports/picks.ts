@@ -82,7 +82,7 @@ export type AcceptedPick = {
 /**
  * True when the kickoff gate, not the market's own lock, is what closes this pick: the market is still open and
  * unlocked and the event is still "scheduled", but the scheduled start has arrived. Logged by the caller so a rejection
- * caused only by the new check is visible (it should be rare: normal locks come two hours earlier).
+ * caused only by the new check is visible (it should be rare: markets lock at the start, so this only trips when a lock was set late or a start moved earlier).
  */
 export function kickoffGateDecided(ctx: Pick<PickContext, "now" | "market" | "eventStatus" | "eventStartsAt">): boolean {
   return ctx.market.status === "open" && ctx.eventStatus === "scheduled" && ctx.now.getTime() < ctx.market.lockAt.getTime() && ctx.now.getTime() >= ctx.eventStartsAt.getTime()

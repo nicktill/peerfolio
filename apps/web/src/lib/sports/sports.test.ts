@@ -90,7 +90,7 @@ describe("line publishing", () => {
 
   it("skips markets that would open for too little time", async () => {
     const snap = await snapshotAt(NOW)
-    snap.events[0]!.startsAt = hours(1.2)
+    snap.events[0]!.startsAt = hours(0.8)
     const plan = planPublication(snap, NOW, new Set())
     assert.ok(!plan.drafts.some((d) => d.externalEventId === snap.events[0]!.externalId))
   })

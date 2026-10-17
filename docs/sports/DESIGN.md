@@ -30,10 +30,12 @@ take the median fair probability, then price the contest with one fixed margin (
 the market is simply not published: no line beats an inaccurate line. Prices round to the nearest 5.
 
 **Publish late, lock early, freeze on movement.** Lines are published only within 24 hours of
-kickoff, so a fixed line is never days old. Games and props lock 2 hours before start: NFL
-inactives post about 90 minutes before kickoff, so no pick can land after that news. The tradeoff is
-a shorter pick window (about 22 hours); we chose it over a tighter lock because early lock is the
-only guard that does not depend on cron timing or provider credits. As a second guard, every
+kickoff, so a fixed line is never days old. Games and props lock exactly at the scheduled start (product decision, October 2026: picks stay
+open until kickoff; it was 2 hours before). The server refuses any pick at or after the scheduled
+start independently of the market lock, so a late or missing lock job cannot keep a market open. The
+tradeoff is that NFL inactives (about 90 minutes before kickoff) land while picks are open; the
+guard for that is the freeze below, not a cushion. A market is only published while at least an hour
+of pick window remains (`minOpenMs`). As a second guard, every
 publish cron compares the fresh consensus with each open market and **freezes** it (no new picks
 at the old price) when fair probability moved 4 points or the point moved 1 or more. Picks already
 accepted keep their line. Start times are synced every fetch: a start that moves earlier pulls the

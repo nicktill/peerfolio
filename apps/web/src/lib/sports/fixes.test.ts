@@ -18,10 +18,15 @@ describe("publish window and locks (must-fix 1, 2)", () => {
     assert.ok(planPublication(snap([mockEvent("nfl", 1, hours(23))]), NOW, new Set()).drafts.length > 0)
     assert.equal(planPublication(snap([mockEvent("nfl", 1, hours(25))]), NOW, new Set()).drafts.length, 0)
   })
-  it("locks games and props at least 2 hours before start", () => {
+  it("locks games and props exactly at the start, never after it", () => {
     for (const kind of ["moneyline", "spread", "total", "player_prop"] as const) {
-      assert.ok(hours(10).getTime() - lockAtFor(hours(10), kind).getTime() >= 2 * 3600_000)
+      assert.equal(lockAtFor(hours(10), kind).getTime(), hours(10).getTime())
     }
+  })
+  it("publishes only while at least minOpenMs of picking window remains (lock = start)", () => {
+    // 61 minutes out: offered. 59 minutes out: a market first seen this late is not published at all.
+    assert.ok(planPublication(snap([mockEvent("nfl", 1, new Date(NOW.getTime() + 61 * 60_000))]), NOW, new Set()).drafts.length > 0)
+    assert.equal(planPublication(snap([mockEvent("nfl", 1, new Date(NOW.getTime() + 59 * 60_000))]), NOW, new Set()).drafts.length, 0)
   })
   it("freezes a market when the fresh consensus moved past the threshold", () => {
     const draft = planPublication(snap(), NOW, new Set()).drafts.find((d) => d.kind === "spread")!
@@ -44,7 +49,7 @@ describe("start-time changes (must-fix 3)", () => {
     assert.equal(plan.freeze, null)
   })
   it("freezes at once if the new lock has already passed", () => {
-    assert.equal(planSchedule(market, hours(1), NOW).freeze, "start moved earlier")
+    assert.equal(planSchedule(market, hours(-1), NOW).freeze, "start moved earlier")
   })
   it("never pushes a lock later", () => {
     assert.equal(planSchedule(market, hours(30), NOW).lockAt.getTime(), market.lockAt.getTime())

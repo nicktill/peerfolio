@@ -1,0 +1,48 @@
+name: Live odds worker
+
+# Runs scripts/live-odds-worker.mts as a long loop on a free GitHub-hosted runner (the repository is public, so
+# Actions minutes are free). One job lives just under GitHub's 6 hour cap and a new one is scheduled every 6 hours,
+# so the worker is up around the clock. When no game is live or near, the worker sleeps and barely touches the
+# database (see docs/sports/LIVE-ODDS.md, "Database wake-ups").
+#
+# OFF until the repository variable LIVE_ODDS_ENABLED is "1" (scheduled runs skip otherwise). Manual runs
+# (workflow_dispatch) always work. Needs the repository secret DATABASE_URL.
+on:
+  schedule:
+    # Every 6 hours. A job runs 5h50m after its (late) start, so there is a handover gap of roughly 10 minutes plus
+    # GitHub's scheduling delay (often 5 to 30 minutes) between two workers. The concurrency group stops overlap.
+    - cron: "20 5,11,17,23 * * *"
+  workflow_dispatch:
+
+# Never two workers at once (they would only duplicate rows), and never kill a running worker for a new one:
+# a queued run waits for the running one to finish.
+concurrency:
+  group: live-odds-worker
+  cancel-in-progress: false
+
+jobs:
+  worker:
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.LIVE_ODDS_ENABLED == '1' }}
+    runs-on: ubuntu-latest
+    # The worker exits itself after 5h50m (timeout below); this is the hard stop just under the 6 hour job limit.
+    timeout-minutes: 358
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Run the live odds worker
+        working-directory: apps/web
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          LIVE_ODDS_BOOK_TS: ${{ vars.LIVE_ODDS_BOOK_TS }}
+        run: |
+          [ -n "$DATABASE_URL" ] || { echo "Set the DATABASE_URL repository secret." >&2; exit 1; }
+          # SIGTERM at 5h50m lets the worker finish its cycle and exit 0. Exit code 124 is that normal handover, not a failure.
+          code=0
+          timeout --signal=TERM --kill-after=60s 5h50m node --experimental-strip-types scripts/live-odds-worker.mts || code=$?
+          [ "$code" = "124" ] && code=0
+          exit "$code"

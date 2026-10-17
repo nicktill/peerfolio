@@ -49,6 +49,12 @@ Logs are one JSON object per line (`{"at","level","ev",...}`) on stdout; the pro
 
 It must be a persistent process, not a Vercel function. Any of these works:
 
+- **GitHub Actions (free, recommended to start)**: `.github/workflows/live-odds-worker.yml`. The repository is public, so Actions minutes are free. Turn it on:
+  1. Repository secret **`DATABASE_URL`** (Settings > Secrets and variables > Actions > Secrets): the app's Postgres URL. The workflow reads it and nothing else.
+  2. Repository variable **`LIVE_ODDS_ENABLED`** = `1` (Variables tab). Scheduled runs skip unless it is `1`; "Run workflow" (workflow_dispatch) works regardless, which is how to start one immediately.
+  3. Optional variable `LIVE_ODDS_BOOK_TS` = `fetch` (see the checklist).
+  To turn it off set `LIVE_ODDS_ENABLED` to anything else and cancel the running job.
+  Caveats: GitHub's scheduler is best effort and often starts runs 5 to 30 minutes late; a job is capped at 6 hours, so it runs `timeout 5h50m` and a new one is scheduled every 6 hours (05:20, 11:20, 17:20, 23:20 UTC), which leaves a **handover gap of roughly 10 to 40 minutes** with no worker (live odds show "Odds paused" if a game falls inside it; the score and everything else are unaffected). The concurrency group guarantees two workers never overlap and never cancels a running one. If a game is on during a gap, press "Run workflow" to start one straight away (it queues behind the running job, so only when none is running). Scheduled workflows are disabled by GitHub after 60 days without repository activity on public repos. A job failing (the worker exits 1 after repeated total failures) shows as a failed run and sends GitHub's usual failure email. While idle the worker sleeps, so the runner is mostly waiting, which still costs nothing on a public repo.
 - **Fly.io**: a small app (shared-cpu-1x, 256 MB) with `[processes] worker = "node --experimental-strip-types apps/web/scripts/live-odds-worker.mts --ws"`, `auto_stop_machines = false`, one machine, secret `DATABASE_URL`. Build from the repo root with a Node 22 image and `npm ci --workspaces`.
 - **Railway**: a service from the same repo, root directory the repo root, start command as above, variable `DATABASE_URL`.
 - **VPS**: a systemd unit with `Restart=always`, `Environment=DATABASE_URL=...`, `ExecStart=/usr/bin/node --experimental-strip-types scripts/live-odds-worker.mts --ws`, `WorkingDirectory=.../apps/web`.

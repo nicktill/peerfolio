@@ -13,12 +13,13 @@ export type PublishConfig = {
   /** Reject a snapshot older than this: never price off stale data. */
   maxSnapshotAgeMs: number
   /**
-   * Picks close this long before start (games). Two hours, because NFL inactives
-   * post about 90 minutes before kickoff and NBA/tennis lineup news lands in the
-   * same window: no one should be able to pick after it.
+   * Picks close this long before start (games). Zero: markets stay open until kickoff, and the server also refuses any
+   * pick at or after the scheduled start (see isPickWindowOpen), so this value is never the only guard. The price of
+   * a late lock is that inactives/lineup news (NFL about 90 minutes before kickoff) lands while picks are open; the
+   * line-move freeze (moveProb/movePoint) and the sentinel are what answer that, not a cushion.
    */
   gameLockMs: number
-  /** Props lock at least as early as games. */
+  /** Props lock no later than games. */
   propLockMs: number
   /** Don't publish a market that would be open for less than this. */
   minOpenMs: number
@@ -39,8 +40,8 @@ export const DEFAULT_PUBLISH: PublishConfig = {
   pricing: DEFAULT_PRICING,
   consensus: DEFAULT_CONSENSUS,
   maxSnapshotAgeMs: 10 * 60_000,
-  gameLockMs: 2 * 3600_000,
-  propLockMs: 2 * 3600_000,
+  gameLockMs: 0,
+  propLockMs: 0,
   minOpenMs: 60 * 60_000,
   publishWindowMs: 24 * 3600_000,
   moveProb: 0.04,
