@@ -23,3 +23,12 @@ test("destructive or rewriting statements are caught", () => {
 test("comments do not trigger it", () => {
   assert.equal(riskyStatement('-- drop table later\nCREATE TABLE "t" ("a" text);'), null)
 })
+
+test("journal timestamps strictly increase with idx, so the migrator never skips a migration", async () => {
+  const { readFileSync } = await import("node:fs")
+  const { entries } = JSON.parse(readFileSync(new URL("../drizzle/meta/_journal.json", import.meta.url), "utf8"))
+  for (let i = 1; i < entries.length; i++) {
+    assert.ok(entries[i].idx > entries[i - 1].idx, `${entries[i].tag}: idx must increase`)
+    assert.ok(entries[i].when > entries[i - 1].when, `${entries[i].tag}: when must be greater than ${entries[i - 1].tag} (drizzle skips anything not newer than the last applied)`)
+  }
+})
