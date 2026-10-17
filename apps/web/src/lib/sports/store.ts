@@ -298,7 +298,10 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
     .orderBy(desc(sportsPicks.acceptedAt))
     .limit(60)
 
+  const liveEvents = await db.select({ id: sportsEvents.id, sport: sportsEvents.sport, home: sportsEvents.homeName, away: sportsEvents.awayName, startsAt: sportsEvents.startsAt })
+    .from(sportsEvents).where(and(inArray(sportsEvents.sport, league.sports), gt(sportsEvents.startsAt, new Date(now.getTime() - 8 * 3600_000)), lt(sportsEvents.startsAt, now))).limit(300)
   return {
+    liveEvents: liveEvents.map(e => ({ ...e, startsAt: e.startsAt.toISOString() })),
     league: {
       id: league.id,
       name: league.name,
@@ -325,6 +328,7 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
         player: market.player,
         statKey: market.statKey,
         lockAt: market.lockAt.toISOString(),
+        exchangeOkAt: market.exchangeOkAt?.toISOString() ?? null,
         event: { id: event.id, sport: event.sport, home: event.homeName, away: event.awayName, startsAt: event.startsAt.toISOString() },
         lines: lines
           .filter((l) => l.marketId === market.id)

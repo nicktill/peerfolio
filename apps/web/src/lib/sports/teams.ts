@@ -74,20 +74,20 @@ const NBA: Record<string, Team> = {
 const NEUTRAL = "#64748b"
 
 /** `logo` suits a white square (the default badge); `logoDark` is ESPN's variant for a bare logo on a dark background. */
-export type TeamLook = { abbr: string; color: string; logo: string | null; logoDark?: string | null }
+export type TeamLook = { abbr: string; color: string; logo: string | null; logoDark?: string | null; alternate?: string }
 
 /** Look up a team by sport and full name; unknown names (and tennis players) get initials on a neutral colour. */
 export function teamLook(sport: string | undefined, name: string): TeamLook {
   if (isLeagueSport(sport)) {
     const t = leagueTeam(sport, name)
-    if (t) return { abbr: t.abbr, color: t.color, logo: t.logo, logoDark: t.logoDark }
+    if (t) return { abbr: t.abbr, color: t.color, logo: t.logo, logoDark: t.logoDark, alternate: t.alternate }
   }
   const key = name.trim().toLowerCase()
   const table = sport === "nfl" ? NFL : sport === "nba" ? NBA : null
   // Full name first ("boston celtics"), then the nickname alone ("celtics"), which is how the sample league and some feeds write it.
   const hit = table?.[key] ?? (table ? Object.entries(table).find(([full]) => full.endsWith(` ${key}`))?.[1] : undefined)
   if (hit && (sport === "nfl" || sport === "nba")) {
-    return { abbr: hit.abbr, color: hit.color, logo: `https://a.espncdn.com/i/teamlogos/${sport}/500/${hit.abbr.toLowerCase()}.png` }
+    return { abbr: hit.abbr, color: hit.color, alternate: hit.alt, logo: `https://a.espncdn.com/i/teamlogos/${sport}/500/${hit.abbr.toLowerCase()}.png`, logoDark: `https://a.espncdn.com/i/teamlogos/${sport}/500-dark/${hit.abbr.toLowerCase()}.png` }
   }
   const words = name.trim().split(/\s+/)
   const abbr = (words.length > 1 ? words[0]![0]! + words[words.length - 1]![0]! : name.slice(0, 2)).toUpperCase()

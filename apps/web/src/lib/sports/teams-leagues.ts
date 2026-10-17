@@ -15,6 +15,7 @@ export type LeagueTeam = {
   abbr: string
   /** Brand colour for the badge background; never near-white. */
   color: string
+  alternate: string
   logo: string
   /** Logo variant ESPN draws for dark backgrounds. */
   logoDark: string
@@ -153,6 +154,7 @@ function buildIndex(sport: LeagueSport, rows: TeamRow[]): Index {
       name,
       abbr,
       color: pickColor(color, alt),
+      alternate: alt,
       logo: logoUrl(sport, key),
       logoDark: logoUrl(sport, key, true),
       short,

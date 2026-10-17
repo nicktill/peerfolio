@@ -56,7 +56,7 @@ function FantasyPage() {
   // Sports sits behind the sports flag (useSportsEnabled: everyone, or admins only); when it is off for this user `side` is always "stocks" and the switch renders nothing.
   if (side === "sports") {
     return (
-      <div className="fw" data-world="sports">
+      <div className="fw fw-home" data-world="sports">
         <WorldAmbient world="sports" />
         <ModeSwitch mode={side} onChange={setSide} />
         <SportsHome />
@@ -65,7 +65,7 @@ function FantasyPage() {
   }
 
   return (
-    <div className="fw" data-world="stocks">
+    <div className="fw fw-home" data-world="stocks">
       <WorldAmbient world="stocks" />
       <ModeSwitch mode={side} onChange={setSide} />
       <header className="fw-intro reveal" style={revealStyle(0)}>

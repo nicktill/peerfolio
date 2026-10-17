@@ -422,3 +422,72 @@
 @media (max-width: 700px) {
   .sp-desktop-context, .sp-sheet:not([data-open]) { display: none; }
 }
+
+/* Transparent, uncropped marks; league text remains legible if an asset fails. */
+.sp-logo-bare { display: inline-block; flex: none; object-fit: contain; border-radius: 0; padding: 0; background: transparent; }
+.sp-league-brand { display: inline-flex; align-items: center; gap: 6px; vertical-align: middle; }
+.sp-league-mark { display: inline-grid; place-items: center; width: 20px; height: 20px; flex: none; }
+.sp-league-mark img { grid-area: 1 / 1; width: 20px; height: 20px; object-fit: contain; }
+.sp-league-dark { display: none; }
+.dark .sp-league-light { display: none; }
+.dark .sp-league-dark { display: block; }
+
+/* Compact Open lines controls and cards. The ticket and rail retain their layout. */
+.sp-open-lines .fw-section-head { gap: 12px; }
+.sp-view-switch { display: inline-flex; border: 1px solid var(--fw-hair); border-radius: 9px; padding: 2px; margin-left: auto; flex: none; }
+.sp-view-switch button { padding: 7px 15px; border: 1px solid transparent; border-radius: 7px; font: 500 12px var(--fw-sans); color: var(--fw-fg3); }
+.sp-view-switch button[aria-pressed="true"] { border-color: var(--fw-hair2); background: var(--fw-raise); color: var(--fw-fg); }
+.sp-open-lines .sp-filter { flex-wrap: nowrap; overflow-x: auto; padding: 0 0 8px; gap: 4px; scrollbar-width: thin; }
+.sp-open-lines .sp-filter .fw-choice { flex: none; padding: 7px 10px; border-color: transparent; border-radius: 8px; font-size: 12px; }
+.sp-open-lines .sp-filter .fw-choice[aria-pressed="true"] { background: var(--fw-raise); border-color: var(--fw-hair); }
+.sp-open-lines .sp-game { border: 1px solid var(--fw-hair); border-radius: 12px; padding: 14px; margin: 8px 0 14px; background: var(--fw-panel); }
+.sp-open-lines .sp-game-head { flex-wrap: nowrap; gap: 10px; margin-bottom: 12px; }
+.sp-open-lines .sp-matchup { flex: 1; }
+.sp-open-lines .sp-matchup strong { display: block; margin: 0; font-size: 13px; line-height: 19px; }
+.sp-open-lines .sp-game-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 7px; font-size: 10px; }
+.sp-market-select { border: 1px solid var(--fw-hair2); background: var(--fw-bg); color: var(--fw-fg); font: 500 11px var(--fw-sans); padding: 6px 23px 6px 9px; border-radius: 7px; max-width: 100px; }
+.sp-market-select option { background: var(--fw-panel); color: var(--fw-fg); }
+.sp-feed-chip { display: inline-flex; align-items: center; gap: 5px; font: 400 10px var(--fw-sans); color: var(--fw-fg3); white-space: nowrap; }
+.sp-feed-chip i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.sp-feed-chip[data-live] { color: #329b68; }
+.dark .sp-feed-chip[data-live] { color: #70dba3; }
+.sp-open-lines .sp-odds-bar { margin-bottom: 10px; }
+.sp-open-lines .sp-odds-track { height: 5px; }
+.sp-open-lines .sp-market { margin-top: 0; }
+.sp-open-lines .sp-market + .sp-market { margin-top: 8px; }
+.sp-open-lines .sp-market-head { margin-bottom: 7px; }
+.sp-open-lines .sp-lines { gap: 8px; }
+.sp-open-lines .sp-team-lines .sp-line { min-height: 76px; padding: 12px; gap: 10px; position: relative; isolation: isolate; overflow: hidden; }
+.sp-open-lines .sp-line[data-team] { background: var(--fw-bg); border: 1px solid color-mix(in srgb, var(--tc) 50%, var(--fw-hair)); }
+.sp-open-lines .sp-line[data-team]::before { content: ""; position: absolute; z-index: -1; inset: 0; background: color-mix(in srgb, var(--tc) 12%, transparent); clip-path: polygon(0 0, 72% 0, 61% 100%, 0 100%); transition: background .15s ease; }
+.sp-open-lines .sp-line[data-team][aria-pressed="true"] { border-color: var(--tc); box-shadow: inset 0 0 0 1px var(--tc); }
+.sp-open-lines .sp-line[data-team][aria-pressed="true"]::before { background: color-mix(in srgb, var(--tc) 24%, transparent); }
+.sp-open-lines .sp-line[data-team] .sp-line-name { font-size: 12px; white-space: normal; overflow: visible; }
+.sp-open-lines .sp-line-odds { flex: none; }
+.sp-open-lines .sp-line-odds small { white-space: nowrap; }
+.sp-team-record { font: 400 10px var(--fw-mono); color: var(--fw-fg3); }
+.sp-open-lines .sp-line-name .sp-team-record { margin-left: 3px; white-space: nowrap; }
+.sp-selected-check { display: inline-block; width: 14px; height: 14px; padding: 2px; border-radius: 50%; margin-left: 5px; vertical-align: middle; color: var(--tc-ink); background: var(--tc); }
+.sp-live-games { margin-top: 10px; }
+.sp-live-side { display: flex; align-items: center; gap: 10px; padding: 12px; border: 1px solid var(--fw-hair); border-left: 2px solid var(--tc); border-radius: 8px; min-width: 0; background: color-mix(in srgb, var(--tc) 6%, var(--fw-bg)); font-size: 12px; }
+.sp-live-score { margin-left: auto; font: 600 22px var(--fw-mono); }
+.sp-live-footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin: 10px 0; font: 400 10px var(--fw-mono); color: var(--fw-fg3); }
+.sp-live-footer span { display: inline-flex; align-items: center; gap: 4px; }
+.sp-live-footer svg { width: 11px; height: 11px; }
+@media (max-width: 1100px) {
+  .sp-open-lines .sp-game-head { align-items: flex-start; flex-wrap: wrap; }
+  .sp-open-lines .sp-game-meta { justify-content: flex-start; }
+}
+@media (max-width: 700px) {
+  .sp-open-lines .sp-game { padding: 12px; }
+  .sp-open-lines .sp-matchup { flex-basis: 100%; }
+  .sp-open-lines .sp-matchup strong { display: block; }
+  .sp-open-lines .sp-game-meta { width: 100%; }
+  .sp-open-lines .sp-market-select { margin-left: auto; }
+  .sp-open-lines .sp-team-lines .sp-line { min-height: 68px; }
+  .sp-view-switch button { padding: 7px 10px; }
+  .sp-open-lines .sp-line[data-team] .sp-line-name { font-size: 13px; }
+}
+
+.sp-title-copy h2 { margin-bottom: 0; }
+.sp-open-lines .sp-title-copy p { margin: 3px 0 0; font: 400 10px/14px var(--fw-sans); color: var(--fw-fg3); }

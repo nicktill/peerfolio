@@ -689,3 +689,14 @@ button.fw-feed-row:hover p { color: var(--fw-fg); }
 .fw-league-sk { min-height: 104px; }
 .fw-sk-art { width: 52px; height: 52px; border-radius: 14px; flex: none; }
 @media (max-width: 760px) { .fw-sk-art { width: 44px; height: 44px; } .fw-league-sk { min-height: 96px; } }
+
+/* Match the existing section entrances without animating the switch's layout. */
+@media (prefers-reduced-motion: no-preference) {
+  .fw-home > .sp-stage:not([aria-busy]) {
+    animation: fw-home-enter 450ms cubic-bezier(.22, 1, .36, 1) backwards;
+  }
+}
+@keyframes fw-home-enter {
+  from { opacity: 0; filter: blur(1.5px); }
+  to { opacity: 1; filter: blur(0); }
+}
