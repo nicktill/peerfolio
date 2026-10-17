@@ -34,6 +34,7 @@ yarn-error.log*
 .env*
 # ...except the template, which documents every variable and holds no secrets.
 !.env.example
+!.env.preview.example
 
 # vercel
 .vercel

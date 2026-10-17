@@ -65,7 +65,7 @@ async function run(scheme, width, height, tag) {
       await r.fulfill({ status: 503, json: { error: "The assistant isn't available right now." } })
     }
   })
-  await page.goto("http://localhost:3111/preview/assistant-harness", { waitUntil: "networkidle" })
+  await page.goto("http://localhost:3111/preview/assistant-harness?live=1", { waitUntil: "networkidle" })
   await page.waitForSelector(".pf-ai-launch")
   await page.click(".pf-ai-launch")
   await page.waitForSelector(".pf-ai-empty")

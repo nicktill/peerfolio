@@ -18,6 +18,9 @@
     "sports:stress": "node --experimental-strip-types scripts/sports-stress.ts",
     "sports:settle-demo": "node --experimental-strip-types scripts/sports-demo.ts settle",
     "db:reset": "drizzle-kit migrate && npm run db:seed",
+    "preview:fantasy": "tsx --conditions=react-server scripts/preview-fantasy.mts",
+    "preview:sports": "node --experimental-strip-types scripts/preview-sports.ts",
+    "preview:seed": "npm run db:seed && npm run preview:fantasy && npm run sports:seed && npm run sports:settle-demo && npm run preview:sports",
     "test:plaid-sync": "node scripts/test-plaid-sync.mjs",
     "eval:assistant": "node --experimental-strip-types scripts/assistant-evals.mjs"
   },
@@ -62,6 +65,7 @@
     "eslint-config-next": "^15.3.4",
     "postcss": "^8.5.1",
     "tailwindcss": "^3.4.17",
+    "tsx": "4.23.15",
     "typescript": "^5.7.2"
   }
 }
