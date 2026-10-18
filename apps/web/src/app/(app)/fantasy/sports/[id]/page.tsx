@@ -538,7 +538,8 @@ function GameCard({ game, selected, onSelect, disabled, now }: { game: { key: st
   // Spread/Total but no Winner (e.g. a thin soccer book): keep a Winner entry that says so rather than silently dropping it.
   const winnerMissing = !baseGroups.some((g) => g.key === "winner") && baseGroups.some((g) => g.key === "spread" || g.key === "total")
   const groups = winnerMissing ? [{ key: "winner" as const, label: "Winner", test: () => false, markets: [] as Market[] }, ...baseGroups] : baseGroups
-  const [tab, setTab] = useState<string>(groups[0]?.key ?? "winner")
+  // Open on a market that has lines; the empty Winner entry stays in the dropdown and says why when chosen.
+  const [tab, setTab] = useState<string>(baseGroups[0]?.key ?? groups[0]?.key ?? "winner")
   const active = groups.find((g) => g.key === tab) ?? groups[0]
   const winner = game.markets.find((m) => m.kind === "moneyline")
   const chances = winner ? winChances(winner.lines) : null
@@ -582,7 +583,7 @@ function GameCard({ game, selected, onSelect, disabled, now }: { game: { key: st
 
       {active && active.markets.length === 0 ? (
         <div key={active.key} className="sp-panel" role="note">
-          <p className="sp-fine">Winner line unavailable right now. It returns when the market has enough depth.</p>
+          <p className="sp-fine">Winner line unavailable right now. It comes back when the market has enough depth. Spread and Total are still open.</p>
         </div>
       ) : null}
 
