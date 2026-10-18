@@ -15,7 +15,7 @@ import { ManageSlip, type ManageTarget } from "@web/components/sports/manage-sli
 import { SlipPickCard } from "@web/components/sports/slip-pick-card"
 import { SlipEmpty } from "@web/components/sports/slip-empty"
 import { ScoreboardGames } from "@web/components/sports/scoreboard-games"
-import { scoreboardMatch, type ScoreGame } from "@web/lib/sports/scoreboard"
+import { mergeLiveScores, scoreboardMatch, type ScoreGame } from "@web/lib/sports/scoreboard"
 import { GameStatusChip, statusInputFromGame } from "@web/components/sports/game-status-chip"
 import { PickLimitsButton } from "@web/components/sports/pick-limits-dialog"
 import { matchupColors, marketSelectionColor } from "@web/lib/sports/matchup-colors"
@@ -228,6 +228,8 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
   }
   const sportsKey = data?.league.sports.slice().sort().join(",")
   const scores = useApi<{games: ScoreGame[]; failedSports: string[]}>(sportsKey ? `/api/sports/scoreboard?sports=${sportsKey}` : null, [], { refreshMs: 30_000 })
+  const liveSportsKey = [...new Set((scores.data?.games ?? []).filter(g => g.status === 'live').map(g => g.sport))].sort().join(',')
+  const liveScores = useApi<{games: ScoreGame[]; failedSports: string[]}>(liveSportsKey ? `/api/sports/scoreboard?sports=${liveSportsKey}&live=1` : null, [], { refreshMs: 10_000 })
   const [demo, setDemo] = useState<string | null>(null)
   useEffect(() => setDemo(new URLSearchParams(window.location.search).get("demo")), [])
   const [lockFx, setLockFx] = useState<PickLockFx | null>(null)
@@ -272,7 +274,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
     : null
   const ended = !!league.endsAt && new Date(league.endsAt).getTime() < Date.now()
   const status = ended ? "Final standings" : league.endsAt ? timeLeft(league.endsAt) : "No end"
-  const scoreGames = (scores.data?.games ?? []).map((g) => (demo === "prices" && tick > 0 && g.status === "live" ? { ...g, homeScore: String((Number(g.homeScore) || 0) + 7 * Math.floor(tick / 3)), awayScore: String((Number(g.awayScore) || 0) + 3 * Math.floor(tick / 4)) } : g))
+  const scoreGames = mergeLiveScores(scores.data?.games ?? [], liveScores.data?.games ?? []).map((g) => (demo === "prices" && tick > 0 && g.status === "live" ? { ...g, homeScore: String((Number(g.homeScore) || 0) + 7 * Math.floor(tick / 3)), awayScore: String((Number(g.awayScore) || 0) + 3 * Math.floor(tick / 4)) } : g))
   const shown = markets.filter(m => (sport === "all" || m.event.sport === sport) && matchesSearch(query, [m.event.home, m.event.away, m.player], m.event.sport) && Date.parse(m.lockAt) > now && Date.parse(m.event.startsAt) > now).map(m => {
     const meta = scoreboardMatch(m.event, scoreGames)
     return meta ? { ...m, event: { ...m.event, homeRecord: meta.homeRecord, awayRecord: meta.awayRecord, scoreGame: meta } } : m

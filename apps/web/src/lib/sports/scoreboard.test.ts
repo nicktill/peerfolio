@@ -1,7 +1,25 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { normalizeGames, scoreboardDays, scoreboardMatch, SCOREBOARD_PATHS } from './scoreboard.ts'
+import { mergeLiveScores, normalizeGames, scoreboardDays, scoreboardMatch, SCOREBOARD_PATHS } from './scoreboard.ts'
 const at='2026-10-17T23:20:00.000Z'
+
+test('last play is concise, optional and only shown for live games', () => {
+ const c = { ...competition('in'), situation: { lastPlay: { text: '  Smith   pass to Jones for 12 yards.  ' } } }
+ assert.equal(normalizeGames(board(c), 'nfl', at)[0]?.lastPlay, 'Smith pass to Jones for 12 yards.')
+ assert.equal(normalizeGames(board({ ...c, status: { type: { state: 'post', completed: true } } }), 'nfl', at)[0]?.lastPlay, undefined)
+ assert.equal(normalizeGames(board(competition('in')), 'nfl', at)[0]?.lastPlay, undefined)
+})
+
+test('fast scores overlay live games and finals without replacing newer or upcoming data', () => {
+ const live = normalizeGames(board(competition('in')), 'nfl', at)[0]!
+ const next = { ...live, fetchedAt: new Date(Date.parse(at) + 10000).toISOString(), homeScore: '28' }
+ const upcoming = { ...live, id: 'upcoming', status: 'upcoming' as const }
+ assert.equal(mergeLiveScores([live], [next])[0]?.homeScore, '28')
+ assert.equal(mergeLiveScores([next], [live])[0]?.homeScore, '28')
+ assert.equal(mergeLiveScores([live], [{ ...next, status: 'final' }])[0]?.status, 'final')
+ assert.equal(mergeLiveScores([upcoming], [{ ...upcoming, fetchedAt: next.fetchedAt, homeRecord: 'new' }])[0]?.homeRecord, upcoming.homeRecord)
+ assert.equal(mergeLiveScores([upcoming], [{ ...next, id: 'upcoming' }])[0]?.status, 'live')
+})
 const competition=(state='in', name='STATUS_IN_PROGRESS') => ({ id:'123', date:'2026-10-17T23:00:00Z', status:{ type:{state,name,shortDetail:'12:34 - 1st'} }, competitors:[
  {homeAway:'home',team:{displayName:'Philadelphia Flyers'},score:'0',records:[{type:'total',summary:'0-6-3'},{type:'home',summary:'0-2-0'}]},
  {homeAway:'away',team:{displayName:'Ottawa Senators'},score:'2',records:[{type:'total',summary:'6-2-0'}]},

@@ -1170,3 +1170,5 @@
 .sp-slip-at[data-dir="up"] { color: var(--gain-ink); }
 .sp-slip-at[data-dir="down"] { color: var(--loss-ink); }
 .sp-manage-slip .sp-slip-sport svg { width: 20px; height: 20px; }
+.sp-last-play { height: 2.8em; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; margin: 8px 0 0; font-size: 12px; line-height: 1.4; color: var(--fw-fg3); }
+.sp-last-play > span { color: var(--fw-fg2); font-weight: 600; }
