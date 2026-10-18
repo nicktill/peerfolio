@@ -3,7 +3,7 @@ name: Live odds worker
 # Runs scripts/live-odds-worker.mts as a long loop on a free GitHub-hosted runner (the repository is public, so
 # Actions minutes are free). One job lives just under GitHub's 6 hour cap and a new one is scheduled every 6 hours,
 # so the worker is up around the clock. When no game is live or near, the worker sleeps and barely touches the
-# database (see docs/sports/LIVE-ODDS.md, "Database wake-ups").
+# database.
 #
 # OFF until the repository variable LIVE_ODDS_ENABLED is "1" (scheduled runs skip otherwise). Manual runs
 # (workflow_dispatch) always work. Needs the repository secret DATABASE_URL.
