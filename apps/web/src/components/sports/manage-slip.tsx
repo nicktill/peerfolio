@@ -1,7 +1,7 @@
 "use client"
 
 import { useId, useState } from "react"
-import { Layers, X } from "lucide-react"
+import { X } from "lucide-react"
 import { useToast } from "@web/components/ui/toast"
 import { SheetHandle } from "@web/components/sports/sheet-handle"
 import { SlipPickCard } from "@web/components/sports/slip-pick-card"
@@ -9,6 +9,7 @@ import { SlipCashOut, useCashOut, type CashoutQuoteBody } from "@web/components/
 import { TicketFig, TicketMoney } from "@web/components/sports/ticket-figures"
 import type { PickRow } from "@web/components/sports/league-parts"
 import type { ParlayRow } from "@web/components/sports/parlay-types"
+import { LegStack } from "@web/components/sports/parlay-ticket"
 import { mutate, useApi } from "@web/lib/use-api"
 import { americanToDecimal } from "@web/lib/sports/odds"
 import { eventTitle, formatCredits, formatOdds, marketTitle, pickSentence, sideTeam } from "@web/lib/sports/format"
@@ -153,7 +154,7 @@ function ParlayManage({ leagueId, parlay, onClear, onMinimize, onChanged }: { le
   const first = target.legs[0]
   return (
     <Shell color={NEUTRAL} title="Your parlay" busy={selling} onClear={onClear} onMinimize={onMinimize}>
-      <SlipPickCard sport={first?.event.sport ?? ""} side={null} mark={<span className="sp-slip-sport"><Layers aria-hidden /></span>} kicker="Parlay" title={`${target.legs.length}-leg parlay`} price={target.price} game={`Combined odds you hold: ${formatOdds(target.price)}`} color={NEUTRAL} />
+      <SlipPickCard sport={first?.event.sport ?? ""} side={null} mark={<LegStack legs={target.legs} />} kicker="Parlay" title={`${target.legs.length}-leg parlay`} price={target.price} game={`Combined odds you hold: ${formatOdds(target.price)}`} color={NEUTRAL} />
       <ul className="sp-manage-legs">
         {target.legs.map((leg) => {
           const market = { kind: leg.market.kind, player: null, statKey: null, event: leg.event }

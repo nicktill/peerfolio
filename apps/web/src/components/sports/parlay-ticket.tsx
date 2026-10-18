@@ -41,7 +41,7 @@ function LegRow({ leg, now }: { leg: ParlayLegRow; now: Date | null }) {
 }
 
 /** The teams in a parlay as closely stacked discs, each tinted by its side and ringed by how that leg is going. */
-function LegStack({ legs }: { legs: ParlayLegRow[] }) {
+export function LegStack({ legs }: { legs: ParlayLegRow[] }) {
   const shown = legs.slice(0, 3)
   const more = legs.length - shown.length
   return (
