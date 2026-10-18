@@ -1,8 +1,9 @@
 import type { Metadata } from "next"
 
-export type InviteKind = "league" | "fantasy"
+export type InviteKind = "league" | "fantasy" | "sports"
 
 export function inviteCopy(kind: InviteKind) {
+  if (kind === "sports") return { title: "You've been invited to a sports league", description: "Make picks with play credits and compete with friends on Peerfolio. Open your invitation to join the league." }
   return kind === "fantasy"
     ? { title: "You've been invited to a fantasy league", description: "Build a portfolio with play money and compete with friends on Peerfolio. Open your invitation to join the league." }
     : { title: "You've been invited to a league", description: "Join your friends on Peerfolio and compare investment returns. Your balances stay private. Open your invitation to join the league." }
@@ -11,7 +12,8 @@ export function inviteCopy(kind: InviteKind) {
 /** Public, generic copy: crawlers never need league, member, or portfolio data. */
 export function inviteMetadata(kind: InviteKind, code: string): Metadata {
   const { title, description } = inviteCopy(kind)
-  const path = `${kind === "fantasy" ? "/fantasy" : ""}/join/${encodeURIComponent(code.trim().toUpperCase())}`
+  const prefix = kind === "fantasy" ? "/fantasy/join" : kind === "sports" ? "/join/sports" : "/join"
+  const path = `${prefix}/${encodeURIComponent(code.trim().toUpperCase())}`
   const image = { url: `/invite-preview/${kind}`, width: 1200, height: 630, alt: `${title} on Peerfolio` }
   return {
     title,

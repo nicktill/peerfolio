@@ -1,5 +1,6 @@
 "use client"
 
+import { sportsInviteLink } from "@web/components/fantasy/sports-invite-link"
 import "@web/components/fantasy/fantasy-workspace.css"
 import "@web/components/sports/sports-workspace.css"
 
@@ -228,16 +229,16 @@ function InviteButton({ code }: { code: string }) {
     <button
       type="button"
       className="fw-btn fw-invite"
-      aria-label={copied ? "Code copied" : `Copy invite code ${code}`}
+      aria-label={copied ? "Link copied" : `Copy invite link (code ${code})`}
       data-solid
       onClick={() => {
-        void navigator.clipboard.writeText(code)
+        void navigator.clipboard.writeText(sportsInviteLink(window.location.origin, code))
         setCopied(true)
         setTimeout(() => setCopied(false), 2000)
       }}
     >
       {copied ? <Check aria-hidden /> : <Link2 aria-hidden />}
-      <span className="fw-invite-label-full">{copied ? "Code copied" : `Invite code ${code}`}</span>
+      <span className="fw-invite-label-full">{copied ? "Link copied" : `Copy invite link · ${code}`}</span>
       <span className="fw-invite-label-short">{copied ? "Copied" : "Invite"}</span>
     </button>
   )
