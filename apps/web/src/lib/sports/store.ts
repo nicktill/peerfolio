@@ -438,6 +438,19 @@ export async function getMirroredPickReport(db: Db, userId: string, leagueId: st
  * waited behind a lock (a reprice, a freeze, another pick) is judged against the kickoff gate at the instant it can actually
  * be accepted, not at the instant the request arrived. `acceptedAt` is that same instant.
  */
+/** Open singles (live picks included) plus open parlays for one member: the count and stake every limit is checked against. Call with the member row locked. */
+export async function openRisk(tx: Conn, memberId: string): Promise<{ count: number; stake: number }> {
+  const [singles] = await tx
+    .select({ n: sql<number>`count(*)::int`, stake: sql<number>`coalesce(sum(${sportsPicks.stake}), 0)::int` })
+    .from(sportsPicks)
+    .where(and(eq(sportsPicks.memberId, memberId), eq(sportsPicks.status, "open")))
+  const [parlays] = await tx
+    .select({ n: sql<number>`count(*)::int`, stake: sql<number>`coalesce(sum(${sportsParlays.stake}), 0)::int` })
+    .from(sportsParlays)
+    .where(and(eq(sportsParlays.memberId, memberId), eq(sportsParlays.status, "open")))
+  return { count: (singles?.n ?? 0) + (parlays?.n ?? 0), stake: (singles?.stake ?? 0) + (parlays?.stake ?? 0) }
+}
+
 export async function placeSportsPick(db: Db, userId: string, leagueId: string, req: PickRequest & { requestId: string }, now?: Date) {
   const result = await withDeadlockRetry(() => placeOnce(db, userId, leagueId, req, now))
   // One summary per placement. Ids and money only: no names, no tokens.
@@ -496,14 +509,7 @@ async function placeOnce(db: Db, userId: string, leagueId: string, req: PickRequ
       .select({ n: sql<number>`count(*)::int` })
       .from(sportsPicks)
       .where(and(eq(sportsPicks.memberId, member.id), eq(sportsPicks.marketId, row.market.id)))
-    const [open] = await tx
-      .select({ n: sql<number>`count(*)::int`, stake: sql<number>`coalesce(sum(${sportsPicks.stake}), 0)::int` })
-      .from(sportsPicks)
-      .where(and(eq(sportsPicks.memberId, member.id), eq(sportsPicks.status, "open")))
-    const [openParlays] = await tx
-      .select({ n: sql<number>`count(*)::int`, stake: sql<number>`coalesce(sum(${sportsParlays.stake}), 0)::int` })
-      .from(sportsParlays)
-      .where(and(eq(sportsParlays.memberId, member.id), eq(sportsParlays.status, "open")))
+    const risk = await openRisk(tx, member.id)
 
     const pickCtx: PickContext = {
       now,
@@ -514,8 +520,8 @@ async function placeOnce(db: Db, userId: string, leagueId: string, req: PickRequ
       member: { credits: member.credits },
       league: { startingCredits: league.startingCredits },
       picksOnMarket: existing?.n ?? 0,
-      openPickCount: (open?.n ?? 0) + (openParlays?.n ?? 0),
-      openStakeTotal: (open?.stake ?? 0) + (openParlays?.stake ?? 0),
+      openPickCount: risk.count,
+      openStakeTotal: risk.stake,
     }
     let accepted
     try {
@@ -690,14 +696,7 @@ async function placeParlayOnce(db: Db, userId: string, leagueId: string, req: Pa
       })
     }
 
-    const [open] = await tx
-      .select({ n: sql<number>`count(*)::int`, stake: sql<number>`coalesce(sum(${sportsPicks.stake}), 0)::int` })
-      .from(sportsPicks)
-      .where(and(eq(sportsPicks.memberId, member.id), eq(sportsPicks.status, "open")))
-    const [openParlays] = await tx
-      .select({ n: sql<number>`count(*)::int`, stake: sql<number>`coalesce(sum(${sportsParlays.stake}), 0)::int` })
-      .from(sportsParlays)
-      .where(and(eq(sportsParlays.memberId, member.id), eq(sportsParlays.status, "open")))
+    const risk = await openRisk(tx, member.id)
 
     let accepted
     try {
@@ -711,8 +710,8 @@ async function placeParlayOnce(db: Db, userId: string, leagueId: string, req: Pa
           maxExposurePctOfStart: DEFAULT_LIMITS.maxExposurePctOfStart,
           maxOpenPicks: DEFAULT_LIMITS.maxOpenPicks,
         },
-        openPickCount: (open?.n ?? 0) + (openParlays?.n ?? 0),
-        openStakeTotal: (open?.stake ?? 0) + (openParlays?.stake ?? 0),
+        openPickCount: risk.count,
+        openStakeTotal: risk.stake,
       })
     } catch (error) {
       if (error instanceof ParlayRejected) {

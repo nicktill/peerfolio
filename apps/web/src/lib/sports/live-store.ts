@@ -3,7 +3,7 @@ import * as schema from "../../db/schema.ts"
 import { emit } from "./log.ts"
 import { acceptPick, DEFAULT_LIMITS, PickRejected, type PickContext } from "./picks.ts"
 import { chooseLiveSlot, LivePickRejected, LIVE_KEY_PREFIX, LIVE_PICK, liveMarketKey } from "./live-pick.ts"
-import { SportsError, withDeadlockRetry, type Db } from "./store.ts"
+import { openRisk, SportsError, withDeadlockRetry, type Db } from "./store.ts"
 import { placeKey } from "./settlement.ts"
 import type { LiveSelection } from "./live/types.ts"
 
@@ -75,7 +75,7 @@ export function placeLivePick(db: Db, userId: string, leagueId: string, req: { e
       if (!line) throw new SportsError("Line not found", 404)
 
       const [existing] = await tx.select({ n: sql<number>`count(*)::int` }).from(sportsPicks).where(and(eq(sportsPicks.memberId, member.id), eq(sportsPicks.marketId, market.id)))
-      const [open] = await tx.select({ n: sql<number>`count(*)::int`, stake: sql<number>`coalesce(sum(${sportsPicks.stake}), 0)::int` }).from(sportsPicks).where(and(eq(sportsPicks.memberId, member.id), eq(sportsPicks.status, "open")))
+      const risk = await openRisk(tx, member.id)
       const ctx: PickContext = {
         now: clock,
         market: { id: market.id, status: market.status, lockAt: market.lockAt },
@@ -86,8 +86,8 @@ export function placeLivePick(db: Db, userId: string, leagueId: string, req: { e
         member: { credits: member.credits },
         league: { startingCredits: league.startingCredits },
         picksOnMarket: existing?.n ?? 0,
-        openPickCount: open?.n ?? 0,
-        openStakeTotal: open?.stake ?? 0,
+        openPickCount: risk.count,
+        openStakeTotal: risk.stake,
       }
       let accepted
       try {
