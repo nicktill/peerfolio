@@ -10,6 +10,7 @@ import { ArrowLeft, ArrowUp, ArrowDown, CalendarDays, Check, ChevronDown, Link2,
 import { Choice } from "@web/components/fantasy/choice"
 import { timeLeft } from "@web/components/fantasy/time-left"
 import { LivePickSlip, type LivePickSelection } from "@web/components/sports/live-pick-panel"
+import { SheetHandle } from "@web/components/sports/sheet-handle"
 import { SlipEmpty } from "@web/components/sports/slip-empty"
 import { ScoreboardGames } from "@web/components/sports/scoreboard-games"
 import { scoreboardMatch, type ScoreGame } from "@web/lib/sports/scoreboard"
@@ -103,6 +104,19 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
     const left = active.offsetLeft - strip.offsetLeft - (strip.clientWidth - active.offsetWidth) / 2
     strip.scrollTo({ left, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' })
   }, [sport])
+  // The sport strip fades at whichever edge still has chips beyond it, so it reads as swipeable.
+  useEffect(() => {
+    const strip = sportFilters.current
+    if (!strip) return
+    const sync = () => {
+      strip.dataset.more = strip.scrollWidth <= strip.clientWidth + 1 ? "none" : strip.scrollLeft <= 1 ? "end" : strip.scrollLeft + strip.clientWidth >= strip.scrollWidth - 1 ? "start" : "both"
+    }
+    sync()
+    strip.addEventListener("scroll", sync, { passive: true })
+    const resize = new ResizeObserver(sync)
+    resize.observe(strip)
+    return () => { strip.removeEventListener("scroll", sync); resize.disconnect() }
+  }, [data?.league.sports.length])
   const [view, setView] = useState<"upcoming" | "live">("upcoming")
   const [query, setQuery] = useState("")
   const [searchOpen, setSearchOpen] = useState(false)
@@ -122,6 +136,16 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
   const [revealPicks, setRevealPicks] = useState(false)
   const [slipVisible, setSlipVisible] = useState(true)
   const [floatOpen, setFloatOpen] = useState(false)
+  // Phone: the pick sheet can be tucked down to a bar so you can keep browsing and adding legs.
+  const [sheetMin, setSheetMin] = useState(false)
+  const [phone, setPhone] = useState(false)
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 700px)")
+    const sync = () => setPhone(query.matches)
+    sync()
+    query.addEventListener("change", sync)
+    return () => query.removeEventListener("change", sync)
+  }, [])
   const [placed, setPlaced] = useState(false)
   const [anchorHeight, setAnchorHeight] = useState<number | null>(null)
   const [draft, setDraft] = useState<{ stake: number; toWin: number | null }>({ stake: 0, toWin: null })
@@ -134,6 +158,10 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
   const openFloat = () => { setAnchorHeight(dockRef.current?.offsetHeight ?? null); setPlaced(false); setFloatOpen(true) }
   const closeFloat = (restoreFocus = true) => { refocusSummary.current = restoreFocus; setFloatOpen(false); setPlaced(false) }
   const activeSlip = parlay.mode === "parlay" ? parlay.legs.length > 0 : !!selected || !!liveSelected
+  // An empty slip is never tucked away, and picking a different single line opens the sheet; adding parlay legs leaves it as it is.
+  const singleKey = parlay.mode === "single" ? (liveSelected ? `${liveSelected.eventId}:${liveSelected.side}` : selected?.line.id ?? "") : ""
+  useEffect(() => { if (!activeSlip) setSheetMin(false) }, [activeSlip])
+  useEffect(() => { if (singleKey) setSheetMin(false) }, [singleKey])
   useEffect(() => {
     if (!slipRef.current) return
     const observer = new IntersectionObserver(([entry]) => setSlipVisible(!!entry && entry.intersectionRatio >= .2), { threshold: [0, .2, 1] })
@@ -304,7 +332,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
         <aside aria-label="Pick slip and your picks" className="fw-rail sp-sports-rail reveal" style={revealStyle(3)}>
           <PickLockEffect fx={lockFx} onDone={clearLockFx} />
           <div ref={slipRef} className="sp-slip-anchor" style={floatOpen && anchorHeight ? { minHeight: anchorHeight } : undefined}>
-          <div ref={dockRef} className="sp-slip-dock" data-active={activeSlip || undefined} data-float={floatOpen || undefined} data-placed={(floatOpen && placed) || undefined} role={floatOpen ? "dialog" : undefined} aria-label={floatOpen ? "Your pick slip" : undefined}>
+          <div ref={dockRef} className="sp-slip-dock" data-active={activeSlip || undefined} data-sheet-min={(phone && sheetMin) || undefined} data-float={floatOpen || undefined} data-placed={(floatOpen && placed) || undefined} role={floatOpen ? "dialog" : undefined} aria-label={floatOpen ? "Your pick slip" : undefined}>
           {floatOpen ? <div className="sp-float-bar"><span>Your slip</span><button ref={floatClose} type="button" disabled={livePending} onClick={() => closeFloat()} aria-label="Collapse slip"><ChevronDown aria-hidden /> Collapse</button></div> : null}
           {floatOpen && placed ? <div className="sp-float-done" role="status"><span className="sp-float-check" aria-hidden><Check /></span><strong>Pick locked in</strong><p>Your slip is cleared and your cash is updated.</p><button type="button" className="fw-btn" data-solid onClick={() => { closeFloat(false); setRevealPicks(true) }}>View your picks</button><button type="button" className="sp-float-link" onClick={() => closeFloat()}>Keep browsing</button></div> : null}
           <div className="sp-slip-mode" hidden={parlay.mode !== "parlay"}>
@@ -317,6 +345,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
               closed={ended}
               onRemove={parlay.remove}
               onClear={parlay.clear}
+              onMinimize={() => setSheetMin(true)}
               onAccept={parlay.accept}
               onLock={setLockFx}
               onPlaced={() => {
@@ -337,6 +366,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
             limits={data.limits}
             closed={ended}
             onClear={() => setSelected(null)}
+            onMinimize={() => setSheetMin(true)}
             onDraft={onDraft}
             onLock={setLockFx}
             onPlaced={() => {
@@ -346,7 +376,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
           />
           </div>
           <div className="sp-slip-mode" hidden={parlay.mode !== "single" || !liveSelected}>
-            {liveSelected ? <LivePickSlip key={`${liveSelected.eventId}:${liveSelected.side}`} selection={liveSelected} leagueId={league.id} credits={you.credits} startingCredits={league.startingCredits} maxStakePct={league.maxStakePct ?? 10} demo={id === "sample"} busy={livePending} onBusyChange={setLivePending} onClear={() => { if (!livePending) setLiveSelected(null) }} onAcceptPrice={(price) => setLiveSelected((previous) => previous ? { ...previous, price } : null)} onPlaced={() => { setLiveSelected(null); void onPickPlaced() }} onDraft={onDraft} /> : null}
+            {liveSelected ? <LivePickSlip key={`${liveSelected.eventId}:${liveSelected.side}`} selection={liveSelected} leagueId={league.id} credits={you.credits} startingCredits={league.startingCredits} maxStakePct={league.maxStakePct ?? 10} demo={id === "sample"} busy={livePending} onBusyChange={setLivePending} onMinimize={() => setSheetMin(true)} onClear={() => { if (!livePending) setLiveSelected(null) }} onAcceptPrice={(price) => setLiveSelected((previous) => previous ? { ...previous, price } : null)} onPlaced={() => { setLiveSelected(null); void onPickPlaced() }} onDraft={onDraft} /> : null}
           </div>
           </div>
           </div>
@@ -369,7 +399,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
             <PickFeed picks={leaguePicks} parlays={leagueParlays} showName history empty="Picks show up here after each market locks, never before." />
           </section>
       {id !== "sample" ? <MirrorReport leagueId={league.id} /> : null}
-      {!slipVisible && !floatOpen && activeSlip ? <button ref={summaryRef} key={parlay.mode === "parlay" ? parlay.legs.map(l => l.market.id + l.line.id).join(":") : liveSelected ? liveSelected.eventId + liveSelected.side : selected?.line.id} type="button" className="sp-review-pick" aria-haspopup="dialog" onClick={openFloat}><span className="sp-review-dot" aria-hidden /><span className="sp-review-copy"><small>ADDED TO YOUR SLIP</small><strong>{parlay.mode === "parlay" ? plural(parlay.legs.length, "leg") + " in your parlay" : liveSelected ? (liveSelected.side === "draw" ? "Draw" : liveSelected.side === "home" ? liveSelected.home : liveSelected.away) + " · " + formatOdds(liveSelected.price) : selected ? pickSentence(selected.market, selected.line) + " · " + formatOdds(selected.line.price) : "Your pick"}</strong>{draft.stake > 0 && draft.toWin != null ? <em className="numeric">{formatCredits(draft.stake)} to win {formatCredits(draft.toWin)}</em> : null}</span><span className="sp-review-action">Open slip <ArrowUp aria-hidden /></span></button> : null}
+      {activeSlip && (phone ? sheetMin : !slipVisible && !floatOpen) ? <button ref={summaryRef} key={parlay.mode === "parlay" ? parlay.legs.map(l => l.market.id + l.line.id).join(":") : liveSelected ? liveSelected.eventId + liveSelected.side : selected?.line.id} type="button" className="sp-review-pick" aria-haspopup="dialog" onClick={() => (phone ? setSheetMin(false) : openFloat())}><span className="sp-review-dot" aria-hidden /><span className="sp-review-copy"><small>ADDED TO YOUR SLIP</small><strong>{parlay.mode === "parlay" ? plural(parlay.legs.length, "leg") + " in your parlay" : liveSelected ? (liveSelected.side === "draw" ? "Draw" : liveSelected.side === "home" ? liveSelected.home : liveSelected.away) + " · " + formatOdds(liveSelected.price) : selected ? pickSentence(selected.market, selected.line) + " · " + formatOdds(selected.line.price) : "Your pick"}</strong>{draft.stake > 0 && draft.toWin != null ? <em className="numeric">{formatCredits(draft.stake)} to win {formatCredits(draft.toWin)}</em> : null}</span><span className="sp-review-action">Open slip <ArrowUp aria-hidden /></span></button> : null}
       {/* Keeps the last rows clear of the phone pick sheet. */}
       <div className="sp-sheet-spacer" data-on={selected || liveSelected || (parlay.mode === "parlay" && parlay.legs.length > 0) ? "" : undefined} aria-hidden />
     </div>
@@ -447,6 +477,7 @@ function Slip({
   limits,
   closed,
   onClear,
+  onMinimize,
   onLock,
   onPlaced,
   onStale,
@@ -463,14 +494,12 @@ function Slip({
   limits: Detail["limits"]
   closed: boolean
   onClear: () => void
+  onMinimize: () => void
   onLock: (fx: PickLockFx) => void
   onPlaced: () => void
 }) {
   const { toast } = useToast()
   const [stake, setStake] = useState("")
-  const [dragY, setDragY] = useState(0)
-  const dragStart = useRef<number | null>(null)
-  const dragged = useRef(false)
   const [pending, setPending] = useState(false)
   // The price the user has seen and agreed to. If the line moves under them, locking stays disabled until they accept the new price.
   const [agreed, setAgreed] = useState<{ id: string; price: number } | null>(null)
@@ -482,7 +511,6 @@ function Slip({
   const lineId = selected?.line.id
   useEffect(() => {
     setStake("")
-    setDragY(0)
     setRequestId(newKey())
     setAgreed(lineId && selected ? { id: lineId, price: selected.line.price } : null)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- a different line starts a fresh slip; price moves on the same line must not reset it
@@ -521,34 +549,9 @@ function Slip({
   }
 
   return (
-    <section className="fw-panel fw-trade sp-slip sp-sheet" style={{ "--sheet-drag": `${dragY}px`, ...(slipColor ? ({ "--tc": slipColor, "--tc-ink": onColor(slipColor) } as React.CSSProperties) : null) } as React.CSSProperties} aria-labelledby="sp-slip-title" data-dragging={dragStart.current != null || undefined} data-closed={closed || undefined} data-open={selected ? "" : undefined} data-themed={selected ? "" : undefined}>
+    <section className="fw-panel fw-trade sp-slip sp-sheet" style={{ ...(slipColor ? ({ "--tc": slipColor, "--tc-ink": onColor(slipColor) } as React.CSSProperties) : null) } as React.CSSProperties} aria-labelledby="sp-slip-title" data-closed={closed || undefined} data-open={selected ? "" : undefined} data-themed={selected ? "" : undefined}>
       {selected ? (
-        <button
-          type="button"
-          className="sp-sheet-handle"
-          aria-label="Dismiss pick slip"
-          disabled={pending}
-          onClick={() => { const wasDragged = dragged.current; dragged.current = false; if (!wasDragged) onClear() }}
-          onPointerDown={(event) => {
-            if (pending) return
-            dragged.current = false
-            dragStart.current = event.clientY
-            event.currentTarget.setPointerCapture(event.pointerId)
-          }}
-          onPointerMove={(event) => {
-            if (dragStart.current != null) setDragY(Math.max(0, event.clientY - dragStart.current))
-          }}
-          onPointerUp={(event) => {
-            const distance = dragStart.current == null ? 0 : event.clientY - dragStart.current
-            dragged.current = Math.abs(distance) > 5
-            dragStart.current = null
-            setDragY(0)
-            if (distance >= 65) onClear()
-            // Suppress the click after a short drag so it springs back instead of dismissing.
-            if (distance > 5) event.preventDefault()
-          }}
-          onPointerCancel={() => { dragStart.current = null; dragged.current = false; setDragY(0) }}
-        ><span /></button>
+        <SheetHandle onMinimize={onMinimize} disabled={pending} />
       ) : null}
       <div className="fw-section-head">
         <h2 id="sp-slip-title">Pick slip</h2>
