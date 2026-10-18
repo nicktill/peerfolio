@@ -5,7 +5,7 @@
  */
 
 import { demoPortfolio } from "@web/lib/portfolio-demo"
-import { applyCashout, applyPick, applyTrade, sampleCashoutQuote, fantasyView, sportsView } from "@web/lib/sample/store"
+import { applyCashout, applyParlayCashout, applyPick, applyTrade, sampleCashoutQuote, sampleParlayCashoutQuote, fantasyView, sportsView } from "@web/lib/sample/store"
 import { getDemoMode } from "@web/lib/sample/demo-mode"
 import { parlayQuote } from "@web/lib/sports/parlay-math"
 import fantasyData from "@web/lib/sample/data/fantasy.json"
@@ -200,6 +200,8 @@ function sampleResponseRaw(url: string, pathname: string | null): unknown {
   if (/^\/api\/leagues\/sample(\?|$)/.test(url)) return PRIVATE_LEAGUE
   const quote = url.match(/^\/api\/sports\/leagues\/sample\/picks\/([^/]+)\/cashout$/)
   if (quote) return sampleCashoutQuote(SPORTS_LEAGUE as never, quote[1]!)
+  const parlayQuote = url.match(/^\/api\/sports\/leagues\/sample\/parlays\/([^/]+)\/cashout$/)
+  if (parlayQuote) return sampleParlayCashoutQuote(SPORTS_LEAGUE as never, parlayQuote[1]!)
   if (/^\/api\/sports\/leagues\/sample\/report/.test(url)) return { pairs: [] }
   if (pathname && inSampleView(pathname) && url === "/api/portfolio/intraday") return intradayFixture()
   if (pathname && inSampleView(pathname) && /^\/api\/board(\?|$)/.test(url)) return BOARD
@@ -214,6 +216,8 @@ export function sampleMutate(url: string, body: unknown): unknown {
   if (/^\/api\/fantasy\/sample\/trade$/.test(url)) return applyTrade(FANTASY_LEAGUE, b as Parameters<typeof applyTrade>[1])
   const sale = url.match(/^\/api\/sports\/leagues\/sample\/picks\/([^/]+)\/cashout$/)
   if (sale) return applyCashout(SPORTS_LEAGUE as never, sale[1]!, Number(b.expectedValue))
+  const parlaySale = url.match(/^\/api\/sports\/leagues\/sample\/parlays\/([^/]+)\/cashout$/)
+  if (parlaySale) return applyParlayCashout(SPORTS_LEAGUE as never, parlaySale[1]!, Number(b.expectedValue))
   if (/^\/api\/sports\/leagues\/sample\/picks$/.test(url)) return applyPick(SPORTS_LEAGUE as never, b as { lineId: string; stake: number })
   throw new Error("This is sample data, so that isn't available here.")
 }

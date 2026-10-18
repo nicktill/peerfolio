@@ -1,9 +1,10 @@
 import { freshnessOf } from "./freshness.ts"
+import { price } from "../cashout-price.ts"
 import type { LiveView } from "./view.ts"
 
 /**
  * Display-only estimate of an open pick's worth right now: the pick's total return times the live chance of its
- * side winning. It is not a cash-out, never changes credits and never feeds settlement.
+ * side winning, through the same `price` as the cash-out quote so the two agree. It is not a cash-out, never changes credits and never feeds settlement.
  */
 
 export type PositionPick = { stake: number; totalReturn: number; kind: string; selection: string }
@@ -30,6 +31,6 @@ export function livePosition(pick: PositionPick, view: LiveView | null, elapsedM
   if (freshnessOf(view.odds.ageMs + Math.max(0, elapsedMs)) === "stale") return null
   const prob = sideProb(view, pick.kind, pick.selection)
   if (prob == null) return null
-  const value = pick.totalReturn * prob
+  const value = price(pick.totalReturn, prob)
   return { prob, value, pl: value - pick.stake }
 }
