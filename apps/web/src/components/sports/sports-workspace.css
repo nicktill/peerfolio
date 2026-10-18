@@ -1057,11 +1057,8 @@
 .sp-line-odds[data-stale] { opacity: .55; }
 .sp-live-card .sp-line-odds { transition: opacity .25s ease; }
 
-/* Desktop: Locked picks and Mirrored picks sit under the leaderboard, beside the (taller) right rail, instead of at the very end. */
+/* Locked picks and Mirrored picks close the page at full width, below both columns (real leagues make the games column the long one). */
 .sp-lower { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 @media (min-width: 1051px) {
-  .fw-play-space[data-play-world="sports"] .fw-grid { grid-template-rows: auto minmax(0, 1fr); }
-  .fw-play-space[data-play-world="sports"] .fw-grid > .fw-main { grid-column: 1; grid-row: 1; }
-  .fw-play-space[data-play-world="sports"] .fw-grid > .sp-lower { grid-column: 1; grid-row: 2; }
-  .fw-play-space[data-play-world="sports"] .fw-grid > .sp-sports-rail { grid-column: 2; grid-row: 1 / span 2; }
+  .fw-play-space[data-play-world="sports"] .fw-grid > .sp-lower { grid-column: 1 / -1; }
 }
