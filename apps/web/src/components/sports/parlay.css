@@ -79,3 +79,21 @@
 :root:not(.dark) .pl-ticket[data-status="open"] { background: #fff; }
 :root:not(.dark) .pl-ticket[data-status="won"] { background: linear-gradient(100deg, color-mix(in srgb, var(--gain, #3fae7f) 17%, #fff), #fff 68%); }
 :root:not(.dark) .pl-ticket[data-status="lost"] { background: linear-gradient(100deg, color-mix(in srgb, var(--loss, #e0607a) 13%, #fff), #fff 68%); }
+
+/* Each leg is a compact ticket, with its own team identity. */
+.pl-slip .pl-legs { gap: 10px; }
+.pl-slip .pl-leg { --tc: var(--fw-accent); position: relative; isolation: isolate; overflow: hidden; grid-template-columns: 32px minmax(0, 1fr) auto 28px; gap: 9px; padding: 14px 9px 0 12px; border: 1px solid color-mix(in srgb, var(--tc) 48%, var(--fw-hair)); border-left: 3px solid var(--tc); border-radius: 14px; background: linear-gradient(110deg, color-mix(in srgb, var(--tc) 15%, var(--fw-bg)), var(--fw-bg) 85%); }
+.pl-slip .pl-leg::before { content: ""; position: absolute; z-index: -1; inset: 0 0 28px; background: color-mix(in srgb, var(--tc) 11%, transparent); clip-path: polygon(0 0, 80% 0, 64% 100%, 0 100%); pointer-events: none; }
+.pl-leg-watermark { position: absolute; z-index: -1; right: 12px; top: -20px; opacity: .075; transform: rotate(-12deg); pointer-events: none; }
+.pl-leg-body small { margin-bottom: 3px; font: 600 8px/12px var(--fw-sans); text-transform: uppercase; letter-spacing: .12em; color: var(--fw-fg3); }
+.pl-slip .pl-leg-body b { font: 400 19px/22px var(--fw-serif); letter-spacing: -.015em; overflow-wrap: anywhere; }
+.pl-slip .pl-odds { align-self: center; padding: 5px 8px; border-color: color-mix(in srgb, var(--tc) 38%, var(--fw-line)); border-radius: 9px; background: color-mix(in srgb, var(--tc) 24%, var(--fw-bg)); font-size: 12px; line-height: 18px; }
+.pl-slip .pl-remove { align-self: center; color: var(--fw-fg2); }
+.pl-leg-matchup { display: flex; align-items: baseline; gap: 9px; grid-column: 1 / -1; min-width: 0; padding: 9px 0 10px; margin-top: 3px; border-top: 1px dashed color-mix(in srgb, var(--tc) 40%, var(--fw-line)); }
+.pl-leg-matchup > span:first-child { flex: none; color: var(--fw-fg3); font: 500 8px/14px var(--fw-mono); letter-spacing: .08em; }
+.pl-leg-matchup > span:last-child { min-width: 0; font: 400 10px/15px var(--fw-sans); color: var(--fw-fg2); }
+.pl-slip .pl-combined { position: relative; padding: 14px; border-color: color-mix(in srgb, #c4a15b 48%, var(--fw-line)); background: linear-gradient(120deg, color-mix(in srgb, #c4a15b 9%, var(--fw-bg)), var(--fw-bg)); }
+.pl-slip .pl-combined b { color: var(--fw-fg); font-size: 30px; }
+.pl-slip .pl-combined .fw-label { color: var(--fw-fg2); }
+.pl-slip .fw-quick button:hover { border-color: #c4a15b; background: color-mix(in srgb, #c4a15b 9%, var(--fw-raise)); }
+@media (max-width: 380px) { .pl-slip .pl-leg { grid-template-columns: 26px minmax(0, 1fr) auto 24px; gap: 6px; padding-inline: 8px; } .pl-slip .pl-leg-body b { font-size: 17px; line-height: 20px; } .pl-slip .pl-odds { padding-inline: 6px; font-size: 11px; } }

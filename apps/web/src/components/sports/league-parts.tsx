@@ -339,14 +339,15 @@ export function PickTicket({ pick, showName }: { pick: PickRow; showName?: boole
 }
 
 /** Locked picks with a result filter and a hit-rate summary above the tickets. */
-export function PickFeed({ picks, parlays = [], empty, showName }: { picks: PickRow[]; parlays?: ParlayRow[]; empty: string; showName?: boolean }) {
-  const [filter, setFilter] = useState<"all" | "won" | "lost" | "open">("open")
+export function PickFeed({ picks, parlays = [], empty, showName, history = false }: { picks: PickRow[]; parlays?: ParlayRow[]; empty: string; showName?: boolean; /** League-wide history: opens on All with live (open) picks first, then settled picks newest first. */ history?: boolean }) {
+  const [filter, setFilter] = useState<"all" | "won" | "lost" | "open">(history ? "all" : "open")
   const feedId = useId()
   // Singles and parlays share one feed, newest first (singles keep the server's order when there are no parlays).
   const items = useMemo(() => {
     const all = [...picks.map((pick) => ({ kind: "pick" as const, pick, at: pick.acceptedAt, status: pick.status })), ...parlays.map((parlay) => ({ kind: "parlay" as const, parlay, at: parlay.acceptedAt, status: parlay.status }))]
+    if (history) return all.sort((a, b) => Number(b.status === "open") - Number(a.status === "open") || Date.parse(b.at) - Date.parse(a.at))
     return parlays.length ? all.sort((a, b) => Date.parse(b.at) - Date.parse(a.at)) : all
-  }, [picks, parlays])
+  }, [picks, parlays, history])
   const won = items.filter((p) => p.status === "won").length
   const lost = items.filter((p) => p.status === "lost").length
   const open = items.filter((p) => p.status === "open").length
@@ -356,13 +357,19 @@ export function PickFeed({ picks, parlays = [], empty, showName }: { picks: Pick
     <>
       <div className="sl-feed-head">
         <div className="sl-tabs" role="tablist" aria-label="Filter picks">
-          {(
-            [
-              ["open", `Open ${open}`],
-              ["won", `Won ${won}`],
-              ["lost", `Lost ${lost}`],
-              ["all", `All ${items.length}`],
-            ] as const
+          {(history
+            ? ([
+                ["all", `All ${items.length}`],
+                ["open", `Live ${open}`],
+                ["won", `Won ${won}`],
+                ["lost", `Lost ${lost}`],
+              ] as const)
+            : ([
+                ["open", `Open ${open}`],
+                ["won", `Won ${won}`],
+                ["lost", `Lost ${lost}`],
+                ["all", `All ${items.length}`],
+              ] as const)
           ).map(([k, label]) => (
             <button key={k} id={`${feedId}-${k}`} type="button" role="tab" aria-selected={filter === k} aria-controls={`${feedId}-panel`} tabIndex={filter === k ? 0 : -1} onClick={() => setFilter(k)} onKeyDown={(e) => {
               const tabs = Array.from(e.currentTarget.parentElement!.querySelectorAll<HTMLButtonElement>('[role="tab"]'))

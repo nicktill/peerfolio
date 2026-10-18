@@ -6,9 +6,11 @@ import "@web/components/sports/sports-workspace.css"
 
 import { use, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, ArrowUp, ArrowDown, Check, Link2, Lock, Search, X } from "lucide-react"
+import { ArrowLeft, ArrowUp, ArrowDown, CalendarDays, Check, ChevronDown, Link2, Lock, Radio, Search, X } from "lucide-react"
 import { Choice } from "@web/components/fantasy/choice"
 import { timeLeft } from "@web/components/fantasy/time-left"
+import { LivePickSlip, type LivePickSelection } from "@web/components/sports/live-pick-panel"
+import { SlipEmpty } from "@web/components/sports/slip-empty"
 import { ScoreboardGames } from "@web/components/sports/scoreboard-games"
 import { scoreboardMatch, type ScoreGame } from "@web/lib/sports/scoreboard"
 import { GameStatusChip, statusInputFromGame } from "@web/components/sports/game-status-chip"
@@ -90,6 +92,8 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
 
   const { data, error, loading, refetch } = useApi<Detail>(`/api/sports/leagues/${id}`, [], { refreshMs: 20_000 })
   const [selected, setSelected] = useState<{ market: Market; line: Line } | null>(null)
+  const [liveSelected, setLiveSelected] = useState<LivePickSelection | null>(null)
+  const [livePending, setLivePending] = useState(false)
   const [sport, setSport] = useState<string>("all")
   const sportFilters = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -113,6 +117,58 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 5000); return () => clearInterval(timer) }, [])
   const parlay = useParlay(data?.markets, now, data?.limits.parlay)
+  const slipRef = useRef<HTMLDivElement>(null)
+  const yourPicksRef = useRef<HTMLElement>(null)
+  const [revealPicks, setRevealPicks] = useState(false)
+  const [slipVisible, setSlipVisible] = useState(true)
+  const [floatOpen, setFloatOpen] = useState(false)
+  const [placed, setPlaced] = useState(false)
+  const [anchorHeight, setAnchorHeight] = useState<number | null>(null)
+  const [draft, setDraft] = useState<{ stake: number; toWin: number | null }>({ stake: 0, toWin: null })
+  const onDraft = useCallback((next: { stake: number; toWin: number | null }) => setDraft((prev) => (prev.stake === next.stake && prev.toWin === next.toWin ? prev : next)), [])
+  const dockRef = useRef<HTMLDivElement>(null)
+  const floatClose = useRef<HTMLButtonElement>(null)
+  const summaryRef = useRef<HTMLButtonElement>(null)
+  const refocusSummary = useRef(false)
+  const reduceMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  const openFloat = () => { setAnchorHeight(dockRef.current?.offsetHeight ?? null); setPlaced(false); setFloatOpen(true) }
+  const closeFloat = (restoreFocus = true) => { refocusSummary.current = restoreFocus; setFloatOpen(false); setPlaced(false) }
+  const activeSlip = parlay.mode === "parlay" ? parlay.legs.length > 0 : !!selected || !!liveSelected
+  useEffect(() => {
+    if (!slipRef.current) return
+    const observer = new IntersectionObserver(([entry]) => setSlipVisible(!!entry && entry.intersectionRatio >= .2), { threshold: [0, .2, 1] })
+    observer.observe(slipRef.current)
+    return () => observer.disconnect()
+  }, [data?.league.id])
+  // The floating ticket is a request, not a mode: scrolling the real slip back into view, or emptying it, folds it away.
+  useEffect(() => { if (floatOpen && slipVisible) { setFloatOpen(false); setPlaced(false) } }, [floatOpen, slipVisible])
+  useEffect(() => { if (floatOpen && !activeSlip && !placed) { setFloatOpen(false) } }, [floatOpen, activeSlip, placed])
+  useEffect(() => {
+    if (!floatOpen) return
+    floatClose.current?.focus({ preventScroll: true })
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape" && !livePending) closeFloat() }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- closeFloat only sets state
+  }, [floatOpen, livePending])
+  useEffect(() => {
+    if (floatOpen || !refocusSummary.current) return
+    refocusSummary.current = false
+    summaryRef.current?.focus({ preventScroll: true })
+  })
+  useEffect(() => {
+    if (!revealPicks || !yourPicksRef.current) return
+    const section = yourPicksRef.current
+    section.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" })
+    section.focus({ preventScroll: true })
+    setRevealPicks(false)
+  }, [revealPicks])
+  async function onPickPlaced() {
+    // From the floating ticket, stay put and offer a link instead of jumping the page.
+    if (floatOpen) setPlaced(true)
+    await refetch()
+    if (!floatOpen) setRevealPicks(true)
+  }
   const sportsKey = data?.league.sports.slice().sort().join(",")
   const scores = useApi<{games: ScoreGame[]; failedSports: string[]}>(sportsKey ? `/api/sports/scoreboard?sports=${sportsKey}` : null, [], { refreshMs: 30_000 })
   const [demo, setDemo] = useState<string | null>(null)
@@ -185,9 +241,9 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
           <section className="fw-panel sp-open-lines reveal" style={revealStyle(2)} aria-labelledby="sp-markets-title">
             <div className="fw-section-head">
               <div className="sp-title-copy"><h2 id="sp-markets-title">Open lines<InfoTip side="bottom" label="How lines work" text={<>Everyone gets the same line, and it can update until kickoff. Once you lock a pick, your price never changes. <b>+125</b> means 100 cash wins 125. <b>-110</b> means risking 110 wins 100. On a <b>spread</b>, your team must win by more than the number (or lose by less).</>} /></h2><p>{view === "upcoming" ? "Live prices from real markets · pick before kickoff or live in game · build parlays · play money only" : "Pregame picks are locked · live picks open on games showing a live price"}</p></div>
-              <div className="sp-view-switch" role="group" aria-label="Game status">
-                <button type="button" aria-pressed={view === "upcoming"} onClick={() => setView("upcoming")}>Upcoming</button>
-                <button type="button" aria-pressed={view === "live"} onClick={() => setView("live")}>Live</button>
+              <div className="sp-view-switch" data-view={view} role="group" aria-label="Game status">
+                <button type="button" aria-pressed={view === "upcoming"} onClick={() => setView("upcoming")}><CalendarDays aria-hidden /><span>Upcoming</span></button>
+                <button type="button" aria-pressed={view === "live"} onClick={() => setView("live")}><Radio aria-hidden /><span>Live</span><i aria-hidden /></button>
               </div>
             </div>
             <div className="sp-filter-bar" data-search={searchOpen || undefined}>
@@ -203,7 +259,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
                   ))}
                 </div>
               ) : <span className="sp-filter-gap" />}
-              <ParlayModeBar mode={parlay.mode} onMode={(m) => { setSelected(null); parlay.setMode(m) }} count={parlay.legs.length} />
+              <ParlayModeBar mode={parlay.mode} disabled={livePending} onMode={(m) => { if (livePending) return; setSelected(null); setLiveSelected(null); parlay.setMode(m) }} count={parlay.legs.length} />
               {searchOpen ? (
                 <div className="sp-search" role="search">
                   <Search className="sp-search-icon" aria-hidden />
@@ -227,11 +283,11 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
               )}
             </div>
             {parlay.mode === "parlay" ? <div className="sp-parlay-guidance"><p className="pl-bar-hint">{view === "live" ? "Parlays use upcoming games only · live picks are singles. " : ""}{parlay.legs.length ? `${parlay.legs.length} of ${data.limits.parlay?.maxLegs ?? 6} legs selected · tap a line again to remove it` : `Build your ticket · pick 2–${data.limits.parlay?.maxLegs ?? 6} legs from different games`}</p>{parlay.note ? <p className="pl-note" role="status">{parlay.note}</p> : null}</div> : null}
-            {view === "upcoming" ? <ParlayIdsContext.Provider value={parlay.mode === "parlay" ? parlay.ids : null}><div className="sp-scroll">{searching && shown.length === 0 ? <p className="fw-empty" role="status">No games match &ldquo;{query.trim()}&rdquo;</p> : <Markets markets={shown} selected={parlay.mode === "parlay" ? null : current} onSelect={(market, line) => (parlay.mode === "parlay" ? parlay.toggle(market, line) : setSelected({ market, line }))} disabled={ended} now={now} />}</div></ParlayIdsContext.Provider> : <ParlayIdsContext.Provider value={parlay.mode === "parlay" ? parlay.ids : null}><ScoreboardGames renderUpcoming={(game) => {
+            {view === "upcoming" ? <ParlayIdsContext.Provider value={parlay.mode === "parlay" ? parlay.ids : null}><div className="sp-scroll">{searching && shown.length === 0 ? <p className="fw-empty" role="status">No games match &ldquo;{query.trim()}&rdquo;</p> : <Markets markets={shown} selected={parlay.mode === "parlay" ? null : current} onSelect={(market, line) => { if (livePending) return; setLiveSelected(null); parlay.mode === "parlay" ? parlay.toggle(market, line) : setSelected({ market, line }) }} disabled={ended || livePending} now={now} />}</div></ParlayIdsContext.Provider> : <ParlayIdsContext.Provider value={parlay.mode === "parlay" ? parlay.ids : null}><ScoreboardGames renderUpcoming={(game) => {
               const matching = shown.filter((market) => scoreboardMatch(market.event, [game]))
               if (!matching.length) return null
-              return <GameCard game={{ key: `${game.sport}:${game.id}`, event: matching[0]!.event, markets: matching }} selected={parlay.mode === "parlay" ? null : current} onSelect={(market, line) => parlay.mode === "parlay" ? parlay.toggle(market, line) : setSelected({ market, line })} disabled={ended} now={now} />
-            }} onShowUpcoming={() => setView("upcoming")} query={searching ? query.trim() : undefined} enableAdminTest={id !== "sample"} livePick={id !== "sample" ? { leagueId: league.id, liveBetting: league.liveBetting, mode: parlay.mode, credits: data.you.credits, startingCredits: league.startingCredits, maxStakePct: league.maxStakePct, onPlaced: () => void refetch() } : undefined} games={liveGames} tracked={data.liveEvents ?? []} now={now} loading={scores.loading} failed={scoresFailed} /></ParlayIdsContext.Provider>}
+              return <GameCard game={{ key: `${game.sport}:${game.id}`, event: matching[0]!.event, markets: matching }} selected={parlay.mode === "parlay" ? null : current} onSelect={(market, line) => { if (livePending) return; setLiveSelected(null); parlay.mode === "parlay" ? parlay.toggle(market, line) : setSelected({ market, line }) }} disabled={ended || livePending} now={now} />
+            }} onShowUpcoming={() => setView("upcoming")} query={searching ? query.trim() : undefined} enableAdminTest={id !== "sample"} livePick={{ leagueId: league.id, liveBetting: id === "sample" || league.liveBetting, mode: parlay.mode, selected: liveSelected, busy: livePending, onSelect: (selection) => { if (livePending || ended) return; setSelected(null); setLiveSelected(selection); parlay.setMode("single") }, credits: data.you.credits, startingCredits: league.startingCredits, maxStakePct: league.maxStakePct ?? 10, onPlaced: () => void onPickPlaced() }} games={liveGames} tracked={data.liveEvents ?? []} now={now} loading={scores.loading} failed={scoresFailed} /></ParlayIdsContext.Provider>}
           </section>
 
           <section className="fw-panel reveal" style={revealStyle(3)} aria-labelledby="sp-standings-title">
@@ -245,9 +301,13 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
 
         </div>
 
-        <aside className="fw-rail sp-sports-rail reveal" style={revealStyle(3)}>
+        <aside aria-label="Pick slip and your picks" className="fw-rail sp-sports-rail reveal" style={revealStyle(3)}>
           <PickLockEffect fx={lockFx} onDone={clearLockFx} />
-          {parlay.mode === "parlay" ? (
+          <div ref={slipRef} className="sp-slip-anchor" style={floatOpen && anchorHeight ? { minHeight: anchorHeight } : undefined}>
+          <div ref={dockRef} className="sp-slip-dock" data-active={activeSlip || undefined} data-float={floatOpen || undefined} data-placed={(floatOpen && placed) || undefined} role={floatOpen ? "dialog" : undefined} aria-label={floatOpen ? "Your pick slip" : undefined}>
+          {floatOpen ? <div className="sp-float-bar"><span>Your slip</span><button ref={floatClose} type="button" disabled={livePending} onClick={() => closeFloat()} aria-label="Collapse slip"><ChevronDown aria-hidden /> Collapse</button></div> : null}
+          {floatOpen && placed ? <div className="sp-float-done" role="status"><span className="sp-float-check" aria-hidden><Check /></span><strong>Pick locked in</strong><p>Your slip is cleared and your cash is updated.</p><button type="button" className="fw-btn" data-solid onClick={() => { closeFloat(false); setRevealPicks(true) }}>View your picks</button><button type="button" className="sp-float-link" onClick={() => closeFloat()}>Keep browsing</button></div> : null}
+          <div className="sp-slip-mode" hidden={parlay.mode !== "parlay"}>
             <ParlaySlip
               leagueId={league.id}
               legs={parlay.legs}
@@ -261,11 +321,14 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
               onLock={setLockFx}
               onPlaced={() => {
                 parlay.clear()
-                void refetch()
+                void onPickPlaced()
               }}
               onStale={() => void refetch()}
+              onDraft={onDraft}
             />
-          ) : <Slip
+          </div>
+          <div className="sp-slip-mode" hidden={parlay.mode !== "single" || !!liveSelected}>
+          <Slip
             leagueId={league.id}
             selected={current ?? selected}
             gone={gone}
@@ -274,13 +337,20 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
             limits={data.limits}
             closed={ended}
             onClear={() => setSelected(null)}
+            onDraft={onDraft}
             onLock={setLockFx}
             onPlaced={() => {
               setSelected(null)
-              void refetch()
+              void onPickPlaced()
             }}
-          />}
-          <section className="fw-panel reveal" style={revealStyle(4)} aria-labelledby="sp-yours-title">
+          />
+          </div>
+          <div className="sp-slip-mode" hidden={parlay.mode !== "single" || !liveSelected}>
+            {liveSelected ? <LivePickSlip key={`${liveSelected.eventId}:${liveSelected.side}`} selection={liveSelected} leagueId={league.id} credits={you.credits} startingCredits={league.startingCredits} maxStakePct={league.maxStakePct ?? 10} demo={id === "sample"} busy={livePending} onBusyChange={setLivePending} onClear={() => { if (!livePending) setLiveSelected(null) }} onAcceptPrice={(price) => setLiveSelected((previous) => previous ? { ...previous, price } : null)} onPlaced={() => { setLiveSelected(null); void onPickPlaced() }} onDraft={onDraft} /> : null}
+          </div>
+          </div>
+          </div>
+          <section ref={yourPicksRef} tabIndex={-1} className="fw-panel sp-your-picks reveal" style={revealStyle(4)} aria-labelledby="sp-yours-title">
             <div className="fw-section-head">
               <h2 id="sp-yours-title">Your picks</h2>
               <p>{picks.length + parlays.length === 0 ? "None yet" : plural(picks.length + parlays.length, "pick")}</p>
@@ -296,31 +366,42 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
               <h2 id="sp-locked-title">Locked picks</h2>
               <p>Everyone&apos;s picks, shown after each game locks at kickoff</p>
             </div>
-            <PickFeed picks={leaguePicks} parlays={leagueParlays} showName empty="Picks show up here after each market locks, never before." />
+            <PickFeed picks={leaguePicks} parlays={leagueParlays} showName history empty="Picks show up here after each market locks, never before." />
           </section>
       {id !== "sample" ? <MirrorReport leagueId={league.id} /> : null}
+      {!slipVisible && !floatOpen && activeSlip ? <button ref={summaryRef} key={parlay.mode === "parlay" ? parlay.legs.map(l => l.market.id + l.line.id).join(":") : liveSelected ? liveSelected.eventId + liveSelected.side : selected?.line.id} type="button" className="sp-review-pick" aria-haspopup="dialog" onClick={openFloat}><span className="sp-review-dot" aria-hidden /><span className="sp-review-copy"><small>ADDED TO YOUR SLIP</small><strong>{parlay.mode === "parlay" ? plural(parlay.legs.length, "leg") + " in your parlay" : liveSelected ? (liveSelected.side === "draw" ? "Draw" : liveSelected.side === "home" ? liveSelected.home : liveSelected.away) + " · " + formatOdds(liveSelected.price) : selected ? pickSentence(selected.market, selected.line) + " · " + formatOdds(selected.line.price) : "Your pick"}</strong>{draft.stake > 0 && draft.toWin != null ? <em className="numeric">{formatCredits(draft.stake)} to win {formatCredits(draft.toWin)}</em> : null}</span><span className="sp-review-action">Open slip <ArrowUp aria-hidden /></span></button> : null}
       {/* Keeps the last rows clear of the phone pick sheet. */}
-      <div className="sp-sheet-spacer" data-on={selected || (parlay.mode === "parlay" && parlay.legs.length > 0) ? "" : undefined} aria-hidden />
+      <div className="sp-sheet-spacer" data-on={selected || liveSelected || (parlay.mode === "parlay" && parlay.legs.length > 0) ? "" : undefined} aria-hidden />
     </div>
   )
 }
 
 function InviteButton({ code }: { code: string }) {
   const [copied, setCopied] = useState(false)
+  const { toast } = useToast()
+  useEffect(() => {
+    if (!copied) return
+    const timer = setTimeout(() => setCopied(false), 2000)
+    return () => clearTimeout(timer)
+  }, [copied])
   return (
     <button
       type="button"
       className="fw-btn fw-invite"
       aria-label={copied ? "Link copied" : `Copy invite link (code ${code})`}
       data-solid
-      onClick={() => {
-        void navigator.clipboard.writeText(sportsInviteLink(window.location.origin, code))
-        setCopied(true)
-        setTimeout(() => setCopied(false), 2000)
+      data-copied={copied || undefined}
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(sportsInviteLink(window.location.origin, code))
+          setCopied(true)
+        } catch {
+          toast("Couldn't copy the invite link. Please try again.", "error")
+        }
       }}
     >
-      {copied ? <Check aria-hidden /> : <Link2 aria-hidden />}
-      <span className="fw-invite-label-full">{copied ? "Link copied" : `Copy invite link · ${code}`}</span>
+      <span className="sp-invite-mark">{copied ? <Check aria-hidden /> : <Link2 aria-hidden />}</span>
+      <span className="fw-invite-label-full" aria-live="polite">{copied ? "Link copied" : <>Invite friends <b className="sp-invite-code">{code}</b></>}</span>
       <span className="fw-invite-label-short">{copied ? "Copied" : "Invite"}</span>
     </button>
   )
@@ -369,8 +450,10 @@ function Slip({
   onLock,
   onPlaced,
   onStale,
+  onDraft,
   gone,
 }: {
+  onDraft?: (draft: { stake: number; toWin: number | null }) => void
   leagueId: string
   selected: { market: Market; line: Line } | null
   onStale: () => void
@@ -408,6 +491,7 @@ function Slip({
   const cap = Math.min(limits.maxStake, balance)
   const amount = Math.floor(Number(stake.replace(/[^\d]/g, "")) || 0)
   const winnings = selected ? Math.floor(amount * americanToDecimal(selected.line.price)) - amount : 0
+  useEffect(() => { onDraft?.({ stake: selected ? amount : 0, toWin: selected && amount > 0 ? winnings : null }) }, [onDraft, selected, amount, winnings])
   const slipSide = selected ? sideTeam(selected.market.event, selected.market.kind, selected.line.selection) : null
   const slipLook = slipSide ? teamLook(selected?.market.event.sport, slipSide) : null
   // Match the selected card, including alternate accents used to distinguish similar teams.
@@ -437,7 +521,7 @@ function Slip({
   }
 
   return (
-    <section className="fw-panel fw-trade sp-slip sp-sheet reveal" style={{ ...revealStyle(3), "--sheet-drag": `${dragY}px`, ...(slipColor ? ({ "--tc": slipColor, "--tc-ink": onColor(slipColor) } as React.CSSProperties) : null) } as React.CSSProperties} aria-labelledby="sp-slip-title" data-dragging={dragStart.current != null || undefined} data-closed={closed || undefined} data-open={selected ? "" : undefined} data-themed={selected ? "" : undefined}>
+    <section className="fw-panel fw-trade sp-slip sp-sheet" style={{ "--sheet-drag": `${dragY}px`, ...(slipColor ? ({ "--tc": slipColor, "--tc-ink": onColor(slipColor) } as React.CSSProperties) : null) } as React.CSSProperties} aria-labelledby="sp-slip-title" data-dragging={dragStart.current != null || undefined} data-closed={closed || undefined} data-open={selected ? "" : undefined} data-themed={selected ? "" : undefined}>
       {selected ? (
         <button
           type="button"
@@ -477,7 +561,7 @@ function Slip({
         )}
       </div>
       {!selected ? (
-        <p className="sp-slip-empty">Tap a line to start a pick. The price you see is the price you get, and it can&apos;t change after you lock it in.</p>
+        <SlipEmpty />
       ) : (
         <form onSubmit={submit}>
           <div className="sp-slip-pick">
@@ -633,7 +717,7 @@ function GameCard({ game, selected, onSelect, disabled, now }: { game: { key: st
   const showLive = quoteAge != null && quoteAge < 30 * 60_000
 
   return (
-    <div className="sp-event sp-game">
+    <div className="sp-event sp-game" data-matchup style={{ '--away-color': firstColor, '--home-color': secondColor } as React.CSSProperties}>
       <div className="sp-game-head">
         <div className="sp-matchup">
           <strong>{eventTitle(event)}</strong>

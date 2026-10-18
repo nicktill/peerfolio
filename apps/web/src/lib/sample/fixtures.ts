@@ -172,7 +172,15 @@ export function sampleResponse(url: string, pathname: string | null): unknown {
   return response === null ? null : withDisplayHandles(response)
 }
 
+/** The sample live game's price drifts every ~7s so the ticket's live re-pricing can be seen. */
+function sampleLiveProb() { return +(0.46 + (((Math.floor(Date.now() / 7000) * 3) % 5) - 2) * 0.012).toFixed(4) }
+
 function sampleResponseRaw(url: string, pathname: string | null): unknown {
+  // Browser-only live ticket preview. The sample slip disables confirmation and never posts an order.
+  if (sampleActive() && url === "/api/sports/live/00000000-0000-4000-8000-000000000001") {
+    const at = new Date().toISOString()
+    return { eventId: "00000000-0000-4000-8000-000000000001", status: "live", score: { home: 10, away: 14 }, period: "3", clock: "8:42", stateAsOf: at, stateFreshness: "live", serverTime: at, odds: { status: "ok", homeProb: sampleLiveProb(), awayProb: +(1 - sampleLiveProb()).toFixed(4), drawProb: null, source: "polymarket", asOf: at, ageMs: 0, freshness: "live", confidence: "high", mismatch: null } }
+  }
   if (sampleActive() && url.startsWith("/api/sports/scoreboard?")) {
     const unique = [...new Map(SPORTS_LEAGUE.markets.map(m => [JSON.stringify(m.event), m.event])).values()]
     return { games: [
