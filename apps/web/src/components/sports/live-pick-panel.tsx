@@ -38,7 +38,7 @@ export function LivePickPanel({ leagueId, eventId, home, away, sport, credits, s
   let offer: TestOffer | null = null
   try { if (view) { const aged = ageView(view, elapsedMs); offer = testOffer(aged, Date.parse(aged.serverTime)) } } catch { /* A stale or paused feed offers nothing to pick. */ }
 
-  const max = Math.min(liveMaxStake(startingCredits, maxStakePct), credits)
+  const max = credits
   const amount = Math.floor(Number(stake.replace(/[^\d]/g, '')) || 0)
   const currentPrice = offer && side ? offer.prices[side] ?? null : null
   const price = selectedPrice ?? currentPrice
@@ -112,7 +112,7 @@ export function LivePickPanel({ leagueId, eventId, home, away, sport, credits, s
       <label className="fw-label" htmlFor={`lp-${eventId}`}>Stake (play cash)</label>
       <input id={`lp-${eventId}`} className="fw-input numeric" inputMode="numeric" autoComplete="off" placeholder={`${formatCredits(10)} to ${formatCredits(max)}`} value={stake} disabled={busy} aria-invalid={problem ? true : undefined} aria-describedby={`lp-hint-${eventId}`} onChange={e => setStake(e.target.value)} />
       <p className="fw-hint" id={`lp-hint-${eventId}`} role={problem ? 'alert' : undefined}>
-        {problem ? <span className="fw-bad">{problem}</span> : <span>Max {formatCredits(max)} per live pick · up to {LIVE_PICK.maxPerEvent} per game</span>}
+        {problem ? <span className="fw-bad">{problem}</span> : <span>Up to your available {formatCredits(max)} cash · {LIVE_PICK.maxPerEvent} picks per game</span>}
       </p>
     </div>
     <div className="fw-quick">
