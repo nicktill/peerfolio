@@ -163,7 +163,12 @@
 .sp-market + .sp-market { margin-top: 10px; }
 .sp-tabs + .sp-panel .sp-market-head, .sp-lock { display: none; }
 @media (prefers-reduced-motion: reduce) { .sp-panel { animation: none; } }
-.sp-odds-labels span { display: inline-flex; align-items: baseline; gap: 6px; }
+.sp-odds-labels { gap: 8px; }
+.sp-odds-labels > span { display: inline-flex; align-items: baseline; gap: 6px; flex: 1; min-width: 0; white-space: nowrap; }
+.sp-odds-labels > span:last-child { justify-content: flex-end; }
+.sp-odds-labels > span:not(:first-child):not(:last-child) { justify-content: center; }
+.sp-odds-labels small { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.sp-odds-labels .ld { flex-shrink: 0; }
 .sp-odds-bar { margin-bottom: 14px; }
 .sp-badge[data-photo] img { padding: 0; object-fit: cover; object-position: center 20%; }
 

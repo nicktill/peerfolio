@@ -13,6 +13,7 @@ import { OddsTrend } from './odds-trend'
 import { GameStatusChip, statusInputFromGame } from './game-status-chip'
 import { mergeLiveState } from '@web/lib/sports/game-status'
 import { matchupColors } from '@web/lib/sports/matchup-colors'
+import { oddsLabel } from '@web/lib/sports/teams'
 
 export type LivePickConfig = { leagueId: string; liveBetting: boolean; credits: number; startingCredits: number; maxStakePct: number; onPlaced: () => void }
 type Tracked = {id: string; sport: string; home: string; away: string; startsAt: string}
@@ -60,9 +61,9 @@ function LiveCard({ g, now, tracked, enableAdminTest, livePick }: { g: ScoreGame
         <i style={{ flex: 1, background: colors[1] }} />
       </div>
       <div className="sp-odds-labels">
-        <span><LiveNumber value={split.away} format={pctText} kind="pct" /> <small>{g.away}</small></span>
+        <span><LiveNumber value={split.away} format={pctText} kind="pct" /> <small>{oddsLabel(g.sport, g.away)}</small></span>
         {split.draw != null ? <span><LiveNumber value={split.draw} format={pctText} kind="pct" /> <small>Draw</small></span> : null}
-        <span><small>{g.home}</small> <LiveNumber value={split.home} format={pctText} kind="pct" /></span>
+        <span><small>{oddsLabel(g.sport, g.home)}</small> <LiveNumber value={split.home} format={pctText} kind="pct" /></span>
       </div>
     </div> : null}
     <TeamRows g={g} showScore trendId={fresh ? tracked?.id : undefined} />
@@ -75,7 +76,7 @@ function LiveCard({ g, now, tracked, enableAdminTest, livePick }: { g: ScoreGame
   </article>
 }
 
-export function ScoreboardGames({ games, tracked, now, loading, failed, enableAdminTest = false, livePick, query, onShowUpcoming }: { query?: string; onShowUpcoming?: () => void; games: ScoreGame[]; tracked: Tracked[]; now: number; loading: boolean; failed: boolean; enableAdminTest?: boolean; livePick?: LivePickConfig }) {
+export function ScoreboardGames({ games, tracked, now, loading, failed, enableAdminTest = false, livePick, query, onShowUpcoming, renderUpcoming }: { query?: string; onShowUpcoming?: () => void; renderUpcoming?: (game: ScoreGame) => React.ReactNode; games: ScoreGame[]; tracked: Tracked[]; now: number; loading: boolean; failed: boolean; enableAdminTest?: boolean; livePick?: LivePickConfig }) {
   const live = games.filter(g => g.status === 'live')
   // Quiet right now: show what is coming up in the next few days instead of an empty panel.
   const upcoming = games.filter(g => g.status === 'upcoming' && Date.parse(g.startsAt) > now).slice(0, UPCOMING_LIMIT)
@@ -84,14 +85,15 @@ export function ScoreboardGames({ games, tracked, now, loading, failed, enableAd
   if (!live.length && !upcoming.length) return <p className="fw-empty" role="status">{failed ? 'Live scores are temporarily unavailable. Please try again shortly.' : 'No games scheduled in the next few days for this sport.'}</p>
   const card = (g: ScoreGame, isLive: boolean) => isLive
     ? <LiveCard key={`${g.sport}:${g.id}`} g={g} now={now} tracked={tracked.find(t => scoreboardMatch(t, [g]))} enableAdminTest={enableAdminTest} livePick={livePick} />
-    : <article key={`${g.sport}:${g.id}`} className="sp-game sp-live-card">
+    : <div key={`${g.sport}:${g.id}`}>{renderUpcoming?.(g) ?? <article className="sp-game sp-live-card">
       <CardHead g={g} chip={<span>{when(g.startsAt)}</span>} />
       <TeamRows g={g} showScore={false} />
-    </article>
+      <p className="sp-fine">Pregame lines are not available for this game yet.</p>
+    </article>}</div>
   return <div className="sp-live-games">
     {livePick ? <p className="sp-fine sp-live-hint" role="note">{livePick.liveBetting ? "Live picks are on: games in progress with a live price can be picked below, at the price you see." : "Live picks are off in this league. You can still follow games here."}</p> : null}
     {failed ? <p className="sp-fine" role="status">Some scores are unavailable. This list may be incomplete.</p> : null}
     {live.length ? live.map(g => card(g, true)) : <p className="fw-empty" role="status">Nothing in progress right now.</p>}
-    {upcoming.length ? <><h3 className="sp-day">Coming up</h3>{onShowUpcoming ? <p className="sp-fine sp-coming-note">Pick these games from the <button type="button" className="sp-link" onClick={onShowUpcoming}>Upcoming tab</button> before kickoff.</p> : null}{upcoming.map(g => card(g, false))}</> : null}
+    {upcoming.length ? <><h3 className="sp-day">Coming up</h3>{onShowUpcoming ? <p className="sp-fine sp-coming-note">{renderUpcoming ? 'Pick an available line below, or browse all games in the ' : 'Pick these games from the '}<button type="button" className="sp-link" onClick={onShowUpcoming}>Upcoming tab</button> before kickoff.</p> : null}{upcoming.map(g => card(g, false))}</> : null}
   </div>
 }
