@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
-import { acceptParlay, combinedDecimal, decideParlay, decimalToAmerican, parlayReturn, ParlayRejected, type ParlayContext, type ParlayLegContext } from "./parlay.ts"
+import { acceptParlay, combinedDecimal, decideParlay, decimalToAmerican, parlayReturn, ParlayRejected, PARLAY_LIMITS, type ParlayContext, type ParlayLegContext } from "./parlay.ts"
 
 const now = new Date("2026-01-01T12:00:00Z")
 const later = new Date("2026-01-01T18:00:00Z")
@@ -83,7 +83,7 @@ test("props rejected; stale line rejected", () => {
 test("stake and exposure limits", () => {
   const legs = [leg(1), leg(2)]
   rejects(() => acceptParlay(reqOf(legs, 9), ctxOf(legs)), "stake_too_small")
-  assert.doesNotThrow(() => acceptParlay(reqOf(legs, 1000), ctxOf(legs), { ...PARLAY_LIMITS, maxStakePctOfStart: Infinity }))
+  assert.doesNotThrow(() => acceptParlay(reqOf(legs, 1000), ctxOf(legs, { league: { startingCredits: 1000, maxReturnPctOfStart: Infinity, maxExposurePctOfStart: Infinity, maxOpenPicks: 20 } }), { ...PARLAY_LIMITS, maxStakePctOfStart: Infinity }))
   rejects(() => acceptParlay(reqOf(legs, 20), ctxOf(legs, { member: { credits: 5 } })), "insufficient_credits")
   rejects(() => acceptParlay(reqOf(legs, 20), ctxOf(legs, { openPickCount: 20 })), "too_many_picks")
   assert.doesNotThrow(() => acceptParlay(reqOf(legs, 20), ctxOf(legs, { openStakeTotal: 590, league: { startingCredits: 1000, maxReturnPctOfStart: Infinity, maxExposurePctOfStart: Infinity, maxOpenPicks: 20 } }), { ...PARLAY_LIMITS, maxStakePctOfStart: Infinity })
