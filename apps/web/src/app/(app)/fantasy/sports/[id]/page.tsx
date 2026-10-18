@@ -536,7 +536,7 @@ function GameCard({ game, selected, onSelect, disabled, now }: { game: { key: st
     .filter((g) => g.markets.length > 0)
   // Spread/Total but no Winner (e.g. a thin soccer book): keep a Winner entry that says so rather than silently dropping it.
   const winnerMissing = !baseGroups.some((g) => g.key === "winner") && baseGroups.some((g) => g.key === "spread" || g.key === "total")
-  const groups = winnerMissing ? [{ key: "winner" as const, label: "Winner", test: (_m: Market) => false, markets: [] as Market[] }, ...baseGroups] : baseGroups
+  const groups = winnerMissing ? [{ key: "winner" as const, label: "Winner", test: () => false, markets: [] as Market[] }, ...baseGroups] : baseGroups
   const [tab, setTab] = useState<string>(groups[0]?.key ?? "winner")
   const active = groups.find((g) => g.key === tab) ?? groups[0]
   const winner = game.markets.find((m) => m.kind === "moneyline")
