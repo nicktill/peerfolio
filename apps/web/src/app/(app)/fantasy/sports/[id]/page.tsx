@@ -135,9 +135,11 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
   const yourPicksRef = useRef<HTMLElement>(null)
   const [revealPicks, setRevealPicks] = useState(false)
   const [slipVisible, setSlipVisible] = useState(true)
+  // The real slip is back in its own place (its top edge is on screen), as opposed to merely peeking in at the edge of the viewport.
+  const [slipHome, setSlipHome] = useState(true)
   // Pinned = the member opened the floating slip and has not collapsed it. It follows them down the page, and tucks away while the real slip is on screen.
   const [floatPinned, setFloatPinned] = useState(false)
-  const floatOpen = floatPinned && !slipVisible
+  const floatOpen = floatPinned && !slipHome
   // Phone: the pick sheet can be tucked down to a bar so you can keep browsing and adding legs.
   const [sheetMin, setSheetMin] = useState(false)
   const [phone, setPhone] = useState(false)
@@ -166,12 +168,15 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
   useEffect(() => { if (singleKey) setSheetMin(false) }, [singleKey])
   useEffect(() => {
     if (!slipRef.current) return
-    const observer = new IntersectionObserver(([entry]) => setSlipVisible(!!entry && entry.intersectionRatio >= .2), { threshold: [0, .2, 1] })
+    const observer = new IntersectionObserver(([entry]) => {
+      setSlipVisible(!!entry && entry.intersectionRatio >= .2)
+      setSlipHome(!!entry && entry.isIntersecting && entry.boundingClientRect.top >= 0)
+    }, { threshold: Array.from({ length: 21 }, (_, i) => i / 20) })
     observer.observe(slipRef.current)
     return () => observer.disconnect()
   }, [data?.league.id])
   // Scrolling back up to the real slip only hides the floating one; scrolling down brings it back until Collapse. Emptying the slip unpins it.
-  useEffect(() => { if (floatPinned && slipVisible && placed) setPlaced(false) }, [floatPinned, slipVisible, placed])
+  useEffect(() => { if (floatPinned && slipHome && placed) setPlaced(false) }, [floatPinned, slipHome, placed])
   useEffect(() => { if (floatPinned && !activeSlip && !placed) setFloatPinned(false) }, [floatPinned, activeSlip, placed])
   useEffect(() => {
     if (!floatOpen) return
