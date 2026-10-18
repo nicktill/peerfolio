@@ -122,6 +122,9 @@ function NewsState({ pending, message }: { pending: boolean; message: string }) 
   return <div className="pf-panel pf-pb flex min-h-[180px] items-center" role="status"><p className="pf-sub text-sm">{pending ? "Loading market news…" : message}</p></div>
 }
 
+/** The preview shows only the first few reports of a day; the News tab itself has the full calendar. */
+const PREVIEW_REPORTS = 5
+
 function EarningsPreview({ week }: { week: EarningsWeekData }) {
   const [selected, setSelected] = useState(Math.max(0, week.days.findIndex((day) => day.today)))
   const day = week.days[selected]!
@@ -139,7 +142,7 @@ function EarningsPreview({ week }: { week: EarningsWeekData }) {
         </div>
       </div>
       <ul className="divide-y px-4 sm:px-[18px]" aria-label={day.label}>
-        {day.reports.map((report) => (
+        {day.reports.slice(0, PREVIEW_REPORTS).map((report) => (
           <li key={report.symbol} className="flex items-center gap-2 py-3">
             <TickerLogo symbol={report.symbol} size="xs" />
             <div className="min-w-0 flex-1"><p className="text-xs font-medium">{report.symbol}</p><p className="truncate text-[11px] text-[var(--fg3)]">{report.name}</p></div>
@@ -147,6 +150,7 @@ function EarningsPreview({ week }: { week: EarningsWeekData }) {
           </li>
         ))}
         {day.reports.length === 0 ? <li className="py-5 text-xs text-[var(--fg3)]">No reports scheduled for this day.</li> : null}
+        {day.reports.length > PREVIEW_REPORTS ? <li className="py-3 text-[11px] text-[var(--fg3)]">+{day.reports.length - PREVIEW_REPORTS} more on the News tab</li> : null}
       </ul>
     </section>
   )
