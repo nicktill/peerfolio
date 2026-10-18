@@ -23,3 +23,10 @@ test("destructive or rewriting statements are caught", () => {
 test("comments do not trigger it", () => {
   assert.equal(riskyStatement('-- drop table later\nCREATE TABLE "t" ("a" text);'), null)
 })
+
+test("relaxing a column is allowed but a drop in the same statement is not", () => {
+  assert.equal(riskyStatement('ALTER TABLE "t" ALTER COLUMN "a" DROP NOT NULL;'), null)
+  assert.equal(riskyStatement('ALTER TABLE "t" ALTER COLUMN "a" DROP DEFAULT;'), null)
+  assert.ok(riskyStatement('ALTER TABLE "t" ALTER COLUMN "a" DROP NOT NULL, DROP COLUMN "b";'))
+  assert.ok(riskyStatement('ALTER TABLE "t" DROP CONSTRAINT "c";'))
+})
