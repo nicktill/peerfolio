@@ -589,7 +589,7 @@ function GameCard({ game, selected, onSelect, disabled, now }: { game: { key: st
         </div>
         <span className="sp-game-meta">
           <b><LeagueBrand sport={event.sport} /></b> · {timeOf(event.startsAt)}
-          {showLive ? <span className="sp-feed-chip" data-live><i />Live</span> : null}
+          {showLive ? <span className="sp-feed-chip" data-live><i />Live odds</span> : null}
           <select className="sp-market-select" aria-label={`Market for ${eventTitle(event)}`} value={active?.key ?? ""} onChange={e => setTab(e.target.value)}>
             {groups.map(g => <option key={g.key} value={g.key}>{g.label}</option>)}
           </select>
