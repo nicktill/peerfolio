@@ -154,4 +154,22 @@ describe("join limiter and collusion report (should-fix)", () => {
     assert.deepEqual(pairs.map((p) => [p.a, p.b, p.markets]), [["a", "b", 3], ["b", "c", 3]])
     assert.equal(mirroredPairs(picks, 4).length, 0)
   })
+  it("counts a shared live market once despite repeated tickets and changing sides", () => {
+    const repeated = ["home", "home", "away"].flatMap((selection) => [
+      { memberId: "a", marketId: "live", selection },
+      { memberId: "b", marketId: "live", selection },
+    ])
+    assert.deepEqual(mirroredPairs(repeated), [])
+    assert.deepEqual(mirroredPairs(repeated, 1), [{ a: "a", b: "b", markets: 1 }])
+    const others = ["m2", "m3"].flatMap((marketId) => [
+      { memberId: "b", marketId, selection: "away" },
+      { memberId: "a", marketId, selection: "home" },
+    ])
+    assert.deepEqual(mirroredPairs([...repeated, ...others]), [{ a: "a", b: "b", markets: 3 }])
+  })
+  it("does not flag repeated picks on the same side or by one member", () => {
+    const same = Array.from({ length: 5 }, () => ({ memberId: "a", marketId: "live", selection: "home" }))
+    assert.deepEqual(mirroredPairs([...same, { memberId: "b", marketId: "live", selection: "home" }], 1), [])
+    assert.deepEqual(mirroredPairs([...same, { memberId: "a", marketId: "live", selection: "away" }], 1), [])
+  })
 })

@@ -14,12 +14,17 @@ export function mirroredPairs(picks: PickLite[], minShared = 3): MirroredPair[] 
   for (const p of picks) byMarket.set(p.marketId, [...(byMarket.get(p.marketId) ?? []), p])
   const counts = new Map<string, MirroredPair>()
   for (const group of byMarket.values()) {
+    // Live markets allow repeated picks. Count distinct shared markets, not
+    // every combination of tickets placed by the same two members.
+    const seen = new Set<string>()
     for (let i = 0; i < group.length; i++) {
       for (let j = i + 1; j < group.length; j++) {
         const [x, y] = [group[i]!, group[j]!]
         if (x.memberId === y.memberId || x.selection === y.selection) continue
         const [a, b] = x.memberId < y.memberId ? [x.memberId, y.memberId] : [y.memberId, x.memberId]
         const key = `${a}|${b}`
+        if (seen.has(key)) continue
+        seen.add(key)
         const cur = counts.get(key) ?? { a, b, markets: 0 }
         cur.markets++
         counts.set(key, cur)
