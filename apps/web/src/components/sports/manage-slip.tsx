@@ -9,6 +9,7 @@ import { SlipCashOut, useCashOut, type CashoutQuoteBody } from "@web/components/
 import { TicketFig, TicketMoney } from "@web/components/sports/ticket-figures"
 import type { PickRow } from "@web/components/sports/league-parts"
 import type { ParlayRow } from "@web/components/sports/parlay-types"
+import { ParlayLegList } from "@web/components/sports/parlay-legs"
 import { LegStack } from "@web/components/sports/parlay-ticket"
 import { mutate, useApi } from "@web/lib/use-api"
 import { americanToDecimal } from "@web/lib/sports/odds"
@@ -155,17 +156,7 @@ function ParlayManage({ leagueId, parlay, onClear, onMinimize, onChanged }: { le
   return (
     <Shell color={NEUTRAL} title="Your parlay" busy={selling} onClear={onClear} onMinimize={onMinimize}>
       <SlipPickCard sport={first?.event.sport ?? ""} side={null} mark={<LegStack legs={target.legs} />} kicker="Parlay" title={`${target.legs.length}-leg parlay`} price={target.price} game={`Combined odds you hold: ${formatOdds(target.price)}`} color={NEUTRAL} />
-      <ul className="sp-manage-legs">
-        {target.legs.map((leg) => {
-          const market = { kind: leg.market.kind, player: null, statKey: null, event: leg.event }
-          return (
-            <li key={leg.lineId} data-status={leg.status}>
-              <span>{pickSentence(market, leg)}</span>
-              <small>{eventTitle(leg.event)} · {formatOdds(leg.price)}{leg.status !== "open" ? ` · ${leg.status === "won" ? "Won" : leg.status === "lost" ? "Lost" : "Push"}` : ""}</small>
-            </li>
-          )
-        })}
-      </ul>
+      <ParlayLegList legs={target.legs} />
       <TicketMoney label="Parlay money">
         <TicketFig label="Stake">{formatCredits(target.stake)}</TicketFig>
         <TicketFig label="To win" tone="up">{formatCredits(Math.max(0, target.totalReturn - target.stake))}</TicketFig>

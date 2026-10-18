@@ -5,11 +5,12 @@ import { useEffect, useState } from "react"
 import { Check, ChevronDown, Clock, Minus, Target, Undo2, Wallet, X } from "lucide-react"
 import { TeamBadge } from "@web/components/sports/team-badge"
 import type { ParlayLegRow, ParlayRow } from "@web/components/sports/parlay-types"
+import { ParlayLegList } from "@web/components/sports/parlay-legs"
 import { useLiveGames } from "@web/components/sports/live-game"
 import { TicketFig, TicketMoney } from "@web/components/sports/ticket-figures"
 import { priceParlayCashout } from "@web/lib/sports/parlay-cashout"
 import { marketSelectionColor } from "@web/lib/sports/matchup-colors"
-import { eventTitle, formatCredits, formatOdds, marketTitle, openPickPhase, pickSentence, sideTeam, signedCredits } from "@web/lib/sports/format"
+import { formatCredits, formatOdds, openPickPhase, sideTeam, signedCredits } from "@web/lib/sports/format"
 
 const STATUS: Record<string, { label: string; icon: React.ReactNode }> = {
   open: { label: "Open", icon: <Clock aria-hidden /> },
@@ -21,24 +22,6 @@ const STATUS: Record<string, { label: string; icon: React.ReactNode }> = {
 }
 
 const toWin = (p: ParlayRow) => Math.max(0, p.totalReturn - p.stake)
-
-function LegRow({ leg, now }: { leg: ParlayLegRow; now: Date | null }) {
-  const market = { kind: leg.market.kind, player: null, statKey: null, event: leg.event }
-  const side = sideTeam(leg.event, leg.market.kind, leg.selection)
-  const phase = leg.status === "open" && now ? openPickPhase(leg.event.startsAt, now) : null
-  const s = STATUS[leg.status] ?? STATUS.open!
-  return (
-    <li className="pl-ticket-leg" data-status={leg.status}>
-      {side ? <TeamBadge sport={leg.event.sport} name={side} size={28} /> : <span className="sl-prop" style={{ width: 28, height: 28 }}><Target aria-hidden /></span>}
-      <div>
-        <b>{pickSentence(market, leg)}</b>
-        <span>{eventTitle(leg.event)} · {marketTitle(market)} · <em>{formatOdds(leg.price)}</em></span>
-        {phase ? <span>{phase.label}</span> : null}
-      </div>
-      <span className="sl-chip" data-status={leg.status}>{s.icon}{s.label}</span>
-    </li>
-  )
-}
 
 /** The teams in a parlay as closely stacked discs, each tinted by its side and ringed by how that leg is going. */
 export function LegStack({ legs }: { legs: ParlayLegRow[] }) {
@@ -127,7 +110,7 @@ export function ParlayTicket({ parlay, showName, onManage, managed }: { parlay: 
         <span>{open ? "Hide legs" : `Show ${parlay.legs.length} legs`}</span>
         <ChevronDown aria-hidden />
       </button>
-      {open ? <ul className="pl-ticket-legs" id={listId}>{parlay.legs.map((l) => <LegRow key={l.lineId} leg={l} now={now} />)}</ul> : null}
+      {open ? <ParlayLegList className="pl-ticket-legs" id={listId} legs={parlay.legs} /> : null}
     </li>
   )
 }

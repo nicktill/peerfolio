@@ -6,6 +6,9 @@ import { SheetHandle } from "./sheet-handle"
 import { createContext, useCallback, useEffect, useMemo, useState } from "react"
 import { Layers, Target, X, ChevronUp } from "lucide-react"
 import { useToast } from "@web/components/ui/toast"
+import { SlipPickCard } from "@web/components/sports/slip-pick-card"
+import { LegStack } from "@web/components/sports/parlay-ticket"
+import { onColor } from "@web/lib/sports/teams"
 import { TeamBadge } from "@web/components/sports/team-badge"
 import type { PickLockFx } from "@web/components/sports/pick-lock-effect"
 import { eventTitle, formatCredits, formatOdds, marketTitle, pickSentence, sideTeam, type DisplayLine, type DisplayMarket } from "@web/lib/sports/format"
@@ -92,6 +95,7 @@ export function ParlayModeBar({ mode, onMode, count, disabled }: { disabled?: bo
   )
 }
 
+const GOLD = "#c4a15b"
 const newKey = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`)
 
 export function ParlaySlip({
@@ -173,7 +177,7 @@ export function ParlaySlip({
   }
 
   return (
-    <section className="fw-panel fw-trade sp-slip sp-sheet pl-slip" aria-labelledby="pl-slip-title" data-open={legs.length > 0 ? "" : undefined} data-min={!expanded || undefined} data-closed={closed || undefined}>
+    <section className="fw-panel fw-trade sp-slip sp-sheet pl-slip" style={{ "--tc": GOLD, "--tc-ink": onColor(GOLD) } as React.CSSProperties} aria-labelledby="pl-slip-title" data-open={legs.length > 0 ? "" : undefined} data-themed={legs.length > 0 || undefined} data-min={!expanded || undefined} data-closed={closed || undefined}>
       {legs.length > 0 && onMinimize ? <SheetHandle onMinimize={onMinimize} disabled={pending} /> : null}
       <div className="fw-section-head pl-slip-head">
         <h2 id="pl-slip-title">Parlay slip</h2>
@@ -191,6 +195,16 @@ export function ParlaySlip({
         <SlipEmpty parlay min={rules.minLegs} max={rules.maxLegs} />
       ) : (
         <form onSubmit={submit}>
+          <SlipPickCard
+            sport={legs[0]!.market.event.sport}
+            side={null}
+            mark={<LegStack legs={legs.map((l) => ({ lineId: l.line.id, selection: l.line.selection, price: l.line.price, point: l.line.point ?? null, status: "open" as const, market: { kind: l.market.kind, player: null }, event: l.market.event }))} />}
+            kicker="Parlay"
+            title={`${legs.length}-leg parlay`}
+            price={quote && short <= 0 ? quote.american : null}
+            game={short > 0 ? `Add ${short} more ${short === 1 ? "leg" : "legs"} to lock it in` : "Every leg has to win"}
+            color={GOLD}
+          />
           <ul className="pl-legs" aria-label="Parlay legs">
             {legs.map((l, index) => {
               const side = sideTeam(l.market.event, l.market.kind, l.line.selection)
@@ -212,10 +226,6 @@ export function ParlaySlip({
             })}
           </ul>
           {note ? <p className="pl-note" role="status">{note}</p> : null}
-          <div className="pl-combined">
-            <span className="fw-label" style={{ margin: 0 }}>Combined odds</span>
-            {quote && short <= 0 ? <b className="numeric">{formatOdds(quote.american)}</b> : <span className="sp-slip-hint">Add {short} more {short === 1 ? "leg" : "legs"}</span>}
-          </div>
           {moved.length > 0 ? (
             <div className="sp-slip-moved" role="alert">
               {moved.length === 1 ? "A price" : `${moved.length} prices`} changed: {moved.map((l) => `${pickSentence(l.market, l.line)} ${formatOdds(l.seen)} to ${formatOdds(l.line.price)}`).join(", ")}. Accept the new {moved.length === 1 ? "price" : "prices"} to lock this parlay.

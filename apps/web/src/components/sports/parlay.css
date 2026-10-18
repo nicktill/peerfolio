@@ -97,3 +97,22 @@
 .pl-slip .pl-combined .fw-label { color: var(--fw-fg2); }
 .pl-slip .fw-quick button:hover { border-color: #c4a15b; background: color-mix(in srgb, #c4a15b 9%, var(--fw-raise)); }
 @media (max-width: 380px) { .pl-slip .pl-leg { grid-template-columns: 26px minmax(0, 1fr) auto 24px; gap: 6px; padding-inline: 8px; } .pl-slip .pl-leg-body b { font-size: 17px; line-height: 20px; } .pl-slip .pl-odds { padding-inline: 6px; font-size: 11px; } }
+
+/* Held-parlay leg rows (ticket + Manage): badge, pick, price, and where the leg stands. */
+.pl-lr-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.pl-lr { --tc: var(--fw-fg3); display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--tc) 35%, var(--fw-hair)); border-left: 3px solid var(--tc); border-radius: 12px; background: linear-gradient(110deg, color-mix(in srgb, var(--tc) 10%, var(--fw-bg)), var(--fw-bg) 80%); }
+.pl-lr-body { min-width: 0; display: flex; flex-direction: column; }
+.pl-lr-body b { font: 500 13px/18px var(--fw-sans); overflow-wrap: anywhere; }
+.pl-lr-body span { font-size: 11px; line-height: 15px; color: var(--fw-fg3); }
+.pl-lr-end { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.pl-lr-end em { font: 500 12px var(--fw-mono); font-style: normal; color: var(--fw-fg2); }
+.pl-lr-state { display: inline-flex; align-items: center; gap: 4px; font: 600 10.5px var(--fw-sans); color: var(--fw-fg3); white-space: nowrap; }
+.pl-lr-state svg { width: 11px; height: 11px; }
+.pl-lr-state[data-state="live"] { color: var(--gold-ink, #e0a23f); }
+.pl-lr-state[data-state="won"] { color: var(--gain-ink); }
+.pl-lr-state[data-state="lost"] { color: var(--loss-ink); }
+.pl-lr[data-state="won"] { border-color: color-mix(in srgb, var(--gain, #3fae7f) 45%, var(--fw-hair)); }
+.pl-lr[data-state="lost"] { border-color: color-mix(in srgb, var(--loss, #e0607a) 45%, var(--fw-hair)); opacity: .8; }
+.pl-lr[data-state="push"] .pl-lr-body b { text-decoration: line-through; text-decoration-color: var(--fw-fg3); }
+.pl-ticket-legs.pl-lr-list { padding: 0 12px 10px 15px; }
+.sp-manage-slip .pl-lr-list { margin-top: 2px; }
