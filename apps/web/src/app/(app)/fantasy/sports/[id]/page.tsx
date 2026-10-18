@@ -173,7 +173,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
         <div className="fw-main">
           <section className="fw-panel sp-open-lines reveal" style={revealStyle(2)} aria-labelledby="sp-markets-title">
             <div className="fw-section-head">
-              <div className="sp-title-copy"><h2 id="sp-markets-title">Open lines<InfoTip side="bottom" label="How lines work" text={<>Everyone gets the same line, and it can update until kickoff. Once you lock a pick, your price never changes. <b>+125</b> means 100 cash wins 125. <b>-110</b> means risking 110 wins 100. On a <b>spread</b>, your team must win by more than the number (or lose by less).</>} /></h2><p>{view === "upcoming" ? "Picks lock at kickoff" : "Live tracking · picks locked"}</p></div>
+              <div className="sp-title-copy"><h2 id="sp-markets-title">Open lines<InfoTip side="bottom" label="How lines work" text={<>Everyone gets the same line, and it can update until kickoff. Once you lock a pick, your price never changes. <b>+125</b> means 100 cash wins 125. <b>-110</b> means risking 110 wins 100. On a <b>spread</b>, your team must win by more than the number (or lose by less).</>} /></h2><p>{view === "upcoming" ? "Live prices from real markets · pick before kickoff or live in game · build parlays · play money only" : "Pregame picks are locked · live picks open on games showing a live price"}</p></div>
               <div className="sp-view-switch" role="group" aria-label="Game status">
                 <button type="button" aria-pressed={view === "upcoming"} onClick={() => setView("upcoming")}>Upcoming</button>
                 <button type="button" aria-pressed={view === "live"} onClick={() => setView("live")}>Live</button>

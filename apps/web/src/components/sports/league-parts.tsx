@@ -308,14 +308,14 @@ export function PickTicket({ pick, showName }: { pick: PickRow; showName?: boole
           {eventTitle(pick.event)} · {marketTitle(m)}
         </span>
         <span className="numeric sl-ticket-money">
-          <span>Risk <b>{credits(pick.stake)}</b></span>
+          <span className="sl-risk">Risk <b>{credits(pick.stake)}</b></span>
           <i aria-hidden>·</i>
           {pick.payout == null ? (
-            <span>To win <b>{credits(toWin(pick))}</b></span>
+            <span className="sl-win">To win <b>{credits(toWin(pick))}</b></span>
           ) : pick.payout > 0 ? (
-            <span>Paid <b>{credits(pick.payout)}</b></span>
+            <span className="sl-win">Paid <b>{credits(pick.payout)}</b></span>
           ) : (
-            <span>No payout</span>
+            <span className="sl-lose">No payout</span>
           )}
           <em className="sl-price" title="Odds you locked in">{formatOdds(pick.price)}</em>
           {pick.live ? <em className="sl-live-tag">Live</em> : null}
@@ -328,7 +328,7 @@ export function PickTicket({ pick, showName }: { pick: PickRow; showName?: boole
         </span>
         {net != null && pick.status !== "open" ? (
           <strong className="numeric" data-tone={net > 0 ? "up" : net < 0 ? "down" : undefined}>
-            {signed(net)}
+            <span aria-hidden>{net > 0 ? "▲ " : net < 0 ? "▼ " : ""}</span>{signed(net)}
           </strong>
         ) : null}
       </div>

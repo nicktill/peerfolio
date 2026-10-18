@@ -595,3 +595,11 @@
 .sp-coming-note { margin: 0 0 6px; }
 .sp-link { padding: 0; font: inherit; color: var(--fw-fg); text-decoration: underline; text-underline-offset: 2px; }
 .sp-link:focus-visible { outline: 2px solid var(--fw-fg3); outline-offset: 2px; border-radius: 3px; }
+
+/* Ticket money line: risk reads amber, a win reads green, a miss reads red (the arrow and sign carry it without colour). */
+.sl-ticket-money .sl-risk b, .pl-ticket-money .sl-risk b { color: var(--sl-risk-ink, #a8660a); }
+.dark .sl-ticket-money .sl-risk b, .dark .pl-ticket-money .sl-risk b { --sl-risk-ink: #e8b25a; }
+.sl-ticket-money .sl-win b, .pl-ticket-money .sl-win b { color: var(--gain-ink); }
+.sl-ticket-money .sl-lose, .pl-ticket-money .sl-lose { color: var(--loss-ink); }
+.sp-card-leagues { display: inline-flex; align-items: center; gap: 6px; }
+.sp-live-hint { margin: 0 0 8px; }

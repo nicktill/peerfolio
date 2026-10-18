@@ -60,14 +60,14 @@ export function ParlayTicket({ parlay, showName }: { parlay: ParlayRow; showName
           <b>{parlay.legs.length}-leg parlay · <em className="numeric">{formatOdds(parlay.price)}</em></b>
           <span>{showName && parlay.name ? <em>{parlay.name.split(" ")[0]}{parlay.you ? " (You)" : ""} · </em> : null}{progress ?? `${wonLegs} of ${parlay.legs.length} legs won`}</span>
           <span className="numeric pl-ticket-money">
-            <span>Risk <b>{formatCredits(parlay.stake)}</b></span>
+            <span className="sl-risk">Risk <b>{formatCredits(parlay.stake)}</b></span>
             <i aria-hidden>·</i>
-            {parlay.payout == null ? <span>To win <b>{formatCredits(toWin(parlay))}</b></span> : parlay.payout > 0 ? <span>Paid <b>{formatCredits(parlay.payout)}</b></span> : <span>No payout</span>}
+            {parlay.payout == null ? <span className="sl-win">To win <b>{formatCredits(toWin(parlay))}</b></span> : parlay.payout > 0 ? <span className="sl-win">Paid <b>{formatCredits(parlay.payout)}</b></span> : <span className="sl-lose">No payout</span>}
           </span>
         </div>
         <div className="pl-ticket-side">
           <span className="sl-chip" data-status={parlay.status}>{s.icon}{s.label}</span>
-          {net != null && parlay.status !== "open" ? <strong className="numeric" data-tone={net > 0 ? "up" : net < 0 ? "down" : undefined}>{signedCredits(net)}</strong> : null}
+          {net != null && parlay.status !== "open" ? <strong className="numeric" data-tone={net > 0 ? "up" : net < 0 ? "down" : undefined}><span aria-hidden>{net > 0 ? "▲ " : net < 0 ? "▼ " : ""}</span>{signedCredits(net)}</strong> : null}
         </div>
       </div>
       <button type="button" className="pl-expand" aria-expanded={open} aria-controls={listId} onClick={() => setOpen(!open)}>

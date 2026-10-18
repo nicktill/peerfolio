@@ -7,6 +7,7 @@ import "@web/components/sports/sports-workspace.css"
 import { useState } from "react"
 import Link from "next/link"
 import { ArrowRight, Clock, Infinity as Forever, Plus, Users } from "lucide-react"
+import { LeagueBrand } from "@web/components/sports/league-brand"
 import { ModePanel } from "@web/components/sports/mode-switch"
 import { revealStyle } from "@web/components/motion/reveal"
 import { useToast } from "@web/components/ui/toast"
@@ -15,7 +16,7 @@ import { EmptyScene } from "@web/components/ui/empty-scene"
 import { LeagueMark } from "@web/components/league/league-mark"
 import { CreateLeagueFlow } from "@web/components/fantasy/create-league-flow"
 import { timeLeft } from "@web/components/fantasy/time-left"
-import { formatCredits, SPORT_LABEL } from "@web/lib/sports/format"
+import { formatCredits } from "@web/lib/sports/format"
 import { mutate, useApi } from "@web/lib/use-api"
 
 type SportsSummary = {
@@ -91,7 +92,7 @@ export function SportsHome() {
                       {league.endsAt ? <Clock aria-hidden /> : <Forever aria-hidden />}
                       {league.isClosed ? "Final" : league.endsAt ? timeLeft(league.endsAt) : "No end"}
                     </span>
-                    <span>{league.sports.map((s) => SPORT_LABEL[s] ?? s).join(" · ")}</span>
+                    <span className="sp-card-leagues">{league.sports.map((s) => <LeagueBrand key={s} sport={s} iconOnly />)}</span>
                   </p>
                 </div>
                 <div className="fw-league-return">

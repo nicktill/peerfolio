@@ -133,7 +133,7 @@ export async function previewSportsLeague(db: Db, code: string) {
   const [league] = await db.select().from(schema.sportsLeagues).where(eq(sportsLeagues.inviteCode, code.trim().toUpperCase())).limit(1)
   if (!league || (league.endsAt && league.endsAt.getTime() < Date.now())) return null
   const [{ count }] = (await db.select({ count: sql<number>`count(*)::int` }).from(sportsMembers).where(eq(sportsMembers.leagueId, league.id))) as [{ count: number }]
-  return { name: league.name, emoji: league.emoji, accent: league.accent, memberCount: count, startingCredits: league.startingCredits, full: count >= league.memberLimit }
+  return { name: league.name, emoji: league.emoji, accent: league.accent, sports: league.sports, memberCount: count, startingCredits: league.startingCredits, full: count >= league.memberLimit }
 }
 
 export async function listSportsLeagues(db: Db, userId: string) {
