@@ -968,6 +968,8 @@
   .fw-play-space[data-play-world="sports"] .sp-scoreboard .sp-sub-short { display: inline; }
   .fw-play-space[data-play-world="sports"] .sp-scoreboard .sp-sub-full { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
+}
+
 /* ==========================================================================
    Pick tickets, redesigned: calm header, one meta line, a three-figure money row, one-line live strip.
    Shared by PickTicket (.sl-ticket) and ParlayTicket (.pl-ticket). Appended last so it wins over the older ticket rules above.
@@ -1048,3 +1050,6 @@
   .sl-tickets > .sl-ticket[data-live]::before { animation: none; }
   .sl-ticket[data-celebrate] .sl-tk-fig[data-big] dd { animation: none !important; }
 }
+
+/* Narrow feeds (the right rail): let a long pick title wrap to two lines instead of cutting it to "Buffalo Bil…". */
+.sl-tk-title b { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
