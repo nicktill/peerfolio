@@ -9,6 +9,7 @@ import { sampleActive } from "@web/lib/sample/fixtures"
 import { isTradingSession } from "@web/lib/market-hours"
 import type { MarketBoard } from "@web/lib/news-market"
 import dynamic from "next/dynamic"
+import { LeagueBrand } from "@web/components/sports/league-brand"
 import { useSportsAccess, useSportsEnabled } from "@web/components/sports/use-sports-enabled"
 
 // Pulls in the team tables via TeamBadge, so it is split out of the Fantasy page's first load.
@@ -89,7 +90,7 @@ export function ModeSwitch({ mode, onChange }: { mode: FantasyMode; onChange: (m
 
   const COPY: Record<FantasyMode, { name: string; line: string; tag: string }> = {
     stocks: { name: "Stocks", line: "Play-money portfolios. Beat your friends' returns.", tag: "The Floor" },
-    sports: { name: "Sports", line: "Pregame picks on NFL, NBA, NHL, MLB, MLS, CFB.", tag: "The Arena" },
+    sports: { name: "Sports", line: "Pregame picks on", tag: "The Arena" },
   }
   return (
     <div className="sp-stage" role="tablist" aria-label="Fantasy type" data-mode={mode} onKeyDown={onKeyDown}>
@@ -115,7 +116,10 @@ export function ModeSwitch({ mode, onChange }: { mode: FantasyMode; onChange: (m
           <span className="sp-world-copy">
             <small>{COPY[m].tag}</small>
             <strong>{COPY[m].name}</strong>
-            <em>{COPY[m].line}</em>
+            <em>
+              {COPY[m].line}
+              {m === "sports" ? <span className="sp-world-leagues">{["nfl", "nba", "nhl", "mlb", "mls"].map((l) => <LeagueBrand key={l} sport={l} iconOnly />)}</span> : null}
+            </em>
           </span>
           <span className="sp-world-dot" aria-hidden />
         </button>
