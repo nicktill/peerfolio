@@ -557,3 +557,10 @@
 .sl-live-tag { font: 600 10px/14px var(--fw-sans); letter-spacing: 0.04em; text-transform: uppercase; color: var(--fw-fg); border: 1px solid var(--fw-hair2); border-radius: 6px; padding: 0 5px; margin-left: 4px; }
 .sl-picker { display: inline-flex; vertical-align: middle; margin-right: 6px; }
 .sl-picker .sl-av { display: inline-grid; place-items: center; overflow: hidden; border-radius: 50%; }
+
+/* Team-colour character in the dark half of each line: a soft glow from the price corner that drifts slowly. */
+.sp-open-lines .sp-line[data-accent] { background: radial-gradient(120% 160% at 100% 0%, color-mix(in srgb, var(--tc) 16%, var(--fw-bg)) 0%, var(--fw-bg) 62%), var(--fw-bg); }
+.sp-open-lines .sp-line[data-accent]::after { content: ""; position: absolute; z-index: -1; inset: -40% -10% -40% 40%; background: radial-gradient(closest-side, color-mix(in srgb, var(--tc) 22%, transparent), transparent 70%); opacity: .55; filter: blur(8px); animation: sp-hue-drift 9s ease-in-out infinite alternate; pointer-events: none; }
+.sp-open-lines .sp-line[data-accent][aria-pressed="true"]::after { opacity: .9; }
+@keyframes sp-hue-drift { from { transform: translate3d(-8%, -6%, 0) scale(.9); } to { transform: translate3d(10%, 8%, 0) scale(1.15); } }
+@media (prefers-reduced-motion: reduce) { .sp-open-lines .sp-line[data-accent]::after { animation: none; } }
