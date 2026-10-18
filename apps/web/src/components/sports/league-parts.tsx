@@ -288,8 +288,10 @@ export function PickTicket({ pick, showName }: { pick: PickRow; showName?: boole
     const t = window.setInterval(() => setNow(new Date()), 60_000)
     return () => window.clearInterval(t)
   }, [pick.status])
+  // The game can be over before settlement confirms the result: say so instead of "In progress".
+  const [finalSeen, setFinalSeen] = useState(false)
   const phase = pick.status === "open" && now ? openPickPhase(pick.event.startsAt, now) : null
-  const r = phase ? { ...base, label: phase.label } : base
+  const r = phase ? { ...base, label: finalSeen ? "Final · settling" : phase.label } : base
   const net = pick.payout == null ? null : pick.payout - pick.stake
   const side = sideTeam(pick.event, pick.market.kind, pick.selection)
   const color = side ? marketSelectionColor(pick.event, pick.market.kind, pick.selection) : undefined
@@ -328,7 +330,7 @@ export function PickTicket({ pick, showName }: { pick: PickRow; showName?: boole
         ) : null}
       </div>
       {/* Only while the game is in progress. View only: the pick above keeps its accepted price and payout. */}
-      <LiveGameStrip eventId={pick.event.id} sport={pick.event.sport} home={pick.event.home} away={pick.event.away} active={phase?.phase === "in_progress"} pick={pick.status === "open" ? { stake: pick.stake, totalReturn: pick.totalReturn, kind: pick.market.kind, selection: pick.selection } : undefined} />
+      <LiveGameStrip eventId={pick.event.id} sport={pick.event.sport} home={pick.event.home} away={pick.event.away} active={phase?.phase === "in_progress"} onFinal={() => setFinalSeen(true)} pick={pick.status === "open" ? { stake: pick.stake, totalReturn: pick.totalReturn, kind: pick.market.kind, selection: pick.selection } : undefined} />
     </li>
   )
 }

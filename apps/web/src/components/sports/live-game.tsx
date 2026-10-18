@@ -72,8 +72,10 @@ export function useLiveGame(eventId: string | undefined, enabled: boolean) {
  * freshness chip and, for an open moneyline pick, an estimated live value. VIEW ONLY: it offers no way to act on any number,
  * and the pick above keeps its accepted price and payout.
  */
-export function LiveGameStrip({ eventId, sport, home, away, active, pick }: { eventId?: string; sport: string; home: string; away: string; active: boolean; pick?: PositionPick }) {
+export function LiveGameStrip({ eventId, sport, home, away, active, pick, onFinal }: { eventId?: string; sport: string; home: string; away: string; active: boolean; pick?: PositionPick; onFinal?: () => void }) {
   const { view, elapsedMs } = useLiveGame(eventId, active)
+  const isFinal = view?.status === "final"
+  useEffect(() => { if (isFinal) onFinal?.() }, [isFinal, onFinal])
   if (!eventId || !active) return null
   const chip = chipFor(view, elapsedMs)
   const odds = view?.odds.status === "ok" && chip.tone !== "paused" ? view.odds : null
