@@ -298,6 +298,8 @@ describe("fast settle path", () => {
 
   it("providers flag only official finals", () => {
     assert.equal(isOfficialFinal({ type: { name: "STATUS_FINAL", completed: true } }), true)
+    assert.equal(isOfficialFinal({ type: { name: "STATUS_FULL_TIME", completed: true } }), true)
+    assert.equal(isOfficialFinal({ type: { name: "STATUS_FULL_TIME", completed: false } }), false)
     assert.equal(isOfficialFinal({ type: { name: "STATUS_END_PERIOD", completed: false } }), false)
     assert.equal(isOfficialFinal({ type: { name: "STATUS_FINAL" } }), false)
   })
