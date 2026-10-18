@@ -19,6 +19,7 @@ try {
     b.onLoad({ filter: /.*/, namespace: 'stub' }, ({ path: p }) => ({ contents: p === 'server-only' ? '' : p === 'use-api' ? `export const mutate = async (url, options) => { globalThis.plaidTestMutation = {url, options}; return {result: {status: 'active'}} };` : p === 'api' ? `
       export class ApiError extends Error { constructor(message,status=400) {super(message);this.status=status} }
       export const readJson = r => r.json();
+      export const forgetUser = () => {};
       export const withUser = fn => (r,c) => fn(globalThis.plaidTestUser, r,c);
     ` : `
       export class Configuration {}
