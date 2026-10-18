@@ -28,6 +28,7 @@ export type PickRow = {
   acceptedAt: string
   market: { kind: string; player: string | null; statKey: string | null }
   event: EventInfo
+  live?: boolean
   name?: string
   you?: boolean
 }
@@ -304,6 +305,7 @@ export function PickTicket({ pick, showName }: { pick: PickRow; showName?: boole
             <span>No payout</span>
           )}
           <em className="sl-price" title="Odds you locked in">{formatOdds(pick.price)}</em>
+          {pick.live ? <em className="sl-live-tag">Live</em> : null}
         </span>
       </div>
       <div className="sl-ticket-side">

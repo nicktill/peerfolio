@@ -1129,6 +1129,8 @@ export const sportsLeagues = pgTable(
     memberLimit: integer("member_limit").notNull().default(50),
     /** Largest single pick as a percent of starting credits. The owner can change it. */
     maxStakePct: integer("max_stake_pct").notNull().default(10),
+    /** In-play picks that count in the league (priced from the live exchange quote). The owner can switch them off. */
+    liveBetting: boolean("live_betting").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("sports_leagues_invite_code_idx").on(t.inviteCode), index("sports_leagues_owner_idx").on(t.ownerId)],
@@ -1432,10 +1434,15 @@ export const sportsLiveTests = pgTable(
     stake: integer("stake").notNull(),
     offeredPrice: integer("offered_price").notNull(),
     requestedAt: timestamp("requested_at", { withTimezone: true }).notNull(),
-    acceptedAt: timestamp("accepted_at", { withTimezone: true }).notNull(),
-    quoteAgeMs: integer("quote_age_ms").notNull(),
-    stateAgeMs: integer("state_age_ms").notNull(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    quoteAgeMs: integer("quote_age_ms"),
+    stateAgeMs: integer("state_age_ms"),
     receipt: jsonb("receipt").notNull(),
+    /** paper (admin test) | accepted | rejected. Live league attempts are all logged, accepted or not. */
+    outcome: text("outcome").notNull().default("paper"),
+    reason: text("reason"),
+    leagueId: uuid("league_id"),
+    pickId: uuid("pick_id"),
   },
   (t) => [index("sports_live_tests_event_idx").on(t.eventId, t.acceptedAt), index("sports_live_tests_user_idx").on(t.userId, t.acceptedAt)],
 )

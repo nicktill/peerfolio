@@ -3,7 +3,7 @@ import { priceThreeWay } from './threeway.ts'
 import type { LiveView } from './live/view.ts'
 import type { LiveSelection } from './live/types.ts'
 
-/** Private paper experiment. Never a league pick, balance, payout or settlement. */
+/** Shared offer/delay/freshness machinery. The admin paper test never touches a league; live picks (live-pick.ts) reuse it with their own stake bounds. */
 export const LIVE_TEST = { delayMs: 12_000, maxAgeMs: 15_000, offerTtlMs: 20_000, minStake: 10, maxStake: 100 } as const
 export type TestOffer = {
   eventId: string; source: 'polymarket' | 'kalshi'; quoteAsOf: string; stateAsOf: string
@@ -31,8 +31,10 @@ export function testOffer(view: LiveView | null, now: number): TestOffer {
   return { eventId: view.eventId, source: q.source, quoteAsOf: q.asOf, stateAsOf: view.stateAsOf!, homeProb: q.homeProb, awayProb: q.awayProb, drawProb: q.drawProb, homeScore: view.score.home!, awayScore: view.score.away!, period: view.period, clock: view.clock, prices }
 }
 
-export function validateTestRequest(offer: TestOffer, selection: LiveSelection, stake: number, expectedPrice: number) {
-  if (!Number.isInteger(stake) || stake < LIVE_TEST.minStake || stake > LIVE_TEST.maxStake) return reject('Test stake must be 10–100 play cash')
+export type StakeBounds = { min: number; max: number; message: string }
+const PAPER_BOUNDS: StakeBounds = { min: LIVE_TEST.minStake, max: LIVE_TEST.maxStake, message: 'Test stake must be 10–100 play cash' }
+export function validateTestRequest(offer: TestOffer, selection: LiveSelection, stake: number, expectedPrice: number, bounds: StakeBounds = PAPER_BOUNDS) {
+  if (!Number.isInteger(stake) || stake < bounds.min || stake > bounds.max) return reject(bounds.message)
   if (!['home', 'away', 'draw'].includes(selection) || offer.prices[selection] == null || offer.prices[selection] !== expectedPrice) return reject('The test price changed; refresh the offer')
 }
 
@@ -43,8 +45,8 @@ export function compareTestOffers(before: TestOffer, after: TestOffer) {
 }
 
 /** Effects injected so delay, duplicate claims and changed feeds are tested without network or a ledger. */
-export async function acceptTest(input: { offer: TestOffer; selection: LiveSelection; stake: number; expectedPrice: number; requestedAt: number }, deps: { now(): number; read(): Promise<LiveView | null>; claim(): Promise<boolean>; wait(ms: number): Promise<void> }) {
-  validateTestRequest(input.offer, input.selection, input.stake, input.expectedPrice)
+export async function acceptTest(input: { offer: TestOffer; selection: LiveSelection; stake: number; expectedPrice: number; requestedAt: number; bounds?: StakeBounds }, deps: { now(): number; read(): Promise<LiveView | null>; claim(): Promise<boolean>; wait(ms: number): Promise<void> }) {
+  validateTestRequest(input.offer, input.selection, input.stake, input.expectedPrice, input.bounds)
   const before = testOffer(await deps.read(), deps.now())
   compareTestOffers(input.offer, before)
   if (!(await deps.claim())) return reject('This test offer was already submitted; refresh it')

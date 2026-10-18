@@ -2,9 +2,9 @@
  * Types for the live (in-game) odds layer. Plain data, no imports, so pure modules and
  * tests load them directly under node's type stripping.
  *
- * This layer is DISPLAY ONLY. Nothing here is read by pick acceptance, payout or
- * settlement: an accepted pick keeps its accepted price forever, and results come
- * from the independent results feeds, never from an exchange quote.
+ * Quotes price live picks only through the delayed, single-use offer in lib/sports/live-test.ts and
+ * live-pick.ts. Payout and settlement never read them: an accepted pick keeps its accepted price forever,
+ * and results come from the independent results feeds, never from an exchange quote.
  */
 
 export type LiveSource = "polymarket" | "kalshi" | "espn"
