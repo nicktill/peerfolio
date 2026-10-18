@@ -12,7 +12,6 @@ import { ScoreboardGames } from "@web/components/sports/scoreboard-games"
 import { scoreboardMatch, type ScoreGame } from "@web/lib/sports/scoreboard"
 import { PickLimitsButton } from "@web/components/sports/pick-limits-dialog"
 import { matchupColors, marketSelectionColor } from "@web/lib/sports/matchup-colors"
-import { freshnessOf, agoLabel } from "@web/lib/sports/live/freshness"
 import { LeagueBrand } from "@web/components/sports/league-brand"
 import { revealStyle } from "@web/components/motion/reveal"
 import { LeaguePageSkeleton } from "@web/components/skeletons"
@@ -21,7 +20,7 @@ import { useFantasyMode } from "@web/components/sports/mode-switch"
 import { eventTitle, formatCredits, formatOdds, lineLabel, lockLabel, marketTitle, pickSentence, sideTeam, SPORT_LABEL, winOn100, type DisplayLine, type DisplayMarket } from "@web/lib/sports/format"
 import { americanToDecimal } from "@web/lib/sports/odds"
 import { onColor, oddsLabel, teamLook } from "@web/lib/sports/teams"
-import { InfoTip, Tip } from "@web/components/ui/tip"
+import { InfoTip } from "@web/components/ui/tip"
 import { LeagueHero, LeaguePulse, Leaderboard, NextGames, PickFeed } from "@web/components/sports/league-parts"
 import { PickLockEffect, type PickLockFx } from "@web/components/sports/pick-lock-effect"
 import { PlayerBadge, TeamBadge } from "@web/components/sports/team-badge"
@@ -543,7 +542,8 @@ function GameCard({ game, selected, onSelect, disabled, now }: { game: { key: st
   const [firstColor, secondColor] = matchupColors(event.sport, first, second)
   const pricedAt = active?.markets.every(m => m.exchangeOkAt) ? active.markets.map(m => m.exchangeOkAt!).sort()[0] : null
   const quoteAge = pricedAt ? now - Date.parse(pricedAt) : null
-  const fresh = quoteAge != null && freshnessOf(quoteAge) === "live"
+  // Quotes refresh continuously; only hide the chip if the feed has clearly stalled.
+  const showLive = quoteAge != null && quoteAge < 30 * 60_000
 
   return (
     <div className="sp-event sp-game">
@@ -553,7 +553,7 @@ function GameCard({ game, selected, onSelect, disabled, now }: { game: { key: st
         </div>
         <span className="sp-game-meta">
           <b><LeagueBrand sport={event.sport} /></b> · {timeOf(event.startsAt)}
-          {quoteAge != null ? <span className="sp-feed-chip" data-live={fresh || undefined} title={`Exchange checked ${agoLabel(quoteAge)}`}><i />{fresh ? "Live odds" : `Updated ${agoLabel(quoteAge)}`}</span> : null}
+          {showLive ? <span className="sp-feed-chip" data-live><i />Live</span> : null}
           <select className="sp-market-select" aria-label={`Market for ${eventTitle(event)}`} value={active?.key ?? ""} onChange={e => setTab(e.target.value)}>
             {groups.map(g => <option key={g.key} value={g.key}>{g.label}</option>)}
           </select>
@@ -561,7 +561,6 @@ function GameCard({ game, selected, onSelect, disabled, now }: { game: { key: st
       </div>
 
       {chances ? (
-        <Tip block text="Implied win chance from the line. Prices can update until kickoff; a locked pick keeps its price.">
         <div className="sp-odds-bar" role="img" aria-label={`Win chance: ${event.away} ${Math.round(chances.away * 100)} percent, ${chances.draw != null ? `draw ${Math.round(chances.draw * 100)} percent, ` : ""}${event.home} ${Math.round(chances.home * 100)} percent`}>
           <div className="sp-odds-track">
             <i style={{ width: `${(tennis ? chances.home : chances.away) * 100}%`, background: firstColor }} />
@@ -574,7 +573,6 @@ function GameCard({ game, selected, onSelect, disabled, now }: { game: { key: st
             <span><small>{oddsLabel(event.sport, second)}</small> {Math.round((tennis ? chances.away : chances.home) * 100)}%</span>
           </div>
         </div>
-        </Tip>
       ) : null}
 
       {active ? (
