@@ -71,7 +71,7 @@ test("exchange: gates hold or freeze", () => {
   const base = books(0.45, 0.28, 0.27)
   const reason = (r: ReturnType<typeof x>) => (r.ok ? "ok" : `${r.action}:${r.reason}`)
   assert.match(reason(x({ ...base, draw: book(0.28, { bid: 0.2, ask: 0.35 }) })), /hold:.*too wide/)
-  assert.match(reason(x({ ...base, away: book(0.27, { topSize: 50 }) })), /hold:.*too thin/)
+  assert.match(reason(x({ ...base, away: book(0.27, { topSize: 49 }) })), /hold:.*too thin/)
   assert.match(reason(x({ ...base, home: book(0.45, { ageMs: 120_000 }) })), /hold:.*too old/)
   assert.match(reason(x({ ...base, home: book(0.45, { bookTsAgeMs: 20 * 60_000 }) })), /hold:.*stuck/)
   assert.match(reason(x({ ...base, draw: book(0.28, { bid: null }) })), /hold:.*invalid/)
@@ -94,4 +94,16 @@ test("grading", () => {
   assert.equal(gradeThreeWay("home", -1, 1), "void")
   assert.equal(gradeThreeWay("home", NaN, 1), "void")
   assert.equal(gradeThreeWay("over", 1, 1), "void")
+})
+
+test("exchange: soccer legs need 50 shares each and 200 combined", () => {
+  const x = (b: ThreeWayBooks) => exchangeThreeWay({ source: "polymarket", books: b, gameLive: false, acceptingOrders: true })
+  const base = books(0.45, 0.28, 0.27)
+  // A shallow favourite and underdog beside a deep draw now price.
+  assert.ok(x({ home: book(0.45, { topSize: 60 }), draw: book(0.28, { topSize: 900 }), away: book(0.27, { topSize: 55 }) }).ok)
+  const thin = x({ ...base, home: book(0.45, { topSize: 49 }) })
+  assert.ok(!thin.ok && /too thin \(home\)/.test(thin.reason))
+  const shallow = x({ home: book(0.45, { topSize: 60 }), draw: book(0.28, { topSize: 60 }), away: book(0.27, { topSize: 60 }) })
+  assert.ok(!shallow.ok && /combined depth/.test(shallow.reason))
+  assert.ok(!x({ ...base, away: book(0.27, { topSize: null }) }).ok)
 })

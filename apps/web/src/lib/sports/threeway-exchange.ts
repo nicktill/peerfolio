@@ -4,7 +4,7 @@ import type { Triple } from "./threeway.ts"
 /**
  * Exchange side of the three-way moneyline: Polymarket lists three binary markets per game and Kalshi one market per outcome.
  * Each YES mid is a probability; the three mids sum to about 1 and are renormalised. The same gates as reprice.ts apply to EVERY
- * leg (spread, top size, read age, book timestamp age) plus a sum check, cross-source disagreement and the min fair probability.
+ * leg (spread, top size [`minTopSizeThreeWay` per leg plus a combined depth floor], read age, book timestamp age) plus a sum check, cross-source disagreement and the min fair probability.
  * Gate failures "hold" (keep the current line; the caller's stale-freeze applies) except price-range problems, which "freeze".
  * Kept apart from threeway.ts so pricing and settlement never import exchange code.
  */
@@ -38,23 +38,27 @@ export const MAX_SUM_DEVIATION = 0.05
 type Normalised = { fair: Triple } | { reason: string; action: "hold" | "freeze" }
 function normalise(b: ThreeWayBooks, label: string): (Normalised & { spread?: number; topSize?: number; ageMs?: number }) {
   const legs = [b.home, b.draw, b.away]
+  const names = ["home", "draw", "away"]
+  let depth = 0
   let spread = 0
   let topSize = Infinity
   let ageMs = 0
   const mids: number[] = []
-  for (const l of legs) {
+  for (const [i, l] of legs.entries()) {
     if (l.bid == null || l.ask == null || !(l.bid >= 0 && l.ask <= 1 && l.ask >= l.bid)) return { action: "hold", reason: `${label} invalid price` }
     const mid = (l.bid + l.ask) / 2
     if (!(mid > 0 && mid < 1)) return { action: "hold", reason: `${label} invalid price` }
     if (l.ageMs > REPRICE.maxAgeMs) return { action: "hold", reason: `${label} read too old` }
     if (l.bookTsAgeMs != null && l.bookTsAgeMs > REPRICE.maxBookTsAgeMs) return { action: "hold", reason: `${label} book timestamp stuck` }
     if (l.ask - l.bid > REPRICE.maxSpread) return { action: "hold", reason: `${label} book too wide` }
-    if (l.topSize == null || l.topSize < REPRICE.minTopSize) return { action: "hold", reason: `${label} book too thin` }
+    if (l.topSize == null || l.topSize < REPRICE.minTopSizeThreeWay) return { action: "hold", reason: `${label} book too thin (${names[i]})` }
+    depth += l.topSize
     spread = Math.max(spread, l.ask - l.bid)
     topSize = Math.min(topSize, l.topSize)
     ageMs = Math.max(ageMs, l.ageMs)
     mids.push(mid)
   }
+  if (depth < REPRICE.minTopSizeThreeWayTotal) return { action: "hold", reason: `${label} book too thin (combined depth)` }
   const s = mids[0]! + mids[1]! + mids[2]!
   if (Math.abs(s - 1) > MAX_SUM_DEVIATION) return { action: "hold", reason: `${label} outcomes do not sum to 1` }
   return { fair: [mids[0]! / s, mids[1]! / s, mids[2]! / s], spread, topSize, ageMs }

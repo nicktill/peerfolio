@@ -54,6 +54,12 @@ const ALIAS: Record<string, string> = {
   "new york rb": "new york red bulls",
   "ny red bulls": "new york red bulls",
   "red bull new york": "new york red bulls",
+  // MLS clubs the exchanges abbreviate differently from ESPN.
+  "la galaxy": "los angeles galaxy",
+  nyc: "new york city",
+  "ny city": "new york city",
+  "sporting kc": "sporting kansas city",
+  rsl: "real salt lake",
   "chicago ws": "chicago white sox",
   "utah hc": "utah mammoth",
   // College football: Polymarket writes "Miami (FL)"; matched against ESPN's school name "Miami" (see planGames).

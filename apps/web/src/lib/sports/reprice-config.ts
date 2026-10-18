@@ -7,6 +7,15 @@ export const REPRICE = {
   maxSpread: 0.03,
   /** Least size (shares) resting at BOTH best levels of BOTH outcome books; a thin top of book is cheap to move. */
   minTopSize: 200,
+  /**
+   * Soccer three-way legs (home / draw / away YES books). Favourite and underdog legs of MLS games often rest only 25-100 shares
+   * at the touch while the draw leg is deep, so 200 per leg hid Winner for most of a slate. 50 shares per leg still needs a
+   * real resting order on both sides of every leg, and the three legs together must show `minTopSizeThreeWayTotal`, so one
+   * thin leg can only pass when the rest of the triple is deep. Spread, read age, book timestamp, sum-to-1, cross-source
+   * disagreement and price range gates are unchanged, and the pricing margin is applied downstream and not touched.
+   */
+  minTopSizeThreeWay: 50,
+  minTopSizeThreeWayTotal: 200,
   /** Fair probabilities outside [minFair, 1 - minFair] are never repriced (a stale longshot price is the costliest): the market freezes. */
   minFair: 0.15,
   /** A book's own timestamp older than this is a stuck feed even if we just fetched it. */
