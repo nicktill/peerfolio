@@ -23,11 +23,16 @@ const SANS = "Hanken"
 const MONO = "Plex"
 
 const fontCache = new Map<string, Buffer>()
-async function font(file: string) {
-  const hit = fontCache.get(file)
+// Literal paths so Next's file tracing bundles the font files with this route.
+async function font(name: "display" | "sans" | "mono") {
+  const hit = fontCache.get(name)
   if (hit) return hit
-  const data = await readFile(path.join(process.cwd(), "src/assets/og-fonts", file))
-  fontCache.set(file, data)
+  const data = await (name === "display"
+    ? readFile(path.join(process.cwd(), "src/assets/og-fonts/bricolage-grotesque-latin-700-normal.woff"))
+    : name === "sans"
+      ? readFile(path.join(process.cwd(), "src/assets/og-fonts/hanken-grotesk-latin-600-normal.woff"))
+      : readFile(path.join(process.cwd(), "src/assets/og-fonts/ibm-plex-mono-latin-500-normal.woff")))
+  fontCache.set(name, data)
   return data
 }
 
@@ -194,9 +199,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ kin
   const fantasy = kind === "fantasy"
   const [logoFile, bricolage, hanken, plex, away, home] = await Promise.all([
     readFile(path.join(process.cwd(), "public/logo-white.png")),
-    font("bricolage-grotesque-latin-700-normal.woff"),
-    font("hanken-grotesk-latin-600-normal.woff"),
-    font("ibm-plex-mono-latin-500-normal.woff"),
+    font("display"),
+    font("sans"),
+    font("mono"),
     sports ? teamLogo("nfl", "Buffalo Bills") : Promise.resolve(null),
     sports ? teamLogo("nfl", "Kansas City Chiefs") : Promise.resolve(null),
   ])
