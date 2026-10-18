@@ -71,6 +71,19 @@ async function request(input: string, init?: RequestInit): Promise<unknown> {
   return res.json()
 }
 
+// Fast settle triggers: ask the app to run a targeted settle pass for one event (needs APP_URL and CRON_SECRET; absent means off).
+const appUrl = process.env.APP_URL?.replace(/\/$/, "")
+const cronSecret = process.env.CRON_SECRET
+async function triggerSettle(eventId: string, kind: "final" | "probe"): Promise<{ done: boolean }> {
+  const res = await fetch(`${appUrl}/api/cron/sports/settle?eventId=${encodeURIComponent(eventId)}&kind=${kind}`, { headers: { authorization: `Bearer ${cronSecret}` }, signal: AbortSignal.timeout(90_000) })
+  if (!res.ok) throw new Error(`settle trigger ${res.status}`)
+  const body = (await res.json()) as { outcome?: { ran?: boolean; settled?: number; voided?: number; review?: number; reason?: string } }
+  const o = body.outcome
+  out("info", "live.settle_trigger_result", { eventId, kind, outcome: o ?? null })
+  // An event with no open markets left (already settled by the cron or a viewer) ends the series too.
+  return { done: !!o && ((o.ran === true && (o.settled ?? 0) + (o.voided ?? 0) + (o.review ?? 0) > 0) || o.reason === "no_open_markets" || o.reason === "budget_spent") }
+}
+
 const deps: WorkerDeps = {
   store: {
     loadSlate: (now) => loadLiveSlate(db, now),
@@ -86,6 +99,7 @@ const deps: WorkerDeps = {
     reopen: (marketId, now) => reopenWorkerFrozen(db, marketId, now),
     confirm: (ids, now) => confirmExchange(db, ids, now),
   },
+  ...(appUrl && cronSecret ? { triggerSettle } : {}),
   wsBooks: socket?.books,
   wantTokens: (tokens) => socket?.want(tokens),
   bookMode,

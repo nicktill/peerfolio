@@ -3,7 +3,7 @@ import { cycleFailed } from "./health.ts"
 import { clip, type Fields, type Level } from "../log.ts"
 import { explainNoMatch, matchGame } from "./match.ts"
 import { bookClock, quoteKey, shouldWrite, type BookClock, type LastWrite, type QuoteKey, type SlateEvent } from "./plan.ts"
-import { hasDraw } from "../types.ts"
+import { hasDraw, type Sport } from "../types.ts"
 import { normalizeQuote, pairProbability, pairProbability3 } from "./quote.ts"
 import { chooseLiveOdds } from "./reconcile.ts"
 import {
@@ -28,6 +28,7 @@ import {
   type PmGame,
   type WsBook,
 } from "./sources.ts"
+import { eventTriggersEnabled, SettleTriggerTracker, type TriggerKind } from "../settle-trigger.ts"
 import type { QuoteInsert } from "./store.ts"
 import type { LiveGameState, LiveSource, RawQuote, SourceProb } from "./types.ts"
 
@@ -59,6 +60,11 @@ export type WorkerDeps = {
   reprice?: RepriceStore
   /** How a book timestamp is trusted (see bookClock in plan.ts). Default strict. */
   bookMode?: "strict" | "fetch"
+  /**
+   * Asks the app for an immediate, targeted settle pass for one event (GET /api/cron/sports/settle?eventId=). It only asks: payout
+   * still needs the results-provider quorum and stability window. Resolves `done: true` once the event settled, voided or went to review.
+   */
+  triggerSettle?(eventId: string, kind: TriggerKind): Promise<{ done: boolean }>
   log?(msg: string): void
   /** Structured one-line JSON logging (see log.ts). Absent in most tests. */
   emit?(level: Level, ev: string, fields?: Fields): void
@@ -82,6 +88,8 @@ export type WorkerState = {
   reprice: { lastPassAt: number; holdLogAt: Map<string, number> }
   /** Last time the score orientation of a game was logged (raw vs interpreted), by event id. */
   orientAt: Map<string, number>
+  /** Fast settle-trigger memory (final / clock-zero / exchange-decided signals) per live event. */
+  trigger: SettleTriggerTracker
 }
 
 export type SourceStat = { ok: number; fail: number; ms: number }
@@ -113,6 +121,7 @@ export const newWorkerState = (): WorkerState => ({
   stats: { calls: 0, rowsWritten: 0, stateWrites: 0, errors: 0 },
   cycle: freshCycle(),
   orientAt: new Map(),
+  trigger: new SettleTriggerTracker(),
   reprice: { lastPassAt: 0, holdLogAt: new Map() },
 })
 
@@ -368,6 +377,29 @@ export async function runTick(deps: WorkerDeps, st: WorkerState, now: Date): Pro
     await deps.store.upsertState(eventId, s)
     st.lastState.set(eventId, { key, at: now })
     st.stats.stateWrites++
+  }
+
+  // 5b. Fast settle triggers. The live feeds see a game end long before the settle cron polls, so a final status, a quiet 0:00 clock
+  //     or a decided exchange price asks for an immediate targeted settle pass (rate limited per event, in the database too).
+  //     It never pays out by itself; see settleEventNow.
+  if (deps.triggerSettle && eventTriggersEnabled()) {
+    st.trigger.prune(slate.map((e) => e.id))
+    for (const ev of slate) {
+      const s = states.get(ev.id)
+      if (!s) continue
+      const mids = (rawByEvent.get(ev.id) ?? []).filter((r) => r.source !== "espn").map((r) => normalizeQuote(r, now).mid).filter((m): m is number => m != null)
+      const d = st.trigger.observe(ev.id, { sport: ev.sport as Sport, status: s.status, period: s.period, clock: s.clock, homeScore: s.homeScore, awayScore: s.awayScore, bestMid: mids.length ? Math.max(...mids) : null }, now.getTime())
+      if (!d.fire) continue
+      const kind: TriggerKind = d.fire === "status_final" ? "final" : "probe"
+      deps.emit?.("info", "live.settle_trigger", { eventId: ev.id, game: label(ev), reason: d.fire })
+      void deps
+        .triggerSettle(ev.id, kind)
+        .then((r) => st.trigger.result(ev.id, r.done, Date.now()))
+        .catch((error) => {
+          st.trigger.result(ev.id, false, Date.now())
+          deps.emit?.("warn", "live.settle_trigger_failed", { eventId: ev.id, error: clip(error) })
+        })
+    }
   }
 
   // 6. What a viewer would be shown, per game: log low confidence, source mismatch and paused odds so a bad number
