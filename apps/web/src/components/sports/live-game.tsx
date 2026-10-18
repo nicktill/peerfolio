@@ -1,5 +1,6 @@
 "use client"
 
+import { sampleResponse } from "@web/lib/sample/fixtures"
 import { useEffect, useState } from "react"
 import { ArrowDown, ArrowUp, Radio } from "lucide-react"
 import { PIPELINE } from "@web/lib/sports/live/freshness"
@@ -20,11 +21,13 @@ const games = new Map<string, Entry>()
 async function pollOnce(id: string, entry: Entry) {
   if (document.visibilityState === "visible") {
     try {
-      const res = await fetch(`/api/sports/live/${id}`, { cache: "no-store" })
-      if (res.ok) {
+      const url = `/api/sports/live/${id}`
+      const fixture = sampleResponse(url, window.location.pathname) as LiveView | null
+      const res = fixture ? null : await fetch(url, { cache: "no-store" })
+      if (fixture || res?.ok) {
         // Time the response spent in the CDN is reported by the Age header; count it, so a cached answer never looks fresher than it is.
-        const cdnAgeMs = Number(res.headers.get("age") ?? 0) * 1000
-        const view = (await res.json()) as LiveView
+        const cdnAgeMs = Number(res?.headers.get("age") ?? 0) * 1000
+        const view = fixture ?? (await res!.json()) as LiveView
         entry.view = cdnAgeMs > 0 ? ageView(view, cdnAgeMs) : view
         entry.receivedAt = Date.now()
         entry.failures = 0

@@ -1,6 +1,7 @@
 "use client"
 
 import "./parlay.css"
+import { SlipEmpty } from "./slip-empty"
 import { createContext, useCallback, useEffect, useMemo, useState } from "react"
 import { Layers, Target, X, ChevronUp } from "lucide-react"
 import { useToast } from "@web/components/ui/toast"
@@ -79,11 +80,11 @@ export function useParlay(markets: PMarket[] | undefined, now: number, rules: { 
 }
 
 /** A sliding mode control; the parent keeps guidance outside the compact toolbar. */
-export function ParlayModeBar({ mode, onMode, count }: { mode: "single" | "parlay"; onMode: (m: "single" | "parlay") => void; count: number }) {
+export function ParlayModeBar({ mode, onMode, count, disabled }: { disabled?: boolean; mode: "single" | "parlay"; onMode: (m: "single" | "parlay") => void; count: number }) {
   return (
     <div className="pl-switch" data-mode={mode} role="group" aria-label="Bet type">
-      <button type="button" aria-pressed={mode === "single"} onClick={() => onMode("single")}><Target aria-hidden /><span>Single</span></button>
-      <button type="button" aria-pressed={mode === "parlay"} onClick={() => onMode("parlay")}>
+      <button type="button" disabled={disabled} aria-pressed={mode === "single"} onClick={() => onMode("single")}><Target aria-hidden /><span>Single</span></button>
+      <button type="button" disabled={disabled} aria-pressed={mode === "parlay"} onClick={() => onMode("parlay")}>
         <Layers aria-hidden /><span>Parlay</span>{count > 0 ? <b className="numeric">{count}</b> : null}
       </button>
     </div>
@@ -105,7 +106,9 @@ export function ParlaySlip({
   onLock,
   onPlaced,
   onStale,
+  onDraft,
 }: {
+  onDraft?: (draft: { stake: number; toWin: number | null }) => void
   leagueId: string
   legs: ParlayLeg[]
   note: string | null
@@ -136,6 +139,8 @@ export function ParlaySlip({
   const cap = Math.min(rules.maxStake, balance)
   const amount = Math.floor(Number(stake.replace(/[^\d]/g, "")) || 0)
   const quote = parlayQuote(legs.map((l) => l.line.price), amount)
+  const ready = legs.length >= rules.minLegs && amount > 0 && !!quote
+  useEffect(() => { onDraft?.({ stake: legs.length ? amount : 0, toWin: ready && quote ? quote.toWin : null }) }, [onDraft, legs.length, amount, ready, quote?.toWin]) // eslint-disable-line react-hooks/exhaustive-deps
   const moved = legs.filter((l) => l.line.price !== l.seen)
   const short = rules.minLegs - legs.length
   const problem = amount === 0 ? null : amount < rules.minStake ? `Minimum is ${credits(rules.minStake)}` : amount > rules.maxStake ? `Maximum per parlay is ${credits(rules.maxStake)}` : amount > balance ? "Not enough cash" : null
@@ -165,7 +170,7 @@ export function ParlaySlip({
   }
 
   return (
-    <section className="fw-panel fw-trade sp-slip sp-sheet pl-slip reveal" aria-labelledby="pl-slip-title" data-open={legs.length > 0 ? "" : undefined} data-min={!expanded || undefined} data-closed={closed || undefined}>
+    <section className="fw-panel fw-trade sp-slip sp-sheet pl-slip" aria-labelledby="pl-slip-title" data-open={legs.length > 0 ? "" : undefined} data-min={!expanded || undefined} data-closed={closed || undefined}>
       <div className="fw-section-head pl-slip-head">
         <h2 id="pl-slip-title">Parlay slip</h2>
         {legs.length > 0 ? (
@@ -179,23 +184,25 @@ export function ParlaySlip({
         )}
       </div>
       {legs.length === 0 ? (
-        <p className="sp-slip-empty">Tap lines to build a parlay. Add {rules.minLegs}–{rules.maxLegs} legs from different games.</p>
+        <SlipEmpty parlay min={rules.minLegs} max={rules.maxLegs} />
       ) : (
         <form onSubmit={submit}>
           <ul className="pl-legs" aria-label="Parlay legs">
-            {legs.map((l) => {
+            {legs.map((l, index) => {
               const side = sideTeam(l.market.event, l.market.kind, l.line.selection)
               const color = marketSelectionColor(l.market.event, l.market.kind, l.line.selection)
               const sentence = pickSentence(l.market, l.line)
               return (
-                <li key={l.line.id} className="pl-leg" style={color ? ({ "--tc": color } as React.CSSProperties) : undefined}>
+                <li key={l.line.id} className="pl-leg" data-themed={!!color || undefined} style={color ? ({ "--tc": color } as React.CSSProperties) : undefined}>
+                  {side && l.market.event.sport !== "tennis" ? <span className="pl-leg-watermark" aria-hidden><TeamBadge sport={l.market.event.sport} name={side} size={100} /></span> : null}
                   <span className="pl-leg-mark">{side ? <TeamBadge sport={l.market.event.sport} name={side} size={30} /> : <span className="sl-prop"><Target aria-hidden /></span>}</span>
                   <div className="pl-leg-body">
+                    <small>{marketTitle(l.market)}</small>
                     <b>{sentence}</b>
-                    <span>{eventTitle(l.market.event)} · {marketTitle(l.market)}</span>
                   </div>
                   <em className="pl-odds numeric">{formatOdds(l.line.price)}</em>
                   <button type="button" className="pl-remove" aria-label={`Remove ${sentence}`} onClick={() => onRemove(l.line.id)}><X aria-hidden /></button>
+                  <div className="pl-leg-matchup"><span>LEG {String(index + 1).padStart(2, "0")}</span><span>{eventTitle(l.market.event)}</span></div>
                 </li>
               )
             })}
