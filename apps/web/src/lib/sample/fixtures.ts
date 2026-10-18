@@ -160,7 +160,7 @@ function sampleResponseRaw(url: string, pathname: string | null): unknown {
     const unique = [...new Map(SPORTS_LEAGUE.markets.map(m => [JSON.stringify(m.event), m.event])).values()]
     return { games: [
       ...unique.map((event,i) => ({ ...event, id: `sample-score-${i}`, status: "upcoming", homeRecord: null, awayRecord: null, homeScore: null, awayScore: null, detail: "Sample game", fetchedAt: new Date().toISOString() })),
-      { id: "sample-live", sport: "nfl", home: "Minnesota Vikings", away: "Green Bay Packers", startsAt: new Date(Date.now() - 75 * 60_000).toISOString(), homeRecord: "4-1", awayRecord: "3-2", homeScore: "10", awayScore: "14", status: "live", detail: "Q3 · 08:42 · Sample game", fetchedAt: new Date().toISOString() },
+      { id: "sample-live", sport: "nfl", home: "Minnesota Vikings", away: "Green Bay Packers", startsAt: new Date(Date.now() - 75 * 60_000).toISOString(), homeRecord: "4-1", awayRecord: "3-2", homeScore: "10", awayScore: "14", status: "live", detail: "Q3 · 08:42 · Sample game", fetchedAt: new Date().toISOString(), homeWinProb: 0.46, awayWinProb: 0.54, probSource: "espn" },
     ], failedSports: [] }
   }
   if (/^\/api\/fantasy\/sample\/season(\?|$)/.test(url)) return SEASON

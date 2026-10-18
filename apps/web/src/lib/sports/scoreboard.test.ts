@@ -48,3 +48,26 @@ test('malformed metadata cannot create a phantom live game',()=>{
 test('scoreboard days run from yesterday through three days ahead, one request per day', () => {
  assert.deepEqual(scoreboardDays(new Date('2026-10-17T23:20:00Z'), 3), ['20261016', '20261017', '20261018', '20261019', '20261020'])
 })
+// Fragment captured from site.api.espn.com soccer/usa.1 at halftime (links/logos removed).
+const espnSoccerLive = { odds: [{ details: 'VAN -200', moneyline: { displayName: 'Moneyline',
+  home: { open: { odds: '+360' }, close: { odds: '+425' }, current: { odds: '+145' } },
+  away: { open: { odds: '-170' }, close: { odds: '-200' }, current: { odds: '+210' } },
+  draw: { open: { odds: '+320' }, close: { odds: '+350' }, current: { odds: '+210' } } } }] }
+test('ESPN in-game moneyline becomes a vig-free view-only probability, draw included for soccer',()=>{
+ const [g] = normalizeGames(board({ ...competition('in'), ...espnSoccerLive }),'mls',at)
+ assert.equal(g?.probSource,'espn')
+ assert.ok(Math.abs(g.homeWinProb! + g.awayWinProb! + g.drawProb! - 1) < 1e-9)
+ assert.ok(Math.abs(g.homeWinProb! - 0.387) < 0.002 && Math.abs(g.awayWinProb! - 0.306) < 0.002)
+})
+test('two-way odds normalise; pre-game close prices, missing, insane or non-live odds give no probability',()=>{
+ const two = { odds: [{ moneyline: { home: { current: { odds: '-150' } }, away: { current: { odds: '+130' } } } }] }
+ const [g] = normalizeGames(board({ ...competition('in'), ...two }),'nba',at)
+ assert.ok(Math.abs(g!.homeWinProb! + g!.awayWinProb! - 1) < 1e-9 && g!.homeWinProb! > 0.55 && g!.drawProb === undefined)
+ const closeOnly = { odds: [{ moneyline: { home: { close: { odds: '-150' } }, away: { close: { odds: '+130' } } } }] }
+ assert.equal(normalizeGames(board({ ...competition('in'), ...closeOnly }),'nba',at)[0]?.homeWinProb, undefined)
+ assert.equal(normalizeGames(board(competition('in')),'nba',at)[0]?.homeWinProb, undefined)
+ const insane = { odds: [{ moneyline: { home: { current: { odds: '-500' } }, away: { current: { odds: '-500' } } } }] }
+ assert.equal(normalizeGames(board({ ...competition('in'), ...insane }),'nba',at)[0]?.homeWinProb, undefined)
+ assert.equal(normalizeGames(board({ ...competition('pre'), ...two }),'nba',at)[0]?.homeWinProb, undefined)
+ assert.equal(normalizeGames(board({ ...competition('in'), ...two }),'mls',at)[0]?.homeWinProb, undefined)
+})
