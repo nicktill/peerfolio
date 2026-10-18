@@ -8,9 +8,12 @@ export type ScoreGame = {
   homeRecord: string | null; awayRecord: string | null
   status: 'upcoming' | 'live' | 'final' | 'unavailable'
   homeScore: string | null; awayScore: string | null; detail: string; fetchedAt: string
+  /** VIEW ONLY (tennis). Games won per set, in play order; `tiebreak` is the tiebreak points a player scored in that set. Sets-won in homeScore/awayScore is unchanged. */
+  homeSets?: TennisSet[]; awaySets?: TennisSet[]
   /** VIEW ONLY. Vig-free moneyline win chance derived from ESPN's in-game odds (0-1). Never used for picks, settlement or tests. */
   homeWinProb?: number; awayWinProb?: number; drawProb?: number; probSource?: 'espn'
 }
+export type TennisSet = { games: number; tiebreak?: number }
 type Obj = Record<string, unknown>
 const obj = (v: unknown): Obj => v && typeof v === 'object' ? v as Obj : {}
 const list = (v: unknown): Obj[] => Array.isArray(v) ? v.map(obj) : []
@@ -45,6 +48,16 @@ export function liveWinProbs(competition: Obj, threeWay: boolean): { home: numbe
   }
   return null
 }
+function tennisSets(x: Obj): TennisSet[] {
+  const out: TennisSet[] = []
+  for (const l of list(x.linescores)) {
+    const games = Number(l.value)
+    if (l.value == null || !Number.isInteger(games) || games < 0 || games > 99) break
+    const tb = Number(l.tiebreak)
+    out.push(l.tiebreak != null && Number.isInteger(tb) && tb >= 0 ? { games, tiebreak: tb } : { games })
+  }
+  return out
+}
 export function normalizeGames(raw: unknown, sport: string, fetchedAt: string): ScoreGame[] {
   const result: ScoreGame[] = []
   for (const e of list(obj(raw).events)) {
@@ -75,10 +88,13 @@ export function normalizeGames(raw: unknown, sport: string, fetchedAt: string): 
         const v = x.score
         return (live || final) && (typeof v === 'string' || typeof v === 'number') && /^\d+$/.test(String(v)) ? String(v) : null
       }
+      const homeSets = sport === 'tennis' ? tennisSets(home) : [], awaySets = sport === 'tennis' ? tennisSets(away) : []
+      const sets = homeSets.length && homeSets.length === awaySets.length ? { homeSets, awaySets } : {}
       const probs = live && sport !== 'tennis' ? liveWinProbs(c, sport === 'mls') : null
       result.push({ id: str(c.id) || str(e.id), sport, home: name(home), away: name(away), startsAt,
         homeRecord: record(home), awayRecord: record(away), status: unavailable ? 'unavailable' : final ? 'final' : live ? 'live' : 'upcoming',
         homeScore: score(home), awayScore: score(away), detail: str(type.shortDetail) || str(type.detail) || str(status.displayClock), fetchedAt,
+        ...sets,
         ...(probs ? { homeWinProb: probs.home, awayWinProb: probs.away, ...(probs.draw != null ? { drawProb: probs.draw } : {}), probSource: 'espn' as const } : {}) })
     }
   }

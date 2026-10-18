@@ -7,7 +7,7 @@ import { useLiveGame } from './live-game'
 import { chipFor, splitPct, splitPct3 } from '@web/lib/sports/live/format'
 import { AdminLiveTestPanel } from './admin-live-test'
 import { LivePickPanel } from './live-pick-panel'
-import { type ScoreGame, scoreboardMatch } from '@web/lib/sports/scoreboard'
+import { type ScoreGame, type TennisSet, scoreboardMatch } from '@web/lib/sports/scoreboard'
 import { OddsTrend } from './odds-trend'
 import { matchupColors } from '@web/lib/sports/matchup-colors'
 
@@ -16,14 +16,19 @@ type Tracked = {id: string; sport: string; home: string; away: string; startsAt:
 const when = (iso: string) => new Date(iso).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' })
 const UPCOMING_LIMIT = 12
 
-const sides = (g: ScoreGame) => [{ name: g.away, record: g.awayRecord, score: g.awayScore }, { name: g.home, record: g.homeRecord, score: g.homeScore }]
+const sides = (g: ScoreGame) => [{ name: g.away, record: g.awayRecord, score: g.awayScore, sets: g.awaySets }, { name: g.home, record: g.homeRecord, score: g.homeScore, sets: g.homeSets }]
+/** Per-set tennis games; the set in play is highlighted. Sets-won stays the big number. */
+function SetScores({ sets, live }: { sets?: TennisSet[]; live: boolean }) {
+  if (!sets?.length) return null
+  return <span className="sp-sets">{sets.map((s, i) => <span key={i} className="sp-set" data-current={live && i === sets.length - 1 || undefined} style={live && i === sets.length - 1 ? { color: 'var(--fw-fg1)', fontWeight: 700 } : undefined}>{s.games}{s.tiebreak != null ? <sup>{s.tiebreak}</sup> : null}</span>)}</span>
+}
 function CardHead({ g, chip }: { g: ScoreGame; chip: React.ReactNode }) {
   return <div className="sp-game-head"><div className="sp-matchup"><strong>{g.away} {g.sport === "tennis" ? "vs" : "@"} {g.home}</strong></div><span className="sp-game-meta"><LeagueBrand sport={g.sport} />{chip}</span></div>
 }
 function TeamRows({ g, showScore, trendId }: { g: ScoreGame; showScore: boolean; trendId?: string }) {
   const colors = matchupColors(g.sport, g.away, g.home)
   return <div className="sp-lines sp-team-lines">
-    {sides(g).map((side, i) => <div key={side.name} className="sp-line sp-live-side" data-team data-accent={colors[i]} style={{ '--tc': colors[i] } as React.CSSProperties}>{trendId ? <OddsTrend eventId={trendId} side={i === 0 ? 'away' : 'home'} color={colors[i]} /> : null}<TeamBadge sport={g.sport} name={side.name} size={40} /><span className="sp-line-name">{side.name}{side.record ? <small className="sp-team-record"> ({side.record})</small> : null}</span>{showScore ? <b className="sp-live-score">{side.score ?? '–'}</b> : null}</div>)}
+    {sides(g).map((side, i) => <div key={side.name} className="sp-line sp-live-side" data-team data-accent={colors[i]} style={{ '--tc': colors[i] } as React.CSSProperties}>{trendId ? <OddsTrend eventId={trendId} side={i === 0 ? 'away' : 'home'} color={colors[i]} /> : null}<TeamBadge sport={g.sport} name={side.name} size={40} /><span className="sp-line-name">{side.name}{side.record ? <small className="sp-team-record"> ({side.record})</small> : null}</span>{showScore ? <SetScores sets={side.sets} live={g.status === 'live'} /> : null}{showScore ? <b className="sp-live-score">{side.score ?? '–'}</b> : null}</div>)}
   </div>
 }
 type Split = { home: number; away: number; draw: number | null }

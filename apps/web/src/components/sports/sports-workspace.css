@@ -483,6 +483,9 @@
 .sp-live-games { margin-top: 10px; }
 .sp-live-side { display: flex; align-items: center; min-width: 0; border-radius: 8px; font-size: 12px; }
 .sp-live-score { margin-left: auto; font: 600 22px var(--fw-mono); }
+.sp-sets { margin-left: auto; display: flex; gap: 8px; font: 500 14px var(--fw-mono); color: var(--fw-fg2); font-variant-numeric: tabular-nums; }
+.sp-sets sup { font-size: 9px; margin-left: 1px; }
+.sp-sets + .sp-live-score { margin-left: 14px; }
 .sp-live-footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin: 10px 0; font: 400 10px var(--fw-mono); color: var(--fw-fg3); }
 .sp-live-footer span { display: inline-flex; align-items: center; gap: 4px; }
 .sp-live-footer svg { width: 11px; height: 11px; }
