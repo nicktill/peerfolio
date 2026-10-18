@@ -310,13 +310,14 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
       sports: league.sports,
       inviteCode: league.inviteCode,
       startingCredits: league.startingCredits,
+      maxStakePct: league.maxStakePct,
       endsAt: league.endsAt?.toISOString() ?? null,
       isOwner: league.ownerId === userId,
     },
     you: { credits: me.credits },
     limits: {
       minStake: DEFAULT_LIMITS.minStake,
-      maxStake: Math.floor((league.startingCredits * DEFAULT_LIMITS.maxStakePctOfStart) / 100),
+      maxStake: Math.floor((league.startingCredits * league.maxStakePct) / 100),
       maxOpenPicks: DEFAULT_LIMITS.maxOpenPicks,
     },
     standings,
@@ -339,6 +340,19 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
     picks: mine.map(shapePick),
     leaguePicks: others.map((p) => ({ ...shapePick(p), name: nameOf.get(p.memberId) ?? "Player" })),
   }
+}
+
+/** Share of starting cash one pick may risk. Capped by the total-exposure limit so a single pick can never exceed it. */
+export const MAX_STAKE_PCT_RANGE = { min: 1, max: 60 } as const
+
+/** Owner-only: change the largest single pick. Applies to picks placed from now on; existing picks are untouched. */
+export async function setLeagueMaxStakePct(db: Db, userId: string, leagueId: string, pct: number) {
+  if (!Number.isInteger(pct) || pct < MAX_STAKE_PCT_RANGE.min || pct > MAX_STAKE_PCT_RANGE.max) {
+    throw new SportsError(`Choose a whole number from ${MAX_STAKE_PCT_RANGE.min} to ${MAX_STAKE_PCT_RANGE.max}`, 400)
+  }
+  const [row] = await db.update(sportsLeagues).set({ maxStakePct: pct }).where(and(eq(sportsLeagues.id, leagueId), eq(sportsLeagues.ownerId, userId))).returning({ id: sportsLeagues.id })
+  if (!row) throw new SportsError("Only the league owner can change this", 403)
+  return { maxStakePct: pct }
 }
 
 /** Owner-only: pairs of members who keep taking opposite sides of the same locked market. */
@@ -450,7 +464,7 @@ async function placeOnce(db: Db, userId: string, leagueId: string, req: PickRequ
     }
     let accepted
     try {
-      accepted = acceptPick(req, pickCtx)
+      accepted = acceptPick(req, pickCtx, { ...DEFAULT_LIMITS, maxStakePctOfStart: league.maxStakePct })
     } catch (error) {
       if (error instanceof PickRejected) {
         // Rejections caused only by the kickoff gate are warnings (they mean a lock was late or a start moved); the rest are routine.

@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import { americanToDecimal, americanToProb, consensusTwoWay, DEFAULT_PRICING, devigTwoWay, HOUSE_MARGIN, priceTwoWay, probToAmerican, tidyAgainstPlayer, totalReturn } from "./odds.ts"
 import { DEFAULT_PUBLISH, isPickWindowOpen, marketsToLock, planPublication } from "./lines.ts"
-import { acceptPick, PickRejected, type PickContext, type PickRequest } from "./picks.ts"
+import { acceptPick, DEFAULT_LIMITS, PickRejected, type PickContext, type PickRequest } from "./picks.ts"
 import { gradePick, planSettlement, resolveResult, settleKey, type SettleablePick } from "./settlement.ts"
 import { MockProvider } from "./providers/mock.ts"
 import { normalizeOddsApiEvent } from "./providers/the-odds-api.ts"
@@ -200,6 +200,12 @@ describe("pick caps and snapshot", () => {
   it("enforces min and max stake", () => {
     assert.equal(code(() => acceptPick(req({ stake: 5 }), ctx())), "stake_too_small")
     assert.equal(code(() => acceptPick(req({ stake: 101 }), ctx())), "stake_too_large")
+  })
+  it("uses the league's own max stake when the owner changed it", () => {
+    // ctx() starts leagues at 1000: 10% is 100, so 25% allows 250 but not 251.
+    const limits = { ...DEFAULT_LIMITS, maxStakePctOfStart: 25 }
+    assert.equal(acceptPick(req({ stake: 250 }), ctx({ member: { credits: 1000 } }), limits).stake, 250)
+    assert.equal(code(() => acceptPick(req({ stake: 251 }), ctx({ member: { credits: 1000 } }), limits)), "stake_too_large")
   })
   it("refuses more than the balance", () => {
     assert.equal(code(() => acceptPick(req(), ctx({ member: { credits: 20 } }))), "insufficient_credits")

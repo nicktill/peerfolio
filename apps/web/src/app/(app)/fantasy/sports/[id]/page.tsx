@@ -10,6 +10,7 @@ import { Choice } from "@web/components/fantasy/choice"
 import { timeLeft } from "@web/components/fantasy/time-left"
 import { ScoreboardGames } from "@web/components/sports/scoreboard-games"
 import { scoreboardMatch, type ScoreGame } from "@web/lib/sports/scoreboard"
+import { PickLimitsButton } from "@web/components/sports/pick-limits-dialog"
 import { matchupColors, marketSelectionColor } from "@web/lib/sports/matchup-colors"
 import { freshnessOf, agoLabel } from "@web/lib/sports/live/freshness"
 import { LeagueBrand } from "@web/components/sports/league-brand"
@@ -51,7 +52,7 @@ type PickRow = {
   event: EventInfo
 }
 type Detail = {
-  league: { id: string; name: string; emoji: string; accent: string; sports: string[]; inviteCode: string; startingCredits: number; endsAt: string | null; isOwner: boolean }
+  league: { id: string; name: string; emoji: string; accent: string; sports: string[]; inviteCode: string; startingCredits: number; maxStakePct: number; endsAt: string | null; isOwner: boolean }
   you: { credits: number }
   limits: { minStake: number; maxStake: number; maxOpenPicks: number }
   standings: { name: string; credits: number; isYou: boolean }[]
@@ -141,7 +142,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
         openCount={picks.filter((p) => p.status === "open").length}
         leaguePicks={leaguePicks}
         status={status}
-        invite={<InviteButton code={league.inviteCode} />}
+        invite={<>{league.isOwner && id !== "sample" ? <PickLimitsButton leagueId={league.id} startingCredits={league.startingCredits} maxStakePct={league.maxStakePct} onSaved={() => void refetch()} /> : null}<InviteButton code={league.inviteCode} /></>}
       />
 
       <div className="fw-grid">
