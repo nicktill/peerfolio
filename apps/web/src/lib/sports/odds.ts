@@ -150,5 +150,5 @@ export function priceTwoWay(fairProbA: number, cfg: PricingConfig = DEFAULT_PRIC
   return [tidyAgainstPlayer(rawAmerican(fairProbA + half)), tidyAgainstPlayer(rawAmerican(fairB + half))]
 }
 
-/** Total return (stake included) for a winning pick, floored to whole credits. */
-export const totalReturn = (stake: number, american: number): number => Math.floor(stake * americanToDecimal(american))
+/** Total return (stake included) for a winning pick, floored to whole credits. The 1e-9 keeps a product that is a whole number in exact arithmetic (e.g. 486 at -1944) from flooring one credit low on float error. */
+export const totalReturn = (stake: number, american: number): number => Math.floor(stake * americanToDecimal(american) + 1e-9)
