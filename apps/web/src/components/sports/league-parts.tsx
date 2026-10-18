@@ -19,6 +19,7 @@ import { TicketFig, TicketMoney } from "@web/components/sports/ticket-figures"
 import type { ManageTarget } from "@web/components/sports/manage-slip"
 import { ParlayTicket } from "@web/components/sports/parlay-ticket"
 import { stackParlays, type ParlayRow } from "@web/components/sports/parlay-types"
+import { recordResult } from "@web/lib/sports/record-result"
 
 export type EventInfo = { id?: string; sport: string; home: string; away: string; startsAt: string }
 export type PickRow = {
@@ -50,7 +51,7 @@ const credits = formatCredits
 const signed = signedCredits
 const hue = (name: string) => [...name].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7)
 const asMarket = (p: PickRow): DisplayMarket => ({ ...p.market, event: p.event })
-const settled = (p: PickRow) => p.status === "won" || p.status === "lost"
+const settled = (p: PickRow) => recordResult(p) === "won" || recordResult(p) === "lost"
 
 /** Initials on a colour picked from the name, so players are recognisable at a glance. */
 export function Badge({ name, size = 34, ring, image }: { name: string; size?: number; ring?: string; image?: string | null }) {
@@ -70,11 +71,12 @@ function statsByName(leaguePicks: PickRow[]): Map<string, Stats> {
   for (const p of sorted) {
     const name = p.name ?? ""
     const s = out.get(name) ?? { won: 0, lost: 0, open: 0, net: 0, form: [] }
-    if (p.status === "won") s.won++
-    else if (p.status === "lost") s.lost++
+    const result = recordResult(p)
+    if (result === "won") s.won++
+    else if (result === "lost") s.lost++
     else if (p.status === "open") s.open++
     if (p.payout != null) s.net += p.payout - p.stake
-    if (settled(p)) s.form.push(p.status === "won" ? "W" : "L")
+    if (settled(p)) s.form.push(result === "won" ? "W" : "L")
     out.set(name, s)
   }
   return out
@@ -371,7 +373,7 @@ export function PickFeed({ picks, parlays = [], empty, showName, history = false
   useEffect(() => { scrollRef.current?.scrollTo({ top: 0 }) }, [filter])
   // Singles and parlays share one feed, newest first (singles keep the server's order when there are no parlays).
   const items = useMemo(() => {
-    const all = [...picks.map((pick) => ({ kind: "pick" as const, pick, at: pick.acceptedAt, status: pick.status })), ...stackParlays(parlays).map((parlay) => ({ kind: "parlay" as const, parlay, at: parlay.acceptedAt, status: parlay.status }))]
+    const all = [...picks.map((pick) => ({ kind: "pick" as const, pick, at: pick.acceptedAt, status: recordResult(pick) })), ...stackParlays(parlays).map((parlay) => ({ kind: "parlay" as const, parlay, at: parlay.acceptedAt, status: recordResult(parlay) }))]
     if (history) return all.sort((a, b) => Number(b.status === "open") - Number(a.status === "open") || Date.parse(b.at) - Date.parse(a.at))
     return parlays.length ? all.sort((a, b) => Date.parse(b.at) - Date.parse(a.at)) : all
   }, [picks, parlays, history])
@@ -412,7 +414,7 @@ export function PickFeed({ picks, parlays = [], empty, showName, history = false
           ))}
         </div>
         {won + lost > 0 ? (
-          <span className="sl-hit" title="Share of settled picks that won">
+          <span className="sl-hit" title="Share of decided picks that won, including profitable and break-even cash-outs">
             <TrendingUp aria-hidden /> {Math.round((won / (won + lost)) * 100)}% hit rate
           </span>
         ) : null}
@@ -440,7 +442,7 @@ export function LeaguePulse({ leaguePicks: singles, parlays }: { leaguePicks: Pi
   // Players are keyed by name here; their profile photo rides along on their picks.
   const imageOf = useMemo(() => new Map(singles.flatMap((p) => (p.name && p.image ? [[p.name, p.image] as const] : []))), [singles])
   const done = leaguePicks.filter(settled)
-  const wins = done.filter((p) => p.status === "won")
+  const wins = done.filter((p) => recordResult(p) === "won")
   const singleWins = wins.filter((p) => p.market.kind !== "parlay")
   const rate = done.length ? wins.length / done.length : 0
   const biggest = singleWins.reduce<PickRow | null>((b, p) => (b === null || (p.payout ?? 0) - p.stake > (b.payout ?? 0) - b.stake ? p : b), null)
