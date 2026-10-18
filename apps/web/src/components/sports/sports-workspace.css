@@ -932,3 +932,39 @@
 .sp-live-card .sp-line-odds { flex: none; min-width: 92px; text-align: right; font-variant-numeric: tabular-nums; }
 .sp-live-card .sp-live-side { min-height: 72px; }
 .sp-live-footer { min-height: 22px; }
+
+/* ==== Phones (<=700px): league header and stat strip, compact so Open lines sits near the top of the first screen ==== */
+.sp-sub-short { display: none; }
+@media (max-width: 700px) {
+  /* Header: title + Invite on one row, one-line meta, icon-only Pick limits */
+  .fw-play-space[data-play-world="sports"] > .fw-head { gap: 2px 8px; padding: 0 0 8px; }
+  .fw-play-space[data-play-world="sports"] > .fw-head .fw-art { width: 30px; height: 30px; border-radius: 9px; }
+  .peerfolio-main .fw-play-space[data-play-world="sports"] > .fw-head h1 { font-size: 21px; line-height: 24px; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fw-play-space[data-play-world="sports"] > .fw-head > .fw-identity { min-width: 0; gap: 8px; }
+  .fw-play-space[data-play-world="sports"] > .fw-head > .fw-identity > div { min-width: 0; }
+  .fw-play-space[data-play-world="sports"] > .fw-head > .fw-meta { flex-wrap: nowrap; overflow: hidden; align-items: center; white-space: nowrap; min-width: 0; padding-left: 38px; }
+  .fw-play-space[data-play-world="sports"] > .fw-head .fw-meta li { flex: none; font-size: 10.5px; line-height: 14px; }
+  .fw-play-space[data-play-world="sports"] > .fw-head .fw-meta li + li::before { margin: 0 6px; }
+  .fw-play-space[data-play-world="sports"] > .fw-head .fw-meta li svg, .fw-play-space[data-play-world="sports"] > .fw-head .fw-meta li img { width: 14px; height: 14px; }
+  .fw-play-space[data-play-world="sports"] > .fw-head > .fw-actions { gap: 6px; }
+  .fw-play-space[data-play-world="sports"] .fw-head .fw-invite { height: 32px; min-width: 0; padding: 0 9px 0 3px; }
+  .fw-play-space[data-play-world="sports"] .sp-invite-mark { width: 24px; height: 24px; }
+  .fw-play-space[data-play-world="sports"] .fw-head .sp-limits-btn { position: relative; width: 32px; height: 32px; padding: 0; justify-content: center; }
+  .fw-play-space[data-play-world="sports"] .fw-head .sp-limits-btn > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+  /* Stats: one strip of four small cells */
+  .fw-play-space[data-play-world="sports"] .fw-scoreboard.sp-scoreboard { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .fw-play-space[data-play-world="sports"] .sp-scoreboard .fw-stat { position: relative; padding: 8px 4px 8px 9px; min-width: 0; border-top: 0; border-left: 0; border-right: 1px solid var(--fw-hair); }
+  .fw-play-space[data-play-world="sports"] .sp-scoreboard .fw-stat:nth-child(2) { border-right: 1px solid var(--fw-hair); }
+  .fw-play-space[data-play-world="sports"] .sp-scoreboard .fw-stat:nth-child(n+3) { border-top: 0; }
+  .fw-play-space[data-play-world="sports"] .sp-scoreboard .fw-stat:last-child { border-right: 0; }
+  .fw-play-space[data-play-world="sports"] .sp-scoreboard .fw-stat > dt { gap: 0; min-width: 0; font: 500 8.5px/12px var(--fw-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--fw-fg3); white-space: nowrap; }
+  .fw-play-space[data-play-world="sports"] .sp-scoreboard .fw-stat-ic { display: none; }
+  .fw-play-space[data-play-world="sports"] .sp-scoreboard .fw-stat > dt .tip-info { margin: -3px -3px -3px 1px; }
+  .fw-play-space[data-play-world="sports"] .sp-scoreboard .fw-figure { margin: 1px 0 0; font-size: 19px; line-height: 23px; white-space: nowrap; }
+  .fw-play-space[data-play-world="sports"] .sp-scoreboard .fw-figure small { font-size: 10px; margin-left: 2px; }
+  .fw-play-space[data-play-world="sports"] .sp-scoreboard .fw-sub { min-height: 0; font-size: 10.5px; line-height: 14px; white-space: nowrap; }
+  .fw-play-space[data-play-world="sports"] .sp-scoreboard .fw-stat[data-tone="value"] .fw-sub { display: block; }
+  .fw-play-space[data-play-world="sports"] .sp-scoreboard .sp-sub-short { display: inline; }
+  .fw-play-space[data-play-world="sports"] .sp-scoreboard .sp-sub-full { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}

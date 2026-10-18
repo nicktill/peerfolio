@@ -78,6 +78,16 @@ function statsByName(leaguePicks: PickRow[]): Map<string, Stats> {
   return out
 }
 
+/** Stat caption: the full sentence everywhere, a one-word form on phones (the full text stays for screen readers). */
+function Sub({ children, short, tone }: { children: React.ReactNode; short: string; tone?: string }) {
+  return (
+    <span className="fw-sub" data-tone={tone}>
+      <span className="sp-sub-full">{children}</span>
+      <span className="sp-sub-short" aria-hidden>{short}</span>
+    </span>
+  )
+}
+
 export function LeagueHero({
   league,
   standings,
@@ -137,25 +147,25 @@ export function LeagueHero({
             #{rank}
             <small>of {standings.length}</small>
           </span>
-          <span className="fw-sub">{rank === 1 ? "You're leading the league" : leader ? (gap > 0 ? `${credits(gap)} behind ${leader.name.split(" ")[0]}` : `Level with ${leader.name.split(" ")[0]}`) : ""}</span>
+          <Sub short={rank === 1 ? "Leading" : gap > 0 ? `−${credits(gap)}` : "Level"}>{rank === 1 ? "You're leading the league" : leader ? (gap > 0 ? `${credits(gap)} behind ${leader.name.split(" ")[0]}` : `Level with ${leader.name.split(" ")[0]}`) : ""}</Sub>
         </Stat>
         <Stat label={<>Cash <InfoTip text="Your play-money balance. Nothing real is at stake." label="About cash" /></>} icon={<Wallet />} tone="value">
           <span className="fw-figure numeric">
             <AnimatedNumber value={you.credits} format={credits} countUp={`sl-credits-${league.name}`} />
           </span>
-          <span className="fw-sub" data-tone={delta > 0 ? "up" : delta < 0 ? "down" : "flat"}>
+          <Sub tone={delta > 0 ? "up" : delta < 0 ? "down" : "flat"} short={delta === 0 ? "Even" : signed(delta)}>
             {delta === 0 ? "Even with the start" : <><b>{signed(delta)}</b> since the start</>}
-          </span>
+          </Sub>
         </Stat>
         <Stat label={<>At risk <InfoTip text="Cash staked on picks that haven't settled yet." label="About at risk" /></>} icon={<Target />} tone="cash">
           <span className="fw-figure numeric">{credits(atRisk)}</span>
-          <span className="fw-sub">{openCount === 0 ? "No open picks" : `${openCount} open ${openCount === 1 ? "pick" : "picks"}`}</span>
+          <Sub short={openCount === 0 ? "None open" : `${openCount} open`}>{openCount === 0 ? "No open picks" : `${openCount} open ${openCount === 1 ? "pick" : "picks"}`}</Sub>
         </Stat>
         <Stat label="Your record" icon={<TrendingUp />} tone="return">
           <span className="fw-figure numeric">
             {mine?.won ?? 0}–{mine?.lost ?? 0}
           </span>
-          <span className="fw-sub">{hit === null ? "No settled picks yet" : `${hit}% hit rate`}</span>
+          <Sub short={hit === null ? "No picks yet" : `${hit}% hit`}>{hit === null ? "No settled picks yet" : `${hit}% hit rate`}</Sub>
         </Stat>
       </dl>
     </>
