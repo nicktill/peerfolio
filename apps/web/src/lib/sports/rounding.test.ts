@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 import { americanToDecimal, totalReturn } from "./odds.ts"
+import { winOn100 } from "./format.ts"
 import { parlayQuote } from "./parlay-math.ts"
 import { parlayReturn } from "./parlay.ts"
 
@@ -21,4 +22,12 @@ test("single, parlay and slip preview round the same way", () => {
       assert.equal(parlayQuote([price], stake)!.totalReturn, totalReturn(stake, price))
     }
   }
+})
+
+
+test("extreme live odds display reflects whole-credit settlement", () => {
+  assert.equal(totalReturn(100, -39900), 100)
+  assert.equal(winOn100(-39900), 0)
+  assert.equal(totalReturn(100, 13230), 13330)
+  assert.equal(winOn100(13230), 13230)
 })
