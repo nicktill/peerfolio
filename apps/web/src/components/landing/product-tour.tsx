@@ -219,7 +219,7 @@ export function ProductTour() {
               <StackedStep key={t.id} t={t} i={i} />
             ))}
           </div>
-          <p className="pf-muted mt-12 text-sm">Also: a News tab with the market recap, movers and earnings week, an Ask Peerfolio assistant, and Sports leagues (beta) for play-money picks with friends.</p>
+          <p className="pf-muted mt-12 text-sm">Also: a News tab with the market recap, movers and earnings week, an Ask Peerfolio assistant, and Sports leagues for play-money picks with friends.</p>
         </div>
       </section>
     )
@@ -281,7 +281,7 @@ export function ProductTour() {
               ))}
         </div>
       </div>
-      <p className="pf-tour-foot pf-muted mt-8 text-sm">Also: a News tab with the market recap, movers and earnings week, an Ask Peerfolio assistant, and Sports leagues (beta) for play-money picks with friends.</p>
+      <p className="pf-tour-foot pf-muted mt-8 text-sm">Also: a News tab with the market recap, movers and earnings week, an Ask Peerfolio assistant, and Sports leagues for play-money picks with friends.</p>
     </div>
   )
 

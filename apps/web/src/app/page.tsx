@@ -39,7 +39,7 @@ const structuredData = {
 const RIVALS = ["friends", "the group chat", "your roommates", "your coworkers", "your dad"] as const
 
 const STEPS = [
-  { title: "Sign in", body: "Add what you hold, or start with a fantasy or sports league (beta)." },
+  { title: "Sign in", body: "Add what you hold, or start with a fantasy or sports league." },
   { title: "Invite your friends", body: "Start a league and share the link. It takes about ten seconds." },
   { title: "See who's ahead", body: "Investing leagues rank everyone on time-weighted return, updated daily. Play-money leagues rank on virtual cash." },
 ]
@@ -68,7 +68,7 @@ export default async function HomePage() {
               <RotatingWord prefix="with " words={RIVALS} />
             </h1>
             <p style={revealStyle(1)} className="reveal pf-sub mx-auto mt-4 max-w-2xl text-balance text-base leading-7 sm:text-[17px]">
-              <span className="hidden sm:inline">Follow your portfolio, race friends on time-weighted returns, or play fantasy investing and sports picks (beta) with play money. Friends see how well you invest, never how much.</span>
+              <span className="hidden sm:inline">Follow your portfolio, race friends on time-weighted returns, or play fantasy investing and sports picks with play money. Friends see how well you invest, never how much.</span>
               <span className="sm:hidden">Leagues ranked on returns, plus play-money fantasy and sports picks. Friends see how well you invest, never how much.</span>
             </p>
             <div style={revealStyle(2)} className="reveal mt-6 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">

@@ -23,8 +23,7 @@ export default function TermsPage() {
       </p>
       <p>
         Fantasy and Sports leagues use virtual play money only. Play money has no cash value, cannot be bought, sold,
-        deposited or withdrawn, and nothing in Peerfolio is real-money betting or gambling. Sports is in beta and may be
-        limited to some users.
+        deposited or withdrawn, and nothing in Peerfolio is real-money betting or gambling.
       </p>
       <p>
         <strong>Peerfolio is not a broker, bank or investment adviser, and nothing in it is financial advice.</strong>{" "}

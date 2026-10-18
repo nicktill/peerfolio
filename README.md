@@ -13,7 +13,7 @@ and dollar amounts. Peerfolio is built on one engine with several surfaces:
 - **Leagues** — small groups of friends joined by invite link, ranked on return.
 - **Fantasy** — play-money leagues where everyone starts with the same cash,
   picks stocks and races. Nothing here touches a real balance.
-- **Sports (beta)** — play-money leagues on real games: moneyline, spread,
+- **Sports** — play-money leagues on real games: moneyline, spread,
   total and player-prop picks, parlays, live in-game picks at live odds,
   leaderboards and invite links. Virtual cash only; this is not real-money
   betting or gambling.
