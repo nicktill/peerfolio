@@ -1319,6 +1319,68 @@ export const sportsLedger = pgTable(
   (t) => [uniqueIndex("sports_ledger_key_idx").on(t.idempotencyKey), index("sports_ledger_member_idx").on(t.memberId)],
 )
 
+/**
+ * Parlays: 2 to 6 legs on different events, paid only if every non-voided leg wins. The stake leaves the balance at
+ * acceptance (ledger key parlay:<id>:place) and the payout comes back once (parlay:<id>:settle). Single-pick tables are untouched.
+ */
+export const sportsParlays = pgTable(
+  "sports_parlays",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    leagueId: uuid("league_id")
+      .notNull()
+      .references(() => sportsLeagues.id, { onDelete: "cascade" }),
+    memberId: uuid("member_id")
+      .notNull()
+      .references(() => sportsMembers.id, { onDelete: "cascade" }),
+    stake: integer("stake").notNull(),
+    /** Product of the legs' decimal odds at acceptance. */
+    combinedDecimal: doublePrecision("combined_decimal").notNull(),
+    /** floor(stake x combinedDecimal), stake included, fixed at acceptance. */
+    totalReturn: integer("total_return").notNull(),
+    /** open | won | lost | void */
+    status: text("status").notNull().default("open"),
+    payout: integer("payout"),
+    requestId: text("request_id").notNull(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }).notNull().defaultNow(),
+    settledAt: timestamp("settled_at", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("sports_parlays_request_idx").on(t.memberId, t.requestId),
+    index("sports_parlays_league_idx").on(t.leagueId, t.acceptedAt),
+    index("sports_parlays_member_idx").on(t.memberId, t.status),
+    check("sports_parlays_stake_pos", sql`${t.stake} > 0`),
+  ],
+)
+
+export const sportsParlayLegs = pgTable(
+  "sports_parlay_legs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    parlayId: uuid("parlay_id")
+      .notNull()
+      .references(() => sportsParlays.id, { onDelete: "cascade" }),
+    lineId: uuid("line_id")
+      .notNull()
+      .references(() => sportsLines.id),
+    marketId: uuid("market_id")
+      .notNull()
+      .references(() => sportsMarkets.id),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => sportsEvents.id),
+    selection: text("selection").notNull(),
+    price: integer("price").notNull(),
+    point: doublePrecision("point"),
+    /** open | won | lost | push | void */
+    status: text("status").notNull().default("open"),
+  },
+  (t) => [
+    uniqueIndex("sports_parlay_legs_event_idx").on(t.parlayId, t.eventId),
+    index("sports_parlay_legs_market_idx").on(t.marketId, t.status),
+  ],
+)
+
 /** Odds-provider credits spent per UTC day (see lib/sports/credit-budget.ts). */
 export const sportsProviderUsage = pgTable(
   "sports_provider_usage",
