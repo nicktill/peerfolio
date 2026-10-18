@@ -10,7 +10,7 @@ import { InfoTip } from "@web/components/ui/tip"
 import { Stat } from "@web/components/fantasy/balance-cards"
 import { PlayerBadge, TeamBadge } from "@web/components/sports/team-badge"
 import { eventTitle, formatCredits, formatOdds, marketTitle, openPickPhase, pickSentence, sideTeam, SPORT_LABEL, signedCredits, type DisplayMarket } from "@web/lib/sports/format"
-import { teamLook } from "@web/lib/sports/teams"
+import { marketSelectionColor } from "@web/lib/sports/matchup-colors"
 import { Avatar, initialsFor } from "@web/components/ui/avatar"
 import { LiveGameStrip } from "@web/components/sports/live-game"
 
@@ -281,7 +281,7 @@ export function PickTicket({ pick, showName }: { pick: PickRow; showName?: boole
   const r = phase ? { ...base, label: phase.label } : base
   const net = pick.payout == null ? null : pick.payout - pick.stake
   const side = sideTeam(pick.event, pick.market.kind, pick.selection)
-  const color = side ? teamLook(pick.event.sport, side).color : undefined
+  const color = side ? marketSelectionColor(pick.event, pick.market.kind, pick.selection) : undefined
   return (
     <li className="sl-ticket" data-status={pick.status} data-celebrate={celebrate || undefined} style={color ? ({ "--tc": color } as React.CSSProperties) : undefined}>
       <span className="sl-ticket-mark">{side ? <TeamBadge sport={pick.event.sport} name={side} size={36} /> : pick.market.player ? <PlayerBadge sport={pick.event.sport} name={pick.market.player} size={36} /> : <span className="sl-prop"><Target aria-hidden /></span>}</span>

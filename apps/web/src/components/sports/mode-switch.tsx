@@ -4,6 +4,10 @@ import "@web/components/sports/mode-switch.css"
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { TickerLogo } from "@web/components/ui/ticker-logo"
+import { useApi } from "@web/lib/use-api"
+import { sampleActive } from "@web/lib/sample/fixtures"
+import { isTradingSession } from "@web/lib/market-hours"
+import type { MarketBoard } from "@web/lib/news-market"
 import dynamic from "next/dynamic"
 import { useSportsAccess, useSportsEnabled } from "@web/components/sports/use-sports-enabled"
 
@@ -157,7 +161,7 @@ function FloorArt() {
   )
 }
 
-/** Sports: stadium lights sweeping over field lines, with a flickering scoreboard. */
+/** Sports: stadium lights sweeping over field lines, with the current scoreboard. */
 function ArenaArt() {
   return (
     <>
@@ -245,42 +249,37 @@ function Typed({ text }: { text: string }) {
   )
 }
 
-const SYMBOLS = ["AAPL", "META", "NVDA", "TSLA", "MSFT", "AMZN", "COIN", "GOOGL", "NFLX", "SPY"]
+const INDEX_SYMBOLS = ["SPY", "QQQ", "DIA", "IWM"]
 const fmt = (n: number) => `${n >= 0 ? "+" : "\u2212"}${Math.abs(n).toFixed(1)}%`
 
-/** Company bubbles drifting over the Stocks panel; each one swaps company and ticks its move every few seconds. */
+/** Reuse the News page's shared, cached ETF quotes; no per-symbol provider calls. */
 function FloorBubbles() {
-  const [slots, setSlots] = useState(() => [0, 3, 6, 1].map((i, k) => ({ sym: SYMBOLS[i]!, pct: [2.4, -1.2, 5.1, 0.9][k]! })))
+  const [sample, setSample] = useState<boolean | null>(null)
+  const [now, setNow] = useState<Date | null>(null)
   useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
-    let tick = 0
-    const id = setInterval(() => {
-      tick++
-      setSlots((cur) =>
-        cur.map((s, k) => {
-          // Each bubble swaps company on its own beat; in between its percentage just wobbles.
-          if ((tick + k * 2) % 8 === 0) {
-            const used = new Set(cur.map((c) => c.sym))
-            const pool = SYMBOLS.filter((x) => !used.has(x))
-            return { sym: pool[Math.floor(Math.random() * pool.length)] ?? s.sym, pct: Math.round((Math.random() * 10 - 3.5) * 10) / 10 }
-          }
-          return { ...s, pct: Math.round((s.pct + (Math.random() - 0.5) * 1.4) * 10) / 10 }
-        }),
-      )
-    }, 6000)
-    return () => clearInterval(id)
+    setSample(sampleActive())
+    setNow(new Date())
+    const clock = setInterval(() => { setNow(new Date()); setSample(sampleActive()) }, 30_000)
+    return () => clearInterval(clock)
   }, [])
+  const { data, loading } = useApi<{ board: MarketBoard | null }>(sample === false ? "/api/news/market?part=board" : null, [], { refreshMs: 5 * 60_000 })
+  const board = sample === false ? data?.board : null
+  const open = now != null && isTradingSession(now)
+  const asOf = board ? Date.parse(board.asOf) : NaN
+  const recent = now != null && Number.isFinite(asOf) && now.getTime() - asOf >= -5_000 && now.getTime() - asOf < 10 * 60_000
+  const state = sample ? "Sample" : !now ? "" : !open ? "Closed" : recent ? "Day" : loading ? "Loading" : "Delayed"
+  // Keep the existing floating design, using index ETFs rather than invented company returns.
+  const slots = board?.indexes.filter(q => q.symbol && Number.isFinite(q.day.percent)).slice(0, 4) ?? []
   return (
     <span className="fb">
-      {slots.map((s, k) => (
-        <span key={k} className="fb-bubble" data-k={k} data-down={s.pct < 0 || undefined}>
-          <span className="fb-logo" key={s.sym}>
-            <TickerLogo symbol={s.sym} size="sm" className="rounded-full" />
+      {(slots.length ? slots : INDEX_SYMBOLS.map(symbol => ({ symbol, day: null }))).map((s, k) => (
+        <span key={s.symbol} className="fb-bubble" data-k={k} data-down={s.day != null && s.day.percent < 0 || undefined} title={board ? `${s.symbol} · ${open ? "Regular session" : "Market closed"} · session ${board.session} · as of ${board.asOf}` : state}>
+          <span className="fb-logo">
+            <TickerLogo symbol={s.symbol!} size="sm" className="rounded-full" />
           </span>
-          <b>{s.sym}</b>
-          <em className="numeric">
-            <Typed text={fmt(s.pct)} />
-          </em>
+          <b>{s.symbol}</b>
+          {s.day ? <em className="numeric"><Typed text={fmt(s.day.percent)} /></em> : null}
+          <small className="fb-status">{state}</small>
         </span>
       ))}
     </span>

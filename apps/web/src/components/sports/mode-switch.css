@@ -291,3 +291,25 @@
 .sp-world-sk .sp-world-copy .pf-sk { max-width: 100%; }
 /* Light theme used to leave the collapsed card's one-liner showing (clipped at the edge). */
 :root:not(.dark) .sp-world:not([aria-selected="true"]) .sp-world-copy em { opacity: 0; visibility: hidden; }
+
+/* Real snapshot labels remain quiet inside the original floating pills. */
+.am-card { gap: 6px; }
+.am-card b { min-width: 18px; font-size: 13px; }
+.am-status, .fb-status { font: 500 8px/12px var(--fw-sans); color: rgb(241 244 242 / .65); white-space: nowrap; }
+.am-status { padding-left: 5px; border-left: 1px solid rgb(241 244 242 / .15); }
+.am-status[data-live] { color: #79d9a5; }
+.am-status[data-live]::before { content: ""; display: inline-block; width: 4px; height: 4px; border-radius: 50%; margin-right: 4px; background: currentColor; vertical-align: 1px; }
+.am-empty { font: 500 10px/18px var(--fw-sans); }
+.fb-status { display: block; }
+.fb-bubble { gap: 6px; }
+.fb-bubble em { min-width: 0; }
+:root:not(.dark) .am-status, :root:not(.dark) .fb-status { color: var(--fw-fg3); }
+:root:not(.dark) .am-status { border-left-color: var(--fw-hair); }
+:root:not(.dark) .am-status[data-live] { color: #21734b; }
+@media (max-width: 760px) {
+  .sp-stage .sp-world[data-world] .am-card[data-k="0"] { gap: 4px; max-width: none; }
+  .sp-stage .am-card i { display: none; }
+  .sp-stage .am-card b { min-width: 14px; font-size: 12px; }
+  .sp-stage .fb-bubble { flex-wrap: nowrap; }
+  .sp-stage .fb-status { font-size: 7.5px; }
+}

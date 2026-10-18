@@ -2,52 +2,47 @@
 
 import { useEffect, useState } from "react"
 import { TeamBadge } from "@web/components/sports/team-badge"
+import { useApi } from "@web/lib/use-api"
+import { sampleActive } from "@web/lib/sample/fixtures"
+import type { ScoreGame } from "@web/lib/sports/scoreboard"
 
-function Typed({ text }: { text: string }) {
-  return (
-    <span key={text} className="roll">
-      {text}
-    </span>
-  )
-}
+const SCOREBOARD = "/api/sports/scoreboard?sports=cfb,mlb,mls,nba,nfl,nhl,tennis"
+const time = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" }) + " ET"
 
-const MATCHUPS: { sport: string; a: string; b: string; start: [number, number]; step: number[] }[] = [
-  { sport: "nfl", a: "Philadelphia Eagles", b: "Carolina Panthers", start: [24, 17], step: [3, 7] },
-  { sport: "nhl", a: "Boston Bruins", b: "Toronto Maple Leafs", start: [3, 2], step: [1] },
-  { sport: "mlb", a: "Los Angeles Dodgers", b: "New York Yankees", start: [5, 4], step: [1, 2] },
-]
-
-/** Teams facing off over the Sports panel: logos, a score that changes now and then, and a gentle float. */
+/** Real scoreboard snapshots. Motion decorates the pills; scores only change when ESPN reports them. */
 export function ArenaMatchups() {
-  const [scores, setScores] = useState(() => MATCHUPS.map((m) => [...m.start]))
-  const [flash, setFlash] = useState<{ i: number; side: number } | null>(null)
+  const { data, error, loading } = useApi<{ games: ScoreGame[]; failedSports: string[] }>(SCOREBOARD, [], { refreshMs: 30_000 })
+  const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
-    const id = setInterval(() => {
-      const i = Math.floor(Math.random() * MATCHUPS.length)
-      const side = Math.random() < 0.5 ? 0 : 1
-      const step = MATCHUPS[i]!.step[Math.floor(Math.random() * MATCHUPS[i]!.step.length)]!
-      setScores((cur) => cur.map((s, k) => (k === i ? s.map((v, j) => (j === side ? v + step : v)) : s)))
-      setFlash({ i, side })
-      setTimeout(() => setFlash(null), 1200)
-    }, 3200)
-    return () => clearInterval(id)
+    const timer = setInterval(() => setNow(Date.now()), 10_000)
+    return () => clearInterval(timer)
   }, [])
+  const games = data?.games ?? []
+  const live = games.filter(g => g.status === "live")
+  const finals = games.filter(g => g.status === "final").sort((a,b) => Date.parse(b.startsAt) - Date.parse(a.startsAt))
+  const upcoming = games.filter(g => g.status === "upcoming" && Date.parse(g.startsAt) > now).sort((a,b) => Date.parse(a.startsAt) - Date.parse(b.startsAt))
+  // Prefer games happening now, then recent finals, then scheduled games. Never invent matchups.
+  const shown = [...live, ...finals, ...upcoming].slice(0, 2)
+  if (!shown.length) return <span className="am"><span className="am-card am-empty" data-k="0">{loading ? "Checking scores…" : error || data?.failedSports.length ? "Scores unavailable" : "No games scheduled"}</span></span>
   return (
     <span className="am">
-      {MATCHUPS.map((m, i) => (
-        <span key={i} className="am-card" data-k={i}>
-          <TeamBadge sport={m.sport} name={m.a} size={28} bare />
-          <b className="numeric" data-hot={(flash?.i === i && flash.side === 0) || undefined}>
-            <Typed text={String(scores[i]![0])} />
-          </b>
-          <i>vs</i>
-          <b className="numeric" data-hot={(flash?.i === i && flash.side === 1) || undefined}>
-            <Typed text={String(scores[i]![1])} />
-          </b>
-          <TeamBadge sport={m.sport} name={m.b} size={28} bare />
-        </span>
-      ))}
+      {shown.map((g, i) => {
+        const age = now - Date.parse(g.fetchedAt)
+        const fresh = Number.isFinite(age) && age >= -5_000 && age < 120_000
+        const sample = sampleActive()
+        const label = sample ? "Sample" : g.status === "live" ? fresh ? "Live" : "Delayed" : g.status === "final" ? "Final" : time(g.startsAt)
+        const scored = g.status === "live" || g.status === "final"
+        return (
+          <span key={`${g.sport}:${g.id}`} className="am-card" data-k={i} title={`${g.away} ${g.sport === "tennis" ? "vs" : "at"} ${g.home} · ${g.detail} · ${label}`}>
+            <TeamBadge sport={g.sport} name={g.away} size={24} bare />
+            {scored ? <b className="numeric"><span key={g.awayScore} className="roll">{g.awayScore ?? "–"}</span></b> : null}
+            <i>vs</i>
+            {scored ? <b className="numeric"><span key={g.homeScore} className="roll">{g.homeScore ?? "–"}</span></b> : null}
+            <TeamBadge sport={g.sport} name={g.home} size={24} bare />
+            <small className="am-status" data-live={g.status === "live" && fresh && !sample || undefined}>{label}</small>
+          </span>
+        )
+      })}
     </span>
   )
 }
