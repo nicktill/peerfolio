@@ -9,6 +9,7 @@ import { EmptyScene } from "@web/components/ui/empty-scene"
 import { InfoTip } from "@web/components/ui/tip"
 import { Stat } from "@web/components/fantasy/balance-cards"
 import { PlayerBadge, TeamBadge } from "@web/components/sports/team-badge"
+import { toWin } from "@web/lib/sports/live/position"
 import { eventTitle, formatCredits, formatOdds, marketTitle, openPickPhase, pickSentence, sideTeam, SPORT_LABEL, signedCredits, type DisplayMarket } from "@web/lib/sports/format"
 import { marketSelectionColor } from "@web/lib/sports/matchup-colors"
 import { Avatar, initialsFor } from "@web/components/ui/avatar"
@@ -292,7 +293,16 @@ export function PickTicket({ pick, showName }: { pick: PickRow; showName?: boole
           {eventTitle(pick.event)} · {marketTitle(m)}
         </span>
         <span className="numeric sl-ticket-money">
-          {credits(pick.stake)} at {formatOdds(pick.price)} → {pick.payout == null ? `${credits(pick.totalReturn)} if it wins` : `paid ${credits(pick.payout)}`}
+          <span>Risk <b>{credits(pick.stake)}</b></span>
+          <i aria-hidden>·</i>
+          {pick.payout == null ? (
+            <span>To win <b>{credits(toWin(pick))}</b></span>
+          ) : pick.payout > 0 ? (
+            <span>Paid <b>{credits(pick.payout)}</b></span>
+          ) : (
+            <span>No payout</span>
+          )}
+          <em className="sl-price" title="Price accepted">{formatOdds(pick.price)}</em>
         </span>
       </div>
       <div className="sl-ticket-side">
@@ -307,7 +317,7 @@ export function PickTicket({ pick, showName }: { pick: PickRow; showName?: boole
         ) : null}
       </div>
       {/* Only while the game is in progress. View only: the pick above keeps its accepted price and payout. */}
-      <LiveGameStrip eventId={pick.event.id} sport={pick.event.sport} home={pick.event.home} away={pick.event.away} active={phase?.phase === "in_progress"} />
+      <LiveGameStrip eventId={pick.event.id} sport={pick.event.sport} home={pick.event.home} away={pick.event.away} active={phase?.phase === "in_progress"} pick={pick.status === "open" ? { stake: pick.stake, totalReturn: pick.totalReturn, kind: pick.market.kind, selection: pick.selection } : undefined} />
     </li>
   )
 }
