@@ -67,11 +67,12 @@ function LiveCard({ g, now, tracked, enableAdminTest, livePick }: { g: ScoreGame
   </article>
 }
 
-export function ScoreboardGames({ games, tracked, now, loading, failed, enableAdminTest = false, livePick }: { games: ScoreGame[]; tracked: Tracked[]; now: number; loading: boolean; failed: boolean; enableAdminTest?: boolean; livePick?: LivePickConfig }) {
+export function ScoreboardGames({ games, tracked, now, loading, failed, enableAdminTest = false, livePick, query }: { query?: string; games: ScoreGame[]; tracked: Tracked[]; now: number; loading: boolean; failed: boolean; enableAdminTest?: boolean; livePick?: LivePickConfig }) {
   const live = games.filter(g => g.status === 'live')
   // Quiet right now: show what is coming up in the next few days instead of an empty panel.
   const upcoming = games.filter(g => g.status === 'upcoming' && Date.parse(g.startsAt) > now).slice(0, UPCOMING_LIMIT)
   if (loading && !games.length) return <p className="fw-empty" role="status">Loading live games…</p>
+  if (!live.length && !upcoming.length && query) return <p className="fw-empty" role="status">No games match &ldquo;{query}&rdquo;</p>
   if (!live.length && !upcoming.length) return <p className="fw-empty" role="status">{failed ? 'Live scores are temporarily unavailable. Please try again shortly.' : 'No games scheduled in the next few days for this sport.'}</p>
   const card = (g: ScoreGame, isLive: boolean) => isLive
     ? <LiveCard key={`${g.sport}:${g.id}`} g={g} now={now} tracked={tracked.find(t => scoreboardMatch(t, [g]))} enableAdminTest={enableAdminTest} livePick={livePick} />

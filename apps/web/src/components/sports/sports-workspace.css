@@ -522,7 +522,7 @@
 .sp-tennis-mark { display: block; flex: none; }
 
 /* Open lines scroll inside the panel so the pick slip stays in view; cards are tighter. */
-.sp-open-lines .sp-scroll { max-height: min(80vh, 820px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding-right: 4px; margin-right: -4px; }
+.sp-open-lines .sp-scroll { max-height: min(86vh, 1000px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding-right: 4px; margin-right: -4px; }
 .sp-open-lines .sp-day { position: sticky; top: 0; z-index: 2; background: var(--fw-panel); padding: 8px 0 4px; }
 .sp-open-lines .sp-game { padding: 10px 12px; margin: 6px 0 8px; }
 .sp-open-lines .sp-game-head { margin-bottom: 8px; }
@@ -530,7 +530,7 @@
 .sp-open-lines .sp-team-lines .sp-line { min-height: 60px; padding: 8px 12px; }
 .sp-open-lines .sp-line[data-accent]:not([data-team]) { min-height: 54px; padding: 8px 12px; }
 @media (max-width: 700px) {
-  .sp-open-lines .sp-scroll { max-height: 74vh; }
+  .sp-open-lines .sp-scroll { max-height: 80vh; }
   .sp-open-lines .sp-team-lines .sp-line { min-height: 58px; }
 }
 
@@ -565,3 +565,28 @@
 .sp-open-lines .sp-line[data-accent][aria-pressed="true"]::after { opacity: .9; }
 @keyframes sp-hue-drift { from { transform: translate3d(-8%, -6%, 0) scale(.9); } to { transform: translate3d(10%, 8%, 0) scale(1.15); } }
 @media (prefers-reduced-motion: reduce) { .sp-open-lines .sp-line[data-accent]::after { animation: none; } }
+
+/* Search: an icon pinned at the right end of the sport filter row that expands into a compact input. */
+.sp-filter-bar { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.sp-open-lines .sp-filter-bar .sp-filter { flex: 1 1 0; width: auto; min-width: 0; }
+.sp-filter-gap { flex: 1; }
+.sp-search-btn { display: inline-grid; place-items: center; flex: none; width: 36px; height: 36px; margin-bottom: 4px; border: 1px solid transparent; border-radius: 8px; color: var(--fw-fg3); background: var(--fw-panel); transition: color .15s ease, background .15s ease; }
+.sp-search-btn:hover { color: var(--fw-fg); background: var(--fw-raise); }
+.sp-search-btn svg, .sp-search-icon, .sp-search-clear svg { width: 15px; height: 15px; }
+.sp-search { position: relative; display: flex; align-items: center; flex: 0 1 260px; min-width: 150px; height: 36px; margin-bottom: 4px; border: 1px solid var(--fw-hair2); border-radius: 8px; background: var(--fw-bg); }
+.sp-search:focus-within { border-color: var(--fw-fg3); }
+.sp-search-icon { position: absolute; left: 10px; color: var(--fw-fg3); pointer-events: none; }
+.sp-search input { flex: 1; min-width: 0; height: 100%; padding: 0 4px 0 31px; border: 0; outline: 0; background: transparent; color: var(--fw-fg); font: 400 13px var(--fw-sans); }
+.sp-search input::-webkit-search-cancel-button { display: none; }
+.sp-search-clear { display: inline-grid; place-items: center; flex: none; width: 28px; height: 28px; margin-right: 2px; border-radius: 6px; color: var(--fw-fg3); }
+.sp-search-clear:hover { color: var(--fw-fg); background: var(--fw-raise); }
+.sp-search-done { display: none; flex: none; padding: 0 10px; height: 28px; font: 500 12px var(--fw-sans); color: var(--fw-fg2); }
+.sp-search-btn:focus-visible, .sp-search-clear:focus-visible, .sp-search-done:focus-visible { outline: 2px solid var(--fw-fg3); outline-offset: 1px; }
+@media (max-width: 700px) {
+  .sp-search-btn { width: 40px; height: 40px; }
+  .sp-search { height: 40px; flex: 1 1 auto; }
+  .sp-search input { font-size: 16px; }
+  .sp-search-done { display: inline-block; }
+  /* The input needs the room: the sport chips scroll beside it. */
+  .sp-filter-bar[data-search] .sp-filter { flex: 0 1 96px; }
+}
