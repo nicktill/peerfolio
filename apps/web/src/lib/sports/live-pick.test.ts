@@ -9,7 +9,7 @@ import type { LiveView } from './live/view.ts'
 
 const NOW = Date.parse('2026-10-18T00:00:00Z')
 const view = (now = NOW): LiveView => ({ eventId: 'g', status: 'live', score: { home: 2, away: 1 }, period: 'P2', clock: '10:00', stateAsOf: new Date(now - 1000).toISOString(), stateFreshness: 'live', serverTime: new Date(now).toISOString(), odds: { status: 'ok', homeProb: 0.6, awayProb: 0.4, drawProb: null, source: 'polymarket', asOf: new Date(now - 1000).toISOString(), ageMs: 1000, freshness: 'live', confidence: 'high', mismatch: null } })
-const limits = { ...DEFAULT_LIMITS, maxStakePctOfStart: Math.min(10, LIVE_PICK.maxStakePct), maxReturnPctOfStart: LIVE_PICK.maxReturnPctOfStart, live: true }
+const limits = { ...DEFAULT_LIMITS, maxStakePctOfStart: Infinity, maxExposurePctOfStart: Infinity, maxReturnPctOfStart: Infinity, live: true }
 const ctx = (over: Partial<PickContext> = {}): PickContext => ({
   now: new Date(NOW), market: { id: 'm', status: 'locked', lockAt: new Date(NOW - 3600_000) }, eventStatus: 'scheduled', eventStartsAt: new Date(NOW - 3600_000),
   line: { id: 'l', marketId: 'm', price: -150, point: null }, member: { credits: 1000 }, league: { startingCredits: 1000 }, picksOnMarket: 0, openPickCount: 0, openStakeTotal: 0, ...over,
@@ -24,7 +24,7 @@ test('a 7% live longshot can win more than the old payout cap at a valid stake',
   const context = ctx({ line: { id: 'l', marketId: 'm', price, point: null } })
   const accepted = acceptPick({ ...req(50), expectedPrice: price }, context, limits)
   assert.ok(accepted.totalReturn - accepted.stake > 500)
-  assert.throws(() => acceptPick({ ...req(51), expectedPrice: price }, context, limits), /stake|risk|maximum/i)
+  assert.doesNotThrow(() => acceptPick({ ...req(1000), expectedPrice: price }, context, limits))
 })
 
 test('live acceptance: in-progress game on a locked live market is accepted at the offered price', () => {
@@ -41,16 +41,17 @@ test('live mode still refuses unstarted, finished and open-market contexts', () 
     assert.throws(() => acceptPick(req(50), ctx(over), limits), (e: unknown) => e instanceof PickRejected && e.code === 'market_closed')
 })
 
-test('live stake is capped at 5% of starting cash and never above the league limit', () => {
-  assert.equal(liveMaxStake(1000, 10), 50); assert.equal(liveMaxStake(1000, 3), 30); assert.equal(liveMaxStake(1000, 60), 50)
-  assert.throws(() => acceptPick(req(51), ctx(), limits), (e: unknown) => e instanceof PickRejected && e.code === 'stake_too_large')
-  assert.deepEqual(liveStakeBounds(1000, 10), { min: 10, max: 50, message: 'Live picks risk 10 to 50 cash' })
+test('live stakes may use full balance, but never exceed it', () => {
+  assert.equal(liveMaxStake(1000, 10), Infinity)
+  assert.equal(liveStakeBounds(1000, 10).max, Infinity)
+  assert.doesNotThrow(() => acceptPick(req(1000), ctx(), limits))
+  assert.throws(() => acceptPick(req(1001), ctx(), limits), (e: unknown) => e instanceof PickRejected && e.code === 'insufficient_credits')
 })
 
 test('live picks count toward balance, open-pick and exposure caps', () => {
   assert.throws(() => acceptPick(req(50), ctx({ member: { credits: 40 } }), limits), (e: unknown) => e instanceof PickRejected && e.code === 'insufficient_credits')
   assert.throws(() => acceptPick(req(20), ctx({ openPickCount: 20 }), limits), (e: unknown) => e instanceof PickRejected && e.code === 'too_many_picks')
-  assert.throws(() => acceptPick(req(20), ctx({ openStakeTotal: 590 }), limits), (e: unknown) => e instanceof PickRejected && e.code === 'too_much_exposure')
+  assert.doesNotThrow(() => acceptPick(req(20), ctx({ openStakeTotal: 590 }), limits))
   assert.throws(() => acceptPick(req(20), ctx({ picksOnMarket: 1 }), limits), (e: unknown) => e instanceof PickRejected && e.code === 'already_picked')
 })
 
@@ -92,7 +93,7 @@ test('offer acceptance returns the offered price after the short delayed reread'
 test('live stake bounds replace the paper bounds', async () => {
   const offer = testOffer(view(), NOW)
   const deps = { now: () => NOW, claim: async () => true, wait: async () => {}, read: async () => view() }
-  await assert.rejects(acceptTest({ offer, selection: 'home', stake: 51, expectedPrice: offer.prices.home!, requestedAt: NOW, bounds: liveStakeBounds(1000, 10) }, deps), /Live picks risk/)
+  await assert.rejects(acceptTest({ offer, selection: 'home', stake: 9, expectedPrice: offer.prices.home!, requestedAt: NOW, bounds: liveStakeBounds(1000, 10) }, deps), /at least/)
 })
 
 test('rejection when the score, period, source, quote or status changes during the check', async () => {
