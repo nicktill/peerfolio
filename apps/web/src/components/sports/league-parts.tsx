@@ -9,12 +9,13 @@ import { EmptyScene } from "@web/components/ui/empty-scene"
 import { InfoTip } from "@web/components/ui/tip"
 import { Stat } from "@web/components/fantasy/balance-cards"
 import { PlayerBadge, TeamBadge } from "@web/components/sports/team-badge"
-import { toWin } from "@web/lib/sports/live/position"
+import { livePosition, toWin } from "@web/lib/sports/live/position"
 import { eventTitle, formatCredits, formatOdds, marketTitle, openPickPhase, pickSentence, sideTeam, SPORT_LABEL, signedCredits, type DisplayMarket } from "@web/lib/sports/format"
 import { LeagueBrand } from "@web/components/sports/league-brand"
 import { marketSelectionColor } from "@web/lib/sports/matchup-colors"
 import { Avatar, initialsFor } from "@web/components/ui/avatar"
-import { LiveGameStrip } from "@web/components/sports/live-game"
+import { LiveGameStrip, useLiveGame } from "@web/components/sports/live-game"
+import { TicketFig, TicketMoney } from "@web/components/sports/ticket-figures"
 import { ParlayTicket } from "@web/components/sports/parlay-ticket"
 import type { ParlayRow } from "@web/components/sports/parlay-types"
 
@@ -308,42 +309,50 @@ export function PickTicket({ pick, showName }: { pick: PickRow; showName?: boole
   const net = pick.payout == null ? null : pick.payout - pick.stake
   const side = sideTeam(pick.event, pick.market.kind, pick.selection)
   const color = side ? marketSelectionColor(pick.event, pick.market.kind, pick.selection) : undefined
+  const isOpen = pick.status === "open"
+  const inGame = phase?.phase === "in_progress"
+  // The live estimate is display-only (no cash-out): it never changes the accepted price or payout above.
+  const { view, elapsedMs } = useLiveGame(pick.event.id, inGame)
+  const position = isOpen ? livePosition({ stake: pick.stake, totalReturn: pick.totalReturn, kind: pick.market.kind, selection: pick.selection }, view, elapsedMs, inGame) : null
+  const plTone = position ? (position.pl > 0.5 ? "up" : position.pl < -0.5 ? "down" : undefined) : undefined
+  const netTone = net != null ? (net > 0 ? "up" : net < 0 ? "down" : undefined) : undefined
+  const odds = formatOdds(pick.price)
   return (
-    <li className="sl-ticket" data-status={pick.status} data-celebrate={celebrate || undefined} style={color ? ({ "--tc": color } as React.CSSProperties) : undefined}>
-      <span className="sl-ticket-mark">{side ? <TeamBadge sport={pick.event.sport} name={side} size={36} /> : pick.market.player ? <PlayerBadge sport={pick.event.sport} name={pick.market.player} size={36} /> : <span className="sl-prop"><Target aria-hidden /></span>}</span>
-      <div className="sl-ticket-body">
-        <b>{pickSentence(m, pick)}</b>
-        <span>
-          {showName && pick.name ? <span className="sl-picker" title={pick.you ? `${pick.name} (you)` : pick.name}><Badge name={pick.name} size={18} image={pick.image} /><span className="sr-only">{pick.name}{pick.you ? " (you)" : ""}</span></span> : null}
-          {eventTitle(pick.event)} · {marketTitle(m)}
-        </span>
-        <span className="numeric sl-ticket-money">
-          <span className="sl-risk">Risk <b>{credits(pick.stake)}</b></span>
-          <i aria-hidden>·</i>
-          {pick.payout == null ? (
-            <span className="sl-win">To win <b>{credits(toWin(pick))}</b></span>
-          ) : pick.payout > 0 ? (
-            <span className="sl-win">Paid <b>{credits(pick.payout)}</b></span>
-          ) : (
-            <span className="sl-lose">No payout</span>
-          )}
-          <em className="sl-price" title="Odds you locked in">{formatOdds(pick.price)}</em>
-          {pick.live ? <em className="sl-live-tag">Live</em> : null}
-        </span>
-      </div>
-      <div className="sl-ticket-side">
-        <span className="sl-chip" data-status={pick.status}>
+    <li className="sl-ticket" data-status={pick.status} data-live={inGame || undefined} data-celebrate={celebrate || undefined} style={color ? ({ "--tc": color } as React.CSSProperties) : undefined}>
+      <div className="sl-tk-head">
+        <span className="sl-ticket-mark">{side ? <TeamBadge sport={pick.event.sport} name={side} size={34} /> : pick.market.player ? <PlayerBadge sport={pick.event.sport} name={pick.market.player} size={34} /> : <span className="sl-prop"><Target aria-hidden /></span>}</span>
+        <div className="sl-tk-title">
+          <b title={pickSentence(m, pick)}>{pickSentence(m, pick)}</b>
+          <span className="sl-tk-meta" title={`${eventTitle(pick.event)} · ${marketTitle(m)}${pick.live ? " · placed live" : ""}`}>
+            {showName && pick.name ? <span className="sl-picker" title={pick.you ? `${pick.name} (you)` : pick.name}><Badge name={pick.name} size={16} image={pick.image} /><span className="sr-only">{pick.name}{pick.you ? " (you)" : ""}</span></span> : null}
+            {eventTitle(pick.event)} · {marketTitle(m)}{pick.live ? " · Live bet" : ""}{!isOpen ? ` · ${odds}` : ""}
+          </span>
+        </div>
+        <span className="sl-chip" data-status={pick.status} data-live={inGame || undefined}>
           {r.icon}
           {r.label}
         </span>
-        {net != null && pick.status !== "open" ? (
-          <strong className="numeric" data-tone={net > 0 ? "up" : net < 0 ? "down" : undefined}>
-            <span aria-hidden>{net > 0 ? "▲ " : net < 0 ? "▼ " : ""}</span>{signed(net)}
-          </strong>
-        ) : null}
       </div>
+      <TicketMoney>
+        <TicketFig label="Stake">{credits(pick.stake)}</TicketFig>
+        {pick.payout == null ? <TicketFig label="To win" tone="up">{credits(toWin(pick))}</TicketFig> : pick.payout > 0 ? <TicketFig label="Paid" tone="up">{credits(pick.payout)}</TicketFig> : <TicketFig label="Payout" tone="down">None</TicketFig>}
+        {isOpen ? (
+          position ? (
+            <TicketFig label="Est. P/L" tone={plTone} title="Estimate from the live market. View only: no cash-out, your pick keeps its accepted price and payout.">
+              <span aria-hidden className="sl-tk-arrow">{position.pl > 0.5 ? "▲" : position.pl < -0.5 ? "▼" : ""}</span>{signed(position.pl)}
+              <span className="sr-only"> (estimated value {credits(position.value)})</span>
+            </TicketFig>
+          ) : (
+            <TicketFig label="Odds" tone="muted" title="Odds you locked in">{odds}</TicketFig>
+          )
+        ) : (
+          <TicketFig label="Net" tone={netTone} big>
+            <span aria-hidden className="sl-tk-arrow">{net != null && net > 0 ? "▲" : net != null && net < 0 ? "▼" : ""}</span>{signed(net ?? 0)}
+          </TicketFig>
+        )}
+      </TicketMoney>
       {/* Only while the game is in progress. View only: the pick above keeps its accepted price and payout. */}
-      <LiveGameStrip eventId={pick.event.id} sport={pick.event.sport} home={pick.event.home} away={pick.event.away} active={phase?.phase === "in_progress"} onFinal={() => setFinalSeen(true)} pick={pick.status === "open" ? { stake: pick.stake, totalReturn: pick.totalReturn, kind: pick.market.kind, selection: pick.selection } : undefined} />
+      <LiveGameStrip eventId={pick.event.id} sport={pick.event.sport} home={pick.event.home} away={pick.event.away} active={inGame} onFinal={() => setFinalSeen(true)} pick={isOpen ? { stake: pick.stake, totalReturn: pick.totalReturn, kind: pick.market.kind, selection: pick.selection } : undefined} />
     </li>
   )
 }

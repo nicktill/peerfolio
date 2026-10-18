@@ -2,12 +2,11 @@
 
 import { sampleResponse } from "@web/lib/sample/fixtures"
 import { useEffect, useState } from "react"
-import { ArrowDown, ArrowUp, Radio } from "lucide-react"
+import { Radio } from "lucide-react"
 import { PIPELINE } from "@web/lib/sports/live/freshness"
 import { chipFor, PAUSED_REASON, splitPct, splitPct3, statusLine } from "@web/lib/sports/live/format"
-import { livePosition, type PositionPick } from "@web/lib/sports/live/position"
+import type { PositionPick } from "@web/lib/sports/live/position"
 import { ageView, type LiveView } from "@web/lib/sports/live/view"
-import { formatCredits, signedCredits } from "@web/lib/sports/format"
 import { teamLook } from "@web/lib/sports/teams"
 import { LiveNumber } from "./live-delta"
 
@@ -91,52 +90,35 @@ export function LiveGameStrip({ eventId, sport, home, away, active, pick, onFina
   const a = teamLook(sport, away)
   const line = view ? statusLine(view) : null
   const mine = pick && (pick.kind === "moneyline" || pick.kind === "spread") ? pick.selection : null
-  const position = pick ? livePosition(pick, view, elapsedMs, active) : null
   const dim = (side: string) => (mine === "home" || mine === "away" || mine === "draw") && mine !== side
+  const mineProb = split && (mine === "home" || mine === "away" || mine === "draw") ? split[mine] : null
+  const note = split ? (odds && odds.confidence === "low" ? (odds.mismatch ? "Sources differ, treat as rough" : "Thin market, treat as rough") : null) : view && view.odds.status === "paused" && view.status !== "final" ? (PAUSED_REASON[view.odds.reason] ?? "Odds paused") : chip.tone === "paused" ? PAUSED_REASON.stale : null
+  const fine = pick ? "Estimate from the live market, view only. No cash-out; your pick keeps its accepted price and payout." : "Market-implied chance, view only."
   return (
-    <div className="sl-live" data-tone={chip.tone} role="group" aria-label="Live game status">
-      <div className="sl-live-top">
-        <span className="sl-live-chip" data-tone={chip.tone}>
-          <Radio aria-hidden />
-          {chip.label}
-          {chip.ago ? <small>{chip.ago.replace(" ago", "")}</small> : null}
+    <div className="sl-live" data-tone={chip.tone} role="group" aria-label="Live game status" title={note ? `${note}. ${fine}` : fine}>
+      <span className="sl-live-chip" data-tone={chip.tone}>
+        <Radio aria-hidden />
+        {chip.label}
+        {chip.ago ? <small>{chip.ago.replace(" ago", "")}</small> : null}
+      </span>
+      {view?.score ? (
+        <span className="sl-live-score numeric">
+          {a.abbr} <LiveNumber value={view.score.away} format={scoreText} kind="score" seenKey={`strip:${eventId}:a`} /> <i>·</i> {h.abbr} <LiveNumber value={view.score.home} format={scoreText} kind="score" seenKey={`strip:${eventId}:h`} />
         </span>
-        {view?.score ? (
-          <span className="sl-live-score numeric">
-            {a.abbr} <LiveNumber value={view.score.away} format={scoreText} kind="score" seenKey={`strip:${eventId}:a`} /> <i>·</i> {h.abbr} <LiveNumber value={view.score.home} format={scoreText} kind="score" seenKey={`strip:${eventId}:h`} />
-          </span>
-        ) : null}
-        {line ? <span className="sl-live-clock numeric">{line}</span> : null}
-      </div>
+      ) : null}
+      {line ? <span className="sl-live-clock numeric">{line}</span> : null}
       {split ? (
-        <>
-          <div className="sl-live-bar" role="img" aria-label={`Win probability: ${away} ${split.away} percent, ${split.draw != null ? `draw ${split.draw} percent, ` : ""}${home} ${split.home} percent`}>
+        <span className="sl-live-prob numeric">
+          <span className="sl-live-bar" role="img" aria-label={`Win probability: ${away} ${split.away} percent, ${split.draw != null ? `draw ${split.draw} percent, ` : ""}${home} ${split.home} percent`}>
             <span data-dim={dim("away") || undefined} style={{ width: `${split.away}%`, background: a.color }} />
             {split.draw != null ? <span data-dim={dim("draw") || undefined} style={{ width: `${split.draw}%`, background: "var(--fw-fg3)" }} /> : null}
             <span data-dim={dim("home") || undefined} style={{ width: `${split.home}%`, background: h.color }} />
-          </div>
-          <div className="sl-live-odds numeric">
-            <span data-mine={mine === "away" || undefined}>{a.abbr} <LiveNumber value={split.away} format={pctText} kind="pct" /></span>
-            {split.draw != null ? <span data-mine={mine === "draw" || undefined}>Draw <LiveNumber value={split.draw} format={pctText} kind="pct" /></span> : null}
-            <span data-mine={mine === "home" || undefined}>{h.abbr} <LiveNumber value={split.home} format={pctText} kind="pct" /></span>
-          </div>
-          {odds && odds.confidence === "low" ? <p className="sl-live-note">{odds.mismatch ? "Sources differ, treat as rough" : "Thin market, treat as rough"}</p> : null}
-        </>
-      ) : view && view.odds.status === "paused" && view.status !== "final" ? (
-        <p className="sl-live-note">{PAUSED_REASON[view.odds.reason] ?? "Odds paused"}</p>
-      ) : chip.tone === "paused" ? (
-        <p className="sl-live-note">{PAUSED_REASON.stale}</p>
+          </span>
+          <b>{mineProb != null ? <LiveNumber value={mineProb} format={pctText} kind="pct" /> : <>{`${split.away}% / ${split.home}%`}</>}</b>
+        </span>
       ) : null}
-      {position ? (
-        <div className="sl-live-value numeric" data-tone={position.pl > 0.5 ? "up" : position.pl < -0.5 ? "down" : undefined}>
-          <span>Est. value <b>{formatCredits(position.value)}</b></span>
-          <strong>
-            {position.pl > 0.5 ? <ArrowUp aria-hidden /> : position.pl < -0.5 ? <ArrowDown aria-hidden /> : null}
-            {signedCredits(position.pl)}
-          </strong>
-        </div>
-      ) : null}
-      <p className="sl-live-fine">{pick ? "Estimate from the live market, view only. No cash-out; your pick keeps its accepted price and payout." : "Market-implied chance, view only."}</p>
+      <small className="sl-live-est" aria-hidden>{note ? "Rough" : "Estimate"}</small>
+      <span className="sr-only">{fine}{note ? ` ${note}.` : ""}</span>
     </div>
   )
 }

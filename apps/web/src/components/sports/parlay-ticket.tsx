@@ -5,6 +5,7 @@ import { useEffect, useState } from "react"
 import { Check, ChevronDown, Clock, Layers, Minus, Target, Undo2, X } from "lucide-react"
 import { TeamBadge } from "@web/components/sports/team-badge"
 import type { ParlayLegRow, ParlayRow } from "@web/components/sports/parlay-types"
+import { TicketFig, TicketMoney } from "@web/components/sports/ticket-figures"
 import { eventTitle, formatCredits, formatOdds, marketTitle, openPickPhase, pickSentence, sideTeam, signedCredits } from "@web/lib/sports/format"
 
 const STATUS: Record<string, { label: string; icon: React.ReactNode }> = {
@@ -52,24 +53,28 @@ export function ParlayTicket({ parlay, showName }: { parlay: ParlayRow; showName
   const openLegs = parlay.legs.filter((l) => l.status === "open").length
   const progress = parlay.status === "open" ? `${wonLegs} of ${parlay.legs.length} won${openLegs ? `, ${openLegs} to play` : ""}` : parlay.status === "void" ? "All legs void, stake refunded" : null
   const listId = `pl-legs-${parlay.id}`
+  const netTone = net != null ? (net > 0 ? "up" : net < 0 ? "down" : undefined) : undefined
   return (
     <li className="pl-ticket" data-status={parlay.status}>
-      <div className="pl-ticket-head">
+      <div className="sl-tk-head">
         <span className="pl-ticket-mark"><Layers aria-hidden /></span>
-        <div className="pl-ticket-body">
-          <b>{parlay.legs.length}-leg parlay · <em className="numeric">{formatOdds(parlay.price)}</em></b>
-          <span>{showName && parlay.name ? <em>{parlay.name.split(" ")[0]}{parlay.you ? " (You)" : ""} · </em> : null}{progress ?? `${wonLegs} of ${parlay.legs.length} legs won`}</span>
-          <span className="numeric pl-ticket-money">
-            <span className="sl-risk">Risk <b>{formatCredits(parlay.stake)}</b></span>
-            <i aria-hidden>·</i>
-            {parlay.payout == null ? <span className="sl-win">To win <b>{formatCredits(toWin(parlay))}</b></span> : parlay.payout > 0 ? <span className="sl-win">Paid <b>{formatCredits(parlay.payout)}</b></span> : <span className="sl-lose">No payout</span>}
-          </span>
+        <div className="sl-tk-title">
+          <b>{parlay.legs.length}-leg parlay</b>
+          <span className="sl-tk-meta">{showName && parlay.name ? <em>{parlay.name.split(" ")[0]}{parlay.you ? " (You)" : ""} · </em> : null}{progress ?? `${wonLegs} of ${parlay.legs.length} legs won`}</span>
         </div>
-        <div className="pl-ticket-side">
-          <span className="sl-chip" data-status={parlay.status}>{s.icon}{s.label}</span>
-          {net != null && parlay.status !== "open" ? <strong className="numeric" data-tone={net > 0 ? "up" : net < 0 ? "down" : undefined}><span aria-hidden>{net > 0 ? "▲ " : net < 0 ? "▼ " : ""}</span>{signedCredits(net)}</strong> : null}
-        </div>
+        <span className="sl-chip" data-status={parlay.status}>{s.icon}{s.label}</span>
       </div>
+      <TicketMoney label="Parlay money">
+        <TicketFig label="Stake">{formatCredits(parlay.stake)}</TicketFig>
+        {parlay.payout == null ? <TicketFig label="To win" tone="up">{formatCredits(toWin(parlay))}</TicketFig> : parlay.payout > 0 ? <TicketFig label="Paid" tone="up">{formatCredits(parlay.payout)}</TicketFig> : <TicketFig label="Payout" tone="down">None</TicketFig>}
+        {parlay.status === "open" || net == null ? (
+          <TicketFig label="Odds" tone="muted" title="Combined odds you locked in">{formatOdds(parlay.price)}</TicketFig>
+        ) : (
+          <TicketFig label="Net" tone={netTone} big>
+            <span aria-hidden className="sl-tk-arrow">{net > 0 ? "▲" : net < 0 ? "▼" : ""}</span>{signedCredits(net)}
+          </TicketFig>
+        )}
+      </TicketMoney>
       <button type="button" className="pl-expand" aria-expanded={open} aria-controls={listId} onClick={() => setOpen(!open)}>
         <span>{open ? "Hide legs" : `Show ${parlay.legs.length} legs`}</span>
         <ChevronDown aria-hidden />
