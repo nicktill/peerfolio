@@ -29,6 +29,6 @@ export function parlayQuote(prices: number[], stake = 0): ParlayQuote | null {
   const decimal = combinedDecimal(prices)
   if (decimal == null) return null
   const amount = Math.max(0, Math.floor(stake))
-  const totalReturn = Math.floor(amount * decimal)
+  const totalReturn = Math.floor(amount * decimal + 1e-9)
   return { decimal, american: decimalToAmerican(decimal), totalReturn, toWin: Math.max(0, totalReturn - amount) }
 }
