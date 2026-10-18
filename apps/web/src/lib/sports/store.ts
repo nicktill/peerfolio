@@ -27,12 +27,19 @@ export type Db = PostgresJsDatabase<typeof schema>
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0]
 type Conn = Db | Tx
 
+import { enabledSports as withoutPaused, isSportEnabled, pausedMessage } from "./enabled.ts"
+
 export class SportsError extends Error {
   readonly status: number
   constructor(message: string, status = 400) {
     super(message)
     this.status = status
   }
+}
+
+/** Rejects a new pick on a paused sport (see enabled.ts). Open picks on it still settle and display. */
+export function assertSportsPickable(sports: Iterable<string>) {
+  for (const sport of sports) if (!isSportEnabled(sport)) throw new SportsError(pausedMessage(sport), 409)
 }
 
 /** Postgres deadlock (40P01) or serialization failure (40001): safe to run the whole transaction again. */
@@ -134,7 +141,7 @@ export async function previewSportsLeague(db: Db, code: string) {
   const [league] = await db.select().from(schema.sportsLeagues).where(eq(sportsLeagues.inviteCode, code.trim().toUpperCase())).limit(1)
   if (!league || (league.endsAt && league.endsAt.getTime() < Date.now())) return null
   const [{ count }] = (await db.select({ count: sql<number>`count(*)::int` }).from(sportsMembers).where(eq(sportsMembers.leagueId, league.id))) as [{ count: number }]
-  return { name: league.name, emoji: league.emoji, accent: league.accent, sports: league.sports, memberCount: count, startingCredits: league.startingCredits, full: count >= league.memberLimit }
+  return { name: league.name, emoji: league.emoji, accent: league.accent, sports: withoutPaused(league.sports), memberCount: count, startingCredits: league.startingCredits, full: count >= league.memberLimit }
 }
 
 export async function listSportsLeagues(db: Db, userId: string) {
@@ -190,7 +197,7 @@ export async function listSportsLeagues(db: Db, userId: string) {
     name: league.name,
     emoji: league.emoji,
     accent: league.accent,
-    sports: league.sports,
+    sports: withoutPaused(league.sports),
     endsAt: league.endsAt?.toISOString() ?? null,
     isClosed: !!league.endsAt && league.endsAt.getTime() < Date.now(),
     memberCount: countOf.get(league.id) ?? 1,
@@ -249,7 +256,7 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
     .select({ market: sportsMarkets, event: sportsEvents })
     .from(sportsMarkets)
     .innerJoin(sportsEvents, eq(sportsEvents.id, sportsMarkets.eventId))
-    .where(and(eq(sportsMarkets.status, "open"), gt(sportsMarkets.lockAt, now), inArray(sportsEvents.sport, league.sports)))
+    .where(and(eq(sportsMarkets.status, "open"), gt(sportsMarkets.lockAt, now), inArray(sportsEvents.sport, withoutPaused(league.sports))))
     .orderBy(asc(sportsEvents.startsAt), asc(sportsMarkets.marketKey))
     .limit(400)
   const lines = open.length ? await db.select().from(sportsLines).where(inArray(sportsLines.marketId, open.map((o) => o.market.id))) : []
@@ -343,7 +350,7 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
   // Other members' parlays are listed only once every leg's market has locked.
   const leagueParlayRows = await loadParlayRows(db, eq(sportsParlays.leagueId, leagueId), 60, now)
   const liveEvents = await db.select({ id: sportsEvents.id, sport: sportsEvents.sport, home: sportsEvents.homeName, away: sportsEvents.awayName, startsAt: sportsEvents.startsAt })
-    .from(sportsEvents).where(and(inArray(sportsEvents.sport, league.sports), gt(sportsEvents.startsAt, new Date(now.getTime() - 8 * 3600_000)), lt(sportsEvents.startsAt, now))).limit(300)
+    .from(sportsEvents).where(and(inArray(sportsEvents.sport, withoutPaused(league.sports)), gt(sportsEvents.startsAt, new Date(now.getTime() - 8 * 3600_000)), lt(sportsEvents.startsAt, now))).limit(300)
   return {
     liveEvents: liveEvents.map(e => ({ ...e, startsAt: e.startsAt.toISOString() })),
     league: {
@@ -351,7 +358,7 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
       name: league.name,
       emoji: league.emoji,
       accent: league.accent,
-      sports: league.sports,
+      sports: withoutPaused(league.sports),
       inviteCode: league.inviteCode,
       startingCredits: league.startingCredits,
       maxStakePct: league.maxStakePct,
@@ -513,6 +520,7 @@ async function placeOnce(db: Db, userId: string, leagueId: string, req: PickRequ
 
     const [theEvent] = await tx.select().from(sportsEvents).where(eq(sportsEvents.id, theMarket.eventId)).limit(1)
     if (!theEvent || !league.sports.includes(theEvent.sport)) throw new SportsError("Line not found", 404)
+    assertSportsPickable([theEvent.sport])
     const row = { line: theLine, market: theMarket, event: theEvent }
 
     const [existing] = await tx
@@ -707,6 +715,7 @@ async function placeParlayOnce(db: Db, userId: string, leagueId: string, req: Pa
     if (league.endsAt && league.endsAt.getTime() < now.getTime()) throw new SportsError("That league has ended")
     const events = await tx.select().from(sportsEvents).where(inArray(sportsEvents.id, markets.map((m) => m.eventId)))
 
+    assertSportsPickable(events.map((e) => e.sport))
     const legCtx = []
     for (const leg of req.legs) {
       const line = lines.find((l) => l.id === leg.lineId)
@@ -932,7 +941,7 @@ export function makeDbCallCap(db: Db, perDay = 1000) {
 
 export async function publishLines(db: Db, provider: OddsProvider, sports: readonly Sport[], now: Date, cfg = DEFAULT_PUBLISH, gate?: ((sport: Sport, now: Date) => Promise<boolean>) & { release?: (sport: Sport, now: Date) => Promise<void> }, deadlineAt?: number) {
   const summary: { sport: Sport; published: number; frozen: number; rescheduled: number; rejected: string | null; notes: string[] }[] = []
-  for (const sport of sports) {
+  for (const sport of withoutPaused(sports)) {
     // Out of time for this run (the route's deadline): skip, and do not burn the sport's claim.
     if (deadlineAt != null && Date.now() > deadlineAt) {
       summary.push({ sport, published: 0, frozen: 0, rescheduled: 0, rejected: "deadline", notes: ["no fetch: the run's time budget was used up, retried next run"] })
@@ -1092,6 +1101,8 @@ export async function listRepriceTargets(db: Db, now: Date, kinds: readonly stri
         gt(sportsEvents.startsAt, now),
         sql`${sportsEvents.startsAt} <= ${new Date(now.getTime() + horizonMs).toISOString()}::timestamptz`,
         inArray(sportsMarkets.kind, [...kinds]),
+        // A paused sport is not repriced: no exchange calls for it (its open markets are also hidden from new picks).
+        inArray(sportsEvents.sport, withoutPaused(SPORTS)),
       ),
     )
   if (rows.length === 0) return []

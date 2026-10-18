@@ -3,7 +3,7 @@ import * as schema from "../../db/schema.ts"
 import { emit } from "./log.ts"
 import { acceptPick, DEFAULT_LIMITS, PickRejected, type PickContext } from "./picks.ts"
 import { chooseLiveSlot, LivePickRejected, LIVE_KEY_PREFIX, LIVE_PICK, liveMarketKey } from "./live-pick.ts"
-import { openRisk, SportsError, withDeadlockRetry, type Db } from "./store.ts"
+import { assertSportsPickable, openRisk, SportsError, withDeadlockRetry, type Db } from "./store.ts"
 import { placeKey } from "./settlement.ts"
 import type { LiveSelection } from "./live/types.ts"
 
@@ -36,6 +36,7 @@ export function placeLivePick(db: Db, userId: string, leagueId: string, req: { e
       if (!league) throw new SportsError("League not found", 404)
       const [event] = await tx.select().from(sportsEvents).where(eq(sportsEvents.id, req.eventId)).limit(1)
       if (!event || !league.sports.includes(event.sport)) throw new SportsError("Game not found", 404)
+      assertSportsPickable([event.sport])
 
       // Slot markets are created locked (never open: nothing reprices, freezes or lists them) and shared by every member.
       const keys = [1, 2].map(liveMarketKey)

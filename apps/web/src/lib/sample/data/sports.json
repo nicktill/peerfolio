@@ -6,8 +6,7 @@
   "accent": "emerald",
   "sports": [
    "nfl",
-   "nba",
-   "tennis"
+   "nba"
   ],
   "inviteCode": "SAMPLE",
   "startingCredits": 1000,
@@ -113,9 +112,9 @@
    "statKey": null,
    "lockAt": "@@60915925",
    "event": {
-    "sport": "tennis",
-    "home": "Carlos Alcaraz",
-    "away": "Jannik Sinner",
+    "sport": "nba",
+    "home": "Los Angeles Lakers",
+    "away": "Golden State Warriors",
     "startsAt": "@@68115925"
    },
    "lines": [
@@ -340,9 +339,9 @@
    "statKey": null,
    "lockAt": "@@75315925",
    "event": {
-    "sport": "tennis",
-    "home": "Iga Swiatek",
-    "away": "Aryna Sabalenka",
+    "sport": "nba",
+    "home": "Milwaukee Bucks",
+    "away": "Miami Heat",
     "startsAt": "@@82515925"
    },
    "lines": [

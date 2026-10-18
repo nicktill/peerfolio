@@ -4,6 +4,7 @@ import { ApiError, readJson } from "@web/lib/api"
 import { ACCENT_KEYS, isLeagueEmoji } from "@web/lib/league-look"
 import { db, withSportsUser } from "@web/lib/sports/api"
 import { createSportsLeague, listSportsLeagues, takeRateLimit } from "@web/lib/sports/store"
+import { isSportEnabled, pausedMessage } from "@web/lib/sports/enabled"
 import { SPORTS } from "@web/lib/sports/types"
 
 const CreateSportsLeague = z.object({
@@ -23,6 +24,8 @@ export const POST = withSportsUser<unknown>(async (userId, request) => {
   if (!(await takeRateLimit(db, "create", userId))) throw new ApiError("You've started a lot of leagues. Try again later.", 429)
   const parsed = CreateSportsLeague.safeParse(await readJson(request))
   if (!parsed.success) throw new ApiError(parsed.error.issues[0]?.message ?? "Invalid league")
+  const paused = parsed.data.sports.find((s) => !isSportEnabled(s))
+  if (paused) throw new ApiError(pausedMessage(paused), 409)
   const endsAt = parsed.data.endsAt ? new Date(parsed.data.endsAt) : null
   if (endsAt && endsAt.getTime() < Date.now() + 60 * 60 * 1000) throw new ApiError("Pick an end date at least an hour away")
   const league = await createSportsLeague(db, userId, {
