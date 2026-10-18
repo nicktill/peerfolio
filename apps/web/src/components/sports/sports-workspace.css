@@ -457,6 +457,7 @@
 .sp-open-lines .sp-matchup strong { display: block; margin: 0; font-size: 13px; line-height: 19px; }
 .sp-open-lines .sp-game-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 7px; font-size: 10px; }
 .sp-market-select { border: 1px solid var(--fw-hair2); background: var(--fw-bg); color: var(--fw-fg); font: 500 11px var(--fw-sans); padding: 6px 23px 6px 9px; border-radius: 7px; max-width: 100px; }
+.sp-market-select { appearance: none; -webkit-appearance: none; padding-right: 26px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239aa0a6' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 9px center; line-height: 1.2; }
 .sp-market-select option { background: var(--fw-panel); color: var(--fw-fg); }
 .sp-feed-chip { display: inline-flex; align-items: center; gap: 5px; font: 400 10px var(--fw-sans); color: var(--fw-fg3); white-space: nowrap; }
 .sp-feed-chip i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
