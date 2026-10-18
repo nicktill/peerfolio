@@ -163,7 +163,8 @@ export function parseBoxscore(summary: EspnSummary, sport: Sport, teamScores?: R
     }
     if (!sawStats) return null
     const expected = teamScores?.[team.team?.displayName ?? ""]
-    if (sport === "nba" && expected != null && expected !== points) return null
+    // With scores to check against, a team we cannot find a score for is as untrusted as one that does not add up.
+    if (sport === "nba" && teamScores && (expected == null || expected !== points)) return null
   }
   const seen = new Map<string, string>()
   for (const name of Object.keys(out)) {

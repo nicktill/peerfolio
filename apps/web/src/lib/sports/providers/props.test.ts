@@ -188,6 +188,11 @@ describe("box score extraction (ESPN summary)", () => {
     assert.ok(parseBoxscore(nba, "nba"), "no score to check against: still parsed")
   })
 
+  it("NBA: a team name the score lookup does not know makes the box score untrusted (never skipped)", () => {
+    assert.equal(parseBoxscore(nba, "nba", { "Detroit Pistons": 129, "Toronto Raptors Renamed": 125 }), null)
+    assert.equal(parseBoxscore(nba, "nba", { "Detroit Pistons": 129, "Toronto Raptors": null }), null)
+  })
+
   it("NBA: a player with stat rows but zero minutes is treated as not having played", () => {
     const s = clone(nba)
     const row = s.boxscore!.players![1]!.statistics![0]!.athletes![0]!
