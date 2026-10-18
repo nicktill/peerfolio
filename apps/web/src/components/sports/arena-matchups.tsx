@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { TeamBadge } from "@web/components/sports/team-badge"
 import { useApi } from "@web/lib/use-api"
 import { sampleActive } from "@web/lib/sample/fixtures"
+import { pickHeroGames } from "@web/lib/sports/hero-order"
 import type { ScoreGame } from "@web/lib/sports/scoreboard"
 
 const SCOREBOARD = "/api/sports/scoreboard?sports=cfb,mlb,mls,nba,nfl,nhl,tennis"
@@ -11,19 +12,15 @@ const time = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { timeZo
 
 /** Real scoreboard snapshots. Motion decorates the pills; scores only change when ESPN reports them. */
 export function ArenaMatchups() {
-  const { data, error, loading } = useApi<{ games: ScoreGame[]; failedSports: string[] }>(SCOREBOARD, [], { refreshMs: 30_000 })
+  const { data } = useApi<{ games: ScoreGame[]; failedSports: string[] }>(SCOREBOARD, [], { refreshMs: 30_000 })
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 10_000)
     return () => clearInterval(timer)
   }, [])
   const games = data?.games ?? []
-  const live = games.filter(g => g.status === "live")
-  const finals = games.filter(g => g.status === "final").sort((a,b) => Date.parse(b.startsAt) - Date.parse(a.startsAt))
-  const upcoming = games.filter(g => g.status === "upcoming" && Date.parse(g.startsAt) > now).sort((a,b) => Date.parse(a.startsAt) - Date.parse(b.startsAt))
-  // Prefer games happening now, then recent finals, then scheduled games. Never invent matchups.
-  const shown = [...live, ...finals, ...upcoming].slice(0, 2)
-  if (!shown.length) return <span className="am"><span className="am-card am-empty" data-k="0">{loading ? "Checking scores…" : error || data?.failedSports.length ? "Scores unavailable" : "No games scheduled"}</span></span>
+  const shown = pickHeroGames(games, now, 3)
+  if (!shown.length) return <span className="am" />
   return (
     <span className="am">
       {shown.map((g, i) => {

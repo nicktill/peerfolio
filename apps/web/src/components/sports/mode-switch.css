@@ -275,7 +275,7 @@
   .sp-world[aria-selected="true"] .fb-bubble[data-k="3"] { display: none; }
   .am-card[data-k="0"] { top: 8%; }
   .am-card[data-k="1"] { top: 34%; }
-  .am-card[data-k="2"] { display: none; }
+  .am-card[data-k="2"] { top: 60%; }
   .sp-world:not([aria-selected="true"]) .fb-bubble[data-k="1"] { top: 44%; }
   .sp-world:not([aria-selected="true"]) .am-card[data-k="1"] { top: 44%; }
 }
