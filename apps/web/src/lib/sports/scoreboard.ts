@@ -56,16 +56,11 @@ export function normalizeGames(raw: unknown, sport: string, fetchedAt: string): 
   }
   return result
 }
-/** ESPN dates scoreboards in US Eastern time, including games after midnight UTC. */
-export function scoreboardDays(now: Date): string[] {
+/** ESPN dates scoreboards in US Eastern time, including games after midnight UTC. ESPN rejects date ranges, so each day is its own request. */
+export function scoreboardDays(now: Date, ahead = 1): string[] {
   const day = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d).replaceAll('-', '')
-  // Previous day catches games still running past midnight; next day supplies tomorrow's records.
-  return [...new Set([-1, 0, 1].map(n => day(new Date(now.getTime() + n * 86_400_000))))]
-}
-/** One ESPN date range (Eastern) from yesterday through `ahead` days out, so a quiet league still shows what is coming up. */
-export function scoreboardRange(now: Date, ahead = 3): string {
-  const day = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d).replaceAll('-', '')
-  return `${day(new Date(now.getTime() - 86_400_000))}-${day(new Date(now.getTime() + ahead * 86_400_000))}`
+  // Previous day catches games still running past midnight; later days supply upcoming games and records.
+  return [...new Set(Array.from({ length: ahead + 2 }, (_, i) => i - 1).map(n => day(new Date(now.getTime() + n * 86_400_000))))]
 }
 const canonical = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
 export function scoreboardMatch(event: {sport: string; home: string; away: string; startsAt: string}, games: ScoreGame[]): ScoreGame | undefined {
