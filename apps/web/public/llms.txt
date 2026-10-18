@@ -1,0 +1,28 @@
+# Peerfolio
+
+> Peerfolio (https://www.peerfolio.org) is a free web app for tracking your investments and comparing them with friends. Leagues rank people on percentage return, never on account size, and friends see how well you invest, never how much. It also has play-money games: fantasy investing and a Sports beta.
+
+Peerfolio is not a broker, bank or investment adviser, does not hold money or place trades, and nothing in it is financial advice.
+
+## What it does
+
+- Portfolio: net worth, accounts and positions in one place, with a time-weighted return that leaves out deposits and withdrawals. Only you see your balances. Accounts can be added by hand (manual) or linked through Plaid (verified). Brokerage linking is optional and currently limited to a small number of connections per account.
+- Leagues: groups of friends ranked on time-weighted percentage return, joined by invite link. Members see each other's return and, optionally, top tickers as a percentage of the portfolio. Dollar balances, net worth and position sizes are never shown to other people.
+- Fantasy investing: leagues where everyone starts with the same play cash, buys and sells stocks and races on standings. Nothing touches a real balance.
+- Sports: leagues where friends make play-money picks on real games (NFL, NBA, NHL, MLB, college football, MLS, tennis) across moneyline, spread, total and player-prop markets, with parlays, live in-game picks at live odds, leaderboards, mirrored-pick reports and invite links. Play money only, with no real value. It is not real-money betting or gambling, and access is limited while in beta.
+- The Board: an opt-in public leaderboard of percentage returns from verified (brokerage-linked) accounts only.
+- News: market recap, index moves, Fear & Greed and the week's earnings. A public version is at https://www.peerfolio.org/market-news.
+- Ask Peerfolio: an in-app AI assistant that answers questions about your portfolio, leagues and the market. It is read-only: it cannot trade or change anything, and it does not give buy, sell or betting advice.
+
+## Privacy
+
+Percentages can be shared; dollar amounts never are. Public profiles are opt-in and off by default. See https://www.peerfolio.org/privacy.
+
+## Pages
+
+- https://www.peerfolio.org/ : landing page
+- https://www.peerfolio.org/market-news : public market news
+- https://www.peerfolio.org/terms : terms of service
+- https://www.peerfolio.org/privacy : privacy policy
+
+Contact: privacy@peerfolio.org

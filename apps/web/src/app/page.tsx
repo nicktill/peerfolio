@@ -20,14 +20,28 @@ import "./landing.css"
 export const metadata: Metadata = { alternates: { canonical: "/" } }
 
 /** Tells Google the site's name (so it shows "Peerfolio", not the bare domain) and where it lives. */
-const structuredData = { "@context": "https://schema.org", "@type": "WebSite", name: SITE.name, url: SITE.baseUrl, description: SITE.description }
+const structuredData = {
+  "@context": "https://schema.org",
+  "@graph": [
+    { "@type": "WebSite", "@id": `${SITE.baseUrl}/#website`, name: SITE.name, url: SITE.baseUrl, description: SITE.description },
+    {
+      "@type": "WebApplication",
+      name: SITE.name,
+      url: SITE.baseUrl,
+      description: SITE.description,
+      applicationCategory: "FinanceApplication",
+      operatingSystem: "Web",
+      offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+    },
+  ],
+}
 
 const RIVALS = ["friends", "the group chat", "your roommates", "your coworkers", "your dad"] as const
 
 const STEPS = [
-  { title: "Sign in", body: "Add what you hold, or start with a fantasy league." },
+  { title: "Sign in", body: "Add what you hold, or start with a fantasy or sports league." },
   { title: "Invite your friends", body: "Start a league and share the link. It takes about ten seconds." },
-  { title: "See who's ahead", body: "Everyone is ranked on time-weighted return, updated daily." },
+  { title: "See who's ahead", body: "Investing leagues rank everyone on time-weighted return, updated daily. Play-money leagues rank on virtual cash." },
 ]
 
 export default async function HomePage() {
@@ -54,8 +68,8 @@ export default async function HomePage() {
               <RotatingWord prefix="with " words={RIVALS} />
             </h1>
             <p style={revealStyle(1)} className="reveal pf-sub mx-auto mt-4 max-w-2xl text-balance text-base leading-7 sm:text-[17px]">
-              <span className="hidden sm:inline">Follow your portfolio, race friends on real returns, or play a fantasy league with play money. Friends see how well you invest, never how much.</span>
-              <span className="sm:hidden">Private leagues ranked on returns. Friends see how well you invest, never how much.</span>
+              <span className="hidden sm:inline">Follow your portfolio, race friends on time-weighted returns, or play fantasy investing and sports picks with play money. Friends see how well you invest, never how much.</span>
+              <span className="sm:hidden">Leagues ranked on returns, plus play-money fantasy and sports picks. Friends see how well you invest, never how much.</span>
             </p>
             <div style={revealStyle(2)} className="reveal mt-6 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
               <SignInButton />
@@ -63,7 +77,7 @@ export default async function HomePage() {
                 See how it works <ArrowDown className="size-4" aria-hidden />
               </a>
             </div>
-            <p style={revealStyle(3)} className="reveal pf-muted mt-3 text-xs">Free. Add your positions by hand, or play with fantasy money.</p>
+            <p style={revealStyle(3)} className="reveal pf-muted mt-3 text-xs">Free. Add your positions by hand, link a brokerage, or play with play money.</p>
           </div>
 
           <div className="pf-hero-preview relative mx-auto max-w-[1280px] px-6 pb-16 sm:px-5 sm:pb-24 xl:pt-9">

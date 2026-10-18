@@ -26,6 +26,7 @@ export const metadata: Metadata = {
     template: `%s | ${SITE.name}`,
   },
   description: SITE.description,
+  keywords: [...SITE.keywords],
   openGraph: {
     type: "website",
     locale: "en_US",

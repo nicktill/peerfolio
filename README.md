@@ -4,17 +4,25 @@ Social investing built around one rule: **percentages are public, dollars never
 are.**
 
 Blossom, AfterHour and Robinhood Social are public feeds with follower counts
-and dollar amounts. Peerfolio is five surfaces on one engine:
+and dollar amounts. Peerfolio is built on one engine with several surfaces:
 
 - **Portfolio** — your own net worth, accounts and positions in one place, with
   a time-weighted return that ignores deposits and withdrawals. Only you see it.
-- **Leagues** — small private groups of actual friends, ranked on return.
+  Accounts are added by hand or linked through Plaid (limited connections per
+  account for now).
+- **Leagues** — small groups of friends joined by invite link, ranked on return.
 - **Fantasy** — play-money leagues where everyone starts with the same cash,
   picks stocks and races. Nothing here touches a real balance.
-- **The Board** — a public leaderboard of top investors, where every return is
-  pulled from a connected brokerage rather than typed in.
+- **Sports** — play-money leagues on real games: moneyline, spread,
+  total and player-prop picks, parlays, live in-game picks at live odds,
+  leaderboards and invite links. Virtual cash only; this is not real-money
+  betting or gambling.
+- **The Board** — an opt-in public leaderboard of top investors, where every
+  return is pulled from a connected brokerage rather than typed in.
 - **News** — a daily and weekly market recap, index moves, Fear & Greed and the
   week's earnings, so there's something to read before the next move.
+- **Ask Peerfolio** — a read-only AI assistant that answers questions about your
+  portfolio, leagues and the market. It cannot trade and gives no advice.
 
 Returns are **time-weighted**, so deposits don't count as performance. Whoever
 adds the most cash doesn't win; that's what makes a ranking worth reading.
