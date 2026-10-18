@@ -82,7 +82,7 @@ export function LiveGameStrip({ eventId, sport, home, away, active, pick }: { ev
   const a = teamLook(sport, away)
   const line = view ? statusLine(view) : null
   const mine = pick && (pick.kind === "moneyline" || pick.kind === "spread") ? pick.selection : null
-  const position = pick ? livePosition(pick, view, elapsedMs) : null
+  const position = pick ? livePosition(pick, view, elapsedMs, active) : null
   const dim = (side: string) => (mine === "home" || mine === "away" || mine === "draw") && mine !== side
   return (
     <div className="sl-live" data-tone={chip.tone} role="group" aria-label="Live game status">
