@@ -530,3 +530,5 @@
   .sp-open-lines .sp-scroll { max-height: 74vh; }
   .sp-open-lines .sp-team-lines .sp-line { min-height: 58px; }
 }
+
+.sp-next-more { display: block; margin: 10px auto 2px; padding: 6px 10px; font: 500 12px var(--fw-sans); color: var(--fw-fg2); }
