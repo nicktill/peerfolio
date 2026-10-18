@@ -81,7 +81,10 @@ assert.ok(await fails(parlay(U[2]!, [leg(ML(2, "home"))])), "one leg rejected")
 assert.ok(await fails(parlay(U[2]!, [leg(ML(2, "home")), leg(ML(4, "home"))], 0)), "zero stake")
 assert.ok(await fails(parlay(U[2]!, [leg(ML(2, "home")), leg(ML(4, "home"))], -20)), "negative stake")
 assert.ok(await fails(parlay(U[2]!, [leg(ML(2, "home")), leg(ML(4, "home"))], 20.5)), "fractional stake")
-assert.ok(await fails(parlay(U[2]!, [leg(ML(2, "home")), leg(ML(4, "home"))], 21)), "over the 2% parlay cap")
+// The cap is now configured per league, rather than a fixed 2% for every parlay.
+await db.update(schema.sportsLeagues).set({ maxStakePct: 2 }).where(eq(schema.sportsLeagues.id, league.id))
+assert.ok(await fails(parlay(U[2]!, [leg(ML(2, "home")), leg(ML(4, "home"))], 21)), "over the configured 2% parlay cap")
+await db.update(schema.sportsLeagues).set({ maxStakePct: 10 }).where(eq(schema.sportsLeagues.id, league.id))
 assert.ok(await fails(parlay(U[2]!, [leg({ ...ML(2, "home"), price: ML(2, "home").price + 5 }), leg(ML(4, "home"))])), "stale price")
 const prop = (await db.select().from(sportsMarkets).where(eq(sportsMarkets.eventId, M[2]!.event.id))).find((m) => m.kind === "player_prop")
 if (prop) {
