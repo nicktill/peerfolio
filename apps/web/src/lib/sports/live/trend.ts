@@ -40,33 +40,40 @@ export function trendPath(values: number[], flip = false): string {
     .join("")
 }
 
-/** Reduces timed samples to at most about `max` values. Buckets are equal slices of time (not of sample count) and each keeps its low and high, so spikes survive; first and last samples are always kept. */
-export function downsampleByTime(samples: { t: number; v: number }[], max = 60): number[] {
+export type Sample = { t: number; v: number }
+
+/** Reduces timed samples to at most about `max` samples. Buckets are equal slices of time (not of sample count) and each keeps its low and high, so spikes survive; first and last samples are always kept. */
+export function downsampleSamples(samples: Sample[], max = 60): Sample[] {
   const s = samples.filter((x) => Number.isFinite(x.v) && Number.isFinite(x.t)).sort((a, b) => a.t - b.t)
-  if (s.length <= max) return s.map((x) => x.v)
+  if (s.length <= max) return s
   const first = s[0]!
   const last = s[s.length - 1]!
   const buckets = Math.max(1, Math.floor((max - 2) / 2))
   const span = last.t - first.t || 1
-  const lo: ({ t: number; v: number } | undefined)[] = new Array(buckets)
-  const hi: ({ t: number; v: number } | undefined)[] = new Array(buckets)
+  const lo: (Sample | undefined)[] = new Array(buckets)
+  const hi: (Sample | undefined)[] = new Array(buckets)
   for (let i = 1; i < s.length - 1; i++) {
     const x = s[i]!
     const b = Math.min(buckets - 1, Math.floor(((x.t - first.t) / span) * buckets))
     if (!lo[b] || x.v < lo[b]!.v) lo[b] = x
     if (!hi[b] || x.v > hi[b]!.v) hi[b] = x
   }
-  const out = [first.v]
+  const out: Sample[] = [first]
   for (let b = 0; b < buckets; b++) {
     const a = lo[b]
     const c = hi[b]
     if (!a || !c) continue
-    if (a === c) out.push(a.v)
-    else if (a.t <= c.t) out.push(a.v, c.v)
-    else out.push(c.v, a.v)
+    if (a === c) out.push(a)
+    else if (a.t <= c.t) out.push(a, c)
+    else out.push(c, a)
   }
-  out.push(last.v)
+  out.push(last)
   return out
+}
+
+/** The values of `downsampleSamples`, for callers that only need the shape. */
+export function downsampleByTime(samples: Sample[], max = 60): number[] {
+  return downsampleSamples(samples, max).map((x) => x.v)
 }
 
 const clamp01 = (p: number) => Math.min(1, Math.max(0, p))
@@ -137,3 +144,35 @@ export function sparkline(values: number[], flip = false, w = 64, h = 26, pad = 
 }
 
 export const MIN_TREND_POINTS = 8
+
+export type GameChartGeometry = { home: string; away: string; homeEnd: [number, number]; awayEnd: [number, number]; midY: number; homePct: number; awayPct: number; span: number }
+
+/**
+ * Geometry for the combined game chart: both teams' win chance as step lines on one time axis (x is real time, not sample
+ * count). `series` is the home chance; away is its mirror. The vertical window is centred on 50% and only as tall as the
+ * data needs (never under ±15 points), so a quiet game reads quiet. `live` (home, 0..1) is appended as the newest point.
+ */
+export function gameChart(series: Sample[], live: number | null | undefined, nowMs: number, w = 300, h = 64, padX = 2, padY = 6): GameChartGeometry | null {
+  const pts = series.filter((x) => Number.isFinite(x.t) && Number.isFinite(x.v)).map((x) => ({ t: x.t, v: clamp01(x.v) }))
+  if (live != null && Number.isFinite(live)) pts.push({ t: Math.max(nowMs, pts.length ? pts[pts.length - 1]!.t : nowMs), v: clamp01(live) })
+  if (pts.length < MIN_TREND_POINTS) return null
+  const t0 = pts[0]!.t
+  const span = Math.max(1, pts[pts.length - 1]!.t - t0)
+  const half = Math.max(0.15, Math.min(0.5, Math.max(...pts.map((p) => Math.abs(p.v - 0.5))) + 0.05))
+  const x = (t: number) => padX + ((t - t0) / span) * (w - 2 * padX)
+  const y = (q: number) => padY + (1 - (q - (0.5 - half)) / (2 * half)) * (h - 2 * padY)
+  const step = (vals: number[]) => pts.map((p, i) => (i === 0 ? `M${x(p.t).toFixed(1)} ${y(vals[i]!).toFixed(1)}` : `H${x(p.t).toFixed(1)}V${y(vals[i]!).toFixed(1)}`)).join("")
+  const hv = pts.map((p) => p.v)
+  const av = pts.map((p) => 1 - p.v)
+  const last = pts[pts.length - 1]!
+  return {
+    home: step(hv),
+    away: step(av),
+    homeEnd: [x(last.t), y(last.v)],
+    awayEnd: [x(last.t), y(1 - last.v)],
+    midY: y(0.5),
+    homePct: Math.round(last.v * 100),
+    awayPct: 100 - Math.round(last.v * 100),
+    span,
+  }
+}
