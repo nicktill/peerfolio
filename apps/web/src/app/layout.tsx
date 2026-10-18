@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import { Bricolage_Grotesque, Hanken_Grotesk, IBM_Plex_Mono, Newsreader } from "next/font/google"
 import "./globals.css"
 import "./peerfolio-5c.css"
+import { Analytics } from "@vercel/analytics/next"
 import { Providers } from "@web/components/providers"
 import { SITE } from "@web/lib/site"
 
@@ -72,6 +73,7 @@ export default function RootLayout({
       </head>
       <body className={`${display.variable} ${appSans.variable} ${appDisplay.variable} ${appMono.variable}`}>
         <Providers>{children}</Providers>
+        <Analytics />
       </body>
     </html>
   )
