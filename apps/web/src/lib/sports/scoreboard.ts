@@ -8,6 +8,8 @@ export type ScoreGame = {
   homeRecord: string | null; awayRecord: string | null
   status: 'upcoming' | 'live' | 'final' | 'unavailable'
   homeScore: string | null; awayScore: string | null; detail: string; fetchedAt: string
+  /** VIEW ONLY, for the game-status chip: ESPN's status name (e.g. STATUS_HALFTIME), period number and display clock. */
+  statusName?: string; period?: number; clock?: string
   /** VIEW ONLY (tennis). Games won per set, in play order; `tiebreak` is the tiebreak points a player scored in that set. Sets-won in homeScore/awayScore is unchanged. */
   homeSets?: TennisSet[]; awaySets?: TennisSet[]
   /** VIEW ONLY. Vig-free moneyline win chance derived from ESPN's in-game odds (0-1). Never used for picks, settlement or tests. */
@@ -90,11 +92,17 @@ export function normalizeGames(raw: unknown, sport: string, fetchedAt: string): 
       }
       const homeSets = sport === 'tennis' ? tennisSets(home) : [], awaySets = sport === 'tennis' ? tennisSets(away) : []
       const sets = homeSets.length && homeSets.length === awaySets.length ? { homeSets, awaySets } : {}
+      const periodN = Number(status.period), clockText = str(status.displayClock)
+      const feed = {
+        ...(special ? { statusName: special } : {}),
+        ...(Number.isInteger(periodN) && periodN > 0 && periodN < 20 ? { period: periodN } : {}),
+        ...(clockText ? { clock: clockText } : {}),
+      }
       const probs = live && sport !== 'tennis' ? liveWinProbs(c, sport === 'mls') : null
       result.push({ id: str(c.id) || str(e.id), sport, home: name(home), away: name(away), startsAt,
         homeRecord: record(home), awayRecord: record(away), status: unavailable ? 'unavailable' : final ? 'final' : live ? 'live' : 'upcoming',
         homeScore: score(home), awayScore: score(away), detail: str(type.shortDetail) || str(type.detail) || str(status.displayClock), fetchedAt,
-        ...sets,
+        ...sets, ...feed,
         ...(probs ? { homeWinProb: probs.home, awayWinProb: probs.away, ...(probs.draw != null ? { drawProb: probs.draw } : {}), probSource: 'espn' as const } : {}) })
     }
   }
