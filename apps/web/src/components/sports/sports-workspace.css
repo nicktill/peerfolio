@@ -545,10 +545,13 @@
 .sp-next-more { display: block; margin: 10px auto 2px; padding: 6px 10px; font: 500 12px var(--fw-sans); color: var(--fw-fg2); }
 
 /* Win-probability sparkline in each live team row, just left of the score. */
-.sp-spark { flex: none; margin-left: auto; color: var(--fw-fg3); animation: sp-spark-in .5s ease-out; }
+.sp-spark { flex: none; position: relative; margin-left: auto; display: inline-flex; align-items: center; width: 64px; height: 26px; color: var(--fw-fg3); animation: sp-spark-in .5s ease-out; }
+.sp-spark-slot { animation: none; }
+.sp-spark svg { flex: none; }
+.sp-spark-delta { position: absolute; right: 0; top: -2px; font: 600 10px/1 var(--fw-mono); font-style: normal; font-variant-numeric: tabular-nums; }
 .sp-spark + .sp-live-score, .sp-spark + .sp-sets { margin-left: 14px; }
 @keyframes sp-spark-in { from { opacity: 0; } to { opacity: 1; } }
-@media (max-width: 420px) { .sp-spark { width: 48px; height: auto; } }
+@media (max-width: 420px) { .sp-spark { width: 48px; } .sp-spark svg { width: 48px; height: auto; } }
 @media (prefers-reduced-motion: reduce) { .sp-spark { animation: none; } }
 
 /* Live (in-play) picks */
@@ -872,3 +875,41 @@
 @keyframes sp-sheet-up { from { transform: translateY(100%); } to { transform: none; } }
 @keyframes sp-bar-up { from { transform: translateY(100%); opacity: .6; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .sp-sheet[data-open], .sp-review-pick { animation: none !important; transition: none !important; } }
+
+/* ---- Layout stability on refresh (Safari has no scroll anchoring, so any height change above the viewport jumps the page) ---- */
+.sp-open-lines, .sp-live-games, .sp-live-card, .sp-events { overflow-anchor: auto; }
+/* Hero stat tiles: the sub line (rank gap, "since the start") may change text; keep two lines of room. */
+.fw-play-space[data-play-world="sports"] .sp-scoreboard .fw-sub { display: block; min-height: 2.8em; }
+.fw-play-space[data-play-world="sports"] .sp-scoreboard .fw-figure { font-variant-numeric: tabular-nums; }
+.fw-play-space[data-play-world="sports"] .fw-head .fw-meta { min-height: 24px; }
+/* Scores and odds: fixed-width digits so a changing number never reflows its row. */
+.sp-live-score, .sp-line-odds b, .sp-odds-labels, .sp-live-footer, .sp-live-draw b { font-variant-numeric: tabular-nums; }
+.sp-live-score { min-width: 2ch; text-align: right; }
+.sp-line-odds { min-width: 4.5em; }
+/* Reserved room for the win-probability bar while the exchange view has not arrived (or briefly drops out). */
+.sp-odds-bar[data-empty] { visibility: hidden; }
+/* Status chip / league tag stay on one line whatever the clock text says. */
+.sp-open-lines .sp-game-meta { flex-wrap: nowrap; min-height: 22px; }
+.sp-game-meta .sp-status { flex: 0 1 auto; min-width: 5.6em; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.sp-open-lines .sp-game-head { min-height: 22px; }
+/* Footer flips between "Updated Ns ago" and the longer delayed text; on phones the latter wraps, so always reserve two lines there. */
+.sp-live-footer { min-height: 1.4em; }
+@media (max-width: 520px) { .sp-live-footer { min-height: 2.8em; align-content: flex-start; } }
+/* Loading, empty and filled lists share a floor so swapping between them does not collapse the panel. */
+.sp-live-games { min-height: 120px; }
+/* ---- end layout stability ---- */
+
+/* Live vs upcoming: each gets a titled section so a quiet sport reads as "nothing live", never as one merged list. */
+.sp-section-title { display: flex; align-items: center; gap: 8px; margin: 14px 0 8px; font: 500 11px var(--fw-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--fw-fg2); }
+.sp-section-title i { width: 7px; height: 7px; border-radius: 50%; background: var(--fw-fg3); flex: none; }
+.sp-section-title[data-live] { color: #70b69a; }
+.sp-section-title[data-live] i { background: #70b69a; box-shadow: 0 0 0 3px rgb(112 182 154 / .15); animation: sp-air 2s ease-in-out infinite; }
+.sp-section-title b { margin-left: auto; padding: 1px 8px; border: 1px solid var(--fw-hair2); border-radius: 99px; font-weight: 500; letter-spacing: 0; color: var(--fw-fg3); }
+.sp-section-soon { margin-top: 22px; padding-top: 16px; border-top: 1px dashed var(--fw-line); }
+.sp-open-lines .sp-section-soon { position: static; background: none; padding-top: 16px; }
+.sp-none-live { display: flex; align-items: center; gap: 12px; padding: 16px 14px; border: 1px dashed var(--fw-line); border-radius: 14px; color: var(--fw-fg3); }
+.sp-none-live svg { width: 18px; height: 18px; flex: none; color: var(--fw-fg3); }
+.sp-none-live div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.sp-none-live strong { font: 500 13px var(--fw-sans); color: var(--fw-fg); }
+.sp-none-live span { font: 400 12px/1.4 var(--fw-sans); }
+@media (prefers-reduced-motion: reduce) { .sp-section-title[data-live] i { animation: none; } }

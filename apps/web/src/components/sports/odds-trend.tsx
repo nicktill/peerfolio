@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { sampleResponse } from "@web/lib/sample/fixtures"
-import { MIN_TREND_POINTS, sparkline } from "@web/lib/sports/live/trend"
+import { MIN_TREND_POINTS, changeLabel, sparkline, trendDescription, withLive } from "@web/lib/sports/live/trend"
 
 type Entry = { points: number[]; at: number; subs: number; timer: number | undefined; listeners: Set<() => void> }
 /** One history poll per game, shared by both team rows. */
@@ -53,18 +53,25 @@ function useHistory(eventId: string): number[] {
 
 /**
  * Small win-probability sparkline for a team row. `side` is which team the row is: the line shows that team's chance
- * (the other row shows the mirror). Decorative: aria-hidden, renders nothing without enough history.
+ * (the other row shows the mirror). `live` is the current home probability, appended so the end matches the bar.
+ * The slot is reserved up front so the row does not reflow when history arrives.
  */
-export function OddsTrend({ eventId, side, color }: { eventId: string; side: "home" | "away"; color: string }) {
+export function OddsTrend({ eventId, side, color, team, live }: { eventId: string; side: "home" | "away"; color: string; team: string; live?: number | null }) {
   const points = useHistory(eventId)
-  if (points.length < MIN_TREND_POINTS) return null
-  const s = sparkline(points, side === "away")
-  if (!s) return null
+  const s = points.length >= MIN_TREND_POINTS ? sparkline(withLive(points, live), side === "away") : null
+  if (!s) return <span className="sp-spark sp-spark-slot" aria-hidden="true" />
+  const tone = s.direction === "up" ? "var(--gain)" : s.direction === "down" ? "var(--loss)" : color
+  const label = changeLabel(s.change)
+  const desc = trendDescription(team, s.change)
   return (
-    <svg className="sp-spark" width={64} height={26} viewBox="0 0 64 26" aria-hidden="true" focusable="false">
-      <line x1={3} x2={61} y1={13} y2={13} stroke="currentColor" strokeWidth={1} strokeDasharray="2 3" opacity={0.25} vectorEffect="non-scaling-stroke" />
-      <path d={s.d} fill="none" stroke={color} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-      <circle cx={s.last[0]} cy={s.last[1]} r={2.2} fill={color} />
-    </svg>
+    <span className="sp-spark" role="img" aria-label={desc} data-dir={s.direction}>
+      <svg width={64} height={26} viewBox="0 0 64 26" focusable="false" aria-hidden="true">
+        <title>{desc}</title>
+        <line x1={3} x2={61} y1={s.startY} y2={s.startY} stroke="currentColor" strokeWidth={1} strokeDasharray="2 3" opacity={0.3} vectorEffect="non-scaling-stroke" />
+        <path d={s.d} fill="none" stroke={tone} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+        <circle cx={s.last[0]} cy={s.last[1]} r={2.2} fill={tone} />
+      </svg>
+      {label ? <em className="sp-spark-delta" aria-hidden="true" style={{ color: tone }}>{label}</em> : null}
+    </span>
   )
 }
