@@ -1,7 +1,7 @@
 # Peerfolio web app
 
 This workspace contains the Next.js application. See the [root README](../../README.md)
-for setup, environment variables, development commands, regression tests, and deployment guidance.
+for local setup and development commands.
 
 ## Main entry points
 
