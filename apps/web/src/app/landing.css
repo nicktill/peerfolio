@@ -313,3 +313,9 @@ html.lenis, html.lenis body { height: auto; }
   [data-tour-mode="pinned"] .pf-tour-preview .font-display { font-size: 44px; line-height: 48px; }
   [data-tour-mode="pinned"] .pf-tour-preview li { padding-top: 8px; padding-bottom: 8px; }
 }
+
+/* Hero: the three ways to play, at a glance. */
+.pf-modes { list-style: none; margin: 20px 0 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.pf-modes li { display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border: 1px solid var(--hair); border-radius: 999px; background: var(--panel); font: 500 13px/18px var(--sans, inherit); color: var(--fg2); }
+.pf-modes svg { width: 15px; height: 15px; color: var(--pf-accent); }
+@media (max-width: 700px) { .pf-modes { gap: 6px; } .pf-modes li { padding: 6px 11px; font-size: 12px; } }

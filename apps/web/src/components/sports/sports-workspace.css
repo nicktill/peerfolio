@@ -1154,3 +1154,9 @@
 .sp-manage-fine { margin: 0; font-size: 12px; line-height: 17px; color: var(--fw-fg3); }
 .sp-manage-cta { width: 100%; }
 @media (max-width: 700px) { .sl-manage { height: 32px; } }
+
+/* Live slip: the price the To win figure is computed at, so a re-price is visible as odds, not only as a new amount. */
+.sp-slip-return-label { display: flex; flex-direction: column; gap: 2px; }
+.sp-slip-at { font: 500 12px/16px var(--fw-mono); color: var(--fw-fg2); font-variant-numeric: tabular-nums; }
+.sp-slip-at[data-dir="up"] { color: var(--gain-ink); }
+.sp-slip-at[data-dir="down"] { color: var(--loss-ink); }
