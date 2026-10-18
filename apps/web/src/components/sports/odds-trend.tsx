@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { MIN_TREND_POINTS, trendPath } from "@web/lib/sports/live/trend"
+import { sampleResponse } from "@web/lib/sample/fixtures"
+import { MIN_TREND_POINTS, sparkline } from "@web/lib/sports/live/trend"
 
 type Entry = { points: number[]; at: number; subs: number; timer: number | undefined; listeners: Set<() => void> }
 /** One history poll per game, shared by both team rows. */
@@ -11,9 +12,11 @@ const REFRESH_MS = 60_000
 async function load(id: string, e: Entry) {
   if (document.visibilityState === "visible") {
     try {
-      const res = await fetch(`/api/sports/live/history?eventId=${encodeURIComponent(id)}`)
-      if (res.ok) {
-        const body = (await res.json()) as { points?: number[] }
+      const url = `/api/sports/live/history?eventId=${encodeURIComponent(id)}`
+      const fixture = sampleResponse(url, window.location.pathname) as { points?: number[] } | null
+      const res = fixture ? null : await fetch(url)
+      if (fixture || res?.ok) {
+        const body = fixture ?? ((await res!.json()) as { points?: number[] })
         e.points = Array.isArray(body.points) ? body.points : []
         e.at = Date.now()
         e.listeners.forEach((l) => l())
@@ -49,15 +52,19 @@ function useHistory(eventId: string): number[] {
 }
 
 /**
- * Faded win-probability history behind a team row. `side` is which team the row is: the line shows that team's chance
+ * Small win-probability sparkline for a team row. `side` is which team the row is: the line shows that team's chance
  * (the other row shows the mirror). Decorative: aria-hidden, renders nothing without enough history.
  */
 export function OddsTrend({ eventId, side, color }: { eventId: string; side: "home" | "away"; color: string }) {
   const points = useHistory(eventId)
   if (points.length < MIN_TREND_POINTS) return null
+  const s = sparkline(points, side === "away")
+  if (!s) return null
   return (
-    <svg className="sp-odds-trend" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
-      <path d={trendPath(points, side === "away")} fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+    <svg className="sp-spark" width={64} height={26} viewBox="0 0 64 26" aria-hidden="true" focusable="false">
+      <line x1={3} x2={61} y1={13} y2={13} stroke="currentColor" strokeWidth={1} strokeDasharray="2 3" opacity={0.25} vectorEffect="non-scaling-stroke" />
+      <path d={s.d} fill="none" stroke={color} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+      <circle cx={s.last[0]} cy={s.last[1]} r={2.2} fill={color} />
     </svg>
   )
 }

@@ -536,11 +536,12 @@
 
 .sp-next-more { display: block; margin: 10px auto 2px; padding: 6px 10px; font: 500 12px var(--fw-sans); color: var(--fw-fg2); }
 
-/* Faded win-probability history behind each live team row. */
-.sp-live-side { position: relative; isolation: isolate; overflow: hidden; }
-.sp-odds-trend { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -1; opacity: .55; pointer-events: none; animation: sp-trend-in .6s ease-out; }
-@keyframes sp-trend-in { from { opacity: 0; } to { opacity: .55; } }
-@media (prefers-reduced-motion: reduce) { .sp-odds-trend { animation: none; } }
+/* Win-probability sparkline in each live team row, just left of the score. */
+.sp-spark { flex: none; margin-left: auto; color: var(--fw-fg3); animation: sp-spark-in .5s ease-out; }
+.sp-spark + .sp-live-score { margin-left: 14px; }
+@keyframes sp-spark-in { from { opacity: 0; } to { opacity: 1; } }
+@media (max-width: 420px) { .sp-spark { width: 48px; height: auto; } }
+@media (prefers-reduced-motion: reduce) { .sp-spark { animation: none; } }
 
 /* Live (in-play) picks */
 .sp-live-pick { display: grid; gap: 10px; border-top: 1px solid var(--fw-hair); padding-top: 12px; margin-top: 10px; }

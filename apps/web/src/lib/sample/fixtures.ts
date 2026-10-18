@@ -182,7 +182,8 @@ function sampleResponseRaw(url: string, pathname: string | null): unknown {
   }
   if (/^\/api\/fantasy\/sample\/season(\?|$)/.test(url)) return SEASON
   if (/^\/api\/fantasy\/sample(\?|$)/.test(url)) return fantasyView(FANTASY_LEAGUE)
-  if (/^\/api\/sports\/leagues\/sample(\?|$)/.test(url)) return sportsView(SPORTS_LEAGUE)
+  if (/^\/api\/sports\/live\/history\?/.test(url)) return { points: Array.from({ length: 40 }, (_, i) => +(0.5 + 0.1 * Math.sin(i / 5) - i * 0.002 + (i > 28 ? (i - 28) * 0.012 : 0)).toFixed(3)) }
+  if (/^\/api\/sports\/leagues\/sample(\?|$)/.test(url)) return { ...sportsView(SPORTS_LEAGUE), liveEvents: [{ id: "00000000-0000-4000-8000-000000000001", sport: "nfl", home: "Minnesota Vikings", away: "Green Bay Packers", startsAt: new Date(Date.now() - 75 * 60_000).toISOString() }] }
   if (/^\/api\/leagues\/sample(\?|$)/.test(url)) return PRIVATE_LEAGUE
   if (/^\/api\/sports\/leagues\/sample\/report/.test(url)) return { pairs: [] }
   if (pathname && inSampleView(pathname) && url === "/api/portfolio/intraday") return intradayFixture()

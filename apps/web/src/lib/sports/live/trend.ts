@@ -40,4 +40,15 @@ export function trendPath(values: number[], flip = false): string {
     .join("")
 }
 
+/** Sparkline geometry in pixels for probabilities in 0..1: the path plus the last point, which gets a dot. */
+export function sparkline(values: number[], flip = false, w = 64, h = 26, pad = 3): { d: string; last: [number, number] } | null {
+  if (values.length < 2) return null
+  const n = values.length - 1
+  const pts = values.map((p, i): [number, number] => {
+    const q = Math.min(1, Math.max(0, flip ? 1 - p : p))
+    return [pad + (i / n) * (w - 2 * pad), pad + (1 - q) * (h - 2 * pad)]
+  })
+  return { d: pts.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`).join(""), last: pts[n]! }
+}
+
 export const MIN_TREND_POINTS = 8
