@@ -43,7 +43,8 @@ function TeamRows({ g, showScore, trendId, trendLive, offer, stale, pickable, li
     {sides(g).map((side, i) => {
       const selection: LiveSelection = i === 0 ? 'away' : 'home'
       const price = offer?.prices[selection]
-      const canPick = !!pickable && !!eventId && !!livePick && price != null && !stale
+      // A held (older) price is still pickable: the slip opens on it and Lock stays greyed ('Repricing…') until a fresh quote arrives.
+      const canPick = !!pickable && !!eventId && !!livePick && price != null
       // On a pickable card the odds column is always reserved, so a quote that goes stale between polls never re-wraps the row.
       const reserve = !!eventId && !!livePick
       const Row = canPick ? 'button' : 'div'
@@ -52,7 +53,7 @@ function TeamRows({ g, showScore, trendId, trendLive, offer, stale, pickable, li
         {trendId ? <OddsTrend eventId={trendId} side={selection} color={colors[i]} team={side.name} live={trendLive} /> : null}
         {showScore ? <SetScores sets={side.sets} live={g.status === 'live'} /> : null}
         {showScore ? <b className="sp-live-score"><LiveNumber value={side.score == null ? null : Number.isFinite(Number(side.score)) ? Number(side.score) : null} format={scoreText} kind="score" seenKey={`score:${g.sport}:${g.id}:${side.name}`} /></b> : null}
-        {price != null && reserve ? <span className="sp-line-odds" data-stale={stale || undefined}><b>{formatOdds(price)}</b><small>$100 wins ${winOn100(price)}</small></span> : reserve ? <span className="sp-line-odds" data-stale><b>–</b><small>repricing</small></span> : null}
+        {price != null && reserve ? <span className="sp-line-odds" data-stale={stale || undefined}><b>{formatOdds(price)}</b><small>{stale ? 'updating' : `$100 wins $${winOn100(price)}`}</small></span> : reserve ? <span className="sp-line-odds" data-stale><b>–</b><small>repricing</small></span> : null}
       </Row>
     })}
   </div>
@@ -75,10 +76,10 @@ function LiveCard({ g, now, tracked, enableAdminTest, livePick }: { g: ScoreGame
   const split = exchange ?? est
   let offer: TestOffer | null = null
   try { if (view && fresh) { const aged = ageView(view, elapsedMs); offer = testOffer(aged, Date.parse(aged.serverTime)) } } catch { /* stale quotes never become selectable lines */ }
-  // Quotes age out between polls; keep showing the last good price (dimmed, not pickable) for a minute instead of letting the odds blink away.
+  // Quotes age out between polls; keep showing the last good price (dimmed, still pickable; Lock waits for a fresh quote) for ten minutes instead of letting the odds blink away.
   const lastOffer = useRef<TestOffer | null>(null)
   if (offer) lastOffer.current = offer
-  const held = !offer && lastOffer.current && now - Date.parse(lastOffer.current.quoteAsOf) < 60_000 ? lastOffer.current : null
+  const held = !offer && lastOffer.current && now - Date.parse(lastOffer.current.quoteAsOf) < 600_000 ? lastOffer.current : null
   const shownOffer = offer ?? held
   // Three-way sports keep the Draw row even while a quote is briefly missing, so the card does not grow and shrink.
   const drawPrice = shownOffer?.prices.draw ?? null
