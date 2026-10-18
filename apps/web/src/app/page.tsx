@@ -68,7 +68,7 @@ export default async function HomePage() {
               <RotatingWord prefix="with " words={RIVALS} />
             </h1>
             <p style={revealStyle(1)} className="reveal pf-sub mx-auto mt-4 max-w-2xl text-balance text-base leading-7 sm:text-[17px]">
-              Compete with friends using your real portfolios, or play-money stocks and sports picks.
+              Track your real portfolios, or play for fun with fantasy stocks or sports picks. Compete with friends in leagues where you see return percentages, never dollar amounts.
             </p>
             <div style={revealStyle(2)} className="reveal mt-6 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
               <SignInButton />
@@ -81,7 +81,7 @@ export default async function HomePage() {
               <li><Sparkles aria-hidden />Fantasy stocks</li>
               <li><Trophy aria-hidden />Sports picks</li>
             </ul>
-            <p style={revealStyle(3)} className="reveal pf-muted mt-3 text-xs">Free. Friends see your returns, never your dollars.</p>
+            <p style={revealStyle(3)} className="reveal pf-muted mt-3 text-xs">Free. Join friends in a league, or play on your own.</p>
           </div>
 
           <div className="pf-hero-preview relative mx-auto max-w-[1280px] px-6 pb-16 sm:px-5 sm:pb-24 xl:pt-9">
