@@ -164,7 +164,7 @@ export async function POST(request: Request) {
             send({ type: "status", stage: "analyzing", label: toolLabel(call.name, call.arguments) })
             let output: unknown
             try {
-              output = await runTool(call.name, call.arguments, { userId, page: context.page, range: context.range, pageLeagueId: context.page === "leagues" ? context.entityId : undefined, pageFantasyId: context.page === "fantasy" ? context.entityId : undefined, emit: (e) => send(e) })
+              output = await runTool(call.name, call.arguments, { userId, page: context.page, range: context.range, pageLeagueId: context.page === "leagues" ? context.entityId : undefined, pageFantasyId: context.page === "fantasy" ? context.entityId : undefined, pageSportsId: context.page === "sports" ? context.entityId : undefined, emit: (e) => send(e) })
             } catch (error) {
               console.error("[assistant] tool failed", call.name, error instanceof Error ? error.message : error)
               output = { error: "That data isn't available right now." }

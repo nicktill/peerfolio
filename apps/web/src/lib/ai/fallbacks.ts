@@ -4,7 +4,7 @@
  * question that was just asked.
  */
 
-type Page = "portfolio" | "leagues" | "fantasy" | "news" | "board" | "wealth" | "other"
+type Page = "portfolio" | "leagues" | "fantasy" | "sports" | "news" | "board" | "wealth" | "other"
 
 const PORTFOLIO = ["What are my biggest risks?", "How do I compare with the S&P 500?", "What are my largest holdings?", "Which holdings moved most today?"]
 
@@ -15,6 +15,7 @@ const BY_PAGE: Record<Page, string[]> = {
   news: ["Which news matters to my holdings?", "What are today's biggest movers?", "Who reports earnings this week?", "How is the market doing?"],
   leagues: ["How far am I from the leader?", "Who is ahead of me?", "Compare over a longer range", "Analyze my portfolio"],
   fantasy: ["What drove my fantasy returns?", "How does my strategy compare with the leader?", "What changed in the standings?", "Analyze my portfolio"],
+  sports: ["What are my open picks?", "How do parlays work?", "Where do I stand in the league?", "What is my max pick?"],
   wealth: ["Make a more conservative scenario", "How much do I need to save to reach $1M?", "What if I invest $500 more a month?", "Analyze my portfolio"],
 }
 

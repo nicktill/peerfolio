@@ -103,7 +103,7 @@ export function cleanHistory(raw: unknown): ChatMessage[] | null {
  * re-check ownership, and nothing here is ever trusted as an identity or a figure.
  */
 export type PageContext = {
-  page: "portfolio" | "leagues" | "fantasy" | "news" | "board" | "wealth" | "other"
+  page: "portfolio" | "leagues" | "fantasy" | "sports" | "news" | "board" | "wealth" | "other"
   /** The league (or fantasy league) open on the page. */
   entityId?: string
   /** The time range selected on the portfolio chart. */
@@ -116,7 +116,7 @@ export type PageContext = {
   holding?: string
 }
 
-const PAGES = new Set(["portfolio", "leagues", "fantasy", "news", "board", "wealth", "other"])
+const PAGES = new Set(["portfolio", "leagues", "fantasy", "sports", "news", "board", "wealth", "other"])
 
 export function cleanContext(raw: unknown): PageContext {
   if (!raw || typeof raw !== "object") return { page: "other" }

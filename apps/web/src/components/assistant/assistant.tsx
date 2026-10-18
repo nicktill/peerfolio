@@ -909,6 +909,7 @@ const PLACEHOLDER: Record<Page, string> = {
   news: "Ask about the market or today's news…",
   leagues: "Ask about your league…",
   fantasy: "Ask about your fantasy league…",
+  sports: "Ask about your Sports picks…",
   wealth: "Ask a what-if…",
   board: "Ask about your portfolio…",
   other: "Ask about your portfolio…",

@@ -12,6 +12,7 @@ const LABELS: Record<string, string> = {
   get_holdings: "Reading your holdings",
   get_league_standings: "Reading the standings",
   get_fantasy_league: "Reading your fantasy league",
+  get_sports_league: "Reading your sports league",
   get_market_news: "Reading today's headlines",
   get_market_snapshot: "Checking the market",
   get_quotes: "Pulling live quotes",

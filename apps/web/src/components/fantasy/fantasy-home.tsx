@@ -4,6 +4,7 @@ import { SampleLink } from "@web/components/sample/sample-link"
 import "@web/components/fantasy/fantasy-workspace.css"
 
 import { useState } from "react"
+import { useAssistantView } from "@web/components/assistant/view-context"
 import Link from "next/link"
 import { ArrowRight, Clock, Infinity as Forever, Plus, Trophy, Users } from "lucide-react"
 import { formatPercent } from "@web/lib/format"
@@ -52,6 +53,7 @@ function FantasyPage() {
   const { data, loading, refetch } = useApi<{ leagues: FantasySummary[] }>("/api/fantasy")
   const [mode, setMode] = useState<"none" | "create" | "join">("none")
   const [side, setSide] = useFantasyMode()
+  useAssistantView({ mode: side === "sports" ? "sports" : undefined })
 
   // Sports sits behind the sports flag (useSportsEnabled: everyone, or admins only); when it is off for this user `side` is always "stocks" and the switch renders nothing.
   if (side === "sports") {
