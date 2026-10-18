@@ -278,7 +278,7 @@ describe("result resolution", () => {
     assert.equal(resolveResult([A, { ...A }], ctx).kind, "wait") // same source twice does not count
   })
   it("waits out the settle delay (stat corrections)", () => {
-    assert.equal(resolveResult([A, B], { ...ctx, finalFirstSeenAt: hours(-1) }).kind, "wait")
+    assert.equal(resolveResult([A, B], { ...ctx, finalFirstSeenAt: hours(-0.1) }).kind, "wait")
     assert.equal(resolveResult([A, B], { ...ctx, finalFirstSeenAt: null }).kind, "wait")
   })
   it("sends disagreements to review", () => {

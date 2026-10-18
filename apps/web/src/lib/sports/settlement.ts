@@ -27,7 +27,7 @@ export type ResolveConfig = {
 
 export const DEFAULT_RESOLVE: ResolveConfig = {
   minSources: 2,
-  settleDelayMs: 6 * 3600_000,
+  settleDelayMs: 30 * 60_000,
   postponeGraceMs: 48 * 3600_000,
   noResultVoidMs: 72 * 3600_000,
   reviewTimeoutMs: 7 * 24 * 3600_000,
