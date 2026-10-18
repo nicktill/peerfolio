@@ -827,3 +827,48 @@
 @keyframes sp-odds-pulse { 50% { background: color-mix(in srgb, var(--fw-accent) 16%, transparent); } }
 @keyframes sp-win-flash { from { color: var(--fw-accent); transform: scale(1.08); } to { transform: none; } }
 @media (prefers-reduced-motion: reduce) { .sp-odds-moved, .sp-live-pick-stake [data-dir] b { animation: none; } }
+
+/* Phone: sports get their own full-width swipeable row (edge fades show there is more), bet type and search sit below. */
+.sp-filter-bar .sp-filter[data-more="end"] { mask-image: linear-gradient(to right, #000 calc(100% - 34px), transparent); }
+.sp-filter-bar .sp-filter[data-more="start"] { mask-image: linear-gradient(to left, #000 calc(100% - 34px), transparent); }
+.sp-filter-bar .sp-filter[data-more="both"] { mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 34px), transparent); }
+.sp-filter-bar .sp-filter[data-more="none"] { mask-image: none; }
+@media (max-width: 700px) {
+  .sp-filter-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 8px; padding: 8px 0 12px; }
+  .sp-open-lines .sp-filter-bar .sp-filter { grid-column: 1 / -1; gap: 6px; scroll-snap-type: x proximity; padding: 2px 0; }
+  .sp-open-lines .sp-filter .fw-choice { scroll-snap-align: start; height: 38px; padding: 0 13px; border-color: var(--fw-hair); background: var(--fw-panel); }
+  .sp-open-lines .sp-filter .fw-choice[aria-pressed="true"] { border-color: color-mix(in srgb, var(--fw-accent) 55%, var(--fw-hair)); background: var(--fw-raise); }
+  .sp-filter-bar .pl-switch { min-width: 0; width: 100%; }
+  .sp-filter-bar .pl-switch button { flex: 1 1 0; justify-content: center; }
+  .sp-filter-bar .sp-filter-gap { display: none; }
+  .sp-filter-bar .sp-search { grid-column: 1 / -1; }
+}
+
+/* Header actions: Pick limits and Invite share one height, radius and surface, and sit on one centred line. */
+.fw-play-space[data-play-world="sports"] .fw-head .fw-actions { align-items: center; justify-content: flex-end; flex-wrap: nowrap; gap: 8px; }
+.fw-play-space[data-play-world="sports"] .fw-head .sp-limits-btn { flex: none; gap: 8px; height: 42px; padding: 0 14px; border: 1px solid var(--fw-hair2); border-radius: 12px; color: var(--fw-fg); background: linear-gradient(145deg, var(--fw-raise), var(--fw-panel)); box-shadow: inset 0 1px 0 rgb(255 255 255 / .04); font: 500 12px var(--fw-sans); transition: border-color .2s, box-shadow .2s; }
+.fw-play-space[data-play-world="sports"] .fw-head .sp-limits-btn svg { width: 15px; height: 15px; color: var(--fw-fg2); }
+.fw-play-space[data-play-world="sports"] .fw-head .sp-limits-btn:hover { border-color: color-mix(in srgb, var(--fw-accent) 50%, var(--fw-hair)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--fw-accent) 6%, transparent); }
+.fw-play-space[data-play-world="sports"] .fw-head .fw-invite { flex: none; }
+@media (max-width: 700px) {
+  .fw-play-space[data-play-world="sports"] .fw-head .fw-actions { width: auto; }
+  .fw-play-space[data-play-world="sports"] .fw-head .sp-limits-btn { height: 36px; padding: 0 11px; gap: 6px; }
+  .fw-play-space[data-play-world="sports"] .fw-head .sp-limits-btn svg { width: 14px; height: 14px; }
+}
+
+/* Phone pick sheet: docked to the bottom edge above the tab bar; it slides down to a bar and back up. */
+@media (max-width: 700px) {
+  .sp-sheet[data-open] {
+    left: 0; right: 0; border-radius: 22px 22px 0 0; border-bottom-width: 0;
+    animation: sp-sheet-up .3s cubic-bezier(.22, 1, .36, 1);
+    transition: translate .2s ease, transform .3s cubic-bezier(.22, 1, .36, 1), visibility 0s;
+    box-shadow: 0 -16px 44px -12px rgb(0 0 0 / .45);
+  }
+  .sp-slip-dock[data-sheet-min] .sp-sheet[data-open] { transform: translateY(calc(100% + 90px)); visibility: hidden; pointer-events: none; transition: translate .2s ease, transform .3s cubic-bezier(.22, 1, .36, 1), visibility 0s .3s; }
+  .sp-sheet[data-open][data-dragging] { transition: none; }
+  .sp-review-pick { display: flex; left: 0; right: 0; bottom: calc(76px + env(safe-area-inset-bottom)); width: 100%; max-width: none; min-height: 58px; padding: 10px 16px; border-width: 1px 0 0; border-radius: 18px 18px 0 0; justify-content: space-between; animation: sp-bar-up .3s cubic-bezier(.22, 1, .36, 1); }
+  .sp-review-action { margin-left: auto; }
+}
+@keyframes sp-sheet-up { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes sp-bar-up { from { transform: translateY(100%); opacity: .6; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .sp-sheet[data-open], .sp-review-pick { animation: none !important; transition: none !important; } }

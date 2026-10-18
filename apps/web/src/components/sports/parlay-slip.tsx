@@ -2,6 +2,7 @@
 
 import "./parlay.css"
 import { SlipEmpty } from "./slip-empty"
+import { SheetHandle } from "./sheet-handle"
 import { createContext, useCallback, useEffect, useMemo, useState } from "react"
 import { Layers, Target, X, ChevronUp } from "lucide-react"
 import { useToast } from "@web/components/ui/toast"
@@ -102,6 +103,7 @@ export function ParlaySlip({
   closed,
   onRemove,
   onClear,
+  onMinimize,
   onAccept,
   onLock,
   onPlaced,
@@ -117,6 +119,7 @@ export function ParlaySlip({
   closed: boolean
   onRemove: (lineId: string) => void
   onClear: () => void
+  onMinimize?: () => void
   onAccept: () => void
   onLock: (fx: PickLockFx) => void
   onPlaced: () => void
@@ -171,6 +174,7 @@ export function ParlaySlip({
 
   return (
     <section className="fw-panel fw-trade sp-slip sp-sheet pl-slip" aria-labelledby="pl-slip-title" data-open={legs.length > 0 ? "" : undefined} data-min={!expanded || undefined} data-closed={closed || undefined}>
+      {legs.length > 0 && onMinimize ? <SheetHandle onMinimize={onMinimize} disabled={pending} /> : null}
       <div className="fw-section-head pl-slip-head">
         <h2 id="pl-slip-title">Parlay slip</h2>
         {legs.length > 0 ? (

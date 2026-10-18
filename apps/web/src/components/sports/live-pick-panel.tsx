@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Zap, X } from 'lucide-react'
 import { TeamBadge } from './team-badge'
+import { SheetHandle } from './sheet-handle'
 import { matchupColors } from '@web/lib/sports/matchup-colors'
 import { useLiveGame } from './live-game'
 import { useToast } from '@web/components/ui/toast'
@@ -114,12 +115,13 @@ export function LivePickPanel({ leagueId, eventId, home, away, sport, credits, s
 }
 
 
-export function LivePickSlip({ selection, onClear, onAcceptPrice, onBusyChange, ...props }: Omit<Props, 'eventId' | 'home' | 'away' | 'sport' | 'selectedSide' | 'selectedPrice'> & { selection: LivePickSelection; onClear: () => void }) {
+export function LivePickSlip({ selection, onClear, onMinimize, onAcceptPrice, onBusyChange, ...props }: Omit<Props, 'eventId' | 'home' | 'away' | 'sport' | 'selectedSide' | 'selectedPrice'> & { selection: LivePickSelection; onClear: () => void; onMinimize?: () => void }) {
   const busy = props.busy ?? false
   const name = selection.side === 'draw' ? 'Draw' : selection.side === 'home' ? selection.home : selection.away
   const colors = matchupColors(selection.sport, selection.away, selection.home)
   const color = selection.side === 'home' ? colors[1] : selection.side === 'away' ? colors[0] : '#64748b'
   return <section className="fw-panel fw-trade sp-slip sp-sheet sp-live-slip" data-open="" data-themed="" style={{ '--tc': color } as React.CSSProperties} aria-labelledby="sp-live-slip-title" aria-busy={busy || undefined}>
+    {onMinimize ? <SheetHandle onMinimize={onMinimize} disabled={busy} /> : null}
     <div className="fw-section-head"><h2 id="sp-live-slip-title">Pick slip</h2><button type="button" className="sp-clear" aria-label="Clear live pick slip" disabled={busy} onClick={onClear}><X aria-hidden />Clear</button></div>
     <div className="sp-slip-pick"><div className="sp-slip-top" data-accent={color}>
       {selection.side !== 'draw' ? <TeamBadge sport={selection.sport} name={name} size={44} /> : null}

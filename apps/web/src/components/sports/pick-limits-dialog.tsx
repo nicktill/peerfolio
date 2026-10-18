@@ -18,7 +18,7 @@ export function PickLimitsButton({ leagueId, startingCredits, maxStakePct, liveB
   const [open, setOpen] = useState(false)
   return (
     <>
-      <button type="button" className="fw-btn" onClick={() => setOpen(true)} aria-label="Edit pick limits">
+      <button type="button" className="fw-btn sp-limits-btn" onClick={() => setOpen(true)} aria-label="Edit pick limits">
         <SlidersHorizontal aria-hidden /> <span>Pick limits</span>
       </button>
       {open ? <Dialog open onClose={() => setOpen(false)} title="Pick limits" description="Only you, as the owner, can change this." className="fw-dialog-panel sm:max-w-md">
