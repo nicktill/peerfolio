@@ -8,7 +8,8 @@ import type { NewsResponse } from "@web/lib/news"
 import type { MarketBoard, EarningsWeekData } from "@web/lib/news-market"
 import { CalendarDays, LayoutDashboard, Medal, Newspaper, Sparkles, Trophy } from "lucide-react"
 import { LeaguePreview } from "@web/components/landing/league-preview"
-import { PortfolioView, FantasyView } from "@web/components/landing/product-tour"
+import { PortfolioView } from "@web/components/landing/product-tour"
+import { PlayPreview } from "@web/components/landing/play-preview"
 import { CastAvatar } from "@web/components/landing/cast-avatar"
 import { CAST } from "@web/components/landing/demo"
 import { ScrollTilt } from "@web/components/landing/scroll-tilt"
@@ -21,7 +22,7 @@ import "@web/components/news/news.css"
 const PAGES = [
   { label: "Portfolio", Icon: LayoutDashboard },
   { label: "Leagues", Icon: Trophy },
-  { label: "Fantasy", Icon: Sparkles },
+  { label: "Play", Icon: Sparkles },
   { label: "Board", Icon: Medal },
   { label: "News", Icon: Newspaper },
 ] as const
@@ -59,7 +60,7 @@ export function HeroProductPreview() {
             ))}
           </div>
           <div id="hero-preview-page" role="tabpanel" aria-labelledby={`preview-tab-${page}`} tabIndex={0} className="pf-demo-page">
-            {page === "Leagues" ? <LeaguePreview tilt={0} /> : page === "Portfolio" ? <PortfolioView e={1} scrub={false} compact tilt={0} /> : page === "Fantasy" ? <FantasyView e={1} compact tilt={0} /> : page === "Board" ? <BoardPreview /> : null}
+            {page === "Leagues" ? <LeaguePreview tilt={0} /> : page === "Portfolio" ? <PortfolioView e={1} scrub={false} compact tilt={0} /> : page === "Play" ? <PlayPreview /> : page === "Board" ? <BoardPreview /> : null}
             <div hidden={page !== "News"} className={page === "News" ? "swap-in" : undefined}><NewsPreview /></div>
           </div>
         </div>
