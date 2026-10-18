@@ -67,7 +67,7 @@ function LiveCard({ g, now, tracked, enableAdminTest, livePick }: { g: ScoreGame
   </article>
 }
 
-export function ScoreboardGames({ games, tracked, now, loading, failed, enableAdminTest = false, livePick, query }: { query?: string; games: ScoreGame[]; tracked: Tracked[]; now: number; loading: boolean; failed: boolean; enableAdminTest?: boolean; livePick?: LivePickConfig }) {
+export function ScoreboardGames({ games, tracked, now, loading, failed, enableAdminTest = false, livePick, query, onShowUpcoming }: { query?: string; onShowUpcoming?: () => void; games: ScoreGame[]; tracked: Tracked[]; now: number; loading: boolean; failed: boolean; enableAdminTest?: boolean; livePick?: LivePickConfig }) {
   const live = games.filter(g => g.status === 'live')
   // Quiet right now: show what is coming up in the next few days instead of an empty panel.
   const upcoming = games.filter(g => g.status === 'upcoming' && Date.parse(g.startsAt) > now).slice(0, UPCOMING_LIMIT)
@@ -83,6 +83,6 @@ export function ScoreboardGames({ games, tracked, now, loading, failed, enableAd
   return <div className="sp-live-games">
     {failed ? <p className="sp-fine" role="status">Some scores are unavailable. This list may be incomplete.</p> : null}
     {live.length ? live.map(g => card(g, true)) : <p className="fw-empty" role="status">Nothing in progress right now.</p>}
-    {upcoming.length ? <><h3 className="sp-day">Coming up</h3>{upcoming.map(g => card(g, false))}</> : null}
+    {upcoming.length ? <><h3 className="sp-day">Coming up</h3>{onShowUpcoming ? <p className="sp-fine sp-coming-note">Pick these games from the <button type="button" className="sp-link" onClick={onShowUpcoming}>Upcoming tab</button> before kickoff.</p> : null}{upcoming.map(g => card(g, false))}</> : null}
   </div>
 }

@@ -583,10 +583,15 @@
 .sp-search-done { display: none; flex: none; padding: 0 10px; height: 28px; font: 500 12px var(--fw-sans); color: var(--fw-fg2); }
 .sp-search-btn:focus-visible, .sp-search-clear:focus-visible, .sp-search-done:focus-visible { outline: 2px solid var(--fw-fg3); outline-offset: 1px; }
 @media (max-width: 700px) {
+  .sp-open-lines .sp-filter-bar .sp-filter { scrollbar-width: none; }
+  .sp-open-lines .sp-filter::-webkit-scrollbar { display: none; }
   .sp-search-btn { width: 40px; height: 40px; }
   .sp-search { height: 40px; flex: 1 1 auto; }
   .sp-search input { font-size: 16px; }
   .sp-search-done { display: inline-block; }
-  /* The input needs the room: the sport chips scroll beside it. */
-  .sp-filter-bar[data-search] .sp-filter { flex: 0 1 96px; }
+  /* The input takes the whole row on a phone; the chosen sport stays applied and the chips return on Done. */
+  .sp-filter-bar[data-search] .sp-filter, .sp-filter-bar[data-search] .sp-filter-gap { display: none; }
 }
+.sp-coming-note { margin: 0 0 6px; }
+.sp-link { padding: 0; font: inherit; color: var(--fw-fg); text-decoration: underline; text-underline-offset: 2px; }
+.sp-link:focus-visible { outline: 2px solid var(--fw-fg3); outline-offset: 2px; border-radius: 3px; }
