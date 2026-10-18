@@ -102,6 +102,9 @@ export function AppNav() {
                     <Link href="/admin/brokerages" className="peerfolio-nav-link" aria-current={pathname.startsWith("/admin/brokerages") ? "page" : undefined}>
                       <span>Manage brokerages</span>
                     </Link>
+                    <Link href="/admin/sports" className="peerfolio-nav-link" aria-current={pathname.startsWith("/admin/sports") ? "page" : undefined}>
+                      <span>Sports access</span>
+                    </Link>
                     <Link href="/admin/providers" className="peerfolio-nav-link" aria-current={pathname === "/admin/providers" ? "page" : undefined}>
                       <span>Provider usage</span>
                     </Link>

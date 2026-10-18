@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "sports_access" boolean DEFAULT false NOT NULL;

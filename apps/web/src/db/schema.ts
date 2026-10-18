@@ -70,6 +70,8 @@ export const users = pgTable(
     brokerageLinkingBlocked: boolean("brokerage_linking_blocked").notNull().default(false),
     /** Admin override of the per-user lifetime link limit (0..10). Null means the default (USER_PRODUCTION_LINK_LIMIT). */
     brokerageLinkLimit: integer("brokerage_link_limit"),
+    /** Admin grant for the sports beta while sports is in "admin" mode. Admins always have access. */
+    sportsAccess: boolean("sports_access").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
