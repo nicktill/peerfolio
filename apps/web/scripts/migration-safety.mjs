@@ -9,11 +9,16 @@ const RISKY = [
   /\bupdate\s+"?[\w.]+"?\s+set\b/i,
 ]
 
+/** `ALTER COLUMN x DROP NOT NULL` and `ALTER COLUMN x DROP DEFAULT` only loosen a column. */
+const SAFE_RELAX = /\balter\s+column\s+"?[\w]+"?\s+drop\s+(?:not\s+null|default)\b/gi
+
 /** The first risky statement in a migration file, or null if it only adds things. */
 export function riskyStatement(sql) {
   const withoutComments = sql.replace(/--.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "")
   for (const statement of withoutComments.split(/;|-->\s*statement-breakpoint/)) {
-    if (RISKY.some((pattern) => pattern.test(statement))) return statement.trim().slice(0, 120)
+    // Relaxing a constraint never loses data: drop those clauses before checking, so anything else in the statement still counts.
+    const checked = statement.replace(SAFE_RELAX, "")
+    if (RISKY.some((pattern) => pattern.test(checked))) return statement.trim().slice(0, 120)
   }
   return null
 }
