@@ -180,11 +180,12 @@
 .tw-caret { display: none; }
 /* Collapsed panel: two of them, kept apart */
 .sp-world:not([aria-selected="true"]) .fb-bubble:nth-child(n+2), .sp-world:not([aria-selected="true"]) .am-card:nth-child(n+2) { display: inline-flex; }
-.sp-world:not([aria-selected="true"]) .fb-bubble:nth-child(n+3), .sp-world:not([aria-selected="true"]) .am-card:nth-child(n+3) { display: none; }
+.sp-world:not([aria-selected="true"]) .fb-bubble:nth-child(n+3) { display: none; }
 .sp-world:not([aria-selected="true"]) .fb-bubble[data-k="0"] { left: 38%; top: 14%; }
 .sp-world:not([aria-selected="true"]) .fb-bubble[data-k="1"] { left: 52%; top: 56%; }
-.sp-world:not([aria-selected="true"]) .am-card[data-k="0"] { left: 32%; top: 14%; }
-.sp-world:not([aria-selected="true"]) .am-card[data-k="1"] { left: 40%; top: 58%; }
+.sp-world:not([aria-selected="true"]) .am-card[data-k="0"] { left: 34%; right: auto; top: 8%; }
+.sp-world:not([aria-selected="true"]) .am-card[data-k="1"] { left: 48%; right: auto; top: 38%; }
+.sp-world:not([aria-selected="true"]) .am-card[data-k="2"] { left: 36%; right: auto; top: 68%; }
 @media (max-width: 760px) { .fb-bubble[data-k="2"], .fb-bubble[data-k="3"], .am-card[data-k="2"] { display: none; } }
 
 
