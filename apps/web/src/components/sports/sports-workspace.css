@@ -508,7 +508,7 @@
 .sp-tennis-mark { display: block; flex: none; }
 
 /* Open lines scroll inside the panel so the pick slip stays in view; cards are tighter. */
-.sp-open-lines .sp-scroll { max-height: min(72vh, 640px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding-right: 4px; margin-right: -4px; }
+.sp-open-lines .sp-scroll { max-height: min(80vh, 820px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding-right: 4px; margin-right: -4px; }
 .sp-open-lines .sp-day { position: sticky; top: 0; z-index: 2; background: var(--fw-panel); padding: 8px 0 4px; }
 .sp-open-lines .sp-game { padding: 10px 12px; margin: 6px 0 8px; }
 .sp-open-lines .sp-game-head { margin-bottom: 8px; }
@@ -516,6 +516,6 @@
 .sp-open-lines .sp-team-lines .sp-line { min-height: 60px; padding: 8px 12px; }
 .sp-open-lines .sp-line[data-accent]:not([data-team]) { min-height: 54px; padding: 8px 12px; }
 @media (max-width: 700px) {
-  .sp-open-lines .sp-scroll { max-height: 68vh; }
+  .sp-open-lines .sp-scroll { max-height: 74vh; }
   .sp-open-lines .sp-team-lines .sp-line { min-height: 58px; }
 }

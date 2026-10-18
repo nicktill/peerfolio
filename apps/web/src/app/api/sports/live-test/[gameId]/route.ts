@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { and, like, lt } from 'drizzle-orm'
-import { sportsRateLimits } from '@web/db'
+import { sportsLiveTests, sportsRateLimits } from '@web/db'
 import { ApiError, readJson } from '@web/lib/api'
 import { db, withSportsUser } from '@web/lib/sports/api'
 import { assertLiveTestAdmin, signTestOffer, verifyTestOffer } from '@web/lib/sports/live-test-auth'
@@ -60,6 +60,10 @@ export const POST = withSportsUser<Ctx>(async (userId, request, context) => {
       },
     })
     await assertLiveTestAdmin(userId)
+    await db.insert(sportsLiveTests).values({
+      id: signed.nonce, userId, eventId: gameId, selection: receipt.selection, stake: receipt.stake, offeredPrice: receipt.offeredPrice,
+      requestedAt: new Date(receipt.requestedAt), acceptedAt: new Date(receipt.acceptedAt), quoteAgeMs: Math.round(receipt.quoteAgeMs), stateAgeMs: Math.round(receipt.stateAgeMs), receipt,
+    }).onConflictDoNothing()
     return NextResponse.json({ ...receipt, id: signed.nonce, notice: 'Private paper test only. No league cash debited, no winnings paid, no automatic settlement.' }, { headers })
   } catch (error) { return testError(error) }
 })

@@ -1,11 +1,15 @@
 import 'server-only'
 import { SignJWT, jwtVerify } from 'jose'
 import { ApiError } from '@web/lib/api'
-import { isAdminUser } from './access'
+import { eq } from 'drizzle-orm'
+import { db, users } from '@web/db'
+import { isAdminEmail } from '@web/lib/plaid-access-core'
 import { LIVE_TEST, type TestOffer } from './live-test'
 
+/** Admins, plus people an admin granted sports access to. Independent of the public sports flag: opening sports to everyone never opens this. */
 export async function assertLiveTestAdmin(userId: string) {
-  if (!(await isAdminUser(userId))) throw new ApiError('Not found', 404)
+  const user = await db.query.users.findFirst({ where: eq(users.id, userId) })
+  if (!user || !(user.sportsAccess || isAdminEmail(user.email, process.env.ADMIN_EMAILS))) throw new ApiError('Not found', 404)
 }
 const signingKey = () => {
   const secret = process.env.NEXTAUTH_SECRET

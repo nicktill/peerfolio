@@ -4,6 +4,7 @@ import { Lock } from 'lucide-react'
 import { LeagueBrand } from './league-brand'
 import { TeamBadge } from './team-badge'
 import { LiveGameStrip } from './live-game'
+import { AdminLiveTestPanel } from './admin-live-test'
 import { type ScoreGame, scoreboardMatch } from '@web/lib/sports/scoreboard'
 import { matchupColors } from '@web/lib/sports/matchup-colors'
 
@@ -11,7 +12,7 @@ type Tracked = {id: string; sport: string; home: string; away: string; startsAt:
 const when = (iso: string) => new Date(iso).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' })
 const UPCOMING_LIMIT = 12
 
-export function ScoreboardGames({ games, tracked, now, loading, failed }: { games: ScoreGame[]; tracked: Tracked[]; now: number; loading: boolean; failed: boolean }) {
+export function ScoreboardGames({ games, tracked, now, loading, failed, enableAdminTest = false }: { games: ScoreGame[]; tracked: Tracked[]; now: number; loading: boolean; failed: boolean; enableAdminTest?: boolean }) {
   const live = games.filter(g => g.status === 'live')
   // Quiet right now: show what is coming up in the next few days instead of an empty panel.
   const upcoming = games.filter(g => g.status === 'upcoming' && Date.parse(g.startsAt) > now).slice(0, UPCOMING_LIMIT)
@@ -29,6 +30,7 @@ export function ScoreboardGames({ games, tracked, now, loading, failed }: { game
       {isLive ? <>
         <div className="sp-live-footer"><span>{fresh ? g.detail : 'Last reported score · updates delayed'}</span><span><Lock aria-hidden />Picks locked</span></div>
         {known ? <LiveGameStrip eventId={known.id} sport={g.sport} home={g.home} away={g.away} active={fresh} /> : <p className="sp-fine">View only · live win probabilities unavailable</p>}
+        {known && enableAdminTest ? <AdminLiveTestPanel eventId={known.id} home={g.home} away={g.away} /> : null}
       </> : null}
     </article>
   }

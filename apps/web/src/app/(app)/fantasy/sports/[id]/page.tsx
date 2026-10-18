@@ -167,7 +167,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
                 ))}
               </div>
             ) : null}
-            {view === "upcoming" ? <div className="sp-scroll"><Markets markets={shown} selected={current} onSelect={(market, line) => setSelected({ market, line })} disabled={ended} now={now} /></div> : <ScoreboardGames games={liveGames} tracked={data.liveEvents ?? []} now={now} loading={scores.loading} failed={scoresFailed} />}
+            {view === "upcoming" ? <div className="sp-scroll"><Markets markets={shown} selected={current} onSelect={(market, line) => setSelected({ market, line })} disabled={ended} now={now} /></div> : <ScoreboardGames enableAdminTest={id !== "sample"} games={liveGames} tracked={data.liveEvents ?? []} now={now} loading={scores.loading} failed={scoresFailed} />}
           </section>
 
           <section className="fw-panel reveal" style={revealStyle(3)} aria-labelledby="sp-standings-title">

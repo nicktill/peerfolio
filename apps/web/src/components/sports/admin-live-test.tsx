@@ -64,9 +64,9 @@ export function AdminLiveTestPanel({ eventId, home, away }: { eventId: string; h
     finally { setOffer(null); setBusy(false) }
   }
   return <div className="sp-admin-live-test" style={{ borderTop: '1px solid var(--fw-border)', paddingTop: 12, marginTop: 10 }}>
-    <button type="button" className="sp-market-select" aria-expanded={opened} onClick={() => setOpened(!opened)}>Admin · live paper test</button>
+    <button type="button" className="sp-market-select" aria-expanded={opened} onClick={() => setOpened(!opened)}>Live paper test (beta)</button>
     {opened ? <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
-      <p className="sp-fine">Private TEST · 12-second acceptance delay · no league balance, payouts or settlement. Receipts stay in this browser. Feed latency can still make a quote exploitable.</p>
+      <p className="sp-fine">Private beta · play money only · nothing here touches your league cash or standings. Test picks are accepted after a short delay if the game has not changed. Accepted tests are recorded so we can check how fair live pricing is.</p>
       {!usable ? <p className="sp-fine" role="status">Test paused: a fresh live score and agreeing exchange quote are required.</p> : null}
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         <label className="sp-fine">Test stake <input type="number" aria-label="Paper test stake" min={LIVE_TEST.minStake} max={LIVE_TEST.maxStake} step={1} value={stake} disabled={busy} onChange={e => setStake(Number(e.target.value))} style={{ width: 70, marginLeft: 8, background: 'var(--fw-panel)', border: '1px solid var(--fw-border)', borderRadius: 6, padding: 6 }}/></label>

@@ -1420,3 +1420,22 @@ export const liveState = pgTable("live_state", {
   sourceTs: timestamp("source_ts", { withTimezone: true }),
   fetchedTs: timestamp("fetched_ts", { withTimezone: true }).notNull(),
 })
+
+/** Accepted private live paper tests (no cash, picks or standings): kept so quote timing can be analysed against stored live quotes. */
+export const sportsLiveTests = pgTable(
+  "sports_live_tests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    eventId: uuid("event_id").notNull(),
+    selection: text("selection").notNull(),
+    stake: integer("stake").notNull(),
+    offeredPrice: integer("offered_price").notNull(),
+    requestedAt: timestamp("requested_at", { withTimezone: true }).notNull(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }).notNull(),
+    quoteAgeMs: integer("quote_age_ms").notNull(),
+    stateAgeMs: integer("state_age_ms").notNull(),
+    receipt: jsonb("receipt").notNull(),
+  },
+  (t) => [index("sports_live_tests_event_idx").on(t.eventId, t.acceptedAt), index("sports_live_tests_user_idx").on(t.userId, t.acceptedAt)],
+)

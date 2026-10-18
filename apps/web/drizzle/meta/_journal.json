@@ -260,6 +260,13 @@
       "when": 1792284566202,
       "tag": "0036_users_sports_access",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1792285313681,
+      "tag": "0037_sports_live_tests",
+      "breakpoints": true
     }
   ]
 }
