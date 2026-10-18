@@ -933,6 +933,132 @@
 .sp-live-card .sp-live-side { min-height: 72px; }
 .sp-live-footer { min-height: 22px; }
 
+/* ==== Phones (<=700px): league header and stat strip, compact so Open lines sits near the top of the first screen ==== */
+.sp-sub-short { display: none; }
+@media (max-width: 700px) {
+  /* Header: title + Invite on one row, one-line meta, icon-only Pick limits */
+  .fw-play-space[data-play-world="sports"] > .fw-head { gap: 2px 8px; padding: 0 0 8px; }
+  .fw-play-space[data-play-world="sports"] > .fw-head .fw-art { width: 30px; height: 30px; border-radius: 9px; }
+  .peerfolio-main .fw-play-space[data-play-world="sports"] > .fw-head h1 { font-size: 21px; line-height: 24px; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fw-play-space[data-play-world="sports"] > .fw-head > .fw-identity { min-width: 0; gap: 8px; }
+  .fw-play-space[data-play-world="sports"] > .fw-head > .fw-identity > div { min-width: 0; }
+  .fw-play-space[data-play-world="sports"] > .fw-head > .fw-meta { flex-wrap: nowrap; overflow: hidden; align-items: center; white-space: nowrap; min-width: 0; padding-left: 38px; }
+  .fw-play-space[data-play-world="sports"] > .fw-head .fw-meta li { flex: none; font-size: 10.5px; line-height: 14px; }
+  .fw-play-space[data-play-world="sports"] > .fw-head .fw-meta li + li::before { margin: 0 6px; }
+  .fw-play-space[data-play-world="sports"] > .fw-head .fw-meta li svg, .fw-play-space[data-play-world="sports"] > .fw-head .fw-meta li img { width: 14px; height: 14px; }
+  .fw-play-space[data-play-world="sports"] > .fw-head > .fw-actions { gap: 6px; }
+  .fw-play-space[data-play-world="sports"] .fw-head .fw-invite { height: 32px; min-width: 0; padding: 0 9px 0 3px; }
+  .fw-play-space[data-play-world="sports"] .sp-invite-mark { width: 24px; height: 24px; }
+  .fw-play-space[data-play-world="sports"] .fw-head .sp-limits-btn { position: relative; width: 32px; height: 32px; padding: 0; justify-content: center; }
+  .fw-play-space[data-play-world="sports"] .fw-head .sp-limits-btn > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+  /* Stats: one strip of four small cells */
+  .fw-play-space[data-play-world="sports"] .fw-scoreboard.sp-scoreboard { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .fw-play-space[data-play-world="sports"] .sp-scoreboard .fw-stat { position: relative; padding: 8px 4px 8px 9px; min-width: 0; border-top: 0; border-left: 0; border-right: 1px solid var(--fw-hair); }
+  .fw-play-space[data-play-world="sports"] .sp-scoreboard .fw-stat:nth-child(2) { border-right: 1px solid var(--fw-hair); }
+  .fw-play-space[data-play-world="sports"] .sp-scoreboard .fw-stat:nth-child(n+3) { border-top: 0; }
+  .fw-play-space[data-play-world="sports"] .sp-scoreboard .fw-stat:last-child { border-right: 0; }
+  .fw-play-space[data-play-world="sports"] .sp-scoreboard .fw-stat > dt { gap: 0; min-width: 0; font: 500 8.5px/12px var(--fw-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--fw-fg3); white-space: nowrap; }
+  .fw-play-space[data-play-world="sports"] .sp-scoreboard .fw-stat-ic { display: none; }
+  .fw-play-space[data-play-world="sports"] .sp-scoreboard .fw-stat > dt .tip-info { margin: -3px -3px -3px 1px; }
+  .fw-play-space[data-play-world="sports"] .sp-scoreboard .fw-figure { margin: 1px 0 0; font-size: 19px; line-height: 23px; white-space: nowrap; }
+  .fw-play-space[data-play-world="sports"] .sp-scoreboard .fw-figure small { font-size: 10px; margin-left: 2px; }
+  .fw-play-space[data-play-world="sports"] .sp-scoreboard .fw-sub { min-height: 0; font-size: 10.5px; line-height: 14px; white-space: nowrap; }
+  .fw-play-space[data-play-world="sports"] .sp-scoreboard .fw-stat[data-tone="value"] .fw-sub { display: block; }
+  .fw-play-space[data-play-world="sports"] .sp-scoreboard .sp-sub-short { display: inline; }
+  .fw-play-space[data-play-world="sports"] .sp-scoreboard .sp-sub-full { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+}
+
+/* ===================================================================
+   Pick tickets, redesigned: calm header, one meta line, a three-figure money row, one-line live strip.
+   Shared by PickTicket (.sl-ticket) and ParlayTicket (.pl-ticket). Appended last so it wins over the older ticket rules above.
+   ========================================================================== */
+.sl-tickets > .sl-ticket, .sl-tickets > .pl-ticket { --tc: var(--fw-line); position: relative; display: flex; flex-direction: column; gap: 0; padding: 0; border: 1px solid var(--fw-hair); border-radius: 14px; background: var(--fw-bg); overflow: hidden; transition: border-color .18s, transform .18s cubic-bezier(.2, .8, .2, 1); }
+.sl-tickets > .pl-ticket { --tc: #c4a15b; }
+.sl-tickets > .sl-ticket:hover, .sl-tickets > .pl-ticket:hover { transform: translateY(-1px); border-color: var(--fw-line); }
+.sl-tickets > .sl-ticket::before, .sl-tickets > .pl-ticket::before { width: 3px; background: var(--tc); opacity: .9; }
+.sl-tickets > .sl-ticket[data-status="won"]::before, .sl-tickets > .pl-ticket[data-status="won"]::before { background: var(--gain, #3fae7f); }
+.sl-tickets > .sl-ticket[data-status="lost"]::before, .sl-tickets > .pl-ticket[data-status="lost"]::before { background: var(--loss, #e0607a); }
+.sl-tickets > .sl-ticket[data-live]::before { animation: sl-tk-edge 2.4s ease-in-out infinite; }
+@keyframes sl-tk-edge { 50% { opacity: .45; } }
+
+.sl-tk-head { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 12px 14px 12px 17px; }
+.sl-tickets .pl-ticket-mark { width: 34px; height: 34px; }
+.sl-tk-title { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.sl-tk-title b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 400 17px/22px var(--fw-serif); letter-spacing: -.012em; color: var(--fw-fg); }
+.sl-tk-meta { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 400 11.5px/16px var(--fw-sans); color: var(--fw-fg3); }
+.sl-tk-meta em { font-style: normal; color: var(--fw-fg2); }
+.sl-tk-meta .sl-picker { margin-right: 5px; }
+.sl-tickets .sl-tk-head .sl-chip { flex: none; white-space: nowrap; }
+
+/* Money row: three equal columns, dashed perforation above with side notches (like the pick slip). */
+.sl-tk-money { position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; padding: 10px 14px 11px 17px; border-top: 1px dashed var(--fw-line); font-variant-numeric: tabular-nums; }
+.sl-tk-money::before, .sl-tk-money::after { content: ""; position: absolute; top: -7px; width: 13px; height: 13px; border: 1px solid var(--fw-hair); border-radius: 50%; background: var(--fw-panel); }
+.sl-tk-money::before { left: -8px; }
+.sl-tk-money::after { right: -8px; }
+.sl-tk-fig { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.sl-tk-fig:last-child { align-items: flex-end; text-align: right; }
+.sl-tk-fig dt { margin: 0; font: 600 9.5px/13px var(--fw-sans); text-transform: uppercase; letter-spacing: .09em; color: var(--fw-fg3); }
+.sl-tk-fig dd { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 14px/20px var(--fw-mono); color: var(--fw-fg); transition: color .3s; }
+.sl-tk-fig[data-tone="up"] dd { color: var(--gain-ink); }
+.sl-tk-fig[data-tone="down"] dd { color: var(--loss-ink); }
+.sl-tk-fig[data-tone="muted"] dd { color: var(--fw-fg2); font-weight: 500; }
+.sl-tk-fig[data-big] dd { font: 400 22px/20px var(--fw-serif); letter-spacing: -.01em; }
+.sl-tk-arrow { margin-right: 3px; font-size: .62em; vertical-align: .12em; }
+
+/* Settled cards: a soft wash of the result colour and a quieter title on a loss. */
+.sl-tickets > .sl-ticket[data-status="won"], .sl-tickets > .pl-ticket[data-status="won"] { background: linear-gradient(100deg, color-mix(in srgb, var(--gain, #3fae7f) 9%, var(--fw-bg)), var(--fw-bg) 55%); }
+.sl-tickets > .sl-ticket[data-status="lost"], .sl-tickets > .pl-ticket[data-status="lost"] { background: linear-gradient(100deg, color-mix(in srgb, var(--loss, #e0607a) 6%, var(--fw-bg)), var(--fw-bg) 55%); }
+.sl-tickets > .sl-ticket[data-status="lost"] .sl-tk-title b, .sl-tickets > .sl-ticket[data-status="void"] .sl-tk-title b, .sl-tickets > .sl-ticket[data-status="push"] .sl-tk-title b { color: var(--fw-fg2); }
+
+/* Live strip: one tight line. */
+.sl-tickets .sl-live { grid-column: auto; display: flex; flex-direction: row; align-items: center; flex-wrap: nowrap; gap: 10px; min-width: 0; min-height: 36px; padding: 7px 14px 8px 17px; border-top: 1px solid var(--fw-hair); background: color-mix(in srgb, var(--tc) 5%, transparent); }
+.sl-tickets .sl-live-chip { flex: none; }
+.sl-tickets .sl-live-score { flex: none; white-space: nowrap; }
+.sl-tickets .sl-live-clock { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sl-live-prob { margin-left: auto; flex: none; display: inline-flex; align-items: center; gap: 7px; font-variant-numeric: tabular-nums; }
+.sl-live-prob b { min-width: 3.4ch; text-align: right; font: 600 11.5px var(--fw-mono); color: var(--fw-fg); white-space: nowrap; }
+.sl-tickets .sl-live-bar { width: 64px; height: 6px; flex: none; }
+.sl-live-est { flex: none; font: 500 9.5px/13px var(--fw-sans); text-transform: uppercase; letter-spacing: .08em; color: var(--fw-fg3); opacity: .8; }
+
+:root:not(.dark) .sl-tickets > .sl-ticket[data-status="open"], :root:not(.dark) .sl-tickets > .pl-ticket[data-status="open"] { background: #fff; }
+:root:not(.dark) .sl-tickets > .sl-ticket[data-status="won"], :root:not(.dark) .sl-tickets > .pl-ticket[data-status="won"] { background: linear-gradient(100deg, color-mix(in srgb, var(--gain, #3fae7f) 13%, #fff), #fff 62%); }
+:root:not(.dark) .sl-tickets > .sl-ticket[data-status="lost"], :root:not(.dark) .sl-tickets > .pl-ticket[data-status="lost"] { background: linear-gradient(100deg, color-mix(in srgb, var(--loss, #e0607a) 10%, #fff), #fff 62%); }
+
+/* Win celebration now lands on the net figure. */
+.sl-ticket[data-celebrate] .sl-tk-fig[data-big] dd { animation: sl-pop .7s .5s cubic-bezier(.2, .9, .3, 1.5) both; }
+
+/* Parlay expander and legs sit inside the same frame. */
+.sl-tickets > .pl-ticket .pl-expand, .sl-tickets > .pl-ticket .pl-ticket-legs { padding-left: 17px; }
+
+@media (max-width: 700px) {
+  .sl-tk-head { grid-template-columns: 30px minmax(0, 1fr) auto; gap: 8px; padding: 10px 11px 10px 14px; }
+  .sl-tickets .pl-ticket-mark { width: 30px; height: 30px; }
+  .sl-tk-title b { font-size: 16px; line-height: 20px; }
+  .sl-tk-money { padding: 8px 11px 9px 14px; }
+  .sl-tk-fig dd { font-size: 13px; }
+  .sl-tk-fig[data-big] dd { font-size: 19px; }
+  .sl-tickets .sl-live { gap: 7px; padding: 6px 11px 7px 14px; }
+  .sl-tickets .sl-live-chip small, .sl-live-est { display: none; }
+  .sl-tickets .sl-live-bar { width: 44px; }
+  .sl-tickets > .pl-ticket .pl-expand, .sl-tickets > .pl-ticket .pl-ticket-legs { padding-left: 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sl-tickets > .sl-ticket, .sl-tickets > .pl-ticket, .sl-tk-fig dd { transition: none; }
+  .sl-tickets > .sl-ticket:hover, .sl-tickets > .pl-ticket:hover { transform: none; }
+  .sl-tickets > .sl-ticket[data-live]::before { animation: none; }
+  .sl-ticket[data-celebrate] .sl-tk-fig[data-big] dd { animation: none !important; }
+}
+
+/* Narrow feeds (the right rail): let a long pick title wrap to two lines instead of cutting it to "Buffalo Bil…". */
+.sl-tk-title b { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 /* A held (stale) or missing live price keeps its place but reads as not pickable. */
 .sp-line-odds[data-stale] { opacity: .55; }
 .sp-live-card .sp-line-odds { transition: opacity .25s ease; }
+
+/* Locked picks and Mirrored picks close the page at full width, below both columns (real leagues make the games column the long one). */
+.sp-lower { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+@media (min-width: 1051px) {
+  .fw-play-space[data-play-world="sports"] .fw-grid > .sp-lower { grid-column: 1 / -1; }
+}

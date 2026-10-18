@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useId, useMemo, useState } from "react"
+import { useEffect, useId, useMemo, useRef, useState } from "react"
 import { motion } from "motion/react"
 import { Check, Clock, Crown, Flame, Link2, Minus, Target, TrendingUp, Undo2, Wallet, X } from "lucide-react"
 import { AnimatedNumber } from "@web/components/ui/animated-number"
@@ -9,12 +9,13 @@ import { EmptyScene } from "@web/components/ui/empty-scene"
 import { InfoTip } from "@web/components/ui/tip"
 import { Stat } from "@web/components/fantasy/balance-cards"
 import { PlayerBadge, TeamBadge } from "@web/components/sports/team-badge"
-import { toWin } from "@web/lib/sports/live/position"
+import { livePosition, toWin } from "@web/lib/sports/live/position"
 import { eventTitle, formatCredits, formatOdds, marketTitle, openPickPhase, pickSentence, sideTeam, SPORT_LABEL, signedCredits, type DisplayMarket } from "@web/lib/sports/format"
 import { LeagueBrand } from "@web/components/sports/league-brand"
 import { marketSelectionColor } from "@web/lib/sports/matchup-colors"
 import { Avatar, initialsFor } from "@web/components/ui/avatar"
-import { LiveGameStrip } from "@web/components/sports/live-game"
+import { LiveGameStrip, useLiveGame } from "@web/components/sports/live-game"
+import { TicketFig, TicketMoney } from "@web/components/sports/ticket-figures"
 import { ParlayTicket } from "@web/components/sports/parlay-ticket"
 import type { ParlayRow } from "@web/components/sports/parlay-types"
 
@@ -78,6 +79,16 @@ function statsByName(leaguePicks: PickRow[]): Map<string, Stats> {
   return out
 }
 
+/** Stat caption: the full sentence everywhere, a one-word form on phones (the full text stays for screen readers). */
+function Sub({ children, short, tone }: { children: React.ReactNode; short: string; tone?: string }) {
+  return (
+    <span className="fw-sub" data-tone={tone}>
+      <span className="sp-sub-full">{children}</span>
+      <span className="sp-sub-short" aria-hidden>{short}</span>
+    </span>
+  )
+}
+
 export function LeagueHero({
   league,
   standings,
@@ -137,25 +148,25 @@ export function LeagueHero({
             #{rank}
             <small>of {standings.length}</small>
           </span>
-          <span className="fw-sub">{rank === 1 ? "You're leading the league" : leader ? (gap > 0 ? `${credits(gap)} behind ${leader.name.split(" ")[0]}` : `Level with ${leader.name.split(" ")[0]}`) : ""}</span>
+          <Sub short={rank === 1 ? "Leading" : gap > 0 ? `−${credits(gap)}` : "Level"}>{rank === 1 ? "You're leading the league" : leader ? (gap > 0 ? `${credits(gap)} behind ${leader.name.split(" ")[0]}` : `Level with ${leader.name.split(" ")[0]}`) : ""}</Sub>
         </Stat>
         <Stat label={<>Cash <InfoTip text="Your play-money balance. Nothing real is at stake." label="About cash" /></>} icon={<Wallet />} tone="value">
           <span className="fw-figure numeric">
             <AnimatedNumber value={you.credits} format={credits} countUp={`sl-credits-${league.name}`} />
           </span>
-          <span className="fw-sub" data-tone={delta > 0 ? "up" : delta < 0 ? "down" : "flat"}>
+          <Sub tone={delta > 0 ? "up" : delta < 0 ? "down" : "flat"} short={delta === 0 ? "Even" : signed(delta)}>
             {delta === 0 ? "Even with the start" : <><b>{signed(delta)}</b> since the start</>}
-          </span>
+          </Sub>
         </Stat>
         <Stat label={<>At risk <InfoTip text="Cash staked on picks that haven't settled yet." label="About at risk" /></>} icon={<Target />} tone="cash">
           <span className="fw-figure numeric">{credits(atRisk)}</span>
-          <span className="fw-sub">{openCount === 0 ? "No open picks" : `${openCount} open ${openCount === 1 ? "pick" : "picks"}`}</span>
+          <Sub short={openCount === 0 ? "None open" : `${openCount} open`}>{openCount === 0 ? "No open picks" : `${openCount} open ${openCount === 1 ? "pick" : "picks"}`}</Sub>
         </Stat>
         <Stat label="Your record" icon={<TrendingUp />} tone="return">
           <span className="fw-figure numeric">
             {mine?.won ?? 0}–{mine?.lost ?? 0}
           </span>
-          <span className="fw-sub">{hit === null ? "No settled picks yet" : `${hit}% hit rate`}</span>
+          <Sub short={hit === null ? "No picks yet" : `${hit}% hit`}>{hit === null ? "No settled picks yet" : `${hit}% hit rate`}</Sub>
         </Stat>
       </dl>
     </>
@@ -298,42 +309,50 @@ export function PickTicket({ pick, showName }: { pick: PickRow; showName?: boole
   const net = pick.payout == null ? null : pick.payout - pick.stake
   const side = sideTeam(pick.event, pick.market.kind, pick.selection)
   const color = side ? marketSelectionColor(pick.event, pick.market.kind, pick.selection) : undefined
+  const isOpen = pick.status === "open"
+  const inGame = phase?.phase === "in_progress"
+  // The live estimate is display-only (no cash-out): it never changes the accepted price or payout above.
+  const { view, elapsedMs } = useLiveGame(pick.event.id, inGame)
+  const position = isOpen ? livePosition({ stake: pick.stake, totalReturn: pick.totalReturn, kind: pick.market.kind, selection: pick.selection }, view, elapsedMs, inGame) : null
+  const plTone = position ? (position.pl > 0.5 ? "up" : position.pl < -0.5 ? "down" : undefined) : undefined
+  const netTone = net != null ? (net > 0 ? "up" : net < 0 ? "down" : undefined) : undefined
+  const odds = formatOdds(pick.price)
   return (
-    <li className="sl-ticket" data-status={pick.status} data-celebrate={celebrate || undefined} style={color ? ({ "--tc": color } as React.CSSProperties) : undefined}>
-      <span className="sl-ticket-mark">{side ? <TeamBadge sport={pick.event.sport} name={side} size={36} /> : pick.market.player ? <PlayerBadge sport={pick.event.sport} name={pick.market.player} size={36} /> : <span className="sl-prop"><Target aria-hidden /></span>}</span>
-      <div className="sl-ticket-body">
-        <b>{pickSentence(m, pick)}</b>
-        <span>
-          {showName && pick.name ? <span className="sl-picker" title={pick.you ? `${pick.name} (you)` : pick.name}><Badge name={pick.name} size={18} image={pick.image} /><span className="sr-only">{pick.name}{pick.you ? " (you)" : ""}</span></span> : null}
-          {eventTitle(pick.event)} · {marketTitle(m)}
-        </span>
-        <span className="numeric sl-ticket-money">
-          <span className="sl-risk">Risk <b>{credits(pick.stake)}</b></span>
-          <i aria-hidden>·</i>
-          {pick.payout == null ? (
-            <span className="sl-win">To win <b>{credits(toWin(pick))}</b></span>
-          ) : pick.payout > 0 ? (
-            <span className="sl-win">Paid <b>{credits(pick.payout)}</b></span>
-          ) : (
-            <span className="sl-lose">No payout</span>
-          )}
-          <em className="sl-price" title="Odds you locked in">{formatOdds(pick.price)}</em>
-          {pick.live ? <em className="sl-live-tag">Live</em> : null}
-        </span>
-      </div>
-      <div className="sl-ticket-side">
-        <span className="sl-chip" data-status={pick.status}>
+    <li className="sl-ticket" data-status={pick.status} data-live={inGame || undefined} data-celebrate={celebrate || undefined} style={color ? ({ "--tc": color } as React.CSSProperties) : undefined}>
+      <div className="sl-tk-head">
+        <span className="sl-ticket-mark">{side ? <TeamBadge sport={pick.event.sport} name={side} size={34} /> : pick.market.player ? <PlayerBadge sport={pick.event.sport} name={pick.market.player} size={34} /> : <span className="sl-prop"><Target aria-hidden /></span>}</span>
+        <div className="sl-tk-title">
+          <b title={pickSentence(m, pick)}>{pickSentence(m, pick)}</b>
+          <span className="sl-tk-meta" title={`${eventTitle(pick.event)} · ${marketTitle(m)}${pick.live ? " · placed live" : ""}`}>
+            {showName && pick.name ? <span className="sl-picker" title={pick.you ? `${pick.name} (you)` : pick.name}><Badge name={pick.name} size={16} image={pick.image} /><span className="sr-only">{pick.name}{pick.you ? " (you)" : ""}</span></span> : null}
+            {eventTitle(pick.event)} · {marketTitle(m)}{pick.live ? " · Live bet" : ""}{!isOpen ? ` · ${odds}` : ""}
+          </span>
+        </div>
+        <span className="sl-chip" data-status={pick.status} data-live={inGame || undefined}>
           {r.icon}
           {r.label}
         </span>
-        {net != null && pick.status !== "open" ? (
-          <strong className="numeric" data-tone={net > 0 ? "up" : net < 0 ? "down" : undefined}>
-            <span aria-hidden>{net > 0 ? "▲ " : net < 0 ? "▼ " : ""}</span>{signed(net)}
-          </strong>
-        ) : null}
       </div>
+      <TicketMoney>
+        <TicketFig label="Stake">{credits(pick.stake)}</TicketFig>
+        {pick.payout == null ? <TicketFig label="To win" tone="up">{credits(toWin(pick))}</TicketFig> : pick.payout > 0 ? <TicketFig label="Paid" tone="up">{credits(pick.payout)}</TicketFig> : <TicketFig label="Payout" tone="down">None</TicketFig>}
+        {isOpen ? (
+          position ? (
+            <TicketFig label="Est. P/L" tone={plTone} title="Estimate from the live market. View only: no cash-out, your pick keeps its accepted price and payout.">
+              <span aria-hidden className="sl-tk-arrow">{position.pl > 0.5 ? "▲" : position.pl < -0.5 ? "▼" : ""}</span>{signed(position.pl)}
+              <span className="sr-only"> (estimated value {credits(position.value)})</span>
+            </TicketFig>
+          ) : (
+            <TicketFig label="Odds" tone="muted" title="Odds you locked in">{odds}</TicketFig>
+          )
+        ) : (
+          <TicketFig label="Net" tone={netTone} big>
+            <span aria-hidden className="sl-tk-arrow">{net != null && net > 0 ? "▲" : net != null && net < 0 ? "▼" : ""}</span>{signed(net ?? 0)}
+          </TicketFig>
+        )}
+      </TicketMoney>
       {/* Only while the game is in progress. View only: the pick above keeps its accepted price and payout. */}
-      <LiveGameStrip eventId={pick.event.id} sport={pick.event.sport} home={pick.event.home} away={pick.event.away} active={phase?.phase === "in_progress"} onFinal={() => setFinalSeen(true)} pick={pick.status === "open" ? { stake: pick.stake, totalReturn: pick.totalReturn, kind: pick.market.kind, selection: pick.selection } : undefined} />
+      <LiveGameStrip eventId={pick.event.id} sport={pick.event.sport} home={pick.event.home} away={pick.event.away} active={inGame} onFinal={() => setFinalSeen(true)} pick={isOpen ? { stake: pick.stake, totalReturn: pick.totalReturn, kind: pick.market.kind, selection: pick.selection } : undefined} />
     </li>
   )
 }
@@ -342,6 +361,9 @@ export function PickTicket({ pick, showName }: { pick: PickRow; showName?: boole
 export function PickFeed({ picks, parlays = [], empty, showName, history = false }: { picks: PickRow[]; parlays?: ParlayRow[]; empty: string; showName?: boolean; /** League-wide history: opens on All with live (open) picks first, then settled picks newest first. */ history?: boolean }) {
   const [filter, setFilter] = useState<"all" | "won" | "lost" | "open">(history ? "all" : "open")
   const feedId = useId()
+  // Switching tabs reuses the same list (no remount, no replayed entrance); just start from the top.
+  const scrollRef = useRef<HTMLDivElement>(null)
+  useEffect(() => { scrollRef.current?.scrollTo({ top: 0 }) }, [filter])
   // Singles and parlays share one feed, newest first (singles keep the server's order when there are no parlays).
   const items = useMemo(() => {
     const all = [...picks.map((pick) => ({ kind: "pick" as const, pick, at: pick.acceptedAt, status: pick.status })), ...parlays.map((parlay) => ({ kind: "parlay" as const, parlay, at: parlay.acceptedAt, status: parlay.status }))]
@@ -390,7 +412,7 @@ export function PickFeed({ picks, parlays = [], empty, showName, history = false
           </span>
         ) : null}
       </div>
-      <div className="sl-picks-scroll" key={filter} id={`${feedId}-panel`} role="tabpanel" aria-labelledby={`${feedId}-${filter}`} tabIndex={0}>
+      <div className="sl-picks-scroll" ref={scrollRef} id={`${feedId}-panel`} role="tabpanel" aria-labelledby={`${feedId}-${filter}`} tabIndex={0}>
         <ul className="sl-tickets">
           {shown.length === 0 ? <li className="fw-empty">{filter === "open" ? "No open picks. Your settled picks are in Won, Lost or All." : "Nothing here yet."}</li> : shown.map((it) => (it.kind === "pick" ? <PickTicket key={it.pick.id} pick={it.pick} showName={showName} /> : <ParlayTicket key={it.parlay.id} parlay={it.parlay} showName={showName} />))}
         </ul>

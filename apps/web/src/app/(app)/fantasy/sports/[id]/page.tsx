@@ -391,7 +391,8 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
           <div className="sp-desktop-context"><LeaguePulse leaguePicks={leaguePicks} parlays={statParlays} /></div>
           <NextGames picks={picks} events={markets.map((market) => market.event)} />
         </aside>
-      </div>
+        {/* Under the leaderboard on desktop (it fills the column beside the tall rail); after the rail on phones. */}
+        <div className="sp-lower">
           <section className="fw-panel reveal" data-flat style={revealStyle(4)} aria-labelledby="sp-locked-title">
             <div className="fw-section-head">
               <h2 id="sp-locked-title">Locked picks</h2>
@@ -399,7 +400,9 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
             </div>
             <PickFeed picks={leaguePicks} parlays={leagueParlays} showName history empty="Picks show up here after each market locks, never before." />
           </section>
-      {id !== "sample" ? <MirrorReport leagueId={league.id} /> : null}
+          {id !== "sample" ? <MirrorReport leagueId={league.id} /> : null}
+        </div>
+      </div>
       {activeSlip && (phone ? sheetMin : !slipVisible && !floatOpen) ? <button ref={summaryRef} key={parlay.mode === "parlay" ? parlay.legs.map(l => l.market.id + l.line.id).join(":") : liveSelected ? liveSelected.eventId + liveSelected.side : selected?.line.id} type="button" className="sp-review-pick" aria-haspopup="dialog" onClick={() => (phone ? setSheetMin(false) : openFloat())}><span className="sp-review-dot" aria-hidden /><span className="sp-review-copy"><small>ADDED TO YOUR SLIP</small><strong>{parlay.mode === "parlay" ? plural(parlay.legs.length, "leg") + " in your parlay" : liveSelected ? (liveSelected.side === "draw" ? "Draw" : liveSelected.side === "home" ? liveSelected.home : liveSelected.away) + " · " + formatOdds(liveSelected.price) : selected ? pickSentence(selected.market, selected.line) + " · " + formatOdds(selected.line.price) : "Your pick"}</strong>{draft.stake > 0 && draft.toWin != null ? <em className="numeric">{formatCredits(draft.stake)} to win {formatCredits(draft.toWin)}</em> : null}</span><span className="sp-review-action">Open slip <ArrowUp aria-hidden /></span></button> : null}
       {/* Keeps the last rows clear of the phone pick sheet. */}
       <div className="sp-sheet-spacer" data-on={selected || liveSelected || (parlay.mode === "parlay" && parlay.legs.length > 0) ? "" : undefined} aria-hidden />
@@ -448,7 +451,8 @@ function Markets({ markets, selected, onSelect, disabled, now }: { markets: Mark
       g.markets.push(m)
       byEvent.set(key, g)
     }
-    return [...byEvent.values()]
+    // Games that kick off together (a whole NFL slate shares 1:00 PM) need a tiebreak, or they swap places between refreshes.
+    return [...byEvent.values()].sort((a, b) => Date.parse(a.event.startsAt) - Date.parse(b.event.startsAt) || a.event.sport.localeCompare(b.event.sport) || a.event.home.localeCompare(b.event.home) || a.event.away.localeCompare(b.event.away))
   }, [markets])
 
   if (games.length === 0) return <p className="fw-empty">No open lines right now. Games post about a day ahead.</p>
