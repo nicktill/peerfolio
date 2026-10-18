@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { eq } from "drizzle-orm"
 import { db, securities } from "@web/db"
+import { enforceRateLimit } from "@web/lib/rate-limit-guard"
 import { ApiError, withUser } from "@web/lib/api"
 import { isFundTicker } from "@web/lib/fund-ticker"
 import { isProviderChecked } from "@web/lib/fund-ticker"
@@ -13,7 +14,8 @@ import { lookupTicker } from "@web/lib/positions"
  * and the trade panel's preview. While the market is open the price is the
  * current one (`live: true`); otherwise it's the latest close.
  */
-export const GET = withUser<unknown>(async (_userId, request) => {
+export const GET = withUser<unknown>(async (userId, request) => {
+  await enforceRateLimit("quote", userId)
   const url = new URL(request.url)
   const symbol = url.searchParams.get("symbol")?.trim() ?? ""
   const kind = url.searchParams.get("kind") === "crypto" ? "crypto" : "stock"

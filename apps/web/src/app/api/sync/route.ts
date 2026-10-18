@@ -4,10 +4,13 @@ import { ApiError, withUser } from "@web/lib/api"
 import { db, plaidItems } from "@web/db"
 import { eq } from "drizzle-orm"
 
+import { enforceSyncLimit } from "@web/lib/rate-limit-guard"
+
 export const maxDuration = 120
 
 /** Manual "refresh now" from the dashboard. */
 export const POST = withUser<unknown>(async (userId) => {
+  await enforceSyncLimit(userId)
   const { results, totals, paused } = await syncUser(userId)
   if (paused && (await db.select({ id: plaidItems.id }).from(plaidItems).where(eq(plaidItems.userId, userId)).limit(1)).length > 0) {
     throw new ApiError("Brokerage connections are paused right now, so your linked accounts show their last synced numbers.", 503, { code: "PLAID_PAUSED" })

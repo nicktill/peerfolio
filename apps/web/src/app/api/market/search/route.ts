@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { and, ilike, isNotNull, notLike, or } from "drizzle-orm"
 import { db, securities } from "@web/db"
+import { enforceRateLimit } from "@web/lib/rate-limit-guard"
 import { withUser } from "@web/lib/api"
 import { displaySymbol, searchTickers } from "@web/lib/market-data"
 import { normalizeQuery, rankSuggestions, type TickerSuggestion } from "@web/lib/ticker-search"
@@ -55,7 +56,8 @@ async function knownMatches(query: string): Promise<TickerSuggestion[]> {
  * with, or whose company name contains, what was typed. Empty when nothing
  * matches; the quote preview still explains an unknown ticker.
  */
-export const GET = withUser<unknown>(async (_userId, request) => {
+export const GET = withUser<unknown>(async (userId, request) => {
+  await enforceRateLimit("search", userId)
   const query = normalizeQuery(new URL(request.url).searchParams.get("q") ?? "")
   if (!query) return NextResponse.json({ results: [] })
 

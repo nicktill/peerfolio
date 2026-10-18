@@ -1,6 +1,10 @@
 import { timingSafeEqual } from "node:crypto"
 import { NextResponse } from "next/server"
+import { eq } from "drizzle-orm"
+import { db, users } from "@web/db"
 import { getCurrentUserId } from "@web/lib/auth"
+import { requestIsSameOrigin } from "@web/lib/request-origin"
+import { createTtlSet } from "@web/lib/ttl-set"
 
 export class ApiError extends Error {
   constructor(
@@ -16,7 +20,24 @@ export class ApiError extends Error {
 export const unauthorized = () => NextResponse.json({ error: "Not signed in" }, { status: 401 })
 
 /**
- * Wraps a route handler with auth and uniform error shaping.
+ * Users confirmed to still exist, for a minute. A signed session (JWT) outlives the account it was issued for, so without
+ * this a deleted user's cookie would keep working; the cache keeps it to one cheap lookup per user per minute per instance.
+ */
+const knownUsers = createTtlSet({ ttlMs: 60_000, maxEntries: 5_000 })
+
+/** Call after deleting an account so this instance stops honouring its session immediately. */
+export const forgetUser = (userId: string) => knownUsers.delete(userId)
+
+async function userStillExists(userId: string): Promise<boolean> {
+  if (knownUsers.has(userId)) return true
+  const row = await db.query.users.findFirst({ where: eq(users.id, userId), columns: { id: true } })
+  if (!row) return false
+  knownUsers.add(userId)
+  return true
+}
+
+/**
+ * Wraps a route handler with auth, a same-origin check for writes, and uniform error shaping.
  *
  * Unexpected errors are logged server-side and reported to the client as a
  * generic message — Plaid failures in particular can echo institution detail
@@ -24,8 +45,12 @@ export const unauthorized = () => NextResponse.json({ error: "Not signed in" }, 
  */
 export function withUser<T>(handler: (userId: string, request: Request, context: T) => Promise<Response>) {
   return async (request: Request, context: T): Promise<Response> => {
+    // Writes must come from this site's own pages (Origin / Sec-Fetch-Site), not another site riding the session cookie.
+    if (!requestIsSameOrigin(request)) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+
     const userId = await getCurrentUserId()
     if (!userId) return unauthorized()
+    if (!(await userStillExists(userId))) return unauthorized()
 
     try {
       return await handler(userId, request, context)

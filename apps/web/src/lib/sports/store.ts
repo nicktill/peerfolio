@@ -58,8 +58,9 @@ export async function withDeadlockRetry<T>(fn: () => Promise<T>, attempts = 3): 
 }
 
 /** Counts one attempt in the shared fixed window and says whether it is allowed. Works across servers. */
-export async function takeRateLimit(db: Db, name: LimitName, userId: string, now: Date = new Date()): Promise<boolean> {
-  const { max, windowMs } = LIMITS[name]
+export async function takeRateLimit(db: Db, name: LimitName, userId: string, now: Date = new Date(), maxOverride?: number): Promise<boolean> {
+  const { windowMs } = LIMITS[name]
+  const max = maxOverride ?? LIMITS[name].max
   const [row] = await db
     .insert(sportsRateLimits)
     .values({ key: `${name}:${userId}`, bucket: bucketOf(now, windowMs), count: 1 })

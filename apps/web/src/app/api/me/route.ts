@@ -3,7 +3,7 @@ import { NextResponse } from "next/server"
 import { and, asc, eq, ne, sql } from "drizzle-orm"
 import { z } from "zod"
 import { db, follows, leagueMembers, leagues, plaidItems, portfolioSnapshots, users, waitlistSignups } from "@web/db"
-import { ApiError, readJson, withUser } from "@web/lib/api"
+import { ApiError, forgetUser, readJson, withUser } from "@web/lib/api"
 import { decrypt } from "@web/lib/crypto"
 import { getPlaidClient, plaidErrorCode } from "@web/lib/plaid"
 import { rethrowIfProfileUnavailable } from "@web/lib/plaid-profile-errors"
@@ -123,6 +123,7 @@ export const DELETE = withUser<unknown>(async (userId) => {
     await tx.delete(waitlistSignups).where(eq(waitlistSignups.email, user.email))
     await tx.delete(users).where(eq(users.id, userId))
   })
+  forgetUser(userId)
 
   return NextResponse.json({ ok: true })
 })
