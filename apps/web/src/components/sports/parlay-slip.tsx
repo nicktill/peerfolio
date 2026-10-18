@@ -78,22 +78,14 @@ export function useParlay(markets: PMarket[] | undefined, now: number, rules: { 
   }
 }
 
-/** The Single | Parlay switch above the game list, with the one-line how-to and any inline note. */
-export function ParlayModeBar({ mode, onMode, count, max, note }: { mode: "single" | "parlay"; onMode: (m: "single" | "parlay") => void; count: number; max: number; note: string | null }) {
+/** A sliding mode control; the parent keeps guidance outside the compact toolbar. */
+export function ParlayModeBar({ mode, onMode, count }: { mode: "single" | "parlay"; onMode: (m: "single" | "parlay") => void; count: number }) {
   return (
-    <div className="pl-bar">
-      <div className="pl-switch" role="group" aria-label="Bet type">
-        <button type="button" aria-pressed={mode === "single"} onClick={() => onMode("single")}>Single</button>
-        <button type="button" aria-pressed={mode === "parlay"} onClick={() => onMode("parlay")}>
-          Parlay{count > 0 ? <b className="numeric">{count}</b> : null}
-        </button>
-      </div>
-      {mode === "parlay" ? (
-        <p className="pl-bar-hint" data-empty={count === 0 || undefined}>
-          {count === 0 ? `Tap lines to build a parlay. Add 2–${max} legs from different games.` : `${count} of ${max} legs. Tap a line again to remove it.`}
-        </p>
-      ) : null}
-      {note ? <p className="pl-note" role="status">{note}</p> : null}
+    <div className="pl-switch" data-mode={mode} role="group" aria-label="Bet type">
+      <button type="button" aria-pressed={mode === "single"} onClick={() => onMode("single")}><Target aria-hidden /><span>Single</span></button>
+      <button type="button" aria-pressed={mode === "parlay"} onClick={() => onMode("parlay")}>
+        <Layers aria-hidden /><span>Parlay</span>{count > 0 ? <b className="numeric">{count}</b> : null}
+      </button>
     </div>
   )
 }

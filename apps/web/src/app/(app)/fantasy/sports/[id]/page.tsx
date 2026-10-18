@@ -203,6 +203,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
                   ))}
                 </div>
               ) : <span className="sp-filter-gap" />}
+              <ParlayModeBar mode={parlay.mode} onMode={(m) => { setSelected(null); parlay.setMode(m) }} count={parlay.legs.length} />
               {searchOpen ? (
                 <div className="sp-search" role="search">
                   <Search className="sp-search-icon" aria-hidden />
@@ -219,18 +220,18 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
                     enterKeyHint="search"
                   />
                   {query ? <button type="button" className="sp-search-clear" aria-label="Clear search" onClick={() => { setQuery(""); searchInput.current?.focus() }}><X aria-hidden /></button> : null}
-                  <button type="button" className="sp-search-done" onClick={closeSearch}>Done</button>
+                  <button type="button" className="sp-search-done" aria-label="Close search" onClick={closeSearch}><X aria-hidden /></button>
                 </div>
               ) : (
-                <button ref={searchButton} type="button" className="sp-search-btn" aria-label="Search games" title="Search games" onClick={() => setSearchOpen(true)}><Search aria-hidden /></button>
+                <button ref={searchButton} type="button" className="sp-search-btn" aria-label="Search games" title="Search games" aria-expanded={false} onClick={() => setSearchOpen(true)}><Search aria-hidden /><span>Search</span></button>
               )}
             </div>
-            {view === "upcoming" ? <ParlayModeBar mode={parlay.mode} onMode={(m) => { setSelected(null); parlay.setMode(m) }} count={parlay.legs.length} max={data.limits.parlay?.maxLegs ?? 6} note={parlay.mode === "parlay" ? parlay.note : null} /> : null}
-            {view === "upcoming" ? <ParlayIdsContext.Provider value={parlay.mode === "parlay" ? parlay.ids : null}><div className="sp-scroll">{searching && shown.length === 0 ? <p className="fw-empty" role="status">No games match &ldquo;{query.trim()}&rdquo;</p> : <Markets markets={shown} selected={parlay.mode === "parlay" ? null : current} onSelect={(market, line) => (parlay.mode === "parlay" ? parlay.toggle(market, line) : setSelected({ market, line }))} disabled={ended} now={now} />}</div></ParlayIdsContext.Provider> : <ScoreboardGames renderUpcoming={(game) => {
+            {parlay.mode === "parlay" ? <div className="sp-parlay-guidance"><p className="pl-bar-hint">{view === "live" ? "Parlays use upcoming games only · live picks are singles. " : ""}{parlay.legs.length ? `${parlay.legs.length} of ${data.limits.parlay?.maxLegs ?? 6} legs selected · tap a line again to remove it` : `Build your ticket · pick 2–${data.limits.parlay?.maxLegs ?? 6} legs from different games`}</p>{parlay.note ? <p className="pl-note" role="status">{parlay.note}</p> : null}</div> : null}
+            {view === "upcoming" ? <ParlayIdsContext.Provider value={parlay.mode === "parlay" ? parlay.ids : null}><div className="sp-scroll">{searching && shown.length === 0 ? <p className="fw-empty" role="status">No games match &ldquo;{query.trim()}&rdquo;</p> : <Markets markets={shown} selected={parlay.mode === "parlay" ? null : current} onSelect={(market, line) => (parlay.mode === "parlay" ? parlay.toggle(market, line) : setSelected({ market, line }))} disabled={ended} now={now} />}</div></ParlayIdsContext.Provider> : <ParlayIdsContext.Provider value={parlay.mode === "parlay" ? parlay.ids : null}><ScoreboardGames renderUpcoming={(game) => {
               const matching = shown.filter((market) => scoreboardMatch(market.event, [game]))
               if (!matching.length) return null
-              return <GameCard game={{ key: `${game.sport}:${game.id}`, event: matching[0]!.event, markets: matching }} selected={current} onSelect={(market, line) => { parlay.setMode("single"); setSelected({ market, line }) }} disabled={ended} now={now} />
-            }} onShowUpcoming={() => setView("upcoming")} query={searching ? query.trim() : undefined} enableAdminTest={id !== "sample"} livePick={id !== "sample" ? { leagueId: league.id, liveBetting: league.liveBetting, credits: data.you.credits, startingCredits: league.startingCredits, maxStakePct: league.maxStakePct, onPlaced: () => void refetch() } : undefined} games={liveGames} tracked={data.liveEvents ?? []} now={now} loading={scores.loading} failed={scoresFailed} />}
+              return <GameCard game={{ key: `${game.sport}:${game.id}`, event: matching[0]!.event, markets: matching }} selected={parlay.mode === "parlay" ? null : current} onSelect={(market, line) => parlay.mode === "parlay" ? parlay.toggle(market, line) : setSelected({ market, line })} disabled={ended} now={now} />
+            }} onShowUpcoming={() => setView("upcoming")} query={searching ? query.trim() : undefined} enableAdminTest={id !== "sample"} livePick={id !== "sample" ? { leagueId: league.id, liveBetting: league.liveBetting, mode: parlay.mode, credits: data.you.credits, startingCredits: league.startingCredits, maxStakePct: league.maxStakePct, onPlaced: () => void refetch() } : undefined} games={liveGames} tracked={data.liveEvents ?? []} now={now} loading={scores.loading} failed={scoresFailed} /></ParlayIdsContext.Provider>}
           </section>
 
           <section className="fw-panel reveal" style={revealStyle(3)} aria-labelledby="sp-standings-title">
