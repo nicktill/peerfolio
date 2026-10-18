@@ -5,12 +5,12 @@ import "@web/components/sports/sports-workspace.css"
 
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, Check, Link2, Lock, X } from "lucide-react"
+import { ArrowLeft, ArrowUp, ArrowDown, Check, Link2, Lock, X } from "lucide-react"
 import { Choice } from "@web/components/fantasy/choice"
 import { timeLeft } from "@web/components/fantasy/time-left"
 import { ScoreboardGames } from "@web/components/sports/scoreboard-games"
 import { scoreboardMatch, type ScoreGame } from "@web/lib/sports/scoreboard"
-import { matchupColors } from "@web/lib/sports/matchup-colors"
+import { matchupColors, marketSelectionColor } from "@web/lib/sports/matchup-colors"
 import { freshnessOf, agoLabel } from "@web/lib/sports/live/freshness"
 import { LeagueBrand } from "@web/components/sports/league-brand"
 import { revealStyle } from "@web/components/motion/reveal"
@@ -68,7 +68,6 @@ function resolveSelected(markets: Market[], sel: { market: Market; line: Line })
   return market && line ? { market, line } : null
 }
 
-const SPORT_COLOR: Record<string, string> = { nfl: "#c8102e", nba: "#f58426", tennis: "#a6c738", nhl: "#1d4ed8", mlb: "#bf0d3e", cfb: "#7c3aed", mls: "#0e7c66" }
 const dayOf = (iso: string) => new Date(iso).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })
 const timeOf = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
 const credits = formatCredits
@@ -82,6 +81,14 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
   const { data, error, loading, refetch } = useApi<Detail>(`/api/sports/leagues/${id}`, [], { refreshMs: 20_000 })
   const [selected, setSelected] = useState<{ market: Market; line: Line } | null>(null)
   const [sport, setSport] = useState<string>("all")
+  const sportFilters = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const strip = sportFilters.current
+    const active = strip?.querySelector<HTMLElement>('[aria-pressed="true"]')
+    if (!strip || !active || strip.scrollWidth <= strip.clientWidth) return
+    const left = active.offsetLeft - strip.offsetLeft - (strip.clientWidth - active.offsetWidth) / 2
+    strip.scrollTo({ left, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' })
+  }, [sport])
   const [view, setView] = useState<"upcoming" | "live">("upcoming")
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 5000); return () => clearInterval(timer) }, [])
@@ -148,7 +155,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
               </div>
             </div>
             {league.sports.length > 1 ? (
-              <div className="sp-filter fw-choices" role="group" aria-label="Filter by sport">
+              <div ref={sportFilters} className="sp-filter fw-choices" role="group" aria-label="Filter by sport">
                 <Choice active={sport === "all"} onClick={() => setSport("all")}>
                   All
                 </Choice>
@@ -159,7 +166,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
                 ))}
               </div>
             ) : null}
-            {view === "upcoming" ? <Markets markets={shown} selected={current} onSelect={(market, line) => setSelected({ market, line })} disabled={ended} now={now} /> : <ScoreboardGames games={liveGames} tracked={data.liveEvents ?? []} now={now} loading={scores.loading} failed={scoresFailed} />}
+            {view === "upcoming" ? <div className="sp-scroll"><Markets markets={shown} selected={current} onSelect={(market, line) => setSelected({ market, line })} disabled={ended} now={now} /></div> : <ScoreboardGames games={liveGames} tracked={data.liveEvents ?? []} now={now} loading={scores.loading} failed={scoresFailed} />}
           </section>
 
           <section className="fw-panel reveal" style={revealStyle(3)} aria-labelledby="sp-standings-title">
@@ -319,8 +326,9 @@ function Slip({
   const amount = Math.floor(Number(stake.replace(/[^\d]/g, "")) || 0)
   const winnings = selected ? Math.floor(amount * americanToDecimal(selected.line.price)) - amount : 0
   const slipSide = selected ? sideTeam(selected.market.event, selected.market.kind, selected.line.selection) : null
-  // The slip wears the colour of what you picked: the team, or the sport for totals and props.
-  const slipColor = selected ? (slipSide ? teamLook(selected.market.event.sport, slipSide).color : SPORT_COLOR[selected.market.event.sport] ?? "#64748b") : null
+  const slipLook = slipSide ? teamLook(selected?.market.event.sport, slipSide) : null
+  // Match the selected card, including alternate accents used to distinguish similar teams.
+  const slipColor = selected ? marketSelectionColor(selected.market.event, selected.market.kind, selected.line.selection) : null
   const problem =
     amount === 0 ? null : amount < limits.minStake ? `Minimum is ${credits(limits.minStake)}` : amount > limits.maxStake ? `Maximum per pick is ${credits(limits.maxStake)}` : amount > balance ? "Not enough cash" : null
 
@@ -390,9 +398,10 @@ function Slip({
       ) : (
         <form onSubmit={submit}>
           <div className="sp-slip-pick">
-            <div className="sp-slip-top">
+            <div className="sp-slip-top" data-accent={slipColor ?? undefined}>
+              {slipSide && slipLook?.logo && selected.market.event.sport !== "tennis" ? <span className="sp-slip-watermark" aria-hidden><TeamBadge sport={selected.market.event.sport} name={slipSide} size={144} /></span> : null}
               {slipSide ? (
-                <TeamBadge sport={selected.market.event.sport} name={slipSide} size={48} bare={false} />
+                <TeamBadge sport={selected.market.event.sport} name={slipSide} size={48} />
               ) : selected.market.kind === "player_prop" && selected.market.player ? (
                 <PlayerBadge sport={selected.market.event.sport} name={selected.market.player} size={48} />
               ) : (
@@ -424,7 +433,7 @@ function Slip({
               aria-invalid={problem ? true : undefined}
             />
             <p className="fw-hint" id="sp-stake-hint" role={problem ? "alert" : undefined}>
-              {problem ? <span className="fw-bad">{problem}</span> : null}
+              {problem ? <span className="fw-bad">{problem}</span> : <span>Max {credits(limits.maxStake)} per pick (league cap){balance < limits.maxStake ? `, limited by your ${credits(balance)} cash` : ""}</span>}
             </p>
           </div>
           <div className="fw-quick">
@@ -572,9 +581,9 @@ function GameCard({ game, selected, onSelect, disabled, now }: { game: { key: st
           {active.markets.map((m) => (
             <div key={m.id} className="sp-market">
               {active.key === "props" ? <div className="sp-market-head"><span className="sp-market-title">{marketTitle(m)}</span></div> : null}
-              <div className={`sp-lines${m.kind === "moneyline" ? " sp-team-lines" : ""}`} data-three={m.lines.length === 3 || undefined}>
+              <div className={`sp-lines${(m.kind === "moneyline" || m.kind === "spread") ? " sp-team-lines" : ""}`} data-three={m.lines.length === 3 || undefined}>
                 {(m.kind === "moneyline" ? [...m.lines].sort((x, y) => ORDER[tennis ? "tennis" : "teams"]![x.selection]! - ORDER[tennis ? "tennis" : "teams"]![y.selection]!) : m.lines).map((l) => (
-                  <LineButton key={l.id} market={m} line={l} selected={selected} onSelect={onSelect} disabled={disabled} team={m.kind === "moneyline" && l.selection !== "draw"} color={l.selection === (tennis ? "home" : "away") ? firstColor : secondColor} />
+                  <LineButton key={l.id} market={m} line={l} selected={selected} onSelect={onSelect} disabled={disabled} team={(m.kind === "moneyline" || m.kind === "spread") && l.selection !== "draw"} color={marketSelectionColor(event, m.kind, l.selection)} />
                 ))}
               </div>
             </div>
@@ -589,25 +598,25 @@ function LineButton({ market: m, line: l, selected, onSelect, disabled, team, co
   const label = lineLabel(m, l)
   const mine = m.picked?.selection === l.selection
   const side = sideTeam(m.event, m.kind, l.selection)
-  const look = side ? teamLook(m.event.sport, side) : null
   return (
     <button
       type="button"
       className="sp-line"
       data-team={team || undefined}
+      data-accent={color || undefined}
       aria-pressed={selected?.line.id === l.id || mine}
       data-picked={mine || undefined}
       disabled={disabled || !!m.picked}
-      style={look ? ({ "--tc": color ?? look.color, "--tc-ink": onColor(color ?? look.color) } as React.CSSProperties) : undefined}
+      style={color ? ({ "--tc": color, "--tc-ink": onColor(color) } as React.CSSProperties) : undefined}
       aria-label={`${pickSentence(m, l)}, ${formatOdds(l.price)}, 100 cash wins ${winOn100(l.price)}${mine ? `, your pick, ${credits(m.picked!.stake)}` : ""}`}
       onClick={() => onSelect(m, l)}
     >
-      {team && side ? <TeamBadge sport={m.event.sport} name={side} size={40} /> : m.kind === "player_prop" && m.player ? <PlayerBadge sport={m.event.sport} name={m.player} size={32} /> : look ? <i className="sp-dot" aria-hidden /> : null}
+      {team && side ? <TeamBadge sport={m.event.sport} name={side} size={40} /> : m.kind === "player_prop" && m.player ? <PlayerBadge sport={m.event.sport} name={m.player} size={32} /> : <span className="sp-market-symbol" aria-hidden>{l.selection === "over" ? <ArrowUp/> : l.selection === "under" ? <ArrowDown/> : "="}</span>}
       <span className="sp-line-name">
         {label.name}
+        {label.point ? <small>{label.point}</small> : null}
         {team && side ? <small className="sp-team-record">{(l.selection === "home" ? m.event.homeRecord : m.event.awayRecord) ? ` (${l.selection === "home" ? m.event.homeRecord : m.event.awayRecord})` : null}</small> : null}
         {selected?.line.id === l.id && !mine ? <Check className="sp-selected-check" aria-label="Selected"/> : null}
-        {label.point ? <small>{label.point}</small> : null}
         {mine ? (
           <em className="sp-line-tag">
             <Lock aria-hidden /> Your pick · {credits(m.picked!.stake)}
