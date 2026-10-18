@@ -72,9 +72,29 @@ export type ReturnSummary = {
   days: number
   startValue: number
   endValue: number
+  /** Periods dropped as implausible data (see MAX_PERIOD_GROWTH); 0 for clean series. */
+  suspectPeriods: number
 }
 
-const EMPTY: ReturnSummary = { percent: 0, series: [], days: 0, startValue: 0, endValue: 0 }
+const EMPTY: ReturnSummary = { percent: 0, series: [], days: 0, startValue: 0, endValue: 0, suspectPeriods: 0 }
+
+/**
+ * Sanity limit on a single period's growth factor (1 + r), i.e. +99,900%.
+ *
+ * Periods are daily snapshots with cash flow already divided out, so a real
+ * move is nowhere near this: a legitimate +200% (factor 3) must compound as
+ * +200%, not be truncated. The limit exists only to catch corrupt data, such
+ * as a mis-signed or missing flow, a mid-window account disconnect, or a bad
+ * quote, which would otherwise multiply the whole chain by a garbage number.
+ *
+ * Rule: a period whose factor is non-finite, below 0 (value after flows would
+ * be negative, which is impossible), or above this limit is suspect. It is
+ * skipped (contributes a 0% return, the chain carries on from the next
+ * period) and counted in ReturnSummary.suspectPeriods. It is never clamped to
+ * a boundary value, so no in-range gain is silently altered. A factor of
+ * exactly 0 is a real total loss and is kept.
+ */
+export const MAX_PERIOD_GROWTH = 1000
 
 /**
  * Chain-linked time-weighted return.
@@ -87,7 +107,8 @@ const EMPTY: ReturnSummary = { percent: 0, series: [], days: 0, startValue: 0, e
  *   TWR = Π(1 + r_t) - 1
  *
  * Periods opening at a non-positive value are skipped rather than treated as
- * infinite return.
+ * infinite return. Implausible periods are skipped and flagged, not clamped
+ * (see MAX_PERIOD_GROWTH).
  */
 export function timeWeightedReturn(
   points: SnapshotPoint[],
@@ -97,11 +118,12 @@ export function timeWeightedReturn(
     const only = points[0]
     if (!only) return EMPTY
     const v = only[basis]
-    return { percent: 0, series: [{ date: only.date, value: v, indexed: 100 }], days: 1, startValue: v, endValue: v }
+    return { percent: 0, series: [{ date: only.date, value: v, indexed: 100 }], days: 1, startValue: v, endValue: v, suspectPeriods: 0 }
   }
 
   const series: ReturnSeriesPoint[] = []
   let cumulative = 1
+  let suspectPeriods = 0
 
   const first = points[0]!
   series.push({ date: first.date, value: first[basis], indexed: 100 })
@@ -113,9 +135,11 @@ export function timeWeightedReturn(
 
     if (opening > 0) {
       const periodReturn = (curr[basis] - curr.netFlows) / opening - 1
-      // Clamp per-period moves to ±100%: a mis-signed flow or a mid-window
-      // account disconnect should not detonate the whole chain.
-      cumulative *= 1 + Math.max(-1, Math.min(1, periodReturn))
+      const growth = 1 + periodReturn
+      // See MAX_PERIOD_GROWTH: implausible periods are skipped and flagged,
+      // everything else compounds exactly as measured.
+      if (Number.isFinite(growth) && growth >= 0 && growth <= MAX_PERIOD_GROWTH) cumulative *= growth
+      else suspectPeriods++
     }
 
     series.push({ date: curr.date, value: curr[basis], indexed: cumulative * 100 })
@@ -128,6 +152,7 @@ export function timeWeightedReturn(
     days: points.length,
     startValue: first[basis],
     endValue: last[basis],
+    suspectPeriods,
   }
 }
 

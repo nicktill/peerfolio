@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { defaultRange, rangeAvailability, rangeStart, keepsEntryValue, rangeUnlockDays, timeWeightedReturn, withLivePoint } from "./ranges.ts"
+import { defaultRange, rangeAvailability, rangeStart, keepsEntryValue, rangeUnlockDays, timeWeightedReturn, withLivePoint, MAX_PERIOD_GROWTH } from "./ranges.ts"
 
 const point = (date: string, investableAssets: number, netFlows = 0) => ({
   date,
@@ -55,8 +55,8 @@ describe("timeWeightedReturn", () => {
 
   it("does not count a newly linked account as performance", () => {
     // Regression: every caller but the nightly sync used to pass no flow, so
-    // connecting a $40k 401(k) on a $10k portfolio booked +100% (clamped from
-    // +400%) straight into league standings and Board rank.
+    // connecting a $40k 401(k) on a $10k portfolio booked a fake gain (+400%,
+    // formerly clamped to +100%) straight into league standings and Board rank.
     const linked = timeWeightedReturn([point("2026-01-01", 10000), point("2026-01-02", 50000, 40000)])
     close(linked.percent, 0)
   })
@@ -76,10 +76,41 @@ describe("timeWeightedReturn", () => {
     close(timeWeightedReturn([point("2026-01-01", 0), point("2026-01-02", 5000, 5000)]).percent, 0)
   })
 
-  it("clamps an absurd single period rather than detonating the chain", () => {
-    // A mis-signed flow or a mid-window disconnect shouldn't produce -99999%.
-    const summary = timeWeightedReturn([point("2026-01-01", 1000), point("2026-01-02", 1_000_000)])
-    assert.ok(summary.percent <= 100, `expected clamp at 100%, got ${summary.percent}`)
+  it("compounds a legitimate +200% period in full", () => {
+    const summary = timeWeightedReturn([point("2026-01-01", 1000), point("2026-01-02", 3000)])
+    close(summary.percent, 200)
+    assert.equal(summary.suspectPeriods, 0)
+  })
+
+  it("compounds large gains across periods without truncation", () => {
+    // 3x then 2x = 6x = +500%.
+    const summary = timeWeightedReturn([point("2026-01-01", 1000), point("2026-01-02", 3000), point("2026-01-03", 6000)])
+    close(summary.percent, 500)
+  })
+
+  it("rejects an absurd single period instead of letting it detonate the chain", () => {
+    // A mis-signed flow or a bad quote shouldn't produce +1e9 or -99999%.
+    const summary = timeWeightedReturn([point("2026-01-01", 1000), point("2026-01-02", 1e12), point("2026-01-03", 1.1e12)])
+    assert.equal(summary.suspectPeriods, 1)
+    // The bad period is skipped; the following normal +10% period still counts.
+    close(summary.percent, 10, 1e-6)
+  })
+
+  it("accepts a period right at the sanity limit and rejects just above it", () => {
+    assert.equal(timeWeightedReturn([point("2026-01-01", 1), point("2026-01-02", MAX_PERIOD_GROWTH)]).suspectPeriods, 0)
+    assert.equal(timeWeightedReturn([point("2026-01-01", 1), point("2026-01-02", MAX_PERIOD_GROWTH + 1)]).suspectPeriods, 1)
+  })
+
+  it("flags a period whose value after flows would be negative", () => {
+    const summary = timeWeightedReturn([point("2026-01-01", 1000), point("2026-01-02", 100, 500)])
+    assert.equal(summary.suspectPeriods, 1)
+    close(summary.percent, 0)
+  })
+
+  it("keeps a real total loss", () => {
+    const summary = timeWeightedReturn([point("2026-01-01", 1000), point("2026-01-02", 0)])
+    close(summary.percent, -100)
+    assert.equal(summary.suspectPeriods, 0)
   })
 
   it("has no return from a single snapshot", () => {
