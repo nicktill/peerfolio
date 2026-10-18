@@ -234,13 +234,13 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
   for (const r of [...atRisk, ...atRiskParlays]) risk.set(r.memberId, (risk.get(r.memberId) ?? 0) + r.stake)
   const records = await db.select({
     memberId: sportsPicks.memberId,
-    won: sql<number>`count(*) filter (where ${sportsPicks.status} = 'won')::int`,
-    lost: sql<number>`count(*) filter (where ${sportsPicks.status} = 'lost')::int`,
+    won: sql<number>`count(*) filter (where ${sportsPicks.status} = 'won' or (${sportsPicks.status} = 'cashed_out' and ${sportsPicks.cashoutAmount} >= ${sportsPicks.stake}))::int`,
+    lost: sql<number>`count(*) filter (where ${sportsPicks.status} = 'lost' or (${sportsPicks.status} = 'cashed_out' and ${sportsPicks.cashoutAmount} < ${sportsPicks.stake}))::int`,
   }).from(sportsPicks).where(eq(sportsPicks.leagueId, leagueId)).groupBy(sportsPicks.memberId)
   const parlayRecords = await db.select({
     memberId: sportsParlays.memberId,
-    won: sql<number>`count(*) filter (where ${sportsParlays.status} = 'won')::int`,
-    lost: sql<number>`count(*) filter (where ${sportsParlays.status} = 'lost')::int`,
+    won: sql<number>`count(*) filter (where ${sportsParlays.status} = 'won' or (${sportsParlays.status} = 'cashed_out' and ${sportsParlays.payout} >= ${sportsParlays.stake}))::int`,
+    lost: sql<number>`count(*) filter (where ${sportsParlays.status} = 'lost' or (${sportsParlays.status} = 'cashed_out' and ${sportsParlays.payout} < ${sportsParlays.stake}))::int`,
   }).from(sportsParlays).where(eq(sportsParlays.leagueId, leagueId)).groupBy(sportsParlays.memberId)
   // A settled parlay counts as one win or one loss.
   const recordOf = new Map<string, { won: number; lost: number }>()
