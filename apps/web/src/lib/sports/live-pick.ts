@@ -10,7 +10,7 @@ import type { LiveSelection } from './live/types.ts'
  */
 export const LIVE_PICK = {
   /** Largest live stake, as a percent of starting cash (never above the league's own pick limit). */
-  maxStakePct: 5,
+  maxStakePct: Infinity,
   /** Longshots may win more than starting cash; stake limits bound the amount at risk. */
   maxReturnPctOfStart: Infinity,
   /** Live picks one member may hold on one game. */
@@ -26,12 +26,11 @@ export const isLiveMarketKey = (key: string) => key.startsWith(LIVE_KEY_PREFIX)
 export class LivePickRejected extends Error {}
 const reject = (message: string): never => { throw new LivePickRejected(message) }
 
-export const liveMaxStake = (startingCredits: number, leagueMaxStakePct: number) =>
-  Math.floor((startingCredits * Math.min(LIVE_PICK.maxStakePct, leagueMaxStakePct)) / 100)
+export const liveMaxStake = (_startingCredits: number, _leagueMaxStakePct: number) => Infinity
 
 export function liveStakeBounds(startingCredits: number, leagueMaxStakePct: number): StakeBounds {
   const max = liveMaxStake(startingCredits, leagueMaxStakePct)
-  return { min: DEFAULT_LIMITS.minStake, max, message: `Live picks risk ${DEFAULT_LIMITS.minStake} to ${max} cash` }
+  return { min: DEFAULT_LIMITS.minStake, max, message: `Live picks require at least ${DEFAULT_LIMITS.minStake} cash and cannot exceed your available balance` }
 }
 
 export type LiveHeld = { selection: string; slot: number }
