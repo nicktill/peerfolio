@@ -44,7 +44,7 @@ export function SportsHome() {
         <div>
           <span className="fw-eyebrow">Pregame picks. Play money.</span>
           <h1>Sports leagues</h1>
-          <p className="fw-lede">Everyone starts with the same play cash. Back your picks on NFL, NBA, NHL, MLB, MLS and college football, and climb the standings. Lines are fixed contest lines, not live odds. No real money, ever.</p>
+          <p className="fw-lede">Everyone starts with the same play cash. Back your picks on NFL, NBA, WNBA, NHL, MLB, college football, MLS, the Premier League, La Liga and the Champions League, and climb the standings. Lines are fixed contest lines, not live odds. No real money, ever.</p>
         </div>
         <div className="fw-actions">
           <span className="fw-pill">Play money</span>

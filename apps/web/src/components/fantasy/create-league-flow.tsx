@@ -12,6 +12,7 @@ import { useToast } from "@web/components/ui/toast"
 import { LeagueBackdrop, LeagueMark } from "@web/components/league/league-mark"
 import { LookPicker } from "@web/components/fantasy/league-look-picker"
 import { formatCredits } from "@web/lib/sports/format"
+import { ncaabEnabled } from "@web/lib/sports/flag"
 import { mutate } from "@web/lib/use-api"
 import { randomLook } from "@web/lib/league-look"
 
@@ -35,6 +36,11 @@ const SPORTS = [
   { key: "mlb", label: "MLB", note: "Nearly every day, spring to fall", team: "New York Yankees" },
   { key: "cfb", label: "College football", note: "Saturdays in the fall", team: "Georgia Bulldogs" },
   { key: "mls", label: "MLS", note: "Moneyline, spreads and totals", team: "Inter Miami CF" },
+  { key: "epl", label: "Premier League", note: "Weekends, with a draw pick", team: "Arsenal" },
+  { key: "laliga", label: "La Liga", note: "Weekends, with a draw pick", team: "Real Madrid" },
+  { key: "ucl", label: "Champions League", note: "Tuesdays and Wednesdays", team: "Paris Saint-Germain" },
+  { key: "wnba", label: "WNBA", note: "Summer and fall", team: "Las Vegas Aces" },
+  { key: "ncaab", label: "College basketball", note: "November to April", team: "Duke Blue Devils" },
 ] as const
 const CREDIT_STOPS = [250, 500, 1_000, 2_500, 5_000, 10_000, 25_000, 50_000]
 
@@ -280,7 +286,7 @@ export function CreateLeagueFlow({ kind = "fantasy", onClose, onCreated }: { kin
               <h2>What are you betting on?</h2>
               <p className="cf-sub">Pick one or more. Lines are fixed contest lines, never live odds, and it is all play money.</p>
               <div className="cf-sports" role="group" aria-label="Sports">
-                {SPORTS.map((sp) => {
+                {SPORTS.filter((sp) => sp.key !== "ncaab" || ncaabEnabled()).map((sp) => {
                   const on = sportKeys.includes(sp.key)
                   return (
                     <button key={sp.key} type="button" className="cf-sport" aria-pressed={on} onClick={() => setSportKeys((cur) => (cur.includes(sp.key) ? cur.filter((x) => x !== sp.key) : [...cur, sp.key]))}>

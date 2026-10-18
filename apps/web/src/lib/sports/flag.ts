@@ -1,3 +1,5 @@
+import { SPORTS, type Sport } from "./types.ts"
+
 /**
  * Sports feature flag, read from one NEXT_PUBLIC variable so the same value is visible to the server routes and the
  * client UI (Next inlines it at build time):
@@ -24,3 +26,14 @@ export async function sportsAllowed(mode: SportsMode, userId: string | null, isA
   if (mode === "all") return true
   return userId ? isAdmin(userId) : false
 }
+
+/**
+ * Men's college basketball is fully wired (ESPN, exchange matching, settlement, teams) but its season runs November to April, so
+ * it sits behind one switch. NEXT_PUBLIC_SPORTS_NCAAB_ENABLED=1 turns it on everywhere at once: the league creation list and API,
+ * the publish cron and the scoreboard strip. Off (the default), nothing new is fetched or offered. Settlement and the scoreboard
+ * route keep recognising it, so a league or pick that already uses it still settles.
+ */
+export const ncaabEnabled = (): boolean => process.env.NEXT_PUBLIC_SPORTS_NCAAB_ENABLED?.trim() === "1"
+
+/** Sports that may be offered and published right now: all of SPORTS, minus those behind a flag that is off. */
+export const activeSports = (): Sport[] => SPORTS.filter((s) => s !== "ncaab" || ncaabEnabled())

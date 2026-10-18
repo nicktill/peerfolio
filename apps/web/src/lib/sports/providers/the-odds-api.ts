@@ -1,4 +1,5 @@
 import type { BookQuote, EventRef, EventResult, OddsProvider, OddsSnapshot, ProviderEvent, ProviderMarket, ResultsProvider, Selection, Sport } from "../types.ts"
+import { isSoccer } from "../types.ts"
 
 /**
  * Adapter for The Odds API v4 (the-odds-api.com). UNVERIFIED against the live
@@ -20,6 +21,11 @@ const FIXED_KEYS: Partial<Record<Sport, string>> = {
   mlb: "baseball_mlb",
   cfb: "americanfootball_ncaaf",
   mls: "soccer_usa_mls",
+  epl: "soccer_epl",
+  laliga: "soccer_spain_la_liga",
+  ucl: "soccer_uefa_champs_league",
+  wnba: "basketball_wnba",
+  ncaab: "basketball_ncaab",
 }
 
 /** Prop markets requested per sport. Each costs 1 credit per event per region. */
@@ -31,6 +37,11 @@ export const PROP_MARKETS: Record<Sport, string[]> = {
   mlb: [],
   cfb: [],
   mls: [],
+  epl: [],
+  laliga: [],
+  ucl: [],
+  wnba: [],
+  ncaab: [],
 }
 
 type FetchLike = (url: string) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>
@@ -58,7 +69,8 @@ export function normalizeOddsApiEvent(raw: RawEvent, sport: Sport): ProviderEven
         const at = book.last_update ? new Date(book.last_update) : undefined
         const q: BookQuote = { book: book.key, price: o.price, point: o.point ?? null, at: at && !Number.isNaN(at.getTime()) ? at : undefined }
         if (m.key === "h2h") {
-          const side = o.name === raw.home_team ? "home" : o.name === raw.away_team ? "away" : null
+          // Soccer h2h carries a third outcome named "Draw" (three-way moneyline).
+          const side = o.name === raw.home_team ? "home" : o.name === raw.away_team ? "away" : isSoccer(sport) && o.name === "Draw" ? "draw" : null
           if (side) addQuote(markets, "moneyline", "moneyline", undefined, side, q)
         } else if (m.key === "spreads") {
           const side = o.name === raw.home_team ? "home" : o.name === raw.away_team ? "away" : null

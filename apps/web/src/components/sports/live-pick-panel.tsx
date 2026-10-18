@@ -5,6 +5,7 @@ import { Zap, X } from 'lucide-react'
 import { TeamBadge } from './team-badge'
 import { LiveNumber } from './live-delta'
 import { onColor } from '@web/lib/sports/teams'
+import { isSoccer } from '@web/lib/sports/types'
 import { SheetHandle } from './sheet-handle'
 import { matchupColors } from '@web/lib/sports/matchup-colors'
 import { useLiveGame } from './live-game'
@@ -56,7 +57,7 @@ export function LivePickPanel({ leagueId, eventId, home, away, sport, credits, s
   useEffect(() => { onDraft?.({ stake: side ? amount : 0, toWin: side && amount > 0 && price != null ? toWin : null }) }, [onDraft, side, amount, price, toWin])
   const valid = amount >= 10 && amount <= max
   const names: Record<LiveSelection, string> = { home, away, draw: 'Draw' }
-  const order: LiveSelection[] = sport === 'mls' ? ['away', 'draw', 'home'] : ['away', 'home']
+  const order: LiveSelection[] = isSoccer(sport) ? ['away', 'draw', 'home'] : ['away', 'home']
 
   // No fresh quote: the ticket stays exactly as it is and Lock greys out while the price reprices.
   const repricing = !view || !offer

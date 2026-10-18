@@ -4,7 +4,7 @@ import { CLOB, date, gammaGamesUrl, GAMMA_PAGE, json, KALSHI, KALSHI_SERIES, kal
 import { rawAmerican } from "../odds.ts"
 import { REPRICE } from "../reprice-config.ts"
 import { booksFromQuotes, exchangeThreeWay, type LegQuote, type ThreeWayBooks } from "../threeway-exchange.ts"
-import type { BookQuote, EventResult, OddsProvider, OddsSnapshot, ProviderEvent, ProviderMarket, Sport } from "../types.ts"
+import { isSoccer, type BookQuote, type EventResult, type OddsProvider, type OddsSnapshot, type ProviderEvent, type ProviderMarket, type Sport } from "../types.ts"
 import { EspnResultsProvider } from "./espn.ts"
 
 /**
@@ -234,12 +234,12 @@ export function planGames(sport: Sport, schedule: EventResult[], groups: PmGameG
   for (const e of schedule) {
     if (!e.homeName || !e.awayName || !e.startsAt) continue
     let m = matchGame({ homeName: e.homeName, awayName: e.awayName, startsAt: e.startsAt }, candidates)
-    // College football: Polymarket titles carry the school only ("Troy"), ESPN's full name adds the nickname ("Troy Trojans").
+    // College football and basketball: Polymarket titles carry the school only ("Troy"), ESPN's full name adds the nickname ("Troy Trojans").
     // Retry on ESPN's school name. Same rules apply (both teams, close start, unique), so a near-miss still stays unmatched.
-    if (!m && sport === "cfb" && e.homeShort && e.awayShort) m = matchGame({ homeName: e.homeShort, awayName: e.awayShort, startsAt: e.startsAt }, candidates)
+    if (!m && (sport === "cfb" || sport === "ncaab") && e.homeShort && e.awayShort) m = matchGame({ homeName: e.homeShort, awayName: e.awayShort, startsAt: e.startsAt }, candidates)
     // MLS: exchanges often write the city alone ("Atlanta", "Seattle") where ESPN writes the club. Retry accepting a leading city;
     // still both teams, close start and unique, and a city that fits both sides ("Los Angeles" vs "Los Angeles") stays unmatched.
-    if (!m && sport === "mls") m = matchGame({ homeName: e.homeName, awayName: e.awayName, startsAt: e.startsAt }, candidates, { loose: true })
+    if (!m && isSoccer(sport)) m = matchGame({ homeName: e.homeName, awayName: e.awayName, startsAt: e.startsAt }, candidates, { loose: true })
     if (!m) {
       unmatched++
       continue

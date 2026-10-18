@@ -1,9 +1,10 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { CFB_TEAMS, MLB_TEAMS, MLS_TEAMS, NHL_TEAMS } from "./teams-data.ts"
+import { CFB_TEAMS, EPL_TEAMS, LALIGA_TEAMS, MLB_TEAMS, MLS_TEAMS, NCAAB_TEAMS, NHL_TEAMS, UCL_TEAMS, WNBA_TEAMS } from "./teams-data.ts"
 import { LEAGUE_SPORTS, leagueTeam, leagueTeamCount, type LeagueSport } from "./teams-leagues.ts"
 import { oddsLabel, onColor, teamLook } from "./teams.ts"
 
+const TABLES = { nhl: NHL_TEAMS, mlb: MLB_TEAMS, cfb: CFB_TEAMS, mls: MLS_TEAMS, epl: EPL_TEAMS, laliga: LALIGA_TEAMS, ucl: UCL_TEAMS, wnba: WNBA_TEAMS, ncaab: NCAAB_TEAMS }
 const abbr = (s: LeagueSport, n: string) => leagueTeam(s, n)?.abbr ?? null
 
 describe("league team coverage", () => {
@@ -16,7 +17,7 @@ describe("league team coverage", () => {
   })
   it("resolves every team's own full and short name to itself", () => {
     for (const s of LEAGUE_SPORTS) {
-      const rows = { nhl: NHL_TEAMS, mlb: MLB_TEAMS, cfb: CFB_TEAMS, mls: MLS_TEAMS }[s]
+      const rows = TABLES[s]
       for (const [name, , , , key, short] of rows) {
         const hit = leagueTeam(s, name)
         assert.ok(hit, `${s} ${name}`)
@@ -27,7 +28,7 @@ describe("league team coverage", () => {
   })
   it("gives readable colours", () => {
     for (const s of LEAGUE_SPORTS) {
-      for (const row of { nhl: NHL_TEAMS, mlb: MLB_TEAMS, cfb: CFB_TEAMS, mls: MLS_TEAMS }[s]) {
+      for (const row of TABLES[s]) {
         const t = leagueTeam(s, row[0])!
         assert.match(t.color, /^#[0-9a-f]{6}$/, t.name)
         assert.ok(["#fff", "#101418"].includes(onColor(t.color)))
@@ -98,9 +99,9 @@ describe("teamLook for the new leagues", () => {
   })
   it("every logo URL is an https ESPN png", () => {
     for (const s of LEAGUE_SPORTS)
-      for (const row of { nhl: NHL_TEAMS, mlb: MLB_TEAMS, cfb: CFB_TEAMS, mls: MLS_TEAMS }[s]) {
+      for (const row of TABLES[s]) {
         const l = teamLook(s, row[0])
-        assert.match(l.logo!, /^https:\/\/a\.espncdn\.com\/i\/teamlogos\/(nhl|mlb|ncaa|soccer)\/500\/[a-z0-9]+\.png$/)
+        assert.match(l.logo!, /^https:\/\/a\.espncdn\.com\/i\/teamlogos\/(nhl|mlb|ncaa|soccer|wnba)\/500\/[a-z0-9]+\.png$/)
         assert.match(l.logoDark!, /\/500-dark\//)
       }
   })

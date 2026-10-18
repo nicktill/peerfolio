@@ -1,4 +1,4 @@
-import type { EventRef, EventResult, ResultsProvider, ResultStatus, Sport } from "../types.ts"
+import { espnGroupsQuery, isSoccer, type EventRef, type EventResult, type ResultsProvider, type ResultStatus, type Sport } from "../types.ts"
 
 /**
  * ESPN's public scoreboard JSON as a results source. It is unofficial and undocumented, so it sits behind the
@@ -16,6 +16,11 @@ const LEAGUES: Record<Sport, string[]> = {
   mlb: ["baseball/mlb"],
   cfb: ["football/college-football"],
   mls: ["soccer/usa.1"],
+  epl: ["soccer/eng.1"],
+  laliga: ["soccer/esp.1"],
+  ucl: ["soccer/uefa.champions"],
+  wnba: ["basketball/wnba"],
+  ncaab: ["basketball/mens-college-basketball"],
 }
 
 type Competitor = {
@@ -45,8 +50,8 @@ export function mapStatus(status: Status | undefined): ResultStatus {
   return "scheduled"
 }
 
-/** ESPN's own completed flag together with a FINAL status name (not inferred from the clock or the name alone). */
-export const isOfficialFinal = (status: Status | undefined): boolean => status?.type?.completed === true && /FINAL/.test(status.type.name ?? "")
+/** ESPN's own completed flag together with a FINAL or soccer FULL_TIME status name (not inferred from the clock or the name alone). */
+export const isOfficialFinal = (status: Status | undefined): boolean => status?.type?.completed === true && (/FINAL/.test(status.type.name ?? "") || status.type.name === "STATUS_FULL_TIME")
 
 const num = (s: string | undefined): number | null => {
   if (s == null || s === "") return null
@@ -99,7 +104,7 @@ export function normalizeCompetition(c: Competition, fallbackDate: string | unde
     homeScore: final ? hs : null,
     awayScore: final ? as : null,
     ...(final && isOfficialFinal(c.status) ? { officialFinal: true } : {}),
-    ...(final && sport === "mls" && beyondRegulation(c.status) ? { beyondRegulation: true } : {}),
+    ...(final && isSoccer(sport) && beyondRegulation(c.status) ? { beyondRegulation: true } : {}),
   }
 }
 
@@ -144,7 +149,7 @@ export class EspnResultsProvider implements ResultsProvider {
       // Tennis returns the whole tournament week for any date.
       const dates = sport === "tennis" ? [[...days][0]!] : [...days]
       for (const d of dates) {
-        const res = await this.fetchFn(`${this.baseUrl}/${league}/scoreboard?dates=${d}&limit=300`, { signal: AbortSignal.timeout(8_000) })
+        const res = await this.fetchFn(`${this.baseUrl}/${league}/scoreboard?dates=${d}&limit=300${espnGroupsQuery(sport)}`, { signal: AbortSignal.timeout(8_000) })
         if (!res.ok) throw new Error(`espn ${league} scoreboard failed with ${res.status}`)
         for (const r of normalizeScoreboard((await res.json()) as EspnScoreboard, sport)) {
           if (seen.has(r.externalId)) continue
@@ -181,7 +186,7 @@ export class EspnResultsProvider implements ResultsProvider {
     const out: EventResult[] = []
     for (const league of LEAGUES[sport]) {
       for (const d of dates) {
-        const res = await this.fetchFn(`${this.baseUrl}/${league}/scoreboard?dates=${d}&limit=300`, { signal: AbortSignal.timeout(8_000) })
+        const res = await this.fetchFn(`${this.baseUrl}/${league}/scoreboard?dates=${d}&limit=300${espnGroupsQuery(sport)}`, { signal: AbortSignal.timeout(8_000) })
         if (!res.ok) throw new Error(`espn ${league} scoreboard failed with ${res.status}`)
         for (const r of normalizeScoreboard((await res.json()) as EspnScoreboard, sport)) {
           if (seen.has(r.externalId)) continue

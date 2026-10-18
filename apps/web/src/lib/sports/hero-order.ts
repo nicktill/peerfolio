@@ -1,6 +1,6 @@
 import type { ScoreGame } from './scoreboard.ts'
 
-const RANK: Record<string, number> = { nfl: 0, nba: 1, nhl: 2, mlb: 3, mls: 4, cfb: 5, tennis: 9 }
+const RANK: Record<string, number> = { nfl: 0, nba: 1, nhl: 2, mlb: 3, mls: 4, epl: 4, laliga: 4, ucl: 4, cfb: 5, wnba: 5, ncaab: 5, tennis: 9 }
 const rank = (sport: string) => RANK[sport] ?? 6
 const bucket = (g: ScoreGame) => g.status === 'live' ? 0 : 1
 

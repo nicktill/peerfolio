@@ -1,5 +1,6 @@
 /** Team identity for the picks UI: abbreviation, brand colours, and the ESPN logo slug. Pure data. */
 import { isLeagueSport, leagueTeam } from "./teams-leagues.ts"
+import { isSoccer } from "./types.ts"
 
 type Team = { abbr: string; color: string; alt?: string; slug?: string }
 
@@ -99,8 +100,8 @@ export function teamLook(sport: string | undefined, name: string): TeamLook {
  * but MLS clubs often end in a bare suffix ("Inter Miami CF", "Seattle Sounders FC"), so they use the table's short name.
  */
 export function oddsLabel(sport: string | undefined, name: string): string {
-  if (sport === "mls") {
-    const t = leagueTeam("mls", name)
+  if (isSoccer(sport) && isLeagueSport(sport)) {
+    const t = leagueTeam(sport, name)
     if (t) return t.short
   }
   return name.trim().split(/\s+/).pop() ?? name
