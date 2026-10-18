@@ -1,6 +1,6 @@
 "use client"
 
-import { Lock } from 'lucide-react'
+import { Lock, Radio } from 'lucide-react'
 import { LeagueBrand } from './league-brand'
 import { TeamBadge } from './team-badge'
 import { useLiveGame } from './live-game'
@@ -117,7 +117,10 @@ export function ScoreboardGames({ games, tracked, now, loading, failed, enableAd
   return <div className="sp-live-games">
     {livePick ? <p className="sp-fine sp-live-hint" role="note">{livePick.liveBetting ? "Live picks are on: games in progress with a live price can be picked below, at the price you see." : "Live picks are off in this league. You can still follow games here."}</p> : null}
     {failed ? <p className="sp-fine" role="status">Some scores are unavailable. This list may be incomplete.</p> : null}
-    {live.length ? live.map(g => card(g, true)) : <p className="fw-empty" role="status">Nothing in progress right now.</p>}
-    {upcoming.length ? <><h3 className="sp-day">Coming up</h3>{onShowUpcoming ? <p className="sp-fine sp-coming-note">{renderUpcoming ? 'Pick an available line below, or browse all games in the ' : 'Pick these games from the '}<button type="button" className="sp-link" onClick={onShowUpcoming}>Upcoming tab</button> before kickoff.</p> : null}{upcoming.map(g => card(g, false))}</> : null}
+    <section className="sp-live-section" aria-labelledby="sp-now-title">
+      <h3 id="sp-now-title" className="sp-section-title" data-live={live.length > 0 || undefined}><i aria-hidden />Live now<b className="numeric">{live.length}</b></h3>
+      {live.length ? live.map(g => card(g, true)) : <div className="sp-none-live" role="status"><Radio aria-hidden /><div><strong>No games live right now</strong><span>{upcoming.length ? 'Nothing in progress here. Games that haven\'t started are listed below.' : 'Check back when a game kicks off.'}</span></div></div>}
+    </section>
+    {upcoming.length ? <><h3 className="sp-day sp-section-title sp-section-soon"><i aria-hidden />Coming up · not live yet<b className="numeric">{upcoming.length}</b></h3>{onShowUpcoming ? <p className="sp-fine sp-coming-note">{renderUpcoming ? 'Pick an available line below, or browse all games in the ' : 'Pick these games from the '}<button type="button" className="sp-link" onClick={onShowUpcoming}>Upcoming tab</button> before kickoff.</p> : null}{upcoming.map(g => card(g, false))}</> : null}
   </div>
 }

@@ -898,3 +898,18 @@
 /* Loading, empty and filled lists share a floor so swapping between them does not collapse the panel. */
 .sp-live-games { min-height: 120px; }
 /* ---- end layout stability ---- */
+
+/* Live vs upcoming: each gets a titled section so a quiet sport reads as "nothing live", never as one merged list. */
+.sp-section-title { display: flex; align-items: center; gap: 8px; margin: 14px 0 8px; font: 500 11px var(--fw-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--fw-fg2); }
+.sp-section-title i { width: 7px; height: 7px; border-radius: 50%; background: var(--fw-fg3); flex: none; }
+.sp-section-title[data-live] { color: #70b69a; }
+.sp-section-title[data-live] i { background: #70b69a; box-shadow: 0 0 0 3px rgb(112 182 154 / .15); animation: sp-air 2s ease-in-out infinite; }
+.sp-section-title b { margin-left: auto; padding: 1px 8px; border: 1px solid var(--fw-hair2); border-radius: 99px; font-weight: 500; letter-spacing: 0; color: var(--fw-fg3); }
+.sp-section-soon { margin-top: 22px; padding-top: 16px; border-top: 1px dashed var(--fw-line); }
+.sp-open-lines .sp-section-soon { position: static; background: none; padding-top: 16px; }
+.sp-none-live { display: flex; align-items: center; gap: 12px; padding: 16px 14px; border: 1px dashed var(--fw-line); border-radius: 14px; color: var(--fw-fg3); }
+.sp-none-live svg { width: 18px; height: 18px; flex: none; color: var(--fw-fg3); }
+.sp-none-live div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.sp-none-live strong { font: 500 13px var(--fw-sans); color: var(--fw-fg); }
+.sp-none-live span { font: 400 12px/1.4 var(--fw-sans); }
+@media (prefers-reduced-motion: reduce) { .sp-section-title[data-live] i { animation: none; } }
