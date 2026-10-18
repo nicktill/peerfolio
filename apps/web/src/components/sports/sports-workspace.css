@@ -920,3 +920,15 @@
 .sp-live-slip .sp-live-pick-go[data-updating] { opacity: .6; cursor: progress; }
 .sp-live-slip .sp-live-pick-go[data-updating] .spin { animation-duration: 1s; }
 .sp-live-slip .sp-slip-return[data-dir] b { animation: sp-win-flash .6s ease-out; }
+
+/* Steady cards: team names stay on one line (ellipsis) and prices keep a fixed width, so a price or score change never re-wraps a row. */
+@media (min-width: 701px) {
+  .sp-live-card .sp-live-side .sp-line-name { flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sp-live-card .sp-live-side .sp-line-name .sp-team-record { white-space: nowrap; }
+}
+@media (max-width: 700px) {
+  .sp-live-card .sp-live-side .sp-line-name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; min-width: 0; }
+}
+.sp-live-card .sp-line-odds { flex: none; min-width: 92px; text-align: right; font-variant-numeric: tabular-nums; }
+.sp-live-card .sp-live-side { min-height: 72px; }
+.sp-live-footer { min-height: 22px; }
