@@ -365,7 +365,7 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
         minLegs: PARLAY_LIMITS.minLegs,
         maxLegs: PARLAY_LIMITS.maxLegs,
         minStake: PARLAY_LIMITS.minStake,
-        maxStake: Math.floor((league.startingCredits * PARLAY_LIMITS.maxStakePctOfStart) / 100),
+        maxStake: Math.floor((league.startingCredits * league.maxStakePct) / 100),
       },
     },
     standings,
@@ -720,7 +720,7 @@ async function placeParlayOnce(db: Db, userId: string, leagueId: string, req: Pa
         },
         openPickCount: risk.count,
         openStakeTotal: risk.stake,
-      })
+      }, { ...PARLAY_LIMITS, maxStakePctOfStart: league.maxStakePct })
     } catch (error) {
       if (error instanceof ParlayRejected) {
         emit("info", "sports.parlay_rejected", { code: error.code, leagueId, now: now.toISOString() })
