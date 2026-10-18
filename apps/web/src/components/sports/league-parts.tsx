@@ -410,6 +410,8 @@ function PickMark({ pick, size }: { pick: PickRow; size: number }) {
 /** Quick league facts: hit rate ring, the biggest win, who is hottest, who is sharpest. Fills the rail with something useful. */
 export function LeaguePulse({ leaguePicks: singles, parlays }: { leaguePicks: PickRow[]; parlays?: ParlayRow[] }) {
   const leaguePicks = useMemo(() => (parlays?.length ? [...singles, ...parlayStatRows(parlays)] : singles), [singles, parlays])
+  // Players are keyed by name here; their profile photo rides along on their picks.
+  const imageOf = useMemo(() => new Map(singles.flatMap((p) => (p.name && p.image ? [[p.name, p.image] as const] : []))), [singles])
   const done = leaguePicks.filter(settled)
   const wins = done.filter((p) => p.status === "won")
   const singleWins = wins.filter((p) => p.market.kind !== "parlay")
@@ -475,7 +477,7 @@ export function LeaguePulse({ leaguePicks: singles, parlays }: { leaguePicks: Pi
             </div>
           </li>
           <li>
-            {sharp ? <Badge name={sharp.name} size={40} ring="#d4af37" /> : <span className="sl-pulse-ic"><Target aria-hidden /></span>}
+            {sharp ? <Badge name={sharp.name} size={40} ring="#d4af37" image={imageOf.get(sharp.name)} /> : <span className="sl-pulse-ic"><Target aria-hidden /></span>}
             <div>
               <small>Sharpest</small>
               <b>{sharp ? `${sharp.name.split(" ")[0]} · ${Math.round(sharp.rate * 100)}%` : "Too early to tell"}</b>
