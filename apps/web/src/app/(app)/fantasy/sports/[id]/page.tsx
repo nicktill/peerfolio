@@ -441,6 +441,9 @@ function InviteButton({ code }: { code: string }) {
   )
 }
 
+/** Games shown per day before the rest sit behind a "show more" button. */
+const DAY_PREVIEW = 6
+
 function Markets({ markets, selected, onSelect, disabled, now }: { markets: Market[]; selected: { line: Line } | null; onSelect: (m: Market, l: Line) => void; disabled: boolean; now: number }) {
   // Group by game, then by day, in kickoff order (the API already sorts by start).
   const games = useMemo(() => {
@@ -455,24 +458,42 @@ function Markets({ markets, selected, onSelect, disabled, now }: { markets: Mark
     return [...byEvent.values()].sort((a, b) => Date.parse(a.event.startsAt) - Date.parse(b.event.startsAt) || a.event.sport.localeCompare(b.event.sport) || a.event.home.localeCompare(b.event.home) || a.event.away.localeCompare(b.event.away))
   }, [markets])
 
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
   if (games.length === 0) return <p className="fw-empty">No open lines right now. Games post about a day ahead.</p>
 
+  const rows: React.ReactNode[] = []
   let lastDay = ""
-  return (
-    <ul className="sp-events">
-      {games.map((g) => {
-        const day = dayOf(g.event.startsAt)
-        const heading = day !== lastDay ? day : null
-        lastDay = day
-        return (
-          <li key={g.key}>
-            {heading ? <h3 className="sp-day">{heading}</h3> : null}
-            <GameCard game={g} selected={selected} onSelect={onSelect} disabled={disabled} now={now} />
-          </li>
-        )
-      })}
-    </ul>
-  )
+  let index = 0
+  const days = new Map<string, number>()
+  for (const g of games) days.set(dayOf(g.event.startsAt), (days.get(dayOf(g.event.startsAt)) ?? 0) + 1)
+  for (const g of games) {
+    const day = dayOf(g.event.startsAt)
+    if (day !== lastDay) index = 0
+    const heading = day !== lastDay ? day : null
+    lastDay = day
+    index += 1
+    const total = days.get(day) ?? 0
+    const open = expanded.has(day)
+    const holdsSelection = selected != null && g.markets.some((m) => m.lines.some((l) => l.id === selected.line.id))
+    if (index <= DAY_PREVIEW || open || holdsSelection) {
+      rows.push(
+        <li key={g.key}>
+          {heading ? <h3 className="sp-day">{heading}</h3> : null}
+          <GameCard game={g} selected={selected} onSelect={onSelect} disabled={disabled} now={now} />
+        </li>,
+      )
+    }
+    if (total > DAY_PREVIEW && (index === total)) {
+      rows.push(
+        <li key={`more-${day}`} className="sp-more">
+          <button type="button" aria-expanded={open} onClick={() => setExpanded((prev) => { const next = new Set(prev); if (next.has(day)) next.delete(day); else next.add(day); return next })}>
+            {open ? "Show fewer games" : `Show ${total - DAY_PREVIEW} more game${total - DAY_PREVIEW === 1 ? "" : "s"}`}
+          </button>
+        </li>,
+      )
+    }
+  }
+  return <ul className="sp-events">{rows}</ul>
 }
 
 function Slip({

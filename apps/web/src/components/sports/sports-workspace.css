@@ -1062,3 +1062,19 @@
 @media (min-width: 1051px) {
   .fw-play-space[data-play-world="sports"] .fw-grid > .sp-lower { grid-column: 1 / -1; }
 }
+
+/* Open lines: show the first games of each day, the rest behind a button (no nested scroll). */
+.sp-events .sp-more { list-style: none; padding: 8px 0 4px; }
+.sp-events .sp-more button { width: 100%; min-height: 44px; border: 1px solid var(--fw-line); border-radius: 12px; background: transparent; color: var(--fw-fg2); font: 500 13px/20px var(--fw-sans, inherit); cursor: pointer; }
+.sp-events .sp-more button:hover { background: var(--fw-panel2, rgba(127,127,127,.08)); color: var(--fw-fg); }
+.sp-events .sp-more button:focus-visible { outline: 2px solid var(--fw-accent, currentColor); outline-offset: 2px; }
+
+/* Live strip on tickets: wrap instead of clipping at the card edge, and keep the freshness counter from resizing the chip every second. */
+.sl-tickets .sl-live { flex-wrap: wrap; row-gap: 6px; }
+.sl-tickets .sl-live-chip small { display: inline-block; min-width: 2.2ch; text-align: right; font-variant-numeric: tabular-nums; }
+.sl-tickets .sl-live-clock { flex: 1 1 auto; }
+@media (max-width: 700px) {
+  .sl-tickets .sl-live-prob { margin-left: 0; flex: 1 1 100%; justify-content: flex-start; }
+  .sl-tickets .sl-live-bar { flex: 1 1 auto; width: auto; max-width: 220px; }
+  .sl-tickets .sl-live-prob b { margin-left: auto; }
+}
