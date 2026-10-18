@@ -10,22 +10,23 @@ import { TiltCard } from "@web/components/ui/tilt-card"
 import { CastAvatar } from "@web/components/landing/cast-avatar"
 import { Delta } from "@web/components/ui/delta"
 import { CAST } from "@web/components/landing/demo"
+import { SportsView } from "@web/components/landing/sports-tour-preview"
 import { cn } from "@web/lib/utils"
 
-type TabId = "portfolio" | "leagues" | "fantasy"
+type TabId = "portfolio" | "leagues" | "fantasy" | "sports"
 type Mode = "tabs" | "pinned" | "stacked"
 
 const PINNED_QUERY = "(min-width: 1024px) and (min-height: 620px)"
 const DESKTOP_QUERY = "(min-width: 1024px)"
 
-const TABS: { id: TabId; label: string; title: string; body: string; points: string[]; note?: string }[] = [
+const TABS: { id: TabId; label: string; title: string; body: string; points: string[]; plaid?: boolean }[] = [
   {
     id: "portfolio",
     label: "Portfolio",
     title: "Your money in one place",
-    body: "Add what you hold by hand, or link a brokerage, and see where you stand.",
+    body: "Add what you hold by hand, or link a brokerage with Plaid, and see where you stand.",
     points: ["Net worth across every account", "Returns that leave out deposits", "Put it in a league and friends see your return, never the amounts"],
-    note: "Optional brokerage linking via Plaid, with a limited number of connections per account for now",
+    plaid: true,
   },
   {
     id: "leagues",
@@ -40,6 +41,13 @@ const TABS: { id: TabId; label: string; title: string; body: string; points: str
     title: "Play it with play money",
     body: "Everyone starts with the same play money. No brokerage needed. Nothing touches a real balance.",
     points: ["Buy and sell any stock", "Live standings", "A trade feed for the trash talk"],
+  },
+  {
+    id: "sports",
+    label: "Sports",
+    title: "Call the game with friends",
+    body: "Make play-money picks on real games and see who reads them best. Nothing real is ever at stake.",
+    points: ["Moneyline, spread, total and player props, plus parlays", "Live picks mid-game at live prices, and cash out when you like", "Leaderboards and an invite link for your league"],
   },
 ]
 
@@ -101,13 +109,13 @@ function Copy({ t, on }: { t: (typeof TABS)[number]; on: boolean }) {
           </li>
         ))}
       </ul>
-      {t.note ? <p className="pf-soon pf-rise mt-5" style={numberStyle(6)}>{t.note}</p> : null}
+      {t.plaid ? <PlaidNote /> : null}
     </div>
   )
 }
 
 const View = memo(function View({ id, e, scrub }: { id: TabId; e: number; scrub: boolean }) {
-  return id === "portfolio" ? <PortfolioView e={e} scrub={scrub} /> : id === "leagues" ? <LeaguesView e={e} /> : <FantasyView e={e} />
+  return id === "portfolio" ? <PortfolioView e={e} scrub={scrub} /> : id === "leagues" ? <LeaguesView e={e} /> : id === "fantasy" ? <FantasyView e={e} /> : <SportsView e={e} />
 })
 
 /** Scroll position inside the pinned runway, as 0..1. Mounted only while pinned. */
@@ -119,7 +127,7 @@ function PinnedDriver({ outer, onProgress }: { outer: React.RefObject<HTMLDivEle
 }
 
 const STEPS = TABS.length
-/** Local progress of step i for scroll position s (0..3): holds at the start, runs, then rests at 1. */
+/** Local progress of step i for scroll position s (0..4): holds at the start, runs, then rests at 1. */
 const localE = (s: number, i: number) => smooth(clamp((s - i - 0.1) / 0.72))
 
 /**
@@ -131,11 +139,11 @@ const localE = (s: number, i: number) => smooth(clamp((s - i - 0.1) / 0.72))
 export function ProductTour() {
   const [mode, setMode] = useState<Mode>("tabs")
   const [tab, setTab] = useState<TabId>("portfolio")
-  const [es, setEs] = useState<[number, number, number]>([1, 1, 1])
+  const [es, setEs] = useState<number[]>([1, 1, 1, 1])
   const outer = useRef<HTMLDivElement>(null)
   const fill = useRef<HTMLSpanElement>(null)
   const panes = useRef<(HTMLDivElement | null)[]>([])
-  const last = useRef<number[]>([-1, -1, -1])
+  const last = useRef<number[]>([-1, -1, -1, -1])
   const index = TABS.findIndex((t) => t.id === tab)
 
   useEffect(() => {
@@ -166,10 +174,10 @@ export function ProductTour() {
       el.style.pointerEvents = o > 0.6 ? "auto" : "none"
     })
     // Step progress for the figures, quantised so React only re-renders when something visibly moves.
-    const next = [0, 1, 2].map((i) => Math.round(localE(s, i) * 120) / 120)
+    const next = TABS.map((_, i) => i).map((i) => Math.round(localE(s, i) * 120) / 120)
     if (next.some((n, i) => n !== last.current[i])) {
       last.current = next
-      setEs(next as [number, number, number])
+      setEs(next)
     }
   }, [])
 
@@ -185,9 +193,9 @@ export function ProductTour() {
       const v = (window.scrollY - top) / runway
       if (v <= 0.1 || v >= 0.95) return
       const s = v * STEPS
-      const rests = [0.85, 1.85, 2.85]
+      const rests = TABS.map((_, i) => i + 0.85)
       const target = rests.reduce((a, b) => (Math.abs(b - s) < Math.abs(a - s) ? b : a))
-      if (s > 2.85 || Math.abs(target - s) < 0.04) return
+      if (s > STEPS - 0.15 || Math.abs(target - s) < 0.04) return
       scrollToY(top + (target / STEPS) * runway)
     }
     const onScroll = () => {
@@ -219,7 +227,7 @@ export function ProductTour() {
               <StackedStep key={t.id} t={t} i={i} />
             ))}
           </div>
-          <p className="pf-muted mt-12 text-sm">Also: a News tab with the market recap, movers and earnings week, an Ask Peerfolio assistant, and Sports leagues for play-money picks with friends.</p>
+          <p className="pf-muted mt-12 text-sm">Also: a News tab with the market recap, movers and earnings week, and an Ask Peerfolio assistant.</p>
         </div>
       </section>
     )
@@ -281,14 +289,14 @@ export function ProductTour() {
               ))}
         </div>
       </div>
-      <p className="pf-tour-foot pf-muted mt-8 text-sm">Also: a News tab with the market recap, movers and earnings week, an Ask Peerfolio assistant, and Sports leagues for play-money picks with friends.</p>
+      <p className="pf-tour-foot pf-muted mt-8 text-sm">Also: a News tab with the market recap, movers and earnings week, and an Ask Peerfolio assistant.</p>
     </div>
   )
 
   return (
     <section id="how" className="pf-rule scroll-mt-14" data-tour-mode={mode}>
       {pinned ? (
-        <div ref={outer} style={{ height: "300vh" }}>
+        <div ref={outer} style={{ height: "400vh" }}>
           <PinnedDriver outer={outer} onProgress={onProgress} />
           <div className="pf-tour-sticky sticky top-14 overflow-hidden" style={{ height: "calc(100vh - 56px)" }}>{stage}</div>
         </div>
@@ -344,6 +352,25 @@ function BrokerageLogo({ name }: { name: string }) {
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={`/landing/brokerages/${name.toLowerCase()}.png`} alt="" width={32} height={32} className="size-full object-contain" />
     </span>
+  )
+}
+
+/** Step 1 note. No licensed Plaid logo asset is in the repo, so this is a plain text lockup. */
+function PlaidNote() {
+  return (
+    <div className="pf-rise mt-5 flex items-center gap-3 rounded-xl border px-3 py-2.5" style={{ ...numberStyle(6), borderColor: "var(--hair)", background: "var(--panel)" }}>
+      <span className="flex -space-x-2" aria-hidden>
+        {["Fidelity", "Robinhood", "Vanguard"].map((n) => (
+          <span key={n} className="rounded-lg ring-2 ring-[var(--panel)]"><BrokerageLogo name={n} /></span>
+        ))}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[13px] font-medium leading-5">
+          Link your brokerage securely with <span className="font-display font-semibold tracking-tight">Plaid</span>
+        </p>
+        <p className="text-xs leading-4 text-[var(--fg3)]">Connections are limited per account for now.</p>
+      </div>
+    </div>
   )
 }
 
