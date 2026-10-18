@@ -741,13 +741,13 @@ async function placeParlayOnce(db: Db, userId: string, leagueId: string, req: Pa
         member: { credits: member.credits },
         league: {
           startingCredits: league.startingCredits,
-          maxReturnPctOfStart: DEFAULT_LIMITS.maxReturnPctOfStart,
-          maxExposurePctOfStart: DEFAULT_LIMITS.maxExposurePctOfStart,
+          maxReturnPctOfStart: Infinity,
+          maxExposurePctOfStart: Infinity,
           maxOpenPicks: DEFAULT_LIMITS.maxOpenPicks,
         },
         openPickCount: risk.count,
         openStakeTotal: risk.stake,
-      }, { ...PARLAY_LIMITS, maxStakePctOfStart: league.maxStakePct })
+      }, { ...PARLAY_LIMITS, maxStakePctOfStart: Infinity })
     } catch (error) {
       if (error instanceof ParlayRejected) {
         emit("info", "sports.parlay_rejected", { code: error.code, leagueId, now: now.toISOString() })
