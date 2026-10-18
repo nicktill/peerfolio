@@ -92,7 +92,7 @@ export function placeLivePick(db: Db, userId: string, leagueId: string, req: { e
       }
       let accepted
       try {
-        accepted = acceptPick({ stake: req.stake, lineId: line.id, expectedPrice: req.price, expectedPoint: null }, ctx, { ...DEFAULT_LIMITS, maxStakePctOfStart: Math.min(league.maxStakePct, LIVE_PICK.maxStakePct), maxReturnPctOfStart: LIVE_PICK.maxReturnPctOfStart, live: true })
+        accepted = acceptPick({ stake: req.stake, lineId: line.id, expectedPrice: req.price, expectedPoint: null }, ctx, { ...DEFAULT_LIMITS, maxStakePctOfStart: Infinity, maxExposurePctOfStart: Infinity, maxReturnPctOfStart: Infinity, live: true })
       } catch (error) {
         if (error instanceof PickRejected) throw new SportsError(error.message, error.code === "insufficient_credits" ? 402 : 409)
         throw error
