@@ -68,7 +68,8 @@ export default async function HomePage() {
               <RotatingWord prefix="with " words={RIVALS} />
             </h1>
             <p style={revealStyle(1)} className="reveal pf-sub mx-auto mt-4 max-w-2xl text-balance text-base leading-7 sm:text-[17px]">
-              Track your real portfolios, or play for fun with fantasy stocks or sports picks. Compete with friends in leagues where you see return percentages, never dollar amounts.
+              <span className="hidden sm:inline">Track your real portfolios, or play for fun with fantasy stocks or sports picks. Compete with friends in leagues where you see return percentages, never dollar amounts.</span>
+              <span className="sm:hidden">Track your real portfolios or play for fun. Compete with friends on returns, never dollars.</span>
             </p>
             <div style={revealStyle(2)} className="reveal mt-6 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
               <SignInButton />
