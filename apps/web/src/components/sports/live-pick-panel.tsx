@@ -18,7 +18,7 @@ import type { LiveSelection } from '@web/lib/sports/live/types'
 
 const SETTLE_MS = 1800
 type Signed = { offer: TestOffer; token: string; minStake: number; maxStake: number }
-export type LivePickSelection = { eventId: string; home: string; away: string; sport: string; side: LiveSelection; price: number }
+export type LivePickSelection = { eventId: string; home: string; away: string; sport: string; side: LiveSelection; price: number | null }
 type Props = { selectedSide?: LiveSelection; selectedPrice?: number; onAcceptPrice?: (price: number) => void; onBusyChange?: (busy: boolean) => void; onDraft?: (draft: { stake: number; toWin: number | null }) => void; busy?: boolean; demo?: boolean; leagueId: string; eventId: string; home: string; away: string; sport: string; credits: number; startingCredits: number; maxStakePct: number; onPlaced: () => void }
 
 /** In-play pick for a tracked game. The price shown is the live fair price; the server re-checks the game and price for a few seconds before it accepts. */
@@ -44,12 +44,12 @@ export function LivePickPanel({ leagueId, eventId, home, away, sport, credits, s
   const price = selectedPrice ?? currentPrice
   const moved = selectedPrice != null && currentPrice != null && selectedPrice !== currentPrice
   // While the quote is moving, show what the stake would win at the live price; the ticket re-prices to it once it settles.
-  const shownPrice = moved ? currentPrice : price
+  const shownPrice = currentPrice == null ? null : moved ? currentPrice : price
   const toWin = shownPrice != null && amount > 0 ? totalReturn(amount, shownPrice) - amount : 0
   const dir = moved && selectedPrice != null && currentPrice != null ? (currentPrice > selectedPrice ? 'up' : 'down') : undefined
   // Follow the feed: after the price holds still for a moment the ticket adopts it (Lock stays greyed until then). Never while a pick is being checked.
   useEffect(() => {
-    if (!moved || currentPrice == null || phase === 'checking') return
+    if (currentPrice == null || phase === 'checking' || (selectedPrice != null && !moved)) return
     const settle = window.setTimeout(() => onAcceptPrice?.(currentPrice), SETTLE_MS)
     return () => window.clearTimeout(settle)
   }, [moved, currentPrice, phase, onAcceptPrice])
@@ -62,7 +62,7 @@ export function LivePickPanel({ leagueId, eventId, home, away, sport, credits, s
   const repricing = !view || !offer
 
   async function lockIn() {
-    if (!side || price == null || !valid || moved || phase === 'checking') return
+    if (!side || !offer || currentPrice == null || price == null || price !== currentPrice || !valid || moved || phase === 'checking') return
     setMessage('')
     setPhase('checking'); setLeft(LIVE_TEST.holdMaxMs / 1000)
     window.clearInterval(timer.current)
@@ -95,7 +95,7 @@ export function LivePickPanel({ leagueId, eventId, home, away, sport, credits, s
   }
 
   const busy = phase === 'checking'
-  const hold = repricing || moved
+  const hold = repricing || moved || (selectedPrice != null && currentPrice != null && selectedPrice !== currentPrice)
   const cap = max
   const quick = [10, Math.round(cap / 4), Math.round(cap / 2), cap]
   const problem = amount === 0 ? null : amount < 10 ? 'Minimum is $10' : amount > max ? (amount > credits ? 'Not enough cash' : `Maximum per live pick is ${formatCredits(max)}`) : null
@@ -123,7 +123,7 @@ export function LivePickPanel({ leagueId, eventId, home, away, sport, credits, s
         <span className="fw-label" style={{ margin: 0 }}>To win</span>
         {shownPrice != null ? <small className="sp-slip-at numeric" data-dir={dir}>at <LiveNumber value={shownPrice} format={formatOdds} kind="price" chip={false} /></small> : null}
       </span>
-      {amount > 0 && !problem && shownPrice != null ? <b key={shownPrice}>{formatCredits(toWin)}</b> : <span className="sp-slip-hint">Enter a stake</span>}
+      {amount > 0 && !problem && shownPrice != null ? <b key={shownPrice}>{formatCredits(toWin)}</b> : <span className="sp-slip-hint">{repricing ? 'Repricing…' : 'Enter a stake'}</span>}
     </div>
     {message ? <p className="sp-slip-moved" role="alert">{message}</p> : null}
     <button type="submit" className="fw-submit sp-live-pick-go" disabled={busy || hold || !side || !valid} aria-busy={busy || hold || undefined} data-updating={hold || undefined}>
@@ -147,7 +147,7 @@ export function LivePickSlip({ selection, onClear, onMinimize, onAcceptPrice, on
       {selection.side !== 'draw' && selection.sport !== 'tennis' ? <span className="sp-slip-watermark" aria-hidden><TeamBadge sport={selection.sport} name={name} size={144} /></span> : null}
       {selection.side !== 'draw' ? <TeamBadge sport={selection.sport} name={name} size={48} /> : <span className="sp-slip-sport">Draw</span>}
       <div><small>Live · Winner</small><strong>{name}</strong></div>
-      <span className="sp-slip-odds"><LiveNumber value={selection.price} format={formatOdds} kind="price" chip={false} /></span>
+      <span className="sp-slip-odds">{selection.price == null ? '–' : <LiveNumber value={selection.price} format={formatOdds} kind="price" chip={false} />}</span>
     </div><span className="sp-slip-game">{selection.away} @ {selection.home} · live price, re-checked before it locks</span></div>
     <LivePickPanel {...props} eventId={selection.eventId} home={selection.home} away={selection.away} sport={selection.sport} selectedSide={selection.side} selectedPrice={selection.price} onAcceptPrice={onAcceptPrice} onBusyChange={onBusyChange} />
   </section>
