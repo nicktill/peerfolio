@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { normalizeGames, scoreboardDays, scoreboardMatch, SCOREBOARD_PATHS } from './scoreboard.ts'
+import { normalizeGames, scoreboardDays, scoreboardRange, scoreboardMatch, SCOREBOARD_PATHS } from './scoreboard.ts'
 const at='2026-10-17T23:20:00.000Z'
 const competition=(state='in', name='STATUS_IN_PROGRESS') => ({ id:'123', date:'2026-10-17T23:00:00Z', status:{ type:{state,name,shortDetail:'12:34 - 1st'} }, competitors:[
  {homeAway:'home',team:{displayName:'Philadelphia Flyers'},score:'0',records:[{type:'total',summary:'0-6-3'},{type:'home',summary:'0-2-0'}]},
@@ -43,4 +43,8 @@ test('Eastern scoreboard window spans UTC midnight and DST transitions',()=>{
 test('malformed metadata cannot create a phantom live game',()=>{
  assert.deepEqual(normalizeGames({events:[null,{competitions:[{},competition()]}]},'nhl',at).map(g=>g.id),['123'])
  assert.deepEqual(normalizeGames(null,'nhl',at),[])
+})
+
+test('scoreboard range runs from yesterday through three days ahead in Eastern time', () => {
+ assert.equal(scoreboardRange(new Date('2026-10-17T23:20:00Z')), '20261016-20261020')
 })
