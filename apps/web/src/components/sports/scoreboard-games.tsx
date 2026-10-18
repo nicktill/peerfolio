@@ -111,10 +111,11 @@ export function ScoreboardGames({ games, tracked, now, loading, failed, enableAd
   // Same order on every poll, whatever order the feed returns games in, so cards never swap places.
   const byStart = (x: ScoreGame, y: ScoreGame) => Date.parse(x.startsAt) - Date.parse(y.startsAt) || `${x.sport}:${x.id}`.localeCompare(`${y.sport}:${y.id}`)
   // A game past its scheduled start whose feed still says "upcoming" is under way: keep it in Live now rather than letting it fall between the two lists.
-  const underWay = (g: ScoreGame) => g.status === 'upcoming' && Date.parse(g.startsAt) <= now && now - Date.parse(g.startsAt) < 5 * 3600_000
+  // Tennis is the exception: a match's listed time is only 'not before', so it stays under Coming up until the feed says it is live.
+  const underWay = (g: ScoreGame) => g.status === 'upcoming' && g.sport !== 'tennis' && Date.parse(g.startsAt) <= now && now - Date.parse(g.startsAt) < 5 * 3600_000
   const live = games.filter(g => g.status === 'live' || underWay(g)).sort(byStart)
   // Quiet right now: show what is coming up in the next few days instead of an empty panel.
-  const upcoming = games.filter(g => g.status === 'upcoming' && Date.parse(g.startsAt) > now).sort(byStart).slice(0, UPCOMING_LIMIT)
+  const upcoming = games.filter(g => g.status === 'upcoming' && (Date.parse(g.startsAt) > now || g.sport === 'tennis')).sort(byStart).slice(0, UPCOMING_LIMIT)
   if (loading && !games.length) return <p className="fw-empty" role="status">Loading live games…</p>
   if (!live.length && !upcoming.length && query) return <p className="fw-empty" role="status">No games match &ldquo;{query}&rdquo;</p>
   if (!live.length && !upcoming.length) return <p className="fw-empty" role="status">{failed ? 'Live scores are temporarily unavailable. Please try again shortly.' : 'No games scheduled in the next few days for this sport.'}</p>
