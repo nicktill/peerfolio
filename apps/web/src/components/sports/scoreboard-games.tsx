@@ -28,7 +28,7 @@ function CardHead({ g, chip }: { g: ScoreGame; chip: React.ReactNode }) {
 function TeamRows({ g, showScore, trendId }: { g: ScoreGame; showScore: boolean; trendId?: string }) {
   const colors = matchupColors(g.sport, g.away, g.home)
   return <div className="sp-lines sp-team-lines">
-    {sides(g).map((side, i) => <div key={side.name} className="sp-line sp-live-side" data-team data-accent={colors[i]} style={{ '--tc': colors[i] } as React.CSSProperties}>{trendId ? <OddsTrend eventId={trendId} side={i === 0 ? 'away' : 'home'} color={colors[i]} /> : null}<TeamBadge sport={g.sport} name={side.name} size={40} /><span className="sp-line-name">{side.name}{side.record ? <small className="sp-team-record"> ({side.record})</small> : null}</span>{showScore ? <SetScores sets={side.sets} live={g.status === 'live'} /> : null}{showScore ? <b className="sp-live-score">{side.score ?? '–'}</b> : null}</div>)}
+    {sides(g).map((side, i) => <div key={side.name} className="sp-line sp-live-side" data-team data-accent={colors[i]} style={{ '--tc': colors[i] } as React.CSSProperties}><TeamBadge sport={g.sport} name={side.name} size={40} /><span className="sp-line-name">{side.name}{side.record ? <small className="sp-team-record"> ({side.record})</small> : null}</span>{trendId ? <OddsTrend eventId={trendId} side={i === 0 ? 'away' : 'home'} color={colors[i]} /> : null}{showScore ? <SetScores sets={side.sets} live={g.status === 'live'} /> : null}{showScore ? <b className="sp-live-score">{side.score ?? '–'}</b> : null}</div>)}
   </div>
 }
 type Split = { home: number; away: number; draw: number | null }
