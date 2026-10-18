@@ -1053,7 +1053,6 @@
 
 /* Narrow feeds (the right rail): let a long pick title wrap to two lines instead of cutting it to "Buffalo Bil…". */
 .sl-tk-title b { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-=======
 /* A held (stale) or missing live price keeps its place but reads as not pickable. */
 .sp-line-odds[data-stale] { opacity: .55; }
 .sp-live-card .sp-line-odds { transition: opacity .25s ease; }
