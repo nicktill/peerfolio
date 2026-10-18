@@ -932,3 +932,7 @@
 .sp-live-card .sp-line-odds { flex: none; min-width: 92px; text-align: right; font-variant-numeric: tabular-nums; }
 .sp-live-card .sp-live-side { min-height: 72px; }
 .sp-live-footer { min-height: 22px; }
+
+/* A held (stale) or missing live price keeps its place but reads as not pickable. */
+.sp-line-odds[data-stale] { opacity: .55; }
+.sp-live-card .sp-line-odds { transition: opacity .25s ease; }
