@@ -1,5 +1,6 @@
 "use client"
 
+import { useRef } from 'react'
 import { Lock, Radio } from 'lucide-react'
 import { LeagueBrand } from './league-brand'
 import { TeamBadge } from './team-badge'
@@ -35,20 +36,22 @@ function SetScores({ sets, live }: { sets?: TennisSet[]; live: boolean }) {
 function CardHead({ g, chip }: { g: ScoreGame; chip: React.ReactNode }) {
   return <div className="sp-game-head"><div className="sp-matchup"><strong>{g.away} {g.sport === "tennis" ? "vs" : "@"} {g.home}</strong></div><span className="sp-game-meta"><LeagueBrand sport={g.sport} />{chip}</span></div>
 }
-function TeamRows({ g, showScore, trendId, trendLive, offer, livePick, eventId }: { g: ScoreGame; showScore: boolean; trendId?: string; trendLive?: number | null; offer?: TestOffer | null; livePick?: LivePickConfig; eventId?: string }) {
+function TeamRows({ g, showScore, trendId, trendLive, offer, stale, pickable, livePick, eventId }: { g: ScoreGame; showScore: boolean; trendId?: string; trendLive?: number | null; offer?: TestOffer | null; stale?: boolean; pickable?: boolean; livePick?: LivePickConfig; eventId?: string }) {
   const colors = matchupColors(g.sport, g.away, g.home)
   return <div className="sp-lines sp-team-lines">
     {sides(g).map((side, i) => {
       const selection: LiveSelection = i === 0 ? 'away' : 'home'
       const price = offer?.prices[selection]
-      const canPick = !!eventId && !!livePick && price != null
+      const canPick = !!pickable && !!eventId && !!livePick && price != null && !stale
+      // On a pickable card the odds column is always reserved, so a quote that goes stale between polls never re-wraps the row.
+      const reserve = !!eventId && !!livePick
       const Row = canPick ? 'button' : 'div'
       return <Row key={selection} type={canPick ? 'button' : undefined} className="sp-line sp-live-side" data-team data-accent={colors[i]} style={{ '--tc': colors[i] } as React.CSSProperties} aria-label={canPick ? `Live pick ${side.name}, ${formatOdds(price!)}` : undefined} aria-pressed={canPick ? livePick?.selected?.eventId === eventId && livePick?.selected?.side === selection : undefined} disabled={canPick ? livePick?.busy : undefined} onClick={canPick ? () => livePick!.onSelect({ eventId: eventId!, home: g.home, away: g.away, sport: g.sport, side: selection, price: price! }) : undefined}>
         <TeamBadge sport={g.sport} name={side.name} size={40} /><span className="sp-line-name">{side.name}{side.record ? <small className="sp-team-record"> ({side.record})</small> : null}</span>
         {trendId ? <OddsTrend eventId={trendId} side={selection} color={colors[i]} team={side.name} live={trendLive} /> : null}
         {showScore ? <SetScores sets={side.sets} live={g.status === 'live'} /> : null}
         {showScore ? <b className="sp-live-score"><LiveNumber value={side.score == null ? null : Number.isFinite(Number(side.score)) ? Number(side.score) : null} format={scoreText} kind="score" seenKey={`score:${g.sport}:${g.id}:${side.name}`} /></b> : null}
-        {canPick ? <span className="sp-line-odds"><b>{formatOdds(price!)}</b><small>$100 wins ${winOn100(price!)}</small></span> : null}
+        {price != null && reserve ? <span className="sp-line-odds" data-stale={stale || undefined}><b>{formatOdds(price)}</b><small>$100 wins ${winOn100(price)}</small></span> : reserve ? <span className="sp-line-odds" data-stale><b>–</b><small>repricing</small></span> : null}
       </Row>
     })}
   </div>
@@ -71,10 +74,16 @@ function LiveCard({ g, now, tracked, enableAdminTest, livePick }: { g: ScoreGame
   const split = exchange ?? est
   let offer: TestOffer | null = null
   try { if (view && fresh) { const aged = ageView(view, elapsedMs); offer = testOffer(aged, Date.parse(aged.serverTime)) } } catch { /* stale quotes never become selectable lines */ }
+  // Quotes age out between polls; keep showing the last good price (dimmed, not pickable) for a minute instead of letting the odds blink away.
+  const lastOffer = useRef<TestOffer | null>(null)
+  if (offer) lastOffer.current = offer
+  const held = !offer && lastOffer.current && now - Date.parse(lastOffer.current.quoteAsOf) < 60_000 ? lastOffer.current : null
+  const shownOffer = offer ?? held
   // Three-way sports keep the Draw row even while a quote is briefly missing, so the card does not grow and shrink.
-  const drawPrice = offer?.prices.draw ?? null
+  const drawPrice = shownOffer?.prices.draw ?? null
   const hasDraw = drawPrice != null || split?.draw != null
-  const selectable = !!tracked && !!livePick?.liveBetting && livePick.mode !== 'parlay'
+  const reserveOdds = !!tracked && !!livePick?.liveBetting
+  const selectable = reserveOdds && livePick?.mode !== 'parlay'
 
   return <article className="sp-game sp-live-card" data-matchup style={{ '--away-color': colors[0], '--home-color': colors[1] } as React.CSSProperties}>
     <CardHead g={g} chip={<GameStatusChip input={statusInput} now={now} />} />
@@ -91,7 +100,7 @@ function LiveCard({ g, now, tracked, enableAdminTest, livePick }: { g: ScoreGame
         <span><small>{oddsLabel(g.sport, g.home)}</small> <LiveNumber value={split.home} format={pctText} kind="pct" /></span>
       </div>
     </div> : null}
-    <TeamRows g={g} showScore trendId={fresh ? tracked?.id : undefined} trendLive={ex ? ex.homeProb : null} offer={selectable ? offer : null} livePick={selectable ? livePick : undefined} eventId={tracked?.id} />
+    <TeamRows g={g} showScore trendId={fresh ? tracked?.id : undefined} trendLive={ex ? ex.homeProb : null} offer={reserveOdds ? shownOffer : null} stale={!offer} pickable={selectable} livePick={reserveOdds ? livePick : undefined} eventId={tracked?.id} />
     {selectable && hasDraw ? <button type="button" className="sp-line sp-live-draw" aria-label={drawPrice != null ? `Live pick Draw, ${formatOdds(drawPrice)}` : 'Draw, price unavailable'} aria-pressed={livePick?.selected?.eventId === tracked!.id && livePick.selected.side === 'draw'} disabled={livePick?.busy || drawPrice == null} onClick={drawPrice != null ? () => livePick!.onSelect({ eventId: tracked!.id, home: g.home, away: g.away, sport: g.sport, side: 'draw', price: drawPrice }) : undefined}><span>Draw</span><b>{drawPrice != null ? formatOdds(drawPrice) : '\u2013'}</b></button> : null}
     <div className="sp-live-footer"><span>{fresh ? (updated < 30 ? 'Updated just now' : `Updated ${updated}s ago`) : 'Last reported score · updates delayed'}</span>{livePick?.mode === 'parlay' ? <span><Lock aria-hidden />Live picks are singles</span> : <span />}</div>
     {tracked && enableAdminTest && !livePick?.liveBetting ? <AdminLiveTestPanel eventId={tracked.id} home={g.home} away={g.away} /> : null}
