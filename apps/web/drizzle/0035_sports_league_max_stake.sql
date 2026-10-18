@@ -1,0 +1,1 @@
+ALTER TABLE "sports_leagues" ADD COLUMN "max_stake_pct" integer DEFAULT 10 NOT NULL;

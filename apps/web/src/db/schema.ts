@@ -1125,6 +1125,8 @@ export const sportsLeagues = pgTable(
     startingCredits: integer("starting_credits").notNull().default(1000),
     endsAt: timestamp("ends_at", { withTimezone: true }),
     memberLimit: integer("member_limit").notNull().default(50),
+    /** Largest single pick as a percent of starting credits. The owner can change it. */
+    maxStakePct: integer("max_stake_pct").notNull().default(10),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("sports_leagues_invite_code_idx").on(t.inviteCode), index("sports_leagues_owner_idx").on(t.ownerId)],

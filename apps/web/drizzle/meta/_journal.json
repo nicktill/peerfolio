@@ -246,6 +246,13 @@
       "when": 1792269770820,
       "tag": "0034_sports_live_odds_and_reprice",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1792284227417,
+      "tag": "0035_sports_league_max_stake",
+      "breakpoints": true
     }
   ]
 }
