@@ -4,7 +4,17 @@ import type { LiveView } from './live/view.ts'
 import type { LiveSelection } from './live/types.ts'
 
 /** Shared offer/delay/freshness machinery. The admin paper test never touches a league; live picks (live-pick.ts) reuse it with their own stake bounds. */
-export const LIVE_TEST = { delayMs: 12_000, maxAgeMs: 15_000, offerTtlMs: 20_000, minStake: 10, maxStake: 100 } as const
+/**
+ * Timing is set by what the feeds can support: the exchange worker writes a quote about every 10s, the score feed about every 30s.
+ * The order is held at least `delayMs`, then waits (polling) for a quote newer than the request, up to `holdMaxMs` in total, so a
+ * user waits 4-9s, never more than 10. No newer quote in time means a safe rejection, not a fill on old data.
+ * `probTolerance` is the most the chosen side's win probability may differ from the offered price's probability: about the
+ * size of an ordinary tick; anything larger (a score, injury, penalty) cancels the order. Scores/period/status must be unchanged.
+ */
+export const LIVE_TEST = {
+  delayMs: 4_000, holdMaxMs: 9_000, pollMs: 1_000, maxAgeMs: 12_000, stateMaxAgeMs: 45_000, probTolerance: 0.03,
+  offerTtlMs: 20_000, minStake: 10, maxStake: 100,
+} as const
 export type TestOffer = {
   eventId: string; source: 'polymarket' | 'kalshi'; quoteAsOf: string; stateAsOf: string
   homeProb: number; awayProb: number; drawProb: number | null
@@ -13,14 +23,14 @@ export type TestOffer = {
 }
 export class LiveTestRejected extends Error {}
 const reject = (message: string): never => { throw new LiveTestRejected(message) }
-const fresh = (iso: string | null, now: number) => {
+const fresh = (iso: string | null, now: number, maxAgeMs: number = LIVE_TEST.maxAgeMs) => {
   const age = iso ? now - Date.parse(iso) : NaN
-  return Number.isFinite(age) && age >= 0 && age <= LIVE_TEST.maxAgeMs
+  return Number.isFinite(age) && age >= 0 && age <= maxAgeMs
 }
 
 export function testOffer(view: LiveView | null, now: number): TestOffer {
   if (!view || view.status !== 'live') return reject('A confirmed live game is required')
-  if (!fresh(view.stateAsOf, now) || view.stateFreshness !== 'live') return reject('Score feed is stale; test paused')
+  if (!fresh(view.stateAsOf, now, LIVE_TEST.stateMaxAgeMs) || view.stateFreshness === 'stale' || view.stateFreshness == null) return reject('Score feed is stale; live picks are paused')
   if (!view.score || !Number.isInteger(view.score.home) || !Number.isInteger(view.score.away) || view.score.home! < 0 || view.score.away! < 0 || !view.period) return reject('Complete score and period are required')
   const q = view.odds
   if (q.status !== 'ok' || q.source === 'espn' || q.freshness !== 'live' || q.confidence === 'low' || q.mismatch || !fresh(q.asOf, now)) return reject('A fresh, agreeing exchange quote is required')
@@ -38,24 +48,41 @@ export function validateTestRequest(offer: TestOffer, selection: LiveSelection, 
   if (!['home', 'away', 'draw'].includes(selection) || offer.prices[selection] == null || offer.prices[selection] !== expectedPrice) return reject('The test price changed; refresh the offer')
 }
 
-export function compareTestOffers(before: TestOffer, after: TestOffer) {
+/** The chosen side's win probability in an offer. */
+const sideProb = (o: TestOffer, selection: LiveSelection) => (selection === 'home' ? o.homeProb : selection === 'away' ? o.awayProb : o.drawProb)
+
+/** Events (source, score, period, game) must be identical; probabilities may drift by an ordinary tick but no more than `probTolerance`. */
+export function compareTestOffers(before: TestOffer, after: TestOffer, selection?: LiveSelection) {
   if (before.eventId !== after.eventId || before.source !== after.source) return reject('Quote source changed during the delay')
   if (before.homeScore !== after.homeScore || before.awayScore !== after.awayScore || before.period !== after.period) return reject('Score or period changed during the delay')
-  if (before.homeProb !== after.homeProb || before.awayProb !== after.awayProb || before.drawProb !== after.drawProb) return reject('Exchange quote changed during the delay')
+  const sides: LiveSelection[] = selection ? [selection] : ['home', 'away', 'draw']
+  for (const side of sides) {
+    const a = sideProb(before, side), b = sideProb(after, side)
+    if ((a == null) !== (b == null)) return reject('Exchange quote changed during the delay')
+    if (a != null && b != null && Math.abs(a - b) > LIVE_TEST.probTolerance) return reject('Exchange quote changed during the delay')
+  }
 }
 
 /** Effects injected so delay, duplicate claims and changed feeds are tested without network or a ledger. */
 export async function acceptTest(input: { offer: TestOffer; selection: LiveSelection; stake: number; expectedPrice: number; requestedAt: number; bounds?: StakeBounds }, deps: { now(): number; read(): Promise<LiveView | null>; claim(): Promise<boolean>; wait(ms: number): Promise<void> }) {
   validateTestRequest(input.offer, input.selection, input.stake, input.expectedPrice, input.bounds)
   const before = testOffer(await deps.read(), deps.now())
-  compareTestOffers(input.offer, before)
+  compareTestOffers(input.offer, before, input.selection)
   if (!(await deps.claim())) return reject('This test offer was already submitted; refresh it')
   await deps.wait(LIVE_TEST.delayMs)
   if (deps.now() - input.requestedAt < LIVE_TEST.delayMs) return reject('Acceptance delay was not completed')
-  const after = testOffer(await deps.read(), deps.now())
+  // Wait (bounded) for a quote newer than the request: a fill must rest on the market as it was after the order arrived.
+  let after: TestOffer
+  for (;;) {
+    after = testOffer(await deps.read(), deps.now())
+    if (Date.parse(after.quoteAsOf) > input.requestedAt) break
+    if (deps.now() - input.requestedAt + LIVE_TEST.pollMs > LIVE_TEST.holdMaxMs) return reject('No fresh price arrived in time; nothing was placed. Try again')
+    await deps.wait(LIVE_TEST.pollMs)
+  }
   const acceptedAt = deps.now()
-  compareTestOffers(before, after)
-  if (Date.parse(after.quoteAsOf) <= Math.max(input.requestedAt, Date.parse(before.quoteAsOf)) || Date.parse(after.stateAsOf) <= Math.max(input.requestedAt, Date.parse(before.stateAsOf))) return reject('No new quote and score observation during the delay')
+  compareTestOffers(before, after, input.selection)
+  // The price the member accepted is also checked against the current market, not only against the earlier read.
+  compareTestOffers(input.offer, after, input.selection)
   return { mode: 'ADMIN_PAPER_TEST' as const, selection: input.selection, stake: input.stake, offeredPrice: input.expectedPrice, hypotheticalTotalReturn: totalReturn(input.stake, input.expectedPrice), requestedAt: new Date(input.requestedAt).toISOString(), acceptedAt: new Date(acceptedAt).toISOString(), delayMs: acceptedAt - input.requestedAt, quoteAgeMs: acceptedAt - Date.parse(after.quoteAsOf), stateAgeMs: acceptedAt - Date.parse(after.stateAsOf), offered: input.offer, accepted: after }
 }
 export type TestReceipt = Awaited<ReturnType<typeof acceptTest>>
