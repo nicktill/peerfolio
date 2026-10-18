@@ -2,11 +2,11 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import { inviteMetadata } from "./invite-metadata.ts"
 
-for (const kind of ["league", "fantasy"] as const) {
+for (const kind of ["league", "fantasy", "sports"] as const) {
   test(`${kind} invitations override the homepage preview and retain their destination`, () => {
     const result = inviteMetadata(kind, " ab12cd ")
     assert.match(String(result.title), /You've been invited/)
-    assert.equal(result.openGraph?.url, `${kind === "fantasy" ? "/fantasy" : ""}/join/AB12CD`)
+    assert.equal(result.openGraph?.url, { league: "/join/AB12CD", fantasy: "/fantasy/join/AB12CD", sports: "/join/sports/AB12CD" }[kind])
     assert.equal(result.openGraph?.title, result.title)
     assert.equal(result.twitter?.title, result.title)
     assert.equal(result.twitter?.description, result.description)

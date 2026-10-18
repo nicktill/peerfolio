@@ -21,8 +21,9 @@ const LINES = [
 
 export async function GET(_request: Request, { params }: { params: Promise<{ kind: string }> }) {
   const { kind } = await params
-  if (kind !== "league" && kind !== "fantasy") return new Response("Not found", { status: 404 })
-  const fantasy = kind === "fantasy"
+  if (kind !== "league" && kind !== "fantasy" && kind !== "sports") return new Response("Not found", { status: 404 })
+  const fantasy = kind === "fantasy" || kind === "sports"
+  const sports = kind === "sports"
   const logo = `data:image/png;base64,${(await readFile(path.join(process.cwd(), "public/logo-white.png"))).toString("base64")}`
   const mono = "monospace"
 
@@ -35,13 +36,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ kin
           Peerfolio
         </div>
         <div style={{ display: "flex", flexDirection: "column" }}>
-          <div style={{ display: "flex", color: "#8fb0e6", fontSize: 19, letterSpacing: 3, fontFamily: mono }}>{fantasy ? "FANTASY / PLAY MONEY" : "PRIVATE LEAGUE"}</div>
+          <div style={{ display: "flex", color: "#8fb0e6", fontSize: 19, letterSpacing: 3, fontFamily: mono }}>{sports ? "SPORTS / PLAY CREDITS" : fantasy ? "FANTASY / PLAY MONEY" : "PRIVATE LEAGUE"}</div>
           <div style={{ display: "flex", flexDirection: "column", marginTop: 18, fontSize: 62, lineHeight: 1.04, fontWeight: 700 }}>
             <div style={{ display: "flex" }}>You&apos;re invited</div>
             <div style={{ display: "flex", color: "#8fb0e6" }}>{fantasy ? "to the draft." : "to the league."}</div>
           </div>
           <div style={{ display: "flex", marginTop: 22, fontSize: 24, lineHeight: 1.4, color: "#a7b0bc" }}>
-            {fantasy ? "Pick stocks with $100k of play money and race your friends." : "Race friends on returns. They see how well you invest, never how much."}
+            {sports ? "Make picks with play credits and climb the leaderboard." : fantasy ? "Pick stocks with $100k of play money and race your friends." : "Race friends on returns. They see how well you invest, never how much."}
           </div>
         </div>
         <div style={{ display: "flex" }}>
@@ -51,11 +52,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ kin
 
       <div style={{ position: "absolute", left: 540, top: 56, width: 620, height: 600, display: "flex", flexDirection: "column", padding: 22, borderRadius: 20, background: "#0e1116", border: "1px solid #232b36" }}>
         <div style={{ display: "flex", flexDirection: "column" }}>
-          <div style={{ display: "flex", color: "#8a95a3", fontSize: 14, letterSpacing: 2, fontFamily: mono }}>{fantasy ? "FANTASY / PLAY MONEY" : "LEAGUE / LAST 30 DAYS"}</div>
-          <div style={{ display: "flex", marginTop: 6, fontSize: 38, fontWeight: 700 }}>{fantasy ? "Friday Draft" : "The Group Chat"}</div>
+          <div style={{ display: "flex", color: "#8a95a3", fontSize: 14, letterSpacing: 2, fontFamily: mono }}>{sports ? "SPORTS / PLAY CREDITS" : fantasy ? "FANTASY / PLAY MONEY" : "LEAGUE / LAST 30 DAYS"}</div>
+          <div style={{ display: "flex", marginTop: 6, fontSize: 38, fontWeight: 700 }}>{sports ? "Sunday Picks" : fantasy ? "Friday Draft" : "The Group Chat"}</div>
         </div>
         <div style={{ display: "flex", gap: 12, marginTop: 18 }}>
-          {(fantasy ? [["YOUR RANK", "#3 of 5"], ["YOUR RETURN", "+2.64%"], ["VALUE", "$102,640"]] : [["YOUR RANK", "#1 of 4"], ["YOUR RETURN", "+9.70%"], ["PLAYERS", "4"]]).map(([label, value], i) => (
+          {(fantasy ? [["YOUR RANK", "#3 of 5"], ["YOUR RETURN", "+2.64%"], ["VALUE", sports ? "1,026" : "$102,640"]] : [["YOUR RANK", "#1 of 4"], ["YOUR RETURN", "+9.70%"], ["PLAYERS", "4"]]).map(([label, value], i) => (
             <div key={label} style={{ display: "flex", flexDirection: "column", flex: 1, padding: "12px 14px", borderRadius: 12, background: "#131820", border: "1px solid #1d242e" }}>
               <div style={{ display: "flex", color: "#8a95a3", fontSize: 12, letterSpacing: 2, fontFamily: mono }}>{label}</div>
               <div style={{ display: "flex", marginTop: 4, fontSize: 28, fontWeight: 700, color: i === 1 ? "#6fcf9f" : "#f1f3f6" }}>{value}</div>
