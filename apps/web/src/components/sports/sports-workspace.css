@@ -1191,3 +1191,9 @@
 .ld[data-kind="score"] .ld-chip[data-tone="bad"] { color: var(--loss-ink, #f87171); border: 0; }
 @keyframes ld-score-pop { 0% { opacity: 0; transform: translate(-50%, 6px); } 14%, 68% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; transform: translate(-50%, -5px); } }
 @media (prefers-reduced-motion: reduce) { .ld[data-kind="score"] .ld-chip { animation: ld-chip-still 2.6s ease both; transform: translateX(-50%); } }
+/* Game chart: both teams' win chance on one time axis, under the team rows on live cards (all widths). */
+.sp-gchart { position: relative; height: 64px; margin: 8px 0 2px; padding-right: 44px; color: var(--fw-fg3); animation: sp-spark-in .5s ease-out; }
+.sp-gchart-slot { animation: none; }
+.sp-gchart svg { display: block; width: 100%; height: 64px; overflow: visible; }
+.sp-gchart-pill { position: absolute; right: 0; display: grid; place-items: center; min-width: 38px; height: 18px; padding: 0 6px; border-radius: 999px; font: 700 11px/1 var(--fw-mono); font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) { .sp-gchart { animation: none; } }

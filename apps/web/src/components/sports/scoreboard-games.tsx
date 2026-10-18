@@ -10,7 +10,7 @@ import { AdminLiveTestPanel } from './admin-live-test'
 import { type LivePickSelection } from './live-pick-panel'
 import { type ScoreGame, type TennisSet, scoreboardMatch } from '@web/lib/sports/scoreboard'
 import { LiveNumber } from './live-delta'
-import { OddsTrend } from './odds-trend'
+import { GameChart } from './odds-trend'
 import { GameStatusChip, statusInputFromGame } from './game-status-chip'
 import { mergeLiveState } from '@web/lib/sports/game-status'
 import { matchupColors } from '@web/lib/sports/matchup-colors'
@@ -50,12 +50,12 @@ function TeamRows({ g, showScore, trendId, trendLive, offer, stale, pickable, li
       const Row = canPick ? 'button' : 'div'
       return <Row key={selection} type={canPick ? 'button' : undefined} className="sp-line sp-live-side" data-team data-accent={colors[i]} style={{ '--tc': colors[i] } as React.CSSProperties} aria-label={canPick ? `Live pick ${side.name}, ${formatOdds(price!)}` : undefined} aria-pressed={canPick ? livePick?.selected?.eventId === eventId && livePick?.selected?.side === selection : undefined} disabled={canPick ? livePick?.busy : undefined} onClick={canPick ? () => livePick!.onSelect({ eventId: eventId!, home: g.home, away: g.away, sport: g.sport, side: selection, price: price! }) : undefined}>
         <TeamBadge sport={g.sport} name={side.name} size={40} /><span className="sp-line-name">{side.name}{side.record ? <small className="sp-team-record"> ({side.record})</small> : null}</span>
-        {trendId ? <OddsTrend eventId={trendId} side={selection} color={colors[i]} team={side.name} live={trendLive} /> : null}
         {showScore ? <SetScores sets={side.sets} live={g.status === 'live'} /> : null}
         {showScore ? <b className="sp-live-score"><LiveNumber value={side.score == null ? null : Number.isFinite(Number(side.score)) ? Number(side.score) : null} format={scoreText} kind="score" seenKey={`score:${g.sport}:${g.id}:${side.name}`} /></b> : null}
         {price != null && reserve ? <span className="sp-line-odds" data-stale={stale || undefined}><b>{formatOdds(price)}</b><small>{stale ? 'updating' : `$100 wins $${winOn100(price)}`}</small></span> : reserve ? <span className="sp-line-odds" data-stale><b>–</b><small>repricing</small></span> : null}
       </Row>
     })}
+  {trendId ? <GameChart eventId={trendId} away={g.away} home={g.home} awayColor={colors[0]} homeColor={colors[1]} live={trendLive} /> : null}
   </div>
 }
 

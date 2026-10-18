@@ -2,22 +2,24 @@
 
 import { useEffect, useState } from "react"
 import { sampleResponse } from "@web/lib/sample/fixtures"
-import { MIN_TREND_POINTS, sparkline, trendDescription, withLive } from "@web/lib/sports/live/trend"
+import { gameChart, type Sample } from "@web/lib/sports/live/trend"
+import { onColor } from "@web/lib/sports/teams"
 
-type Entry = { points: number[]; at: number; subs: number; timer: number | undefined; listeners: Set<() => void> }
-/** One history poll per game, shared by both team rows. */
+type Entry = { series: Sample[]; at: number; subs: number; timer: number | undefined; listeners: Set<() => void> }
+/** One history poll per game. */
 const games = new Map<string, Entry>()
 const REFRESH_MS = 60_000
+const EMPTY: Sample[] = []
 
 async function load(id: string, e: Entry) {
   if (document.visibilityState === "visible") {
     try {
       const url = `/api/sports/live/history?eventId=${encodeURIComponent(id)}`
-      const fixture = sampleResponse(url, window.location.pathname) as { points?: number[] } | null
+      const fixture = sampleResponse(url, window.location.pathname) as { series?: Sample[] } | null
       const res = fixture ? null : await fetch(url)
       if (fixture || res?.ok) {
-        const body = fixture ?? ((await res!.json()) as { points?: number[] })
-        e.points = Array.isArray(body.points) ? body.points : []
+        const body = fixture ?? ((await res!.json()) as { series?: Sample[] })
+        e.series = Array.isArray(body.series) ? body.series : []
         e.at = Date.now()
         e.listeners.forEach((l) => l())
       }
@@ -28,12 +30,12 @@ async function load(id: string, e: Entry) {
   if (e.subs > 0) e.timer = window.setTimeout(() => void load(id, e), REFRESH_MS)
 }
 
-function useHistory(eventId: string): number[] {
+function useHistory(eventId: string): Sample[] {
   const [, rerender] = useState(0)
   useEffect(() => {
     let e = games.get(eventId)
     if (!e) {
-      e = { points: [], at: 0, subs: 0, timer: undefined, listeners: new Set() }
+      e = { series: [], at: 0, subs: 0, timer: undefined, listeners: new Set() }
       games.set(eventId, e)
     }
     const entry = e
@@ -48,28 +50,43 @@ function useHistory(eventId: string): number[] {
       }
     }
   }, [eventId])
-  return games.get(eventId)?.points ?? []
+  return games.get(eventId)?.series ?? EMPTY
 }
 
+const W = 300
+const H = 64
+const PILL = 18
+
 /**
- * Small win-probability sparkline for a team row. `side` is which team the row is: the line shows that team's chance
- * (the other row shows the mirror). `live` is the current home probability, appended so the end matches the bar.
- * The slot is reserved up front so the row does not reflow when history arrives.
+ * Both teams' win chance on one chart, as step lines in their team colours over real time, ending at the current chance
+ * (the same number the win-probability bar shows). It only shows what the market has actually quoted: no smoothing, and
+ * nothing before the first quote. The slot has a fixed height so the card does not reflow when history arrives.
+ * View only; `live` is the current home chance (0..1).
  */
-export function OddsTrend({ eventId, side, color, team, live }: { eventId: string; side: "home" | "away"; color: string; team: string; live?: number | null }) {
-  const points = useHistory(eventId)
-  const s = points.length >= MIN_TREND_POINTS ? sparkline(withLive(points, live), side === "away") : null
-  if (!s) return <span className="sp-spark sp-spark-slot" aria-hidden="true" />
-  const tone = s.direction === "up" ? "var(--gain)" : s.direction === "down" ? "var(--loss)" : color
-  const desc = trendDescription(team, s.change)
+export function GameChart({ eventId, away, home, awayColor, homeColor, live }: { eventId: string; away: string; home: string; awayColor: string; homeColor: string; live?: number | null }) {
+  const series = useHistory(eventId)
+  const g = gameChart(series, live, Date.now(), W, H)
+  if (!g) return <div className="sp-gchart sp-gchart-slot" aria-hidden="true" />
+  // End pills sit at each line's end; nudge them apart when the lines finish close together.
+  let hy = g.homeEnd[1]
+  let ay = g.awayEnd[1]
+  if (Math.abs(hy - ay) < PILL) {
+    const mid = (hy + ay) / 2
+    const up = Math.min(hy, ay) === hy ? -1 : 1
+    hy = mid + (up * PILL) / 2
+    ay = mid - (up * PILL) / 2
+  }
+  const clampY = (v: number) => Math.min(H - PILL / 2, Math.max(PILL / 2, v))
+  const label = `Win chance: ${away} ${g.awayPct} percent, ${home} ${g.homePct} percent`
   return (
-    <span className="sp-spark" role="img" aria-label={desc} data-dir={s.direction}>
-      <svg width={64} height={26} viewBox="0 0 64 26" focusable="false" aria-hidden="true">
-        <title>{desc}</title>
-        <line x1={3} x2={61} y1={s.startY} y2={s.startY} stroke="currentColor" strokeWidth={1} strokeDasharray="2 3" opacity={0.3} vectorEffect="non-scaling-stroke" />
-        <path d={s.d} fill="none" stroke={tone} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-        <circle cx={s.last[0]} cy={s.last[1]} r={2.2} fill={tone} />
+    <div className="sp-gchart" role="img" aria-label={label}>
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" focusable="false" aria-hidden="true">
+        <line x1={0} x2={W} y1={g.midY} y2={g.midY} stroke="currentColor" strokeWidth={1} strokeDasharray="2 4" opacity={0.25} vectorEffect="non-scaling-stroke" />
+        <path d={g.away} fill="none" stroke={awayColor} strokeWidth={1.8} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+        <path d={g.home} fill="none" stroke={homeColor} strokeWidth={1.8} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
       </svg>
-    </span>
+      <span className="sp-gchart-pill numeric" style={{ top: clampY(ay) - PILL / 2, background: awayColor, color: onColor(awayColor) }}>{g.awayPct}%</span>
+      <span className="sp-gchart-pill numeric" style={{ top: clampY(hy) - PILL / 2, background: homeColor, color: onColor(homeColor) }}>{g.homePct}%</span>
+    </div>
   )
 }
