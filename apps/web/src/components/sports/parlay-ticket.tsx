@@ -59,7 +59,7 @@ export function ParlayTicket({ parlay, showName }: { parlay: ParlayRow; showName
       <div className="sl-tk-head">
         <span className="pl-ticket-mark"><Layers aria-hidden /></span>
         <div className="sl-tk-title">
-          <b>{parlay.legs.length}-leg parlay</b>
+          <b>{parlay.legs.length}-leg parlay{parlay.stacked && parlay.stacked > 1 ? ` ×${parlay.stacked}` : ""}</b>
           <span className="sl-tk-meta">{showName && parlay.name ? <em>{parlay.name.split(" ")[0]}{parlay.you ? " (You)" : ""} · </em> : null}{progress ?? `${wonLegs} of ${parlay.legs.length} legs won`}</span>
         </div>
         <span className="sl-chip" data-status={parlay.status}>{s.icon}{s.label}</span>

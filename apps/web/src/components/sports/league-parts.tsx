@@ -17,7 +17,7 @@ import { Avatar, initialsFor } from "@web/components/ui/avatar"
 import { LiveGameStrip, useLiveGame } from "@web/components/sports/live-game"
 import { TicketFig, TicketMoney } from "@web/components/sports/ticket-figures"
 import { ParlayTicket } from "@web/components/sports/parlay-ticket"
-import type { ParlayRow } from "@web/components/sports/parlay-types"
+import { stackParlays, type ParlayRow } from "@web/components/sports/parlay-types"
 
 export type EventInfo = { id?: string; sport: string; home: string; away: string; startsAt: string }
 export type PickRow = {
@@ -366,7 +366,7 @@ export function PickFeed({ picks, parlays = [], empty, showName, history = false
   useEffect(() => { scrollRef.current?.scrollTo({ top: 0 }) }, [filter])
   // Singles and parlays share one feed, newest first (singles keep the server's order when there are no parlays).
   const items = useMemo(() => {
-    const all = [...picks.map((pick) => ({ kind: "pick" as const, pick, at: pick.acceptedAt, status: pick.status })), ...parlays.map((parlay) => ({ kind: "parlay" as const, parlay, at: parlay.acceptedAt, status: parlay.status }))]
+    const all = [...picks.map((pick) => ({ kind: "pick" as const, pick, at: pick.acceptedAt, status: pick.status })), ...stackParlays(parlays).map((parlay) => ({ kind: "parlay" as const, parlay, at: parlay.acceptedAt, status: parlay.status }))]
     if (history) return all.sort((a, b) => Number(b.status === "open") - Number(a.status === "open") || Date.parse(b.at) - Date.parse(a.at))
     return parlays.length ? all.sort((a, b) => Date.parse(b.at) - Date.parse(a.at)) : all
   }, [picks, parlays, history])
