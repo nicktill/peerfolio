@@ -15,7 +15,7 @@ import { mergeLiveState } from '@web/lib/sports/game-status'
 import { matchupColors } from '@web/lib/sports/matchup-colors'
 import { oddsLabel } from '@web/lib/sports/teams'
 
-export type LivePickConfig = { leagueId: string; liveBetting: boolean; credits: number; startingCredits: number; maxStakePct: number; onPlaced: () => void }
+export type LivePickConfig = { mode?: "single" | "parlay"; leagueId: string; liveBetting: boolean; credits: number; startingCredits: number; maxStakePct: number; onPlaced: () => void }
 type Tracked = {id: string; sport: string; home: string; away: string; startsAt: string}
 const when = (iso: string) => new Date(iso).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' })
 const UPCOMING_LIMIT = 12
@@ -69,7 +69,7 @@ function LiveCard({ g, now, tracked, enableAdminTest, livePick }: { g: ScoreGame
     <TeamRows g={g} showScore trendId={fresh ? tracked?.id : undefined} />
     <div className="sp-live-footer"><span>{fresh ? (updated < 30 ? 'Updated just now' : `Updated ${updated}s ago`) : 'Last reported score · updates delayed'}</span><span><Lock aria-hidden />Picks locked</span></div>
     <p className="sp-fine">{exchange ? 'Market-implied chance · view only' : est ? 'Est. from ESPN odds · view only' : 'View only · live win probabilities unavailable'}</p>
-    {livePick?.liveBetting ? (tracked && fresh
+    {livePick?.liveBetting ? (livePick.mode === "parlay" ? <p className="sp-fine">Live picks are singles. Switch to Single to pick this game, or build a parlay from Coming up below.</p> : tracked && fresh
       ? <LivePickPanel leagueId={livePick.leagueId} eventId={tracked.id} home={g.home} away={g.away} sport={g.sport} credits={livePick.credits} startingCredits={livePick.startingCredits} maxStakePct={livePick.maxStakePct} onPlaced={livePick.onPlaced} />
       : <p className="sp-fine">Live picks are not available for this game right now.</p>) : null}
     {tracked && enableAdminTest && !livePick?.liveBetting ? <AdminLiveTestPanel eventId={tracked.id} home={g.home} away={g.away} /> : null}
