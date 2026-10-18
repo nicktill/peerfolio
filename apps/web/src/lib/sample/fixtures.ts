@@ -5,7 +5,7 @@
  */
 
 import { demoPortfolio } from "@web/lib/portfolio-demo"
-import { applyPick, applyTrade, fantasyView, sportsView } from "@web/lib/sample/store"
+import { applyCashout, applyPick, applyTrade, sampleCashoutQuote, fantasyView, sportsView } from "@web/lib/sample/store"
 import { getDemoMode } from "@web/lib/sample/demo-mode"
 import { parlayQuote } from "@web/lib/sports/parlay-math"
 import fantasyData from "@web/lib/sample/data/fantasy.json"
@@ -198,6 +198,8 @@ function sampleResponseRaw(url: string, pathname: string | null): unknown {
   if (/^\/api\/sports\/live\/history\?/.test(url)) return { points: Array.from({ length: 40 }, (_, i) => +(0.5 + 0.1 * Math.sin(i / 5) - i * 0.002 + (i > 28 ? (i - 28) * 0.012 : 0)).toFixed(3)) }
   if (/^\/api\/sports\/leagues\/sample(\?|$)/.test(url)) return { ...sportsView(SPORTS_LEAGUE), liveEvents: [{ id: "00000000-0000-4000-8000-000000000001", sport: "nfl", home: "Minnesota Vikings", away: "Green Bay Packers", startsAt: new Date(Date.now() - 75 * 60_000).toISOString() }] }
   if (/^\/api\/leagues\/sample(\?|$)/.test(url)) return PRIVATE_LEAGUE
+  const quote = url.match(/^\/api\/sports\/leagues\/sample\/picks\/([^/]+)\/cashout$/)
+  if (quote) return sampleCashoutQuote(SPORTS_LEAGUE as never, quote[1]!)
   if (/^\/api\/sports\/leagues\/sample\/report/.test(url)) return { pairs: [] }
   if (pathname && inSampleView(pathname) && url === "/api/portfolio/intraday") return intradayFixture()
   if (pathname && inSampleView(pathname) && /^\/api\/board(\?|$)/.test(url)) return BOARD
@@ -210,6 +212,8 @@ function sampleResponseRaw(url: string, pathname: string | null): unknown {
 export function sampleMutate(url: string, body: unknown): unknown {
   const b = (body ?? {}) as Record<string, unknown>
   if (/^\/api\/fantasy\/sample\/trade$/.test(url)) return applyTrade(FANTASY_LEAGUE, b as Parameters<typeof applyTrade>[1])
+  const sale = url.match(/^\/api\/sports\/leagues\/sample\/picks\/([^/]+)\/cashout$/)
+  if (sale) return applyCashout(SPORTS_LEAGUE as never, sale[1]!, Number(b.expectedValue))
   if (/^\/api\/sports\/leagues\/sample\/picks$/.test(url)) return applyPick(SPORTS_LEAGUE as never, b as { lineId: string; stake: number })
   throw new Error("This is sample data, so that isn't available here.")
 }

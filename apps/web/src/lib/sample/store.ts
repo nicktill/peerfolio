@@ -28,7 +28,7 @@ type SportsPick = {
   point: number | null
   totalReturn: number
   payout: number | null
-  status: "open" | "won" | "lost"
+  status: "open" | "won" | "lost" | "cashed_out"
   acceptedAt: string
   market: { kind: string; player: string | null; statKey: string | null }
   event: { sport: string; home: string; away: string; startsAt: string }
@@ -207,6 +207,33 @@ export function applyPick(base: { markets: Market[]; limits: { minStake: number;
   })
   save(state)
   return { ok: true }
+}
+
+/** GET .../picks/<id>/cashout in the sample: sells at the line's current price less the fee. Only picks you placed here can be sold. */
+type SampleQuote = { available: false; reason: string } | { available: true; value: number; source: string; stake: number; totalReturn: number; add?: { lineId: string; price: number; point: number | null } }
+export function sampleCashoutQuote(base: { markets: Market[] }, pickId: string): SampleQuote {
+  const pick = load().picks.find((p) => p.id === pickId)
+  if (!pick || pick.status !== "open") return { available: false, reason: "This pick can't be sold in the sample" }
+  const market = base.markets.find((m) => m.id === pick.marketId)
+  const line = market?.lines.find((l) => l.id === pick.lineId)
+  const price = line?.price ?? pick.price
+  const value = Math.min(Math.floor((pick.totalReturn / americanToDecimal(price)) * 0.95), pick.totalReturn)
+  return { available: true, value, source: "pregame", stake: pick.stake, totalReturn: pick.totalReturn, ...(line ? { add: { lineId: line.id, price: line.price, point: line.point } } : {}) }
+}
+
+/** POST .../picks/<id>/cashout in the sample. */
+export function applyCashout(base: { markets: Market[] }, pickId: string, expectedValue: number) {
+  const quote = sampleCashoutQuote(base, pickId)
+  if (!quote.available) throw new Error("Cash-out isn't available for this pick.")
+  if (quote.value < Math.floor(expectedValue * 0.99)) throw new Error("The price moved. Review the new cash-out value and try again.")
+  const amount = Math.min(expectedValue, quote.value)
+  const state = structuredClone(load())
+  const pick = state.picks.find((p) => p.id === pickId)!
+  pick.status = "cashed_out"
+  pick.payout = amount
+  state.credits = (state.credits ?? 0) + amount
+  save(state)
+  return { cashout: { amount } }
 }
 
 export const openSamplePicks = () => load().picks.filter((p) => p.status === "open").length

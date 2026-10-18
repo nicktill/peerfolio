@@ -2,10 +2,11 @@
 
 import "./parlay.css"
 import { useEffect, useState } from "react"
-import { Check, ChevronDown, Clock, Layers, Minus, Target, Undo2, X } from "lucide-react"
+import { Check, ChevronDown, Clock, Minus, Target, Undo2, X } from "lucide-react"
 import { TeamBadge } from "@web/components/sports/team-badge"
 import type { ParlayLegRow, ParlayRow } from "@web/components/sports/parlay-types"
 import { TicketFig, TicketMoney } from "@web/components/sports/ticket-figures"
+import { marketSelectionColor } from "@web/lib/sports/matchup-colors"
 import { eventTitle, formatCredits, formatOdds, marketTitle, openPickPhase, pickSentence, sideTeam, signedCredits } from "@web/lib/sports/format"
 
 const STATUS: Record<string, { label: string; icon: React.ReactNode }> = {
@@ -36,6 +37,26 @@ function LegRow({ leg, now }: { leg: ParlayLegRow; now: Date | null }) {
   )
 }
 
+/** The teams in a parlay as closely stacked discs, each tinted by its side and ringed by how that leg is going. */
+function LegStack({ legs }: { legs: ParlayLegRow[] }) {
+  const shown = legs.slice(0, 3)
+  const more = legs.length - shown.length
+  return (
+    <span className="pl-stack" aria-hidden>
+      {shown.map((leg, i) => {
+        const side = sideTeam(leg.event, leg.market.kind, leg.selection)
+        const color = side ? marketSelectionColor(leg.event, leg.market.kind, leg.selection) : undefined
+        return (
+          <span key={leg.lineId} className="pl-stack-disc" data-status={leg.status} style={{ zIndex: shown.length - i, ...(color ? ({ "--disc": color } as React.CSSProperties) : null) }}>
+            {side ? <TeamBadge sport={leg.event.sport} name={side} size={22} /> : <Target />}
+          </span>
+        )
+      })}
+      {more > 0 ? <span className="pl-stack-disc pl-stack-more">+{more}</span> : null}
+    </span>
+  )
+}
+
 /** A parlay as a ticket: combined odds, risk and to win, an overall result, and the legs with their own results. */
 export function ParlayTicket({ parlay, showName }: { parlay: ParlayRow; showName?: boolean }) {
   const [open, setOpen] = useState(false)
@@ -57,7 +78,7 @@ export function ParlayTicket({ parlay, showName }: { parlay: ParlayRow; showName
   return (
     <li className="pl-ticket" data-status={parlay.status}>
       <div className="sl-tk-head">
-        <span className="pl-ticket-mark"><Layers aria-hidden /></span>
+        <LegStack legs={parlay.legs} />
         <div className="sl-tk-title">
           <b>{parlay.legs.length}-leg parlay{parlay.stacked && parlay.stacked > 1 ? ` ×${parlay.stacked}` : ""}</b>
           <span className="sl-tk-meta">{showName && parlay.name ? <em>{parlay.name.split(" ")[0]}{parlay.you ? " (You)" : ""} · </em> : null}{progress ?? `${wonLegs} of ${parlay.legs.length} legs won`}</span>

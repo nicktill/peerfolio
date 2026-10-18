@@ -1285,8 +1285,10 @@ export const sportsPicks = pgTable(
     point: doublePrecision("point"),
     /** Stake included, fixed at acceptance. */
     totalReturn: integer("total_return").notNull(),
-    /** open | won | lost | push | void */
+    /** open | won | lost | push | void | cashed_out */
     status: text("status").notNull().default("open"),
+    /** Credits paid out when the member cashed out early (status cashed_out); null otherwise. */
+    cashoutAmount: integer("cashout_amount"),
     /** Client-supplied idempotency key so a double submit places one pick. */
     requestId: text("request_id").notNull(),
     acceptedAt: timestamp("accepted_at", { withTimezone: true }).notNull().defaultNow(),
