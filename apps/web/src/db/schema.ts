@@ -1340,8 +1340,9 @@ export const sportsParlays = pgTable(
     combinedDecimal: doublePrecision("combined_decimal").notNull(),
     /** floor(stake x combinedDecimal), stake included, fixed at acceptance. */
     totalReturn: integer("total_return").notNull(),
-    /** open | won | lost | void */
+    /** open | won | lost | void | cashed_out */
     status: text("status").notNull().default("open"),
+    /** Credits paid when it settled; for cashed_out, the cash-out amount. */
     payout: integer("payout"),
     requestId: text("request_id").notNull(),
     acceptedAt: timestamp("accepted_at", { withTimezone: true }).notNull().defaultNow(),

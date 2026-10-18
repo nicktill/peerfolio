@@ -17,6 +17,7 @@ import { Avatar, initialsFor } from "@web/components/ui/avatar"
 import { LiveGameStrip, useLiveGame } from "@web/components/sports/live-game"
 import { TicketFig, TicketMoney } from "@web/components/sports/ticket-figures"
 import { PickManager } from "@web/components/sports/pick-manage"
+import { ParlayManager } from "@web/components/sports/parlay-manage"
 import { ParlayTicket } from "@web/components/sports/parlay-ticket"
 import { stackParlays, type ParlayRow } from "@web/components/sports/parlay-types"
 
@@ -367,6 +368,7 @@ export function PickFeed({ picks, parlays = [], empty, showName, history = false
   const [filter, setFilter] = useState<"all" | "won" | "lost" | "open">(history ? "all" : "open")
   const feedId = useId()
   const [managing, setManaging] = useState<PickRow | null>(null)
+  const [managingParlay, setManagingParlay] = useState<ParlayRow | null>(null)
   // Switching tabs reuses the same list (no remount, no replayed entrance); just start from the top.
   const scrollRef = useRef<HTMLDivElement>(null)
   useEffect(() => { scrollRef.current?.scrollTo({ top: 0 }) }, [filter])
@@ -420,10 +422,11 @@ export function PickFeed({ picks, parlays = [], empty, showName, history = false
       </div>
       <div className="sl-picks-scroll" ref={scrollRef} id={`${feedId}-panel`} role="tabpanel" aria-labelledby={`${feedId}-${filter}`} tabIndex={0}>
         <ul className="sl-tickets">
-          {shown.length === 0 ? <li className="fw-empty">{filter === "open" ? "No open picks. Your settled picks are in Won, Lost or All." : "Nothing here yet."}</li> : shown.map((it) => (it.kind === "pick" ? <PickTicket key={it.pick.id} pick={it.pick} showName={showName} onManage={manage ? setManaging : undefined} /> : <ParlayTicket key={it.parlay.id} parlay={it.parlay} showName={showName} />))}
+          {shown.length === 0 ? <li className="fw-empty">{filter === "open" ? "No open picks. Your settled picks are in Won, Lost or All." : "Nothing here yet."}</li> : shown.map((it) => (it.kind === "pick" ? <PickTicket key={it.pick.id} pick={it.pick} showName={showName} onManage={manage ? setManaging : undefined} /> : <ParlayTicket key={it.parlay.id} parlay={it.parlay} showName={showName} onManage={manage ? setManagingParlay : undefined} />))}
         </ul>
       </div>
       {manage && managing ? <PickManager leagueId={manage.leagueId} pick={managing} onClose={() => setManaging(null)} onChanged={manage.onChanged} /> : null}
+      {manage && managingParlay ? <ParlayManager leagueId={manage.leagueId} parlay={managingParlay} onClose={() => setManagingParlay(null)} onChanged={manage.onChanged} /> : null}
     </>
   )
 }

@@ -16,13 +16,15 @@ export type ParlayRow = {
   price: number
   totalReturn: number
   payout: number | null
-  status: "open" | "won" | "lost" | "void"
+  status: "open" | "won" | "lost" | "void" | "cashed_out"
   acceptedAt: string
   legs: ParlayLegRow[]
   name?: string
   you?: boolean
   /** How many identical open parlays this card stacks (display only). */
   stacked?: number
+  /** The real parlays behind a stacked card, newest first (display only; cash-out acts on one of these). */
+  parts?: ParlayRow[]
 }
 
 /** Folds identical open parlays (same legs and odds, same bettor) into one card with summed stake and return. */
@@ -33,10 +35,11 @@ export function stackParlays(parlays: ParlayRow[]): ParlayRow[] {
     if (p.status !== "open") { out.push(p); continue }
     const key = `${p.you ? "me" : p.name ?? ""}|${p.price}|${p.legs.map((l) => l.lineId).sort().join(",")}`
     const head = seen.get(key)
-    if (!head) { const first = { ...p, stacked: 1 }; seen.set(key, first); out.push(first); continue }
+    if (!head) { const first = { ...p, stacked: 1, parts: [p] }; seen.set(key, first); out.push(first); continue }
     head.stake += p.stake
     head.totalReturn += p.totalReturn
     head.stacked = (head.stacked ?? 1) + 1
+    head.parts = [...(head.parts ?? []), p]
     if (Date.parse(p.acceptedAt) > Date.parse(head.acceptedAt)) head.acceptedAt = p.acceptedAt
   }
   return out

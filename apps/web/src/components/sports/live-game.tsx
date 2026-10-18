@@ -73,6 +73,25 @@ export function useLiveGame(eventId: string | undefined, enabled: boolean) {
   return { view: entry?.view ?? null, elapsedMs: entry?.receivedAt ? Date.now() - entry.receivedAt : 0 }
 }
 
+/** Several games' shared polls at once (for a parlay's legs). One shared poll per game however many tickets show it. */
+export function useLiveGames(eventIds: readonly string[], enabled: boolean) {
+  const [, rerender] = useState(0)
+  const key = eventIds.join(",")
+  useEffect(() => {
+    if (!enabled || !key) return
+    const offs = key.split(",").map((id) => subscribe(id, () => rerender((n) => n + 1)))
+    const clock = window.setInterval(() => rerender((n) => n + 1), 1000)
+    return () => {
+      offs.forEach((off) => off())
+      window.clearInterval(clock)
+    }
+  }, [key, enabled])
+  return new Map(eventIds.map((id) => {
+    const entry = enabled ? games.get(id) : undefined
+    return [id, { view: entry?.view ?? null, elapsedMs: entry?.receivedAt ? Date.now() - entry.receivedAt : 0 }] as const
+  }))
+}
+
 /**
  * In-game strip under a pick: score, period/clock, the market's win probability (the user's side highlighted), a compact
  * freshness chip and, for an open moneyline pick, an estimated live value. VIEW ONLY: it offers no way to act on any number,

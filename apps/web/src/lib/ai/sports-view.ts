@@ -54,7 +54,7 @@ function shapePick(p: PickLike, withName: boolean) {
     stake: num(p.stake),
     americanOdds: num(p.price),
     totalReturnIfWin: num(p.totalReturn),
-    status: text(p.status, 8),
+    status: text(p.status, 12),
     payout: num(p.payout),
     live: p.live === true ? true : undefined,
   }
@@ -73,7 +73,7 @@ function shapeParlay(p: ParlayLike, withName: boolean) {
     stake: num(p.stake),
     combinedAmericanOdds: num(p.price),
     totalReturnIfWin: num(p.totalReturn),
-    status: text(p.status, 8),
+    status: text(p.status, 12),
     payout: num(p.payout),
     legs: (p.legs ?? []).slice(0, 8).map((l) => ({ game: `${text(l.event?.away, 30) ?? "?"} at ${text(l.event?.home, 30) ?? "?"}`, selection: text(l.selection, 12), point: num(l.point), americanOdds: num(l.price), status: text(l.status, 8) })),
   }

@@ -4,14 +4,13 @@ import { useId, useState } from "react"
 import { Button } from "@web/components/ui/button"
 import { Dialog } from "@web/components/ui/dialog"
 import { useToast } from "@web/components/ui/toast"
+import { CashOutCard, useCashOut, type CashoutQuoteBody } from "@web/components/sports/cashout-card"
 import { mutate, useApi } from "@web/lib/use-api"
 import { americanToDecimal } from "@web/lib/sports/odds"
-import { formatCredits, formatOdds, pickSentence, eventTitle, marketTitle, signedCredits } from "@web/lib/sports/format"
+import { formatCredits, formatOdds, pickSentence, eventTitle, marketTitle } from "@web/lib/sports/format"
 import type { PickRow } from "@web/components/sports/league-parts"
 
-type Quote =
-  | { available: true; value: number; source: "pregame" | "live"; stake: number; totalReturn: number; add?: { lineId: string; price: number; point: number | null } }
-  | { available: false; reason: string; add?: { lineId: string; price: number; point: number | null } }
+type Quote = CashoutQuoteBody & { add?: { lineId: string; price: number; point: number | null } }
 
 const newKey = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`)
 
@@ -24,38 +23,18 @@ export function PickManager({ leagueId, pick, onClose, onChanged }: { leagueId: 
   const url = `/api/sports/leagues/${leagueId}/picks/${pick.id}/cashout`
   const { data: quote, loading, refetch } = useApi<Quote>(url, [pick.id], { refreshMs: 4000 })
   const [stake, setStake] = useState("")
-  const [busy, setBusy] = useState<"sell" | "add" | null>(null)
-  const [confirming, setConfirming] = useState(false)
+  const [adding, setAdding] = useState(false)
+  const { confirming, selling, sell, cancelConfirm } = useCashOut({ url, refetch, onChanged, onClose })
   const [addKey, setAddKey] = useState(newKey)
   const stakeId = useId()
   const amount = Math.floor(Number(stake.replace(/[^\d]/g, "")) || 0)
-  const q = quote && quote.available ? quote : null
   const add = quote?.add ?? null
-  const pl = q ? q.value - pick.stake : null
   const addWin = add && amount > 0 ? Math.floor(amount * americanToDecimal(add.price)) - amount : null
-
-  async function sell() {
-    if (!q) return
-    if (!confirming) { setConfirming(true); return }
-    setBusy("sell")
-    try {
-      await mutate(url, { body: { expectedValue: q.value } })
-      toast(`Cashed out for ${formatCredits(q.value)}.`, "success")
-      onChanged()
-      onClose()
-    } catch (e) {
-      toast(e instanceof Error ? e.message : "Couldn't cash out.", "error")
-      setConfirming(false)
-      refetch()
-    } finally {
-      setBusy(null)
-    }
-  }
 
   async function addMore(event: React.FormEvent) {
     event.preventDefault()
     if (!add || amount <= 0) return
-    setBusy("add")
+    setAdding(true)
     try {
       await mutate(`/api/sports/leagues/${leagueId}/picks`, { body: { lineId: add.lineId, stake: amount, expectedPrice: add.price, expectedPoint: add.point, requestId: addKey } })
       toast(`Added ${formatCredits(amount)} to your pick.`, "success")
@@ -67,7 +46,7 @@ export function PickManager({ leagueId, pick, onClose, onChanged }: { leagueId: 
       toast(e instanceof Error ? e.message : "Couldn't add to that pick.", "error")
       refetch()
     } finally {
-      setBusy(null)
+      setAdding(false)
     }
   }
 
@@ -84,23 +63,17 @@ export function PickManager({ leagueId, pick, onClose, onChanged }: { leagueId: 
           </dl>
         </div>
 
-        <section className="sp-manage-card" aria-labelledby={`${stakeId}-sell`}>
-          <h3 id={`${stakeId}-sell`}>Cash out</h3>
-          {q ? (
-            <>
-              <p className="sp-manage-value numeric" aria-live="polite">
-                <strong>{formatCredits(q.value)}</strong>
-                {pl != null ? <span data-tone={pl > 0 ? "up" : pl < 0 ? "down" : undefined}>{signedCredits(pl)} vs stake</span> : null}
-              </p>
-              <p className="sp-manage-fine">{q.source === "live" ? "Live price from the market, updated every few seconds." : "Current line price, updated every few seconds."} A small fee applies. Selling ends this pick.</p>
-              <Button type="button" size="lg" className="sp-manage-cta" loading={busy === "sell"} disabled={busy != null} onClick={sell} onBlur={() => setConfirming(false)}>
-                {confirming ? `Confirm: sell for ${formatCredits(q.value)}` : `Cash out ${formatCredits(q.value)}`}
-              </Button>
-            </>
-          ) : (
-            <p className="sp-manage-fine" role="status">{loading && !quote ? "Getting the current price…" : quote && !quote.available ? quote.reason : "The price isn't available right now."}</p>
-          )}
-        </section>
+        <CashOutCard
+          quote={quote}
+          loading={loading}
+          stake={pick.stake}
+          fine={(source) => `${source === "live" ? "Live price from the market, updated every few seconds." : "Current line price, updated every few seconds."} A small fee applies. Selling ends this pick.`}
+          disabled={adding || selling}
+          confirming={confirming}
+          selling={selling}
+          onSell={(value) => void sell(value)}
+          onCancel={cancelConfirm}
+        />
 
         {add ? (
           <form className="sp-manage-card" onSubmit={addMore} aria-labelledby={`${stakeId}-add`}>
@@ -108,7 +81,7 @@ export function PickManager({ leagueId, pick, onClose, onChanged }: { leagueId: 
             <label className="sr-only" htmlFor={stakeId}>Extra stake</label>
             <input id={stakeId} className="fw-input numeric" inputMode="numeric" autoComplete="off" placeholder="Extra stake" value={stake} onChange={(e) => setStake(e.target.value)} />
             <p className="sp-manage-fine">{addWin != null ? `Adds ${formatCredits(addWin)} to win. Your pick becomes one combined pick at blended odds.` : "Adds to this same pick; the odds blend with what you already have."}</p>
-            <Button type="submit" size="lg" variant="outline" className="sp-manage-cta" loading={busy === "add"} disabled={busy != null || amount <= 0}>Add {amount > 0 ? formatCredits(amount) : "more"}</Button>
+            <Button type="submit" size="lg" variant="outline" className="sp-manage-cta" loading={adding} disabled={adding || selling || amount <= 0}>Add {amount > 0 ? formatCredits(amount) : "more"}</Button>
           </form>
         ) : null}
       </div>
