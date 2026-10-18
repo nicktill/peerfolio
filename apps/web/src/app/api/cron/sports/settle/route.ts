@@ -3,13 +3,29 @@ import { ApiError } from "@web/lib/api"
 import { db, withSportsCron } from "@web/lib/sports/api"
 import { buildResultsProviders, resolveConfigFor, sportsWithoutQuorum } from "@web/lib/sports/providers"
 import { SPORTS } from "@web/lib/sports/types"
+import { settleEventNow } from "@web/lib/sports/settle-now"
+import { eventTriggersEnabled } from "@web/lib/sports/settle-trigger"
 import { writeHeartbeat } from "@web/lib/sports/live/store"
 import { DbUsageStore, lockDueMarkets, settleDueEvents } from "@web/lib/sports/store"
 
 export const maxDuration = 120
 
-export const GET = withSportsCron<unknown>(async () => {
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+export const GET = withSportsCron<unknown>(async (request) => {
   const now = new Date()
+  // Targeted run for one event, asked for by a fast signal (the live worker). Same settle logic, shared per-event rate limit;
+  // it does not lock markets, sweep voids or touch the cron heartbeat, which keeps meaning "the full pass ran".
+  const url = new URL(request.url)
+  const eventId = url.searchParams.get("eventId")
+  if (eventId) {
+    if (!UUID.test(eventId)) throw new ApiError("Bad eventId", 400)
+    if (!eventTriggersEnabled()) return NextResponse.json({ status: "disabled" })
+    const kind = url.searchParams.get("kind") === "probe" ? "probe" : "final"
+    const outcome = await settleEventNow(db, eventId, kind, now)
+    console.info(JSON.stringify({ job: "sports.settle.event", at: now.toISOString(), eventId, kind, outcome }))
+    return NextResponse.json({ status: outcome.ran ? "ok" : "skipped", outcome })
+  }
   const locked = await lockDueMarkets(db, now)
   const providers = buildResultsProviders()
   const config = resolveConfigFor(providers)

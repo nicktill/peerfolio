@@ -1415,13 +1415,21 @@ const parseDate = (v: string | undefined): Date | null => {
  * from the `results` providers (a different source than the odds), and an
  * event only settles when `resolveResult` says so.
  */
-export async function settleDueEvents(db: Db, results: ResultsProvider[], now: Date, cfgIn: ResolveConfig | ResolveConfigFor = DEFAULT_RESOLVE, usage?: UsageStore) {
+export async function settleDueEvents(
+  db: Db,
+  results: ResultsProvider[],
+  now: Date,
+  cfgIn: ResolveConfig | ResolveConfigFor = DEFAULT_RESOLVE,
+  usage?: UsageStore,
+  /** `eventId`: a targeted run for one event (an event-driven trigger). Same per-event logic and locks; no void sweep. */
+  opts: { eventId?: string } = {},
+) {
   const events = await db
     .selectDistinct({ event: sportsEvents })
     .from(sportsEvents)
     .innerJoin(sportsMarkets, eq(sportsMarkets.eventId, sportsEvents.id))
-    .where(and(inArray(sportsMarkets.status, ["open", "locked"]), sql`${sportsEvents.startsAt} < ${now.toISOString()}::timestamptz`))
-  const out = { settled: 0, voided: 0, waiting: 0, review: 0, failedSources: 0, swept: await sweepVoidedMarkets(db, now), meteredCalls: 0, meteredSkipped: 0 }
+    .where(and(inArray(sportsMarkets.status, ["open", "locked"]), sql`${sportsEvents.startsAt} < ${now.toISOString()}::timestamptz`, ...(opts.eventId ? [eq(sportsEvents.id, opts.eventId)] : [])))
+  const out = { settled: 0, voided: 0, waiting: 0, review: 0, failedSources: 0, swept: opts.eventId ? 0 : await sweepVoidedMarkets(db, now), meteredCalls: 0, meteredSkipped: 0 }
   const free = results.filter((p) => !p.metered)
   const metered = results.filter((p) => p.metered)
 
@@ -1474,13 +1482,18 @@ export async function settleDueEvents(db: Db, results: ResultsProvider[], now: D
         await db.update(sportsEvents).set({ aliases: knownAliases }).where(eq(sportsEvents.id, event.id))
       }
       // The score at the moment a final was first seen is kept (under a reserved alias key, no schema change) so a later change is caught.
-      const seen = observeFinal(mine, { firstSeen: event.finalFirstSeenAt, firstSeenScore: knownAliases._finalScore ?? null, scoreSeenAt: parseDate(knownAliases._finalScoreAt) }, now)
+      const seen = observeFinal(mine, { firstSeen: event.finalFirstSeenAt, firstSeenScore: knownAliases._finalScore ?? null, scoreSeenAt: parseDate(knownAliases._finalScoreAt), obs: Number(knownAliases._finalObs) || 0, lastObsAt: parseDate(knownAliases._finalObsAt) }, now)
       const { firstSeen, firstSeenScore, scoreSeenAt } = seen
       if (seen.changed) {
-        const aliases = { ...knownAliases, ...(firstSeenScore ? { _finalScore: firstSeenScore } : {}), ...(scoreSeenAt ? { _finalScoreAt: scoreSeenAt.toISOString() } : {}) }
+        const aliases = {
+          ...knownAliases,
+          ...(firstSeenScore ? { _finalScore: firstSeenScore } : {}),
+          ...(scoreSeenAt ? { _finalScoreAt: scoreSeenAt.toISOString() } : {}),
+          ...(seen.obs > 0 && seen.lastObsAt ? { _finalObs: String(seen.obs), _finalObsAt: seen.lastObsAt.toISOString() } : {}),
+        }
         await db.update(sportsEvents).set({ finalFirstSeenAt: firstSeen, aliases }).where(eq(sportsEvents.id, event.id))
       }
-      const res = resolveResult(mine, { now, startsAt: event.startsAt, finalFirstSeenAt: firstSeen, sourcesAnswered, sport, firstSeenScore, finalScoreSeenAt: scoreSeenAt }, cfg)
+      const res = resolveResult(mine, { now, startsAt: event.startsAt, finalFirstSeenAt: firstSeen, sourcesAnswered, sport, firstSeenScore, finalScoreSeenAt: scoreSeenAt, finalObservations: seen.obs }, cfg)
       if (res.kind === "wait") out.waiting++
       else if (res.kind === "review") {
         out.review++

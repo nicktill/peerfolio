@@ -28,6 +28,13 @@ export type ResolveConfig = {
    * plausible score on two settle passes at least this far apart settles without waiting out `settleDelayMs`. Unset means off.
    */
   fastFinalStableMs?: number
+  /**
+   * Fast path, burst rule. Event-driven triggers poll a just-finished game every ~20 to 30 seconds, so the same official score can be
+   * confirmed by several polls within a couple of minutes: `minObservations` distinct polls (at least FINAL_OBS_GAP_MS apart) that all
+   * read it, the first at least `ms` ago. Only ever set together with `fastFinalStableMs` (the kill switch clears both), and either rule
+   * alone is enough, so the slow cron cadence still settles through the older two-pass rule.
+   */
+  fastFinalBurst?: { ms: number; minObservations: number }
 }
 
 export const DEFAULT_RESOLVE: ResolveConfig = {
@@ -57,6 +64,15 @@ export const SINGLE_SOURCE_SETTLE_DELAY_MS = 30 * 60_000
  */
 export const FAST_FINAL_STABLE_MS = 4 * 60_000
 export const FAST_TWO_SOURCE_STABLE_MS = 2 * 60_000
+/**
+ * Burst rule (see ResolveConfig.fastFinalBurst), used when polls arrive every 20 to 30 seconds:
+ *  - one independent family: the same official score on at least 3 polls spanning at least 90 seconds
+ *  - two independent families that agree: at least 2 polls spanning at least 45 seconds
+ */
+export const FAST_BURST_SINGLE = { ms: 90_000, minObservations: 3 }
+export const FAST_BURST_TWO_SOURCE = { ms: 45_000, minObservations: 2 }
+/** Two reads of a final count as separate polls only if this far apart, so concurrent callers cannot count one moment twice. */
+export const FINAL_OBS_GAP_MS = 10_000
 /** SPORTS_FAST_SETTLE=0 turns the fast path off without a deploy. Read at call time, default on. */
 export const fastSettleEnabled = (): boolean => process.env.SPORTS_FAST_SETTLE !== "0"
 export type ResolveConfigFor = (sport: Sport) => ResolveConfig
@@ -64,12 +80,12 @@ export type ResolveConfigFor = (sport: Sport) => ResolveConfig
 /** The config for one sport given how many independent families can answer for it. Never asks for more families than exist. */
 export function resolveConfigForSport(base: ResolveConfig, sport: Sport, availableFamilies: number): ResolveConfig {
   const minSources = Math.max(1, Math.min(FREE_RESULT_FAMILIES[sport], availableFamilies))
-  if (minSources >= 2) return { ...base, minSources, ...(fastSettleEnabled() ? { fastFinalStableMs: FAST_TWO_SOURCE_STABLE_MS } : {}) }
+  if (minSources >= 2) return { ...base, minSources, ...(fastSettleEnabled() ? { fastFinalStableMs: FAST_TWO_SOURCE_STABLE_MS, fastFinalBurst: FAST_BURST_TWO_SOURCE } : {}) }
   return {
     ...base,
     minSources,
     settleDelayMs: Math.max(base.settleDelayMs, SINGLE_SOURCE_SETTLE_DELAY_MS),
-    ...(fastSettleEnabled() ? { fastFinalStableMs: FAST_FINAL_STABLE_MS } : {}),
+    ...(fastSettleEnabled() ? { fastFinalStableMs: FAST_FINAL_STABLE_MS, fastFinalBurst: FAST_BURST_SINGLE } : {}),
   }
 }
 
@@ -95,17 +111,36 @@ export const scoreKey = (r: Pick<EventResult, "homeScore" | "awayScore">) => `${
  */
 export function observeFinal(
   mine: EventResult[],
-  seen: { firstSeen: Date | null; firstSeenScore: string | null; scoreSeenAt?: Date | null },
+  seen: { firstSeen: Date | null; firstSeenScore: string | null; scoreSeenAt?: Date | null; obs?: number | null; lastObsAt?: Date | null },
   now: Date,
-): { firstSeen: Date | null; firstSeenScore: string | null; scoreSeenAt: Date | null; changed: boolean } {
-  if (!mine.some((r) => r.status === "final")) return { ...seen, scoreSeenAt: seen.scoreSeenAt ?? null, changed: false }
+): { firstSeen: Date | null; firstSeenScore: string | null; scoreSeenAt: Date | null; obs: number; lastObsAt: Date | null; changed: boolean } {
+  const keep = { obs: seen.obs ?? 0, lastObsAt: seen.lastObsAt ?? null }
+  if (!mine.some((r) => r.status === "final")) return { ...seen, scoreSeenAt: seen.scoreSeenAt ?? null, ...keep, changed: false }
   const scores = new Set(mine.filter((r) => r.status === "final" && r.homeScore != null && r.awayScore != null).map(scoreKey))
   const score = scores.size === 1 ? [...scores][0]! : null
   const firstSeen = seen.firstSeen ?? now
   const firstSeenScore = seen.firstSeenScore ?? score
   // When that score was first read. Unknown for events recorded before this was kept, and then the fast path stays off.
-  const scoreSeenAt = firstSeenScore == null ? null : firstSeenScore === seen.firstSeenScore ? (seen.scoreSeenAt ?? null) : now
-  return { firstSeen, firstSeenScore, scoreSeenAt, changed: !seen.firstSeen || firstSeenScore !== seen.firstSeenScore }
+  // A row that has the score but never got its time (written before the time was kept) starts that clock now, on this pass, instead of waiting out the full delay.
+  const scoreSeenAt = firstSeenScore == null ? null : firstSeenScore === seen.firstSeenScore ? (seen.scoreSeenAt ?? (score === firstSeenScore ? now : null)) : now
+  // How many separate polls read that same score. A poll counts once per FINAL_OBS_GAP_MS, and only while the score is still the first one.
+  let obs = keep.obs
+  let lastObsAt = keep.lastObsAt
+  if (firstSeenScore != null && score === firstSeenScore) {
+    if (firstSeenScore !== seen.firstSeenScore) {
+      obs = 1
+      lastObsAt = now
+    } else {
+      // Events recorded before counting existed: the original read is one observation.
+      if (obs === 0 && scoreSeenAt) { obs = 1; lastObsAt = scoreSeenAt }
+      if (!lastObsAt || now.getTime() - lastObsAt.getTime() >= FINAL_OBS_GAP_MS) {
+        obs = Math.min(obs + 1, 99)
+        lastObsAt = now
+      }
+    }
+  }
+  const changed = !seen.firstSeen || firstSeenScore !== seen.firstSeenScore || obs !== (seen.obs ?? 0) || (scoreSeenAt != null && !seen.scoreSeenAt)
+  return { firstSeen, firstSeenScore, scoreSeenAt, obs, lastObsAt, changed }
 }
 
 export type Resolution =
@@ -129,6 +164,8 @@ export type ResolveContext = {
   firstSeenScore?: string | null
   /** When `firstSeenScore` was first read. Needed (with a stable window in the config) for the fast path. */
   finalScoreSeenAt?: Date | null
+  /** How many separate polls have read `firstSeenScore` (see observeFinal). Needed (with a burst window in the config) for the burst rule. */
+  finalObservations?: number
 }
 
 /**
@@ -145,7 +182,10 @@ export function fastFinalAllowed(agreeing: EventResult[], results: EventResult[]
   if (results.some((r) => r.status !== "final")) return false
   const key = scoreKey(agreeing[0]!)
   if (!ctx.firstSeenScore || ctx.firstSeenScore !== key || !ctx.finalScoreSeenAt) return false
-  return ctx.now.getTime() - ctx.finalScoreSeenAt.getTime() >= cfg.fastFinalStableMs
+  const stableFor = ctx.now.getTime() - ctx.finalScoreSeenAt.getTime()
+  if (stableFor >= cfg.fastFinalStableMs) return true
+  const b = cfg.fastFinalBurst
+  return !!b && (ctx.finalObservations ?? 0) >= b.minObservations && stableFor >= b.ms
 }
 
 const STUCK_WAITS: ReadonlySet<string> = new Set(["void report without quorum", "waiting for a second source"])

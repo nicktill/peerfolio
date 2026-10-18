@@ -1,6 +1,8 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
 import { ApiError } from '@web/lib/api'
-import { withSportsPublic } from '@web/lib/sports/api'
+import { db, withSportsPublic } from '@web/lib/sports/api'
+import { triggerFromScoreboard } from '@web/lib/sports/settle-now'
+import { eventTriggersEnabled } from '@web/lib/sports/settle-trigger'
 import { SCOREBOARD_PATHS, normalizeGames, scoreboardDays, type ScoreGame } from '@web/lib/sports/scoreboard'
 
 /** Public view data only. Next's shared fetch cache bounds free upstream requests across viewers. */
@@ -21,5 +23,9 @@ export const GET = withSportsPublic(async (request) => {
     } catch { failed.add(sport); return [] }
   }))))
   const games = [...new Map(batches.flat().map((g: ScoreGame) => [`${g.sport}:${g.id}`, g])).values()].sort((a,b) => Date.parse(a.startsAt) - Date.parse(b.startsAt))
+  // Viewer traffic drives detection: a game ESPN shows as final that we still hold open markets on gets an immediate targeted settle
+  // poll, after the response is sent. The poll is deduped and capped per event in the database, so many open clients add no provider calls.
+  const finals = games.filter(g => g.status === 'final').map(g => ({ id: g.id, sport: g.sport, home: g.home, away: g.away, startsAt: g.startsAt }))
+  if (finals.length && eventTriggersEnabled()) after(() => triggerFromScoreboard(db, finals).then(() => undefined, () => undefined))
   return NextResponse.json({ games, failedSports: [...failed] }, { headers: { 'Cache-Control': 'private, no-store' } })
 })
