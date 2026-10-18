@@ -45,6 +45,9 @@ export function mapStatus(status: Status | undefined): ResultStatus {
   return "scheduled"
 }
 
+/** ESPN's own completed flag together with a FINAL status name (not inferred from the clock or the name alone). */
+export const isOfficialFinal = (status: Status | undefined): boolean => status?.type?.completed === true && /FINAL/.test(status.type.name ?? "")
+
 const num = (s: string | undefined): number | null => {
   if (s == null || s === "") return null
   const n = Number(s)
@@ -74,6 +77,7 @@ export function normalizeCompetition(c: Competition, fallbackDate: string | unde
       status,
       homeScore: done ? sets(a, b) : null,
       awayScore: done ? sets(b, a) : null,
+      ...(done && isOfficialFinal(c.status) ? { officialFinal: true } : {}),
     }
   }
 
@@ -94,6 +98,7 @@ export function normalizeCompetition(c: Competition, fallbackDate: string | unde
     status: status === "final" && !final ? "in_progress" : status,
     homeScore: final ? hs : null,
     awayScore: final ? as : null,
+    ...(final && isOfficialFinal(c.status) ? { officialFinal: true } : {}),
     ...(final && sport === "mls" && beyondRegulation(c.status) ? { beyondRegulation: true } : {}),
   }
 }

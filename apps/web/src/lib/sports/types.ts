@@ -85,6 +85,8 @@ export type EventResult = {
   awayScore: number | null
   /** Soccer: the final went past 90 minutes (extra time or penalties), so the score is not the three-way result. Settlement sends it to review. */
   beyondRegulation?: boolean
+  /** The provider's own official status is final (ESPN: status.type.completed with a FINAL status name), not just an ended or in-progress feed. Enables the settlement fast path. */
+  officialFinal?: boolean
   /** player name -> stat key -> value. Present only when the source has box scores. */
   playerStats?: Record<string, Record<string, number>>
 }

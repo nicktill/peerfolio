@@ -3,11 +3,11 @@ import { readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { afterEach, describe, it } from "node:test"
 import { fileURLToPath } from "node:url"
-import { EspnResultsProvider } from "./providers/espn.ts"
+import { EspnResultsProvider, isOfficialFinal } from "./providers/espn.ts"
 import { familiesFor, resolveConfigFor, sportsWithoutQuorum } from "./providers/index.ts"
 import { MlbResultsProvider } from "./providers/mlb-statsapi.ts"
 import { NhlResultsProvider } from "./providers/nhl-api.ts"
-import { FREE_RESULT_FAMILIES, gradePick, observeFinal, resolveConfigForSport, resolveResult, resultsForEvent, scoreProblem, SINGLE_SOURCE_SETTLE_DELAY_MS, DEFAULT_RESOLVE, type Resolution } from "./settlement.ts"
+import { FAST_FINAL_STABLE_MS, FAST_TWO_SOURCE_STABLE_MS, FREE_RESULT_FAMILIES, gradePick, observeFinal, resolveConfigForSport, resolveResult, resultsForEvent, scoreProblem, SINGLE_SOURCE_SETTLE_DELAY_MS, DEFAULT_RESOLVE, type Resolution } from "./settlement.ts"
 import { SPORTS, type EventResult, type Outcome, type ResultsProvider, type Selection, type Sport } from "./types.ts"
 
 /** The exchange-mode (free) provider set, built the same way the cron builds it. */
@@ -228,5 +228,76 @@ describe("review fixes: doubleheaders and soccer beyond regulation", () => {
     const r: EventResult = { source: "espn", externalId: "m", status: "final", homeScore: 1, awayScore: 1, beyondRegulation: true }
     const out = resolveResult([r], { now: new Date(START.getTime() + 20 * 3600_000), startsAt: START, finalFirstSeenAt: START, sport: "mls" } as never)
     assert.equal(out.kind, "review")
+  })
+})
+
+describe("fast settle path", () => {
+  const FAST = FAST_FINAL_STABLE_MS
+  const first = at(3 * HOUR)
+  const esp = (r: Partial<EventResult> = {}) => res("espn", { officialFinal: true, homeScore: 27, awayScore: 24, ...r })
+  const ctx = (sport: Sport, score: string | null, scoreAt: Date | null, now: Date) => ({ now, startsAt: ev.startsAt, finalFirstSeenAt: scoreAt, sourcesAnswered: 1, sport, firstSeenScore: score, finalScoreSeenAt: scoreAt })
+  const kind = (sport: Sport, r: EventResult[], now: Date, score: string | null = "27-24", scoreAt: Date | null = first, cf = cfgFor(sport)) => resolveResult(r, ctx(sport, score, scoreAt, now), cf).kind
+
+  it("config: single-source 4 min, two-source 2 min, normal delay unchanged, kill switch", () => {
+    delete process.env.SPORTS_FAST_SETTLE
+    for (const s of ["nfl", "nba", "cfb", "mls", "tennis"] as const) assert.equal(cfgFor(s).fastFinalStableMs, FAST_FINAL_STABLE_MS, s)
+    for (const s of ["nhl", "mlb"] as const) assert.equal(cfgFor(s).fastFinalStableMs, FAST_TWO_SOURCE_STABLE_MS, s)
+    assert.ok(FAST_FINAL_STABLE_MS < 5 * MIN, "shorter than the settle cadence so the next pass is the confirming one")
+    assert.equal(cfgFor("nfl").settleDelayMs, SINGLE_SOURCE_SETTLE_DELAY_MS)
+    assert.equal(cfgFor("nhl").minSources, 2)
+    process.env.SPORTS_FAST_SETTLE = "0"
+    try { for (const s of SPORTS) assert.equal(cfgFor(s).fastFinalStableMs, undefined, s) } finally { delete process.env.SPORTS_FAST_SETTLE }
+  })
+
+  it("single source: first sighting waits, a confirming pass after the window settles", () => {
+    const f = run("nfl", [esp()], fresh, first)
+    assert.equal(f.r.kind, "wait")
+    assert.equal(run("nfl", [esp()], f.stored, new Date(first.getTime() + FAST - 1)).r.kind, "wait")
+  })
+
+  it("single source: allowed at the window, denied otherwise", () => {
+    const now = new Date(first.getTime() + FAST)
+    assert.equal(kind("nfl", [esp()], now), "final")
+    assert.equal(kind("nfl", [esp()], new Date(now.getTime() - 1)), "wait")
+    assert.equal(kind("nfl", [esp({ officialFinal: undefined })], now), "wait", "not an official final")
+    assert.equal(kind("nfl", [esp({ homeScore: 400 })], now), "review", "implausible")
+    assert.equal(kind("nfl", [esp()], now, "27-24", null), "wait", "legacy event: score time unknown")
+    assert.equal(kind("nfl", [esp()], now, null, first), "wait")
+    assert.equal(kind("nfl", [esp({ homeScore: 28 })], now), "review", "score moved after first read")
+    assert.equal(kind("nfl", [esp(), res("espn", { externalId: "x", status: "in_progress", homeScore: null, awayScore: null })], now), "wait")
+    assert.equal(kind("nfl", [esp(), res("espn", { externalId: "x", status: "cancelled", homeScore: null, awayScore: null })], now), "wait")
+    assert.equal(kind("mls", [esp({ beyondRegulation: true })], now), "review", "extra time is review")
+    assert.equal(kind("nfl", [esp()], now, "27-24", first, { ...cfgFor("nfl"), fastFinalStableMs: undefined }), "wait", "kill switch")
+    assert.equal(kind("nfl", [esp({ officialFinal: undefined })], new Date(first.getTime() + SINGLE_SOURCE_SETTLE_DELAY_MS)), "final", "old rule still settles")
+  })
+
+  it("two sources: both official and agreeing settle after 2 minutes, not before; one source, disagreement or non-official do not", () => {
+    const both = [res("espn", { officialFinal: true }), res("nhl-api", { officialFinal: true })]
+    const c = (now: Date) => ({ now, startsAt: ev.startsAt, finalFirstSeenAt: first, sourcesAnswered: 2, sport: "nhl" as Sport, firstSeenScore: "2-1", finalScoreSeenAt: first })
+    const cf = cfgFor("nhl")
+    const t = (ms: number) => new Date(first.getTime() + ms)
+    assert.equal(resolveResult(both, c(t(FAST_TWO_SOURCE_STABLE_MS - 1)), cf).kind, "wait")
+    assert.equal(resolveResult(both, c(t(FAST_TWO_SOURCE_STABLE_MS)), cf).kind, "final")
+    assert.equal(resolveResult([both[0]!], c(t(10 * MIN)), cf).kind, "wait", "only one family")
+    assert.equal(resolveResult([both[0]!, res("nhl-api", {})], c(t(10 * MIN)), cf).kind, "wait", "second not official")
+    assert.equal(resolveResult([both[0]!, res("nhl-api", { officialFinal: true, homeScore: 3 })], c(t(10 * MIN)), cf).kind, "review", "disagree")
+    assert.equal(resolveResult(both, c(t(10 * MIN)), { ...cf, fastFinalStableMs: undefined }).kind, "wait", "kill switch")
+    assert.equal(resolveResult(both, c(t(SINGLE_SOURCE_SETTLE_DELAY_MS)), { ...cf, fastFinalStableMs: undefined }).kind, "final")
+  })
+
+  it("observeFinal keeps the score time, and legacy events start it when learned", () => {
+    const a = observeFinal([esp()], { firstSeen: null, firstSeenScore: null }, first)
+    assert.equal(a.scoreSeenAt!.getTime(), first.getTime())
+    const b = observeFinal([esp()], { firstSeen: a.firstSeen, firstSeenScore: a.firstSeenScore, scoreSeenAt: a.scoreSeenAt }, new Date(first.getTime() + FAST))
+    assert.equal(b.scoreSeenAt!.getTime(), first.getTime())
+    assert.equal(b.changed, false)
+    const legacy = observeFinal([esp()], { firstSeen: first, firstSeenScore: null }, new Date(first.getTime() + FAST))
+    assert.equal(legacy.scoreSeenAt!.getTime(), first.getTime() + FAST)
+  })
+
+  it("providers flag only official finals", () => {
+    assert.equal(isOfficialFinal({ type: { name: "STATUS_FINAL", completed: true } }), true)
+    assert.equal(isOfficialFinal({ type: { name: "STATUS_END_PERIOD", completed: false } }), false)
+    assert.equal(isOfficialFinal({ type: { name: "STATUS_FINAL" } }), false)
   })
 })

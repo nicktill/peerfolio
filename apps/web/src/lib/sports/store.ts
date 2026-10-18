@@ -1405,6 +1405,11 @@ export async function sweepVoidedMarkets(db: Db, now: Date) {
   return refunded
 }
 
+const parseDate = (v: string | undefined): Date | null => {
+  const d = v ? new Date(v) : null
+  return d && !Number.isNaN(d.getTime()) ? d : null
+}
+
 /**
  * Settles every started event that still has unsettled markets. Results come
  * from the `results` providers (a different source than the odds), and an
@@ -1469,13 +1474,13 @@ export async function settleDueEvents(db: Db, results: ResultsProvider[], now: D
         await db.update(sportsEvents).set({ aliases: knownAliases }).where(eq(sportsEvents.id, event.id))
       }
       // The score at the moment a final was first seen is kept (under a reserved alias key, no schema change) so a later change is caught.
-      const seen = observeFinal(mine, { firstSeen: event.finalFirstSeenAt, firstSeenScore: knownAliases._finalScore ?? null }, now)
-      const { firstSeen, firstSeenScore } = seen
+      const seen = observeFinal(mine, { firstSeen: event.finalFirstSeenAt, firstSeenScore: knownAliases._finalScore ?? null, scoreSeenAt: parseDate(knownAliases._finalScoreAt) }, now)
+      const { firstSeen, firstSeenScore, scoreSeenAt } = seen
       if (seen.changed) {
-        const aliases = { ...knownAliases, ...(firstSeenScore ? { _finalScore: firstSeenScore } : {}) }
+        const aliases = { ...knownAliases, ...(firstSeenScore ? { _finalScore: firstSeenScore } : {}), ...(scoreSeenAt ? { _finalScoreAt: scoreSeenAt.toISOString() } : {}) }
         await db.update(sportsEvents).set({ finalFirstSeenAt: firstSeen, aliases }).where(eq(sportsEvents.id, event.id))
       }
-      const res = resolveResult(mine, { now, startsAt: event.startsAt, finalFirstSeenAt: firstSeen, sourcesAnswered, sport, firstSeenScore }, cfg)
+      const res = resolveResult(mine, { now, startsAt: event.startsAt, finalFirstSeenAt: firstSeen, sourcesAnswered, sport, firstSeenScore, finalScoreSeenAt: scoreSeenAt }, cfg)
       if (res.kind === "wait") out.waiting++
       else if (res.kind === "review") {
         out.review++
