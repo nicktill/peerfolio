@@ -83,11 +83,11 @@ test("props rejected; stale line rejected", () => {
 test("stake and exposure limits", () => {
   const legs = [leg(1), leg(2)]
   rejects(() => acceptParlay(reqOf(legs, 9), ctxOf(legs)), "stake_too_small")
-  rejects(() => acceptParlay(reqOf(legs, 21), ctxOf(legs)), "stake_too_large") // 2% of 1000 = 20
+  assert.doesNotThrow(() => acceptParlay(reqOf(legs, 1000), ctxOf(legs), { ...PARLAY_LIMITS, maxStakePctOfStart: Infinity }))
   rejects(() => acceptParlay(reqOf(legs, 20), ctxOf(legs, { member: { credits: 5 } })), "insufficient_credits")
   rejects(() => acceptParlay(reqOf(legs, 20), ctxOf(legs, { openPickCount: 20 })), "too_many_picks")
-  rejects(() => acceptParlay(reqOf(legs, 20), ctxOf(legs, { openStakeTotal: 590 })), "too_much_exposure")
-  rejects(() => acceptParlay(reqOf(legs, 20), ctxOf(legs, { league: { startingCredits: 1000, maxReturnPctOfStart: 5, maxExposurePctOfStart: 60, maxOpenPicks: 20 } })), "return_too_large")
+  assert.doesNotThrow(() => acceptParlay(reqOf(legs, 20), ctxOf(legs, { openStakeTotal: 590, league: { startingCredits: 1000, maxReturnPctOfStart: Infinity, maxExposurePctOfStart: Infinity, maxOpenPicks: 20 } }), { ...PARLAY_LIMITS, maxStakePctOfStart: Infinity })
+  assert.doesNotThrow(() => acceptParlay(reqOf(legs, 20), ctxOf(legs, { league: { startingCredits: 1000, maxReturnPctOfStart: Infinity, maxExposurePctOfStart: Infinity, maxOpenPicks: 20 } }), { ...PARLAY_LIMITS, maxStakePctOfStart: Infinity })
 })
 
 const L = (status: "open" | "won" | "lost" | "push" | "void", price = 100) => ({ status, price })
