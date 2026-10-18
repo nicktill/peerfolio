@@ -118,7 +118,7 @@ export function shapeSports(data: SportsLeagueLike, now = new Date()) {
   return {
     league: {
       name: text(league.name, 60),
-      sports: (league.sports ?? []).slice(0, 8),
+      sports: (league.sports ?? []).slice(0, 12),
       startingCash: start,
       maxSinglePick: data.limits?.maxStake ?? null,
       maxSinglePickPercentOfStartingCash: league.maxStakePct ?? null,

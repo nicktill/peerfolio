@@ -5,6 +5,7 @@ import { triggerFromScoreboard } from '@web/lib/sports/settle-now'
 import { eventTriggersEnabled } from '@web/lib/sports/settle-trigger'
 import { isSportEnabled } from '@web/lib/sports/enabled'
 import { SCOREBOARD_PATHS, normalizeGames, scoreboardDays, type ScoreGame } from '@web/lib/sports/scoreboard'
+import { espnGroupsQuery } from '@web/lib/sports/types'
 
 /** Public view data only. Next's shared fetch cache bounds free upstream requests across viewers. */
 export const GET = withSportsPublic(async (request) => {
@@ -17,7 +18,7 @@ export const GET = withSportsPublic(async (request) => {
   const failed = new Set<string>()
   const batches = await Promise.all(sports.flatMap(sport => SCOREBOARD_PATHS[sport]!.flatMap(path => (sport === 'tennis' ? days.slice(1, 2) : days).map(async (day, i) => {
     try {
-      const extra = sport === 'cfb' ? '&groups=80' : ''
+      const extra = sport === 'cfb' ? '&groups=80' : espnGroupsQuery(sport)
       const res = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${path}/scoreboard?dates=${day}&limit=300${extra}`, { next: { revalidate: i <= 2 ? 30 : 900 }, signal: AbortSignal.timeout(8000) })
       if (!res.ok) throw new Error('Scoreboard unavailable')
       const at = res.headers.get('date')

@@ -16,7 +16,7 @@ const ml = (sport: string, selection: "home" | "away" | "draw") => ({ sport, kin
 
 describe("nhl, mlb, cfb, mls config", () => {
   it("lists every sport once", () => {
-    assert.deepEqual([...SPORTS], ["nfl", "nba", "tennis", "nhl", "mlb", "cfb", "mls"])
+    assert.deepEqual([...SPORTS], ["nfl", "nba", "tennis", "nhl", "mlb", "cfb", "mls", "epl", "laliga", "ucl", "wnba", "ncaab"])
   })
   it("kindsFor per sport", () => {
     assert.deepEqual(kindsFor("nhl", DEFAULT_PUBLISH), ["moneyline", "spread", "total"])

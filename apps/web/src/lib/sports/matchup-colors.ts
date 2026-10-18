@@ -19,7 +19,7 @@ export function matchupSelectionColor(event: { sport: string; home: string; away
  return colors[selection === (tennis ? "home" : "away") ? 0 : 1]
 }
 
-const SPORT_ACCENT: Record<string,string> = { nfl: '#c8102e', nba: '#f58426', tennis: '#9cab58', nhl: '#438ec0', mlb: '#bf0d3e', cfb: '#9a85c5', mls: '#379c87' }
+const SPORT_ACCENT: Record<string,string> = { nfl: '#c8102e', nba: '#f58426', tennis: '#9cab58', nhl: '#438ec0', mlb: '#bf0d3e', cfb: '#9a85c5', mls: '#379c87', epl: '#8f4fd1', laliga: '#e8a23a', ucl: '#3b7fd9', wnba: '#f1592a', ncaab: '#7a8fd1' }
 /** Totals/props are not team picks: distinguish over/under with sport and neutral accents. */
 export function marketSelectionColor(event: {sport:string;home:string;away:string}, kind:string, selection:string): string {
  if (kind === 'moneyline' || kind === 'spread') return matchupSelectionColor(event,selection) ?? '#8b9caa'

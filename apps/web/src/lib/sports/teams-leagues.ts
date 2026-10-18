@@ -1,5 +1,5 @@
 /**
- * Team identity for the leagues beyond NFL/NBA (NHL, MLB, FBS college football, MLS): abbreviation, brand colours and
+ * Team identity for the leagues beyond NFL/NBA (NHL, MLB, FBS college football, MLS, Premier League, La Liga, Champions League, WNBA, men's college basketball): abbreviation, brand colours and
  * ESPN logo URLs, resolved from the generated tables in teams-data.ts. Pure data and lookup, no network.
  *
  * Names arrive written many ways ("Ohio State Buckeyes" on ESPN, "Ohio State" on Polymarket, "Buckeyes" in props), so
@@ -8,7 +8,7 @@
  * is the same one the live matcher uses, so the two always agree about what counts as the same name.
  */
 import { normName } from "./live/match.ts"
-import { CFB_TEAMS, MLB_TEAMS, MLS_TEAMS, NHL_TEAMS, type TeamRow } from "./teams-data.ts"
+import { CFB_TEAMS, EPL_TEAMS, LALIGA_TEAMS, MLB_TEAMS, MLS_TEAMS, NCAAB_TEAMS, NHL_TEAMS, UCL_TEAMS, WNBA_TEAMS, type TeamRow } from "./teams-data.ts"
 
 export type LeagueTeam = {
   name: string
@@ -23,12 +23,12 @@ export type LeagueTeam = {
   short: string
 }
 
-export const LEAGUE_SPORTS = ["nhl", "mlb", "cfb", "mls"] as const
+export const LEAGUE_SPORTS = ["nhl", "mlb", "cfb", "mls", "epl", "laliga", "ucl", "wnba", "ncaab"] as const
 export type LeagueSport = (typeof LEAGUE_SPORTS)[number]
 
 const NEUTRAL = "#64748b"
 const CDN = "https://a.espncdn.com/i/teamlogos"
-const FOLDER: Record<LeagueSport, string> = { nhl: "nhl", mlb: "mlb", cfb: "ncaa", mls: "soccer" }
+const FOLDER: Record<LeagueSport, string> = { nhl: "nhl", mlb: "mlb", cfb: "ncaa", mls: "soccer", epl: "soccer", laliga: "soccer", ucl: "soccer", wnba: "wnba", ncaab: "ncaa" }
 
 function luminance(hex: string): number {
   const n = parseInt(hex.slice(1), 16)
@@ -144,6 +144,11 @@ const ALIASES: Record<LeagueSport, Record<string, string[]>> = {
     "Charlotte FC": ["Charlotte"],
     "Colorado Rapids": ["Colorado"],
   },
+  epl: {},
+  laliga: {},
+  ucl: {},
+  wnba: {},
+  ncaab: {},
 }
 
 type Index = Map<string, LeagueTeam>
@@ -195,7 +200,7 @@ function buildIndex(sport: LeagueSport, rows: TeamRow[]): Index {
   return index
 }
 
-const TABLES: Record<LeagueSport, TeamRow[]> = { nhl: NHL_TEAMS, mlb: MLB_TEAMS, cfb: CFB_TEAMS, mls: MLS_TEAMS }
+const TABLES: Record<LeagueSport, TeamRow[]> = { nhl: NHL_TEAMS, mlb: MLB_TEAMS, cfb: CFB_TEAMS, mls: MLS_TEAMS, epl: EPL_TEAMS, laliga: LALIGA_TEAMS, ucl: UCL_TEAMS, wnba: WNBA_TEAMS, ncaab: NCAAB_TEAMS }
 const INDEXES = new Map<LeagueSport, Index>()
 
 export function isLeagueSport(sport: string | undefined): sport is LeagueSport {

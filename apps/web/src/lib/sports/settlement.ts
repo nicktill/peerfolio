@@ -52,14 +52,14 @@ export const DEFAULT_RESOLVE: ResolveConfig = {
  * applies, and the floor only bites if the base is lowered), a final that must still be the same score
  * when seen again after that delay, plausible-score checks, and review (never auto-settle) for anything odd or changed.
  */
-export const FREE_RESULT_FAMILIES: Record<Sport, number> = { nhl: 2, mlb: 2, nfl: 1, nba: 1, cfb: 1, mls: 1, tennis: 1 }
+export const FREE_RESULT_FAMILIES: Record<Sport, number> = { nhl: 2, mlb: 2, nfl: 1, nba: 1, cfb: 1, mls: 1, epl: 1, laliga: 1, ucl: 1, wnba: 1, ncaab: 1, tennis: 1 }
 export const SINGLE_SOURCE_SETTLE_DELAY_MS = 30 * 60_000
 /**
  * Fast path stability windows: how long the same official, plausible final score must have been stable (first read on one
  * pass, confirmed on a later one) to skip the 30 minute settle delay. Sized against the 5 minute settle cadence so the worst
  * case stays within 10 minutes: a final first seen just after a pass waits at most one cadence (5) for the next pass, and the
  * window is shorter than the cadence so that next pass is already the confirming one (even if it fires a minute early).
- *  - one independent family (nfl, nba, cfb, mls, tennis): 4 minutes
+ *  - one independent family (nfl, nba, cfb, mls, epl, laliga, ucl, wnba, ncaab, tennis): 4 minutes
  *  - two independent families that agree (nhl, mlb): 2 minutes
  */
 export const FAST_FINAL_STABLE_MS = 4 * 60_000
@@ -90,7 +90,7 @@ export function resolveConfigForSport(base: ResolveConfig, sport: Sport, availab
 }
 
 /** Highest believable final score per sport (tennis is sets won). Anything above it, negative or fractional is held for review. */
-export const MAX_PLAUSIBLE_SCORE: Record<Sport, number> = { nfl: 100, cfb: 120, nba: 200, nhl: 20, mlb: 40, mls: 15, tennis: 5 }
+export const MAX_PLAUSIBLE_SCORE: Record<Sport, number> = { nfl: 100, cfb: 120, nba: 200, nhl: 20, mlb: 40, mls: 15, epl: 15, laliga: 15, ucl: 15, wnba: 200, ncaab: 200, tennis: 5 }
 
 /** Why a final score cannot be trusted, or null. Null scores are "no final", not a problem. */
 export function scoreProblem(sport: Sport | undefined, home: number | null, away: number | null): string | null {
@@ -368,7 +368,7 @@ export function gradePick(line: GradableLine, result: EventResult): Outcome {
   const { homeScore: h, awayScore: a } = result
 
   if (line.kind === "moneyline") {
-    // Soccer (MLS): home / draw / away. An equal score is the draw side winning, never a void or a push.
+    // Soccer (MLS, Premier League, La Liga, Champions League): home / draw / away. An equal score is the draw side winning, never a void or a push.
     if (hasDraw(line.sport, "moneyline")) return gradeThreeWay(line.selection, h, a)
     // A draw line exists only on a three-way market; anywhere else it cannot be graded.
     if (line.selection === "draw") return "void"

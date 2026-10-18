@@ -1,7 +1,9 @@
+import { isSoccer } from './types.ts'
 /** Free, view-only schedule metadata. Independent of exchange markets and picks. */
 export const SCOREBOARD_PATHS: Record<string, string[]> = {
   nfl: ['football/nfl'], nba: ['basketball/nba'], nhl: ['hockey/nhl'], mlb: ['baseball/mlb'],
   cfb: ['football/college-football'], mls: ['soccer/usa.1'], tennis: ['tennis/atp', 'tennis/wta'],
+  epl: ['soccer/eng.1'], laliga: ['soccer/esp.1'], ucl: ['soccer/uefa.champions'], wnba: ['basketball/wnba'], ncaab: ['basketball/mens-college-basketball'],
 }
 export type ScoreGame = {
   id: string; sport: string; home: string; away: string; startsAt: string
@@ -98,7 +100,7 @@ export function normalizeGames(raw: unknown, sport: string, fetchedAt: string): 
         ...(Number.isInteger(periodN) && periodN > 0 && periodN < 20 ? { period: periodN } : {}),
         ...(clockText ? { clock: clockText } : {}),
       }
-      const probs = live && sport !== 'tennis' ? liveWinProbs(c, sport === 'mls') : null
+      const probs = live && sport !== 'tennis' ? liveWinProbs(c, isSoccer(sport)) : null
       result.push({ id: str(c.id) || str(e.id), sport, home: name(home), away: name(away), startsAt,
         homeRecord: record(home), awayRecord: record(away), status: unavailable ? 'unavailable' : final ? 'final' : live ? 'live' : 'upcoming',
         homeScore: score(home), awayScore: score(away), detail: str(type.shortDetail) || str(type.detail) || str(status.displayClock), fetchedAt,

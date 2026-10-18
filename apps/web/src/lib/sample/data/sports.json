@@ -6,7 +6,9 @@
   "accent": "emerald",
   "sports": [
    "nfl",
-   "nba"
+   "nba",
+   "epl",
+   "wnba"
   ],
   "inviteCode": "SAMPLE",
   "startingCredits": 1000,
@@ -552,6 +554,68 @@
      "selection": "under",
      "price": -110,
      "point": 44.5
+    }
+   ],
+   "picked": null
+  },
+  {
+   "id": "4b1f6c1e-6f3a-4c7e-9a52-3f5d0a1c7e01",
+   "kind": "moneyline",
+   "player": null,
+   "statKey": null,
+   "lockAt": "@@72000000",
+   "event": {
+    "sport": "epl",
+    "home": "Arsenal",
+    "away": "Liverpool",
+    "startsAt": "@@72900000"
+   },
+   "lines": [
+    {
+     "id": "c2a7d3f1-1d0e-4e0a-8b6a-5d7d9f0a1b02",
+     "selection": "home",
+     "price": 120,
+     "point": null
+    },
+    {
+     "id": "d3b8e4a2-2e1f-4f1b-9c7b-6e8e0a1b2c03",
+     "selection": "draw",
+     "price": 250,
+     "point": null
+    },
+    {
+     "id": "e4c9f5b3-3f20-4a2c-8d8c-7f9f1b2c3d04",
+     "selection": "away",
+     "price": 210,
+     "point": null
+    }
+   ],
+   "picked": null
+  },
+  {
+   "id": "5c2a7d2f-7a4b-4d8f-8b63-4a6e1b2d8f02",
+   "kind": "moneyline",
+   "player": null,
+   "statKey": null,
+   "lockAt": "@@108000000",
+   "event": {
+    "sport": "wnba",
+    "home": "Las Vegas Aces",
+    "away": "New York Liberty",
+    "startsAt": "@@108900000"
+   },
+   "lines": [
+    {
+     "id": "f5da06c4-4031-4b3d-9e9d-8a0a2c3d4e05",
+     "selection": "home",
+     "price": -135,
+     "point": null
+    },
+    {
+     "id": "06eb17d5-5142-4c4e-8fae-9b1b3d4e5f06",
+     "selection": "away",
+     "price": 115,
+     "point": null
     }
    ],
    "picked": null
