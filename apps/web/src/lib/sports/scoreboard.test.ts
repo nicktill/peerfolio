@@ -30,6 +30,29 @@ test('tennis covers both tours, orders athletes and only counts completed sets',
  const [g]=normalizeGames(raw,'tennis',at)
  assert.equal(g?.home,'Player A');assert.equal(g.homeScore,'1');assert.equal(g.awayScore,'0')
 })
+const tcomp=(state:string,a:unknown[],b:unknown[],extra:object={})=>({events:[{groupings:[{competitions:[{id:'m',date:at,status:{type:{state}},competitors:[
+ {order:1,athlete:{displayName:'Player A'},linescores:a},{order:2,athlete:{displayName:'Player B'},linescores:b}],...extra}]}]}]})
+test('tennis keeps per-set games and tiebreaks from real ESPN payload fragments',()=>{
+ // Finished 3-setter with tiebreaks (ESPN: tiebreak only on tied-at-6 sets, per player)
+ const [f]=normalizeGames(tcomp('post',[{value:3,winner:false},{value:7,tiebreak:7,winner:true},{value:6,winner:false}],[{value:6,winner:true},{value:6,tiebreak:1,winner:false},{value:7,winner:true}]),'tennis',at)
+ assert.deepEqual(f!.homeSets,[{games:3},{games:7,tiebreak:7},{games:6}])
+ assert.deepEqual(f!.awaySets,[{games:6},{games:6,tiebreak:1},{games:7}])
+ assert.equal(f!.homeScore,'1');assert.equal(f!.awayScore,'2')
+ // Live: current set has no winner flag
+ const [l]=normalizeGames(tcomp('in',[{value:6,winner:true},{value:0}],[{value:2,winner:false},{value:0}]),'tennis',at)
+ assert.deepEqual(l!.homeSets,[{games:6},{games:0}]);assert.equal(l!.status,'live')
+})
+test('tennis without set data (walkover, not started, malformed) has no set arrays',()=>{
+ for(const [state,a,b] of [['post',undefined,undefined],['pre',[],[]],['in',[{value:6}],[]],['in',[{value:null}],[{value:2}]]] as [string, unknown, unknown][]){
+  const [g]=normalizeGames(tcomp(state,a as unknown[],b as unknown[]),'tennis',at)
+  assert.equal(g!.homeSets,undefined);assert.equal(g!.awaySets,undefined)
+ }
+ const [r]=normalizeGames(tcomp('post',[{value:6,winner:true},{value:4,winner:false}],[{value:4,winner:false},{value:1,winner:false}]),'tennis',at)
+ assert.equal(r!.homeScore,'1');assert.equal(r!.awayScore,'0');assert.equal(r!.homeSets!.length,2)
+})
+test('non-tennis games never carry set arrays',()=>{
+ assert.equal(normalizeGames(board(competition()),'nhl',at)[0]!.homeSets,undefined)
+})
 test('scoreboard matching requires same orientation, sport and start window',()=>{
  const [g]=normalizeGames(board(competition()),'nhl',at)
  assert.ok(scoreboardMatch({...g!},[g!]))
