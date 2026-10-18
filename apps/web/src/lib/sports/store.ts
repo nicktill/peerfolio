@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, inArray, isNull, lt, or, sql } from "drizzle-orm"
+import { and, asc, desc, eq, gt, inArray, isNull, lt, or, sql, type SQL } from "drizzle-orm"
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js"
 import * as schema from "../../db/schema.ts"
 import { generateInviteCode } from "../crypto.ts"
@@ -8,6 +8,7 @@ import { bucketOf, LIMITS, PRUNE_AFTER_WINDOWS, withinLimit, type LimitName } fr
 import { emit } from "./log.ts"
 import { acceptPick, DEFAULT_LIMITS, kickoffGateDecided, PickRejected, type PickContext, type PickRequest } from "./picks.ts"
 import { isLiveMarketKey } from "./live-pick.ts"
+import { acceptParlay, decideParlay, decimalToAmerican, LEG_STATUS_OF, ParlayRejected, parlayPlaceKey, parlaySettleKey, PARLAY_LIMITS, type ParlayLegStatus, type ParlayRequest, type ParlayRow, type ParlayStatus } from "./parlay.ts"
 import { mirroredPairs } from "./report.ts"
 import { REPRICE } from "./reprice-config.ts"
 import { type Decision, type RepriceResult, type RepriceTarget } from "./reprice.ts"
@@ -83,7 +84,7 @@ export async function pruneRateLimits(db: Db, now: Date = new Date()) {
   return cutoff
 }
 
-const { sportsLeagues, sportsMembers, sportsEvents, sportsMarkets, sportsLines, sportsLineHistory, sportsPicks, sportsLedger, sportsProviderUsage, sportsNotifications, sportsRateLimits } = schema
+const { sportsLeagues, sportsMembers, sportsEvents, sportsMarkets, sportsLines, sportsLineHistory, sportsPicks, sportsParlays, sportsParlayLegs, sportsLedger, sportsProviderUsage, sportsNotifications, sportsRateLimits } = schema
 
 export const JOIN_FAILED = "That code didn't work"
 
@@ -167,7 +168,15 @@ export async function listSportsLeagues(db: Db, userId: string) {
         .where(and(inArray(sportsPicks.leagueId, leagueIds), eq(sportsPicks.status, "open")))
         .groupBy(sportsPicks.memberId)
     : []
-  const riskOf = new Map(riding.map((r) => [r.memberId, r.stake]))
+  const ridingParlays = leagueIds.length
+    ? await db
+        .select({ memberId: sportsParlays.memberId, stake: sql<number>`coalesce(sum(${sportsParlays.stake}), 0)::int` })
+        .from(sportsParlays)
+        .where(and(inArray(sportsParlays.leagueId, leagueIds), eq(sportsParlays.status, "open")))
+        .groupBy(sportsParlays.memberId)
+    : []
+  const riskOf = new Map<string, number>()
+  for (const r of [...riding, ...ridingParlays]) riskOf.set(r.memberId, (riskOf.get(r.memberId) ?? 0) + r.stake)
   const leadersOf = (leagueId: string) =>
     everyone
       .filter((m) => m.leagueId === leagueId)
@@ -208,13 +217,29 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
     .from(sportsPicks)
     .where(and(eq(sportsPicks.leagueId, leagueId), eq(sportsPicks.status, "open")))
     .groupBy(sportsPicks.memberId)
-  const risk = new Map(atRisk.map((r) => [r.memberId, r.stake]))
+  const atRiskParlays = await db
+    .select({ memberId: sportsParlays.memberId, stake: sql<number>`coalesce(sum(${sportsParlays.stake}), 0)::int` })
+    .from(sportsParlays)
+    .where(and(eq(sportsParlays.leagueId, leagueId), eq(sportsParlays.status, "open")))
+    .groupBy(sportsParlays.memberId)
+  const risk = new Map<string, number>()
+  for (const r of [...atRisk, ...atRiskParlays]) risk.set(r.memberId, (risk.get(r.memberId) ?? 0) + r.stake)
   const records = await db.select({
     memberId: sportsPicks.memberId,
     won: sql<number>`count(*) filter (where ${sportsPicks.status} = 'won')::int`,
     lost: sql<number>`count(*) filter (where ${sportsPicks.status} = 'lost')::int`,
   }).from(sportsPicks).where(eq(sportsPicks.leagueId, leagueId)).groupBy(sportsPicks.memberId)
-  const recordOf = new Map(records.map((r) => [r.memberId, { won: r.won, lost: r.lost }]))
+  const parlayRecords = await db.select({
+    memberId: sportsParlays.memberId,
+    won: sql<number>`count(*) filter (where ${sportsParlays.status} = 'won')::int`,
+    lost: sql<number>`count(*) filter (where ${sportsParlays.status} = 'lost')::int`,
+  }).from(sportsParlays).where(eq(sportsParlays.leagueId, leagueId)).groupBy(sportsParlays.memberId)
+  // A settled parlay counts as one win or one loss.
+  const recordOf = new Map<string, { won: number; lost: number }>()
+  for (const r of [...records, ...parlayRecords]) {
+    const cur = recordOf.get(r.memberId) ?? { won: 0, lost: 0 }
+    recordOf.set(r.memberId, { won: cur.won + r.won, lost: cur.lost + r.lost })
+  }
   const standings = members
     .map((m) => ({ name: m.name ?? "Player", image: m.image, record: recordOf.get(m.id) ?? { won: 0, lost: 0 }, credits: m.credits + (risk.get(m.id) ?? 0), isYou: m.userId === userId }))
     .sort((a, b) => b.credits - a.credits)
@@ -311,6 +336,9 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
     .orderBy(desc(sportsPicks.acceptedAt))
     .limit(60)
 
+  const myParlays = await loadParlayRows(db, eq(sportsParlays.memberId, me.id), 50)
+  // Other members' parlays are listed only once every leg's market has locked.
+  const leagueParlayRows = await loadParlayRows(db, eq(sportsParlays.leagueId, leagueId), 60, now)
   const liveEvents = await db.select({ id: sportsEvents.id, sport: sportsEvents.sport, home: sportsEvents.homeName, away: sportsEvents.awayName, startsAt: sportsEvents.startsAt })
     .from(sportsEvents).where(and(inArray(sportsEvents.sport, league.sports), gt(sportsEvents.startsAt, new Date(now.getTime() - 8 * 3600_000)), lt(sportsEvents.startsAt, now))).limit(300)
   return {
@@ -333,6 +361,12 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
       minStake: DEFAULT_LIMITS.minStake,
       maxStake: Math.floor((league.startingCredits * league.maxStakePct) / 100),
       maxOpenPicks: DEFAULT_LIMITS.maxOpenPicks,
+      parlay: {
+        minLegs: PARLAY_LIMITS.minLegs,
+        maxLegs: PARLAY_LIMITS.maxLegs,
+        minStake: PARLAY_LIMITS.minStake,
+        maxStake: Math.floor((league.startingCredits * PARLAY_LIMITS.maxStakePctOfStart) / 100),
+      },
     },
     standings,
     markets: open.map(({ market, event }) => {
@@ -352,6 +386,8 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
       }
     }),
     picks: mine.map(shapePick),
+    parlays: myParlays.map((p) => p.row),
+    leagueParlays: leagueParlayRows.map((p) => ({ ...p.row, name: nameOf.get(p.memberId) ?? "Player", image: imageOf.get(p.memberId) ?? null, you: p.memberId === me.id })),
     leaguePicks: others.map((p) => ({ ...shapePick(p), name: nameOf.get(p.memberId) ?? "Player", image: imageOf.get(p.memberId) ?? null, you: p.memberId === me.id })),
   }
 }
@@ -464,6 +500,10 @@ async function placeOnce(db: Db, userId: string, leagueId: string, req: PickRequ
       .select({ n: sql<number>`count(*)::int`, stake: sql<number>`coalesce(sum(${sportsPicks.stake}), 0)::int` })
       .from(sportsPicks)
       .where(and(eq(sportsPicks.memberId, member.id), eq(sportsPicks.status, "open")))
+    const [openParlays] = await tx
+      .select({ n: sql<number>`count(*)::int`, stake: sql<number>`coalesce(sum(${sportsParlays.stake}), 0)::int` })
+      .from(sportsParlays)
+      .where(and(eq(sportsParlays.memberId, member.id), eq(sportsParlays.status, "open")))
 
     const pickCtx: PickContext = {
       now,
@@ -474,8 +514,8 @@ async function placeOnce(db: Db, userId: string, leagueId: string, req: PickRequ
       member: { credits: member.credits },
       league: { startingCredits: league.startingCredits },
       picksOnMarket: existing?.n ?? 0,
-      openPickCount: open?.n ?? 0,
-      openStakeTotal: open?.stake ?? 0,
+      openPickCount: (open?.n ?? 0) + (openParlays?.n ?? 0),
+      openStakeTotal: (open?.stake ?? 0) + (openParlays?.stake ?? 0),
     }
     let accepted
     try {
@@ -525,6 +565,190 @@ async function placeOnce(db: Db, userId: string, leagueId: string, req: PickRequ
     })
     await tx.update(sportsMembers).set({ credits: sql`${sportsMembers.credits} - ${accepted.stake}` }).where(eq(sportsMembers.id, member.id))
     return { pick: pick!, replayed: false }
+  })
+}
+
+/* ---------------- parlays ---------------- */
+
+/**
+ * Parlays for the given filter, newest first, with their legs. With `lockedAt`, only parlays whose every leg's market is
+ * already locked at that time (what the rest of the league may see).
+ */
+async function loadParlayRows(conn: Conn, where: SQL, limit: number, lockedAt?: Date): Promise<{ memberId: string; row: ParlayRow }[]> {
+  const visible = lockedAt
+    ? sql`not exists (select 1 from sports_parlay_legs l join sports_markets m on m.id = l.market_id where l.parlay_id = ${sportsParlays.id} and m.status = 'open' and m.lock_at > ${lockedAt.toISOString()}::timestamptz)`
+    : undefined
+  const parlays = await conn.select().from(sportsParlays).where(visible ? and(where, visible) : where).orderBy(desc(sportsParlays.acceptedAt)).limit(limit)
+  if (!parlays.length) return []
+  const legs = await conn
+    .select({
+      parlayId: sportsParlayLegs.parlayId,
+      lineId: sportsParlayLegs.lineId,
+      selection: sportsParlayLegs.selection,
+      price: sportsParlayLegs.price,
+      point: sportsParlayLegs.point,
+      status: sportsParlayLegs.status,
+      kind: sportsMarkets.kind,
+      eventId: sportsEvents.id,
+      sport: sportsEvents.sport,
+      home: sportsEvents.homeName,
+      away: sportsEvents.awayName,
+      startsAt: sportsEvents.startsAt,
+    })
+    .from(sportsParlayLegs)
+    .innerJoin(sportsMarkets, eq(sportsMarkets.id, sportsParlayLegs.marketId))
+    .innerJoin(sportsEvents, eq(sportsEvents.id, sportsParlayLegs.eventId))
+    .where(inArray(sportsParlayLegs.parlayId, parlays.map((p) => p.id)))
+    .orderBy(asc(sportsEvents.startsAt), asc(sportsParlayLegs.id))
+  return parlays.map((p) => ({
+    memberId: p.memberId,
+    row: {
+      id: p.id,
+      stake: p.stake,
+      price: decimalToAmerican(p.combinedDecimal),
+      totalReturn: p.totalReturn,
+      payout: p.status === "open" ? null : (p.payout ?? (p.status === "lost" ? 0 : p.stake)),
+      status: p.status as ParlayStatus,
+      acceptedAt: p.acceptedAt.toISOString(),
+      legs: legs
+        .filter((l) => l.parlayId === p.id)
+        .map((l) => ({
+          lineId: l.lineId,
+          selection: l.selection,
+          price: l.price,
+          point: l.point,
+          status: l.status as ParlayLegStatus,
+          market: { kind: l.kind, player: null },
+          event: { id: l.eventId, sport: l.sport, home: l.home, away: l.away, startsAt: l.startsAt.toISOString() },
+        })),
+    },
+  }))
+}
+
+/**
+ * Places a parlay atomically, the same way as a single pick: shared locks on every leg's market (in id order, the global
+ * market-first lock order), then the member row; the clock is read with all locks held. Replaying the same `requestId`
+ * returns the original parlay.
+ */
+export async function placeSportsParlay(db: Db, userId: string, leagueId: string, req: ParlayRequest & { requestId: string }, now?: Date) {
+  const result = await withDeadlockRetry(() => placeParlayOnce(db, userId, leagueId, req, now))
+  emit("info", result.replayed ? "sports.parlay_replayed" : "sports.parlay_placed", {
+    parlayId: result.parlay.id,
+    leagueId,
+    legs: result.parlay.legs.length,
+    stake: result.parlay.stake,
+    price: result.parlay.price,
+    totalReturn: result.parlay.totalReturn,
+  })
+  return result
+}
+
+async function placeParlayOnce(db: Db, userId: string, leagueId: string, req: ParlayRequest & { requestId: string }, pinnedNow?: Date) {
+  if (req.legs.length > PARLAY_LIMITS.maxLegs) throw new SportsError(`A parlay can have at most ${PARLAY_LIMITS.maxLegs} legs`, 400)
+  if (new Set(req.legs.map((l) => l.lineId)).size !== req.legs.length) throw new SportsError("Each leg must be a different line", 400)
+  return db.transaction(async (tx) => {
+    const lineIds = req.legs.map((l) => l.lineId)
+    const probes = await tx.select({ id: sportsLines.id, marketId: sportsLines.marketId }).from(sportsLines).where(inArray(sportsLines.id, lineIds))
+    if (probes.length !== lineIds.length) throw new SportsError("A line in your parlay is no longer available", 404)
+    const marketIds = [...new Set(probes.map((p) => p.marketId))].sort()
+    const markets = await tx.select().from(sportsMarkets).where(inArray(sportsMarkets.id, marketIds)).orderBy(asc(sportsMarkets.id)).for("share")
+    if (markets.length !== marketIds.length) throw new SportsError("A line in your parlay is no longer available", 404)
+    // Live picks sit on synthetic locked markets; parlays are pregame-only.
+    if (markets.some((m) => isLiveMarketKey(m.marketKey))) throw new SportsError("Live lines can't go in a parlay", 409)
+    // Lines are read after the market locks: they are the prices on offer right now.
+    const lines = await tx.select().from(sportsLines).where(inArray(sportsLines.id, lineIds))
+
+    const [member] = await tx.execute<{ id: string; credits: number }>(
+      sql`SELECT id, credits FROM sports_members WHERE league_id = ${leagueId} AND user_id = ${userId} FOR UPDATE`,
+    )
+    if (!member) throw new SportsError("League not found", 404)
+    const now = pinnedNow ?? new Date(String((await tx.execute<{ t: string }>(sql`SELECT clock_timestamp() AS t`))[0]!.t))
+
+    const [replay] = await tx.select({ id: sportsParlays.id }).from(sportsParlays).where(and(eq(sportsParlays.memberId, member.id), eq(sportsParlays.requestId, req.requestId))).limit(1)
+    if (replay) {
+      const [row] = await loadParlayRows(tx, eq(sportsParlays.id, replay.id), 1)
+      return { parlay: row!.row, replayed: true }
+    }
+
+    const [league] = await tx.select().from(sportsLeagues).where(eq(sportsLeagues.id, leagueId)).limit(1)
+    if (!league) throw new SportsError("League not found", 404)
+    if (league.endsAt && league.endsAt.getTime() < now.getTime()) throw new SportsError("That league has ended")
+    const events = await tx.select().from(sportsEvents).where(inArray(sportsEvents.id, markets.map((m) => m.eventId)))
+
+    const legCtx = []
+    for (const leg of req.legs) {
+      const line = lines.find((l) => l.id === leg.lineId)
+      const market = line && markets.find((m) => m.id === line.marketId)
+      const event = market && events.find((e) => e.id === market.eventId)
+      if (!line || !market || !event || !league.sports.includes(event.sport)) throw new SportsError("A line in your parlay is no longer available", 404)
+      legCtx.push({
+        market: { id: market.id, status: market.status, lockAt: market.lockAt, kind: market.kind, player: market.player },
+        eventId: event.id,
+        eventStatus: event.status,
+        eventStartsAt: event.startsAt,
+        line: { id: line.id, marketId: line.marketId, price: line.price, point: line.point },
+      })
+    }
+
+    const [open] = await tx
+      .select({ n: sql<number>`count(*)::int`, stake: sql<number>`coalesce(sum(${sportsPicks.stake}), 0)::int` })
+      .from(sportsPicks)
+      .where(and(eq(sportsPicks.memberId, member.id), eq(sportsPicks.status, "open")))
+    const [openParlays] = await tx
+      .select({ n: sql<number>`count(*)::int`, stake: sql<number>`coalesce(sum(${sportsParlays.stake}), 0)::int` })
+      .from(sportsParlays)
+      .where(and(eq(sportsParlays.memberId, member.id), eq(sportsParlays.status, "open")))
+
+    let accepted
+    try {
+      accepted = acceptParlay(req, {
+        now,
+        legs: legCtx,
+        member: { credits: member.credits },
+        league: {
+          startingCredits: league.startingCredits,
+          maxReturnPctOfStart: DEFAULT_LIMITS.maxReturnPctOfStart,
+          maxExposurePctOfStart: DEFAULT_LIMITS.maxExposurePctOfStart,
+          maxOpenPicks: DEFAULT_LIMITS.maxOpenPicks,
+        },
+        openPickCount: (open?.n ?? 0) + (openParlays?.n ?? 0),
+        openStakeTotal: (open?.stake ?? 0) + (openParlays?.stake ?? 0),
+      })
+    } catch (error) {
+      if (error instanceof ParlayRejected) {
+        emit("info", "sports.parlay_rejected", { code: error.code, leagueId, now: now.toISOString() })
+        throw new SportsError(error.message, error.code === "insufficient_credits" ? 402 : 409)
+      }
+      throw error
+    }
+
+    const [parlay] = await tx
+      .insert(sportsParlays)
+      .values({
+        leagueId,
+        memberId: member.id,
+        stake: accepted.stake,
+        combinedDecimal: accepted.combinedDecimal,
+        totalReturn: accepted.totalReturn,
+        requestId: req.requestId,
+        acceptedAt: accepted.acceptedAt,
+      })
+      .returning()
+    await tx.insert(sportsParlayLegs).values(
+      legCtx.map((c) => ({
+        parlayId: parlay!.id,
+        lineId: c.line.id,
+        marketId: c.market.id,
+        eventId: c.eventId,
+        selection: lines.find((l) => l.id === c.line.id)!.selection,
+        price: c.line.price,
+        point: c.line.point,
+      })),
+    )
+    await tx.insert(sportsLedger).values({ memberId: member.id, type: "place", amount: -accepted.stake, idempotencyKey: parlayPlaceKey(parlay!.id) })
+    await tx.update(sportsMembers).set({ credits: sql`${sportsMembers.credits} - ${accepted.stake}` }).where(eq(sportsMembers.id, member.id))
+    const [row] = await loadParlayRows(tx, eq(sportsParlays.id, parlay!.id), 1)
+    return { parlay: row!.row, replayed: false }
   })
 }
 
@@ -1035,7 +1259,53 @@ export async function applySettlement(tx: Tx, plan: SettlementPlan, now: Date) {
   return { settled: moved.size, credited }
 }
 
-async function settleMarketPicks(tx: Tx, marketId: string, outcomeOf: (p: typeof sportsPicks.$inferSelect) => Outcome, now: Date) {
+/**
+ * Grades every open parlay leg on a market, then decides each affected parlay. Called with the market row already locked
+ * exclusively. Parlay rows are locked next (id order), members last. A lost leg loses the parlay at once; push/void legs drop
+ * out; the payout is credited once through a unique ledger key, and only by the run that moved the parlay out of `open`.
+ */
+async function settleMarketLegs(tx: Tx, marketId: string, outcomeOf: (p: { selection: string; point: number | null }) => Outcome, now: Date) {
+  const legs = await tx.select().from(sportsParlayLegs).where(and(eq(sportsParlayLegs.marketId, marketId), eq(sportsParlayLegs.status, "open")))
+  if (!legs.length) return
+  const parlayIds = [...new Set(legs.map((l) => l.parlayId))].sort()
+  await tx.select({ id: sportsParlays.id }).from(sportsParlays).where(inArray(sportsParlays.id, parlayIds)).orderBy(asc(sportsParlays.id)).for("update")
+  for (const leg of legs) {
+    await tx.update(sportsParlayLegs).set({ status: LEG_STATUS_OF[outcomeOf(leg)] }).where(and(eq(sportsParlayLegs.id, leg.id), eq(sportsParlayLegs.status, "open")))
+  }
+  const parlays = await tx.select().from(sportsParlays).where(and(inArray(sportsParlays.id, parlayIds), eq(sportsParlays.status, "open")))
+  const allLegs = parlays.length ? await tx.select().from(sportsParlayLegs).where(inArray(sportsParlayLegs.parlayId, parlays.map((p) => p.id))) : []
+  const decided = parlays
+    .map((p) => ({ p, d: decideParlay(p.stake, allLegs.filter((l) => l.parlayId === p.id).map((l) => ({ status: l.status as ParlayLegStatus, price: l.price }))) }))
+    .filter((x) => x.d.status !== "open")
+    .sort((a, b) => a.p.memberId.localeCompare(b.p.memberId) || a.p.id.localeCompare(b.p.id))
+  for (const { p, d } of decided) {
+    const moved = await tx
+      .update(sportsParlays)
+      .set({ status: d.status, payout: d.payout ?? 0, settledAt: now })
+      .where(and(eq(sportsParlays.id, p.id), eq(sportsParlays.status, "open")))
+      .returning({ id: sportsParlays.id })
+    if (!moved.length) continue
+    if (d.status !== "lost" && d.payout! > 0) {
+      const inserted = await tx
+        .insert(sportsLedger)
+        .values({ memberId: p.memberId, type: d.status === "won" ? "settle_win" : "settle_refund", amount: d.payout!, idempotencyKey: parlaySettleKey(p.id) })
+        .onConflictDoNothing()
+        .returning({ id: sportsLedger.id })
+      if (inserted.length) await tx.update(sportsMembers).set({ credits: sql`${sportsMembers.credits} + ${d.payout!}` }).where(eq(sportsMembers.id, p.memberId))
+    }
+    const [owner] = await tx.select({ userId: sportsMembers.userId }).from(sportsMembers).where(eq(sportsMembers.id, p.memberId)).limit(1)
+    if (owner) {
+      await tx.insert(sportsNotifications).values({
+        userId: owner.userId,
+        kind: "parlay_settled",
+        payload: { parlayId: p.id, status: d.status, stake: p.stake, payout: d.payout, leagueId: p.leagueId },
+      })
+    }
+  }
+}
+
+async function settleMarketPicks(tx: Tx, marketId: string, outcomeOf: (p: { selection: string; point: number | null }) => Outcome, now: Date) {
+  await settleMarketLegs(tx, marketId, outcomeOf, now)
   const picks = await tx.select().from(sportsPicks).where(and(eq(sportsPicks.marketId, marketId), eq(sportsPicks.status, "open")))
   const outcomes = new Map(picks.map((p) => [p.id, outcomeOf(p)]))
   const existing = picks.length
@@ -1090,8 +1360,14 @@ export async function sweepVoidedMarkets(db: Db, now: Date) {
     .from(sportsPicks)
     .innerJoin(sportsMarkets, eq(sportsMarkets.id, sportsPicks.marketId))
     .where(and(eq(sportsPicks.status, "open"), eq(sportsMarkets.status, "void")))
+  const stuckLegs = await db
+    .selectDistinct({ marketId: sportsParlayLegs.marketId })
+    .from(sportsParlayLegs)
+    .innerJoin(sportsMarkets, eq(sportsMarkets.id, sportsParlayLegs.marketId))
+    .where(and(eq(sportsParlayLegs.status, "open"), eq(sportsMarkets.status, "void")))
+  const stuckMarkets = [...new Map([...stuck, ...stuckLegs].map((s) => [s.marketId, s])).values()]
   let refunded = 0
-  for (const { marketId } of stuck) {
+  for (const { marketId } of stuckMarkets) {
     refunded += (
       await withDeadlockRetry(() =>
         db.transaction(async (tx) => {
