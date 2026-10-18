@@ -603,3 +603,16 @@
 .sl-ticket-money .sl-lose, .pl-ticket-money .sl-lose { color: var(--loss-ink); }
 .sp-card-leagues { display: inline-flex; align-items: center; gap: 6px; }
 .sp-live-hint { margin: 0 0 8px; }
+
+/* Game status chip: fixed minimum width and tabular numerals so a ticking clock never shifts the header. */
+.sp-status { display: inline-flex; align-items: center; justify-content: center; min-width: 5.6em; padding: 1px 7px; border-radius: 999px; font: 600 10px var(--fw-mono); font-variant-numeric: tabular-nums; letter-spacing: .02em; white-space: nowrap; color: var(--fw-fg2); background: color-mix(in srgb, var(--fw-fg3) 14%, transparent); transition: opacity .2s; }
+.sp-status small { margin-left: 6px; font: 400 10px var(--fw-mono); color: var(--fw-fg3); }
+.sp-status[data-tone="live"] { color: #278a58; background: color-mix(in srgb, #329b68 14%, transparent); }
+.dark .sp-status[data-tone="live"] { color: #70dba3; }
+.sp-status[data-tone="break"] { color: #a86a10; background: color-mix(in srgb, #d98a1c 15%, transparent); }
+.dark .sp-status[data-tone="break"] { color: #f0b660; }
+.sp-status[data-tone="alert"] { color: #b3402f; background: color-mix(in srgb, #d9503a 14%, transparent); }
+.dark .sp-status[data-tone="alert"] { color: #f08a7a; }
+.sp-status[data-dim] { opacity: .62; }
+@media (max-width: 480px) { .sp-status small { display: none; } }
+@media (prefers-reduced-motion: reduce) { .sp-status { transition: none; } }

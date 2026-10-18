@@ -9,6 +9,8 @@ import { AdminLiveTestPanel } from './admin-live-test'
 import { LivePickPanel } from './live-pick-panel'
 import { type ScoreGame, type TennisSet, scoreboardMatch } from '@web/lib/sports/scoreboard'
 import { OddsTrend } from './odds-trend'
+import { GameStatusChip, statusInputFromGame } from './game-status-chip'
+import { mergeLiveState } from '@web/lib/sports/game-status'
 import { matchupColors } from '@web/lib/sports/matchup-colors'
 
 export type LivePickConfig = { leagueId: string; liveBetting: boolean; credits: number; startingCredits: number; maxStakePct: number; onPlaced: () => void }
@@ -37,6 +39,9 @@ function LiveCard({ g, now, tracked, enableAdminTest, livePick }: { g: ScoreGame
   const { view, elapsedMs } = useLiveGame(tracked?.id, fresh)
   const chip = chipFor(view, elapsedMs)
   const colors = matchupColors(g.sport, g.away, g.home)
+  const statusInput = mergeLiveState(statusInputFromGame(g), view)
+  const asOfMs = typeof statusInput.asOf === 'number' ? statusInput.asOf : Date.parse(statusInput.asOf)
+  const updated = Math.max(0, Math.round((now - asOfMs) / 1000))
   // The exchange view is more accurate, so it wins; ESPN's in-game moneyline is only an estimate and only fills the gap.
   const ex = view?.odds.status === 'ok' && chip.tone !== 'paused' ? view.odds : null
   const exchange: Split | null = ex ? (ex.drawProb != null ? splitPct3(ex.homeProb, ex.drawProb) : { ...splitPct(ex.homeProb), draw: null }) : null
@@ -44,7 +49,7 @@ function LiveCard({ g, now, tracked, enableAdminTest, livePick }: { g: ScoreGame
     ? (g.drawProb != null ? splitPct3(g.homeWinProb, g.drawProb) : { ...splitPct(g.homeWinProb), draw: null }) : null
   const split = exchange ?? est
   return <article className="sp-game sp-live-card">
-    <CardHead g={g} chip={<span className="sp-feed-chip" data-live={fresh || undefined}><i />{fresh ? 'In progress' : 'Scores delayed'}</span>} />
+    <CardHead g={g} chip={<GameStatusChip input={statusInput} now={now} />} />
     {split ? <div className="sp-odds-bar" role="img" aria-label={`Win probability: ${g.away} ${split.away} percent, ${split.draw != null ? `draw ${split.draw} percent, ` : ''}${g.home} ${split.home} percent`}>
       <div className="sp-odds-track">
         <i style={{ width: `${split.away}%`, background: colors[0] }} />
@@ -58,7 +63,7 @@ function LiveCard({ g, now, tracked, enableAdminTest, livePick }: { g: ScoreGame
       </div>
     </div> : null}
     <TeamRows g={g} showScore trendId={fresh ? tracked?.id : undefined} />
-    <div className="sp-live-footer"><span>{fresh ? g.detail : 'Last reported score · updates delayed'}</span><span><Lock aria-hidden />Picks locked</span></div>
+    <div className="sp-live-footer"><span>{fresh ? (updated < 30 ? 'Updated just now' : `Updated ${updated}s ago`) : 'Last reported score · updates delayed'}</span><span><Lock aria-hidden />Picks locked</span></div>
     <p className="sp-fine">{exchange ? 'Market-implied chance · view only' : est ? 'Est. from ESPN odds · view only' : 'View only · live win probabilities unavailable'}</p>
     {livePick?.liveBetting ? (tracked && fresh
       ? <LivePickPanel leagueId={livePick.leagueId} eventId={tracked.id} home={g.home} away={g.away} sport={g.sport} credits={livePick.credits} startingCredits={livePick.startingCredits} maxStakePct={livePick.maxStakePct} onPlaced={livePick.onPlaced} />

@@ -11,6 +11,7 @@ import { Choice } from "@web/components/fantasy/choice"
 import { timeLeft } from "@web/components/fantasy/time-left"
 import { ScoreboardGames } from "@web/components/sports/scoreboard-games"
 import { scoreboardMatch, type ScoreGame } from "@web/lib/sports/scoreboard"
+import { GameStatusChip, statusInputFromGame } from "@web/components/sports/game-status-chip"
 import { PickLimitsButton } from "@web/components/sports/pick-limits-dialog"
 import { matchupColors, marketSelectionColor } from "@web/lib/sports/matchup-colors"
 import { LeagueBrand } from "@web/components/sports/league-brand"
@@ -32,7 +33,7 @@ import { matchesSearch } from "@web/lib/sports/search"
 import { mutate, useApi } from "@web/lib/use-api"
 
 type Line = DisplayLine & { id: string; price: number }
-type EventInfo = { sport: string; home: string; away: string; startsAt: string; homeRecord?: string | null; awayRecord?: string | null }
+type EventInfo = { sport: string; home: string; away: string; startsAt: string; homeRecord?: string | null; awayRecord?: string | null; scoreGame?: ScoreGame }
 type Market = DisplayMarket & {
   id: string
   lockAt: string
@@ -146,7 +147,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
   const scoreGames = scores.data?.games ?? []
   const shown = markets.filter(m => (sport === "all" || m.event.sport === sport) && matchesSearch(query, [m.event.home, m.event.away, m.player], m.event.sport) && Date.parse(m.lockAt) > now && Date.parse(m.event.startsAt) > now).map(m => {
     const meta = scoreboardMatch(m.event, scoreGames)
-    return meta ? { ...m, event: { ...m.event, homeRecord: meta.homeRecord, awayRecord: meta.awayRecord } } : m
+    return meta ? { ...m, event: { ...m.event, homeRecord: meta.homeRecord, awayRecord: meta.awayRecord, scoreGame: meta } } : m
   })
   const liveGames = scoreGames.filter(g => (sport === "all" || g.sport === sport) && matchesSearch(query, [g.home, g.away], g.sport))
   const searching = query.trim().length > 0
@@ -624,7 +625,7 @@ function GameCard({ game, selected, onSelect, disabled, now }: { game: { key: st
         </div>
         <span className="sp-game-meta">
           <b><LeagueBrand sport={event.sport} /></b> · {timeOf(event.startsAt)}
-          {showLive ? <span className="sp-feed-chip" data-live><i />Live odds</span> : null}
+          {event.scoreGame && event.scoreGame.status !== "upcoming" ? <GameStatusChip input={statusInputFromGame(event.scoreGame)} now={now} /> : showLive ? <span className="sp-feed-chip" data-live><i />Live odds</span> : null}
           <select className="sp-market-select" aria-label={`Market for ${eventTitle(event)}`} value={active?.key ?? ""} onChange={e => setTab(e.target.value)}>
             {groups.map(g => <option key={g.key} value={g.key}>{g.markets.length === 0 ? `${g.label} (unavailable)` : g.label}</option>)}
           </select>
