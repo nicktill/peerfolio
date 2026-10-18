@@ -1,7 +1,7 @@
 import { LandingHeader } from "@web/components/landing/landing-header"
 import type { Metadata } from "next"
 import { redirect } from "next/navigation"
-import { ArrowDown, EyeOff } from "lucide-react"
+import { ArrowDown, EyeOff, LineChart, Sparkles, Trophy } from "lucide-react"
 import { SiteFooter } from "@web/components/site-footer"
 import { ChatBubble } from "@web/components/landing/chat-bubble"
 import { HeroBackdrop } from "@web/components/landing/hero-backdrop"
@@ -68,8 +68,7 @@ export default async function HomePage() {
               <RotatingWord prefix="with " words={RIVALS} />
             </h1>
             <p style={revealStyle(1)} className="reveal pf-sub mx-auto mt-4 max-w-2xl text-balance text-base leading-7 sm:text-[17px]">
-              <span className="hidden sm:inline">Track your portfolio, race friends on returns, and play fantasy stocks or sports picks with play money. Friends see how well you invest, never how much.</span>
-              <span className="sm:hidden">Track your money, race friends on returns, and play stocks or sports for fun. Friends see how well you invest, never how much.</span>
+              Compete with friends using your real portfolios, or play-money stocks and sports picks.
             </p>
             <div style={revealStyle(2)} className="reveal mt-6 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
               <SignInButton />
@@ -77,7 +76,12 @@ export default async function HomePage() {
                 See how it works <ArrowDown className="size-4" aria-hidden />
               </a>
             </div>
-            <p style={revealStyle(3)} className="reveal pf-muted mt-3 text-xs">Free. Add positions by hand, link a brokerage, or just play with play money.</p>
+            <ul style={revealStyle(3)} className="reveal pf-modes mt-5" aria-label="Ways to play">
+              <li><LineChart aria-hidden />Real portfolios</li>
+              <li><Sparkles aria-hidden />Fantasy stocks</li>
+              <li><Trophy aria-hidden />Sports picks</li>
+            </ul>
+            <p style={revealStyle(3)} className="reveal pf-muted mt-3 text-xs">Free. Friends see your returns, never your dollars.</p>
           </div>
 
           <div className="pf-hero-preview relative mx-auto max-w-[1280px] px-6 pb-16 sm:px-5 sm:pb-24 xl:pt-9">

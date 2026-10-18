@@ -119,7 +119,10 @@ export function LivePickPanel({ leagueId, eventId, home, away, sport, credits, s
       {quick.map((v, i) => <button key={i} type="button" disabled={busy || v < 10 || max < 10} aria-label={i === 3 ? `Stake the maximum, ${formatCredits(cap)} cash` : `Stake ${formatCredits(v)} cash`} onClick={() => setStake(String(Math.max(v, 10)))}>{i === 3 ? 'Max' : formatCredits(v)}</button>)}
     </div>
     <div className="sp-slip-return" aria-live="polite" data-dir={dir}>
-      <span className="fw-label" style={{ margin: 0 }}>To win</span>
+      <span className="sp-slip-return-label">
+        <span className="fw-label" style={{ margin: 0 }}>To win</span>
+        {shownPrice != null ? <small className="sp-slip-at numeric" data-dir={dir}>at <LiveNumber value={shownPrice} format={formatOdds} kind="price" chip={false} /></small> : null}
+      </span>
       {amount > 0 && !problem && shownPrice != null ? <b key={shownPrice}>{formatCredits(toWin)}</b> : <span className="sp-slip-hint">Enter a stake</span>}
     </div>
     {message ? <p className="sp-slip-moved" role="alert">{message}</p> : null}
