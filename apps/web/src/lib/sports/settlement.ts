@@ -23,6 +23,11 @@ export type ResolveConfig = {
   noResultVoidMs: number
   /** A game stuck in `review` (sources disagree) this long after its start is voided and refunded, and the owner is told. */
   reviewTimeoutMs: number
+  /**
+   * Fast path. When set, an official final (every agreeing family, at least `minSources` of them) that has been the same
+   * plausible score on two settle passes at least this far apart settles without waiting out `settleDelayMs`. Unset means off.
+   */
+  fastFinalStableMs?: number
 }
 
 export const DEFAULT_RESOLVE: ResolveConfig = {
@@ -42,12 +47,30 @@ export const DEFAULT_RESOLVE: ResolveConfig = {
  */
 export const FREE_RESULT_FAMILIES: Record<Sport, number> = { nhl: 2, mlb: 2, nfl: 1, nba: 1, cfb: 1, mls: 1, tennis: 1 }
 export const SINGLE_SOURCE_SETTLE_DELAY_MS = 30 * 60_000
+/**
+ * Fast path stability windows: how long the same official, plausible final score must have been stable (first read on one
+ * pass, confirmed on a later one) to skip the 30 minute settle delay. Sized against the 5 minute settle cadence so the worst
+ * case stays within 10 minutes: a final first seen just after a pass waits at most one cadence (5) for the next pass, and the
+ * window is shorter than the cadence so that next pass is already the confirming one (even if it fires a minute early).
+ *  - one independent family (nfl, nba, cfb, mls, tennis): 4 minutes
+ *  - two independent families that agree (nhl, mlb): 2 minutes
+ */
+export const FAST_FINAL_STABLE_MS = 4 * 60_000
+export const FAST_TWO_SOURCE_STABLE_MS = 2 * 60_000
+/** SPORTS_FAST_SETTLE=0 turns the fast path off without a deploy. Read at call time, default on. */
+export const fastSettleEnabled = (): boolean => process.env.SPORTS_FAST_SETTLE !== "0"
 export type ResolveConfigFor = (sport: Sport) => ResolveConfig
 
 /** The config for one sport given how many independent families can answer for it. Never asks for more families than exist. */
 export function resolveConfigForSport(base: ResolveConfig, sport: Sport, availableFamilies: number): ResolveConfig {
   const minSources = Math.max(1, Math.min(FREE_RESULT_FAMILIES[sport], availableFamilies))
-  return minSources >= 2 ? { ...base, minSources } : { ...base, minSources, settleDelayMs: Math.max(base.settleDelayMs, SINGLE_SOURCE_SETTLE_DELAY_MS) }
+  if (minSources >= 2) return { ...base, minSources, ...(fastSettleEnabled() ? { fastFinalStableMs: FAST_TWO_SOURCE_STABLE_MS } : {}) }
+  return {
+    ...base,
+    minSources,
+    settleDelayMs: Math.max(base.settleDelayMs, SINGLE_SOURCE_SETTLE_DELAY_MS),
+    ...(fastSettleEnabled() ? { fastFinalStableMs: FAST_FINAL_STABLE_MS } : {}),
+  }
 }
 
 /** Highest believable final score per sport (tennis is sets won). Anything above it, negative or fractional is held for review. */
@@ -72,15 +95,17 @@ export const scoreKey = (r: Pick<EventResult, "homeScore" | "awayScore">) => `${
  */
 export function observeFinal(
   mine: EventResult[],
-  seen: { firstSeen: Date | null; firstSeenScore: string | null },
+  seen: { firstSeen: Date | null; firstSeenScore: string | null; scoreSeenAt?: Date | null },
   now: Date,
-): { firstSeen: Date | null; firstSeenScore: string | null; changed: boolean } {
-  if (!mine.some((r) => r.status === "final")) return { ...seen, changed: false }
+): { firstSeen: Date | null; firstSeenScore: string | null; scoreSeenAt: Date | null; changed: boolean } {
+  if (!mine.some((r) => r.status === "final")) return { ...seen, scoreSeenAt: seen.scoreSeenAt ?? null, changed: false }
   const scores = new Set(mine.filter((r) => r.status === "final" && r.homeScore != null && r.awayScore != null).map(scoreKey))
   const score = scores.size === 1 ? [...scores][0]! : null
   const firstSeen = seen.firstSeen ?? now
   const firstSeenScore = seen.firstSeenScore ?? score
-  return { firstSeen, firstSeenScore, changed: !seen.firstSeen || firstSeenScore !== seen.firstSeenScore }
+  // When that score was first read. Unknown for events recorded before this was kept, and then the fast path stays off.
+  const scoreSeenAt = firstSeenScore == null ? null : firstSeenScore === seen.firstSeenScore ? (seen.scoreSeenAt ?? null) : now
+  return { firstSeen, firstSeenScore, scoreSeenAt, changed: !seen.firstSeen || firstSeenScore !== seen.firstSeenScore }
 }
 
 export type Resolution =
@@ -102,6 +127,25 @@ export type ResolveContext = {
   sport?: Sport
   /** The score ("home-away") recorded when a final was first seen. If it is set and the final now differs or is gone, the game goes to review. */
   firstSeenScore?: string | null
+  /** When `firstSeenScore` was first read. Needed (with a stable window in the config) for the fast path. */
+  finalScoreSeenAt?: Date | null
+}
+
+/**
+ * Fast path: may an official final settle before the full settle delay? Only when ALL hold: the fast window is configured
+ * (kill switch not thrown), every agreeing result is flagged `officialFinal` by its provider (and `resolveCore` has already required `minSources` distinct families to agree), the score
+ * passes `scoreProblem`, the score recorded on an EARLIER pass is this same score and was first read at least the window ago
+ * (two separate passes, far enough apart that one glitchy read cannot pay out), and nothing else is reported for the event
+ * (no void/retire/postpone report, no in-progress read). Anything else keeps the normal delay.
+ */
+export function fastFinalAllowed(agreeing: EventResult[], results: EventResult[], ctx: ResolveContext, cfg: ResolveConfig): boolean {
+  if (!cfg.fastFinalStableMs || cfg.fastFinalStableMs <= 0) return false
+  if (agreeing.length === 0 || !agreeing.every((r) => r.officialFinal === true && !r.beyondRegulation)) return false
+  if (agreeing.some((r) => scoreProblem(ctx.sport, r.homeScore, r.awayScore) !== null)) return false
+  if (results.some((r) => r.status !== "final")) return false
+  const key = scoreKey(agreeing[0]!)
+  if (!ctx.firstSeenScore || ctx.firstSeenScore !== key || !ctx.finalScoreSeenAt) return false
+  return ctx.now.getTime() - ctx.finalScoreSeenAt.getTime() >= cfg.fastFinalStableMs
 }
 
 const STUCK_WAITS: ReadonlySet<string> = new Set(["void report without quorum", "waiting for a second source"])
@@ -159,7 +203,7 @@ function resolveCore(results: EventResult[], ctx: ResolveContext, cfg: ResolveCo
   }
   if (!finalQuorum) return { kind: "wait", reason: "waiting for a second source" }
   if (!ctx.finalFirstSeenAt || ctx.now.getTime() - ctx.finalFirstSeenAt.getTime() < cfg.settleDelayMs) {
-    return { kind: "wait", reason: "settle delay" }
+    if (!fastFinalAllowed(agreeing, results, ctx, cfg)) return { kind: "wait", reason: "settle delay" }
   }
 
   // Merge player stats: first source that has any wins; conflicting numbers send it to review.

@@ -9,7 +9,7 @@ name: Sports cron
 on:
   schedule:
     - cron: "*/15 * * * *" # publish (free exchange source) and lock due markets
-    - cron: "7,37 * * * *" # settle
+    - cron: "2-57/5 * * * *" # settle every 5 minutes (free results sources; metered ones stay inside their credit pace)
   workflow_dispatch:
     inputs:
       job:
@@ -40,7 +40,7 @@ jobs:
           [ "$code" = "200" ] || { echo "Expected HTTP 200, got $code" >&2; exit 1; }
 
   settle:
-    if: ${{ (github.event_name == 'schedule' && github.event.schedule == '7,37 * * * *' && vars.SPORTS_CRON_ENABLED == '1') || (github.event_name == 'workflow_dispatch' && inputs.job == 'settle') }}
+    if: ${{ (github.event_name == 'schedule' && github.event.schedule == '2-57/5 * * * *' && vars.SPORTS_CRON_ENABLED == '1') || (github.event_name == 'workflow_dispatch' && inputs.job == 'settle') }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

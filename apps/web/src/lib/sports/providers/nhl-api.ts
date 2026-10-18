@@ -56,6 +56,7 @@ export function normalizeNhlSchedule(board: NhlSchedule): EventResult[] {
         status,
         homeScore: final ? hs : null,
         awayScore: final ? as : null,
+        ...(final && ["FINAL", "OFF"].includes((g.gameState ?? "").toUpperCase()) ? { officialFinal: true } : {}),
       })
     }
   }

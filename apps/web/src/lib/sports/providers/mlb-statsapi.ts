@@ -58,6 +58,8 @@ export function normalizeMlbSchedule(board: MlbSchedule): EventResult[] {
         status,
         homeScore: final ? hs : null,
         awayScore: final ? as : null,
+        // "Completed early" is a shortened game: still graded, but not eligible for the fast path.
+        ...(final && /^(final|game over)/i.test(g.status?.detailedState ?? "") ? { officialFinal: true } : {}),
       })
     }
   }
