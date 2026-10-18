@@ -1197,3 +1197,8 @@
 .sp-gchart svg { display: block; width: 100%; height: 64px; overflow: visible; }
 .sp-gchart-pill { position: absolute; right: 0; display: grid; place-items: center; min-width: 38px; height: 18px; padding: 0 6px; border-radius: 999px; font: 700 11px/1 var(--fw-mono); font-variant-numeric: tabular-nums; }
 @media (prefers-reduced-motion: reduce) { .sp-gchart { animation: none; } }
+/* Slip card: odds chip text reads on the team colour (was inheriting the grey game-line colour); a parlay's team discs keep their stack. */
+.sp-slip-pick .sp-slip-odds, .sp-slip-pick .sp-slip-odds span { color: var(--tc-ink, #fff); margin-top: 0; font-family: var(--fw-mono); }
+.sp-slip-pick .pl-stack { display: inline-flex; margin-top: 0; }
+.sp-slip-pick .pl-stack-disc { display: grid; margin-top: 0; font-size: 11px; }
+.sp-slip-pick .pl-stack-disc:not(:first-child) { margin-left: -13px; }

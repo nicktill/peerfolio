@@ -18,7 +18,8 @@ export function SlipPickCard({ sport, side, player, mark, kicker, title, price, 
   mark?: React.ReactNode
   kicker: string
   title: string
-  price: number
+  /** Null hides the odds chip (a parlay that is not priced yet). */
+  price: number | null
   game: string
   color: string | null
 }) {
@@ -32,7 +33,7 @@ export function SlipPickCard({ sport, side, player, mark, kicker, title, price, 
           <small>{kicker}</small>
           <strong>{title}</strong>
         </div>
-        <span className="sp-slip-odds"><LiveNumber value={price} format={formatOdds} kind="price" chip={false} /></span>
+        {price != null ? <span className="sp-slip-odds"><LiveNumber value={price} format={formatOdds} kind="price" chip={false} /></span> : null}
       </div>
       <span className="sp-slip-game">{game}</span>
     </div>
