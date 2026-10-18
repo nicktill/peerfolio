@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Zap, X } from 'lucide-react'
 import { TeamBadge } from './team-badge'
+import { LiveNumber } from './live-delta'
+import { onColor } from '@web/lib/sports/teams'
 import { SheetHandle } from './sheet-handle'
 import { matchupColors } from '@web/lib/sports/matchup-colors'
 import { useLiveGame } from './live-game'
@@ -56,9 +58,8 @@ export function LivePickPanel({ leagueId, eventId, home, away, sport, credits, s
   const names: Record<LiveSelection, string> = { home, away, draw: 'Draw' }
   const order: LiveSelection[] = sport === 'mls' ? ['away', 'draw', 'home'] : ['away', 'home']
 
-  if (!view || !offer) {
-    return <div className="sp-live-pick" data-paused><p className="sp-fine" role="status"><Zap aria-hidden /> {view ? 'Live picks are paused until the live score and market price are fresh again.' : 'Checking live pick availability…'}</p></div>
-  }
+  // No fresh quote: the ticket stays exactly as it is and Lock greys out while the price reprices.
+  const repricing = !view || !offer
 
   async function lockIn() {
     if (!side || price == null || !valid || moved || phase === 'checking') return
@@ -94,24 +95,40 @@ export function LivePickPanel({ leagueId, eventId, home, away, sport, credits, s
   }
 
   const busy = phase === 'checking'
-  return <div className="sp-live-pick" aria-busy={busy || undefined}>
-    <div className="sp-live-pick-head"><b><Zap aria-hidden /> Live pick</b><span className="sp-fine">Up to {LIVE_PICK.maxPerEvent} per game</span></div>
-    {selectedSide == null ? <div className="sp-live-pick-sides" role="radiogroup" aria-label="Live pick side">
+  const hold = repricing || moved
+  const cap = max
+  const quick = [10, Math.round(cap / 4), Math.round(cap / 2), cap]
+  const problem = amount === 0 ? null : amount < 10 ? 'Minimum is $10' : amount > max ? (amount > credits ? 'Not enough cash' : `Maximum per live pick is ${formatCredits(max)}`) : null
+  const prices = offer?.prices
+  return <form className="sp-live-pick" aria-busy={busy || hold || undefined} onSubmit={e => { e.preventDefault(); void lockIn() }}>
+    {selectedSide == null && prices ? <div className="sp-live-pick-sides" role="radiogroup" aria-label="Live pick side">
       {order.map(s => {
-        const p = offer.prices[s]
+        const p = prices[s]
         return p == null ? null : <button key={s} type="button" role="radio" aria-checked={side === s} className="sp-live-pick-side" data-on={side === s || undefined} disabled={busy} onClick={() => setSide(s)}><span>{names[s]}</span><b className="numeric">{formatOdds(p)}</b></button>
       })}
     </div> : null}
     {moved ? <p className="sp-odds-moved" data-dir={dir} role="status" aria-live="polite"><Zap aria-hidden /> <span>Odds moved <b className="numeric">{formatOdds(selectedPrice!)}</b> → <b className="numeric">{formatOdds(currentPrice!)}</b>. Updating your ticket…</span></p> : null}
-    <div className="sp-live-pick-stake">
-      <label htmlFor={`lp-${eventId}`} className="sp-fine">Stake</label>
-      <input id={`lp-${eventId}`} className="fw-input numeric" inputMode="numeric" autoComplete="off" placeholder={`10 to ${max}`} value={stake} disabled={busy} onChange={e => setStake(e.target.value)} />
-      <button type="button" className="fw-btn" disabled={busy || max < 10} onClick={() => setStake(String(max))}>Max</button>
-      <span className="sp-fine numeric" data-dir={dir}>To win <b key={shownPrice ?? 0}>{formatCredits(toWin)}</b></span>
+    <div>
+      <label className="fw-label" htmlFor={`lp-${eventId}`}>Stake (play cash)</label>
+      <input id={`lp-${eventId}`} className="fw-input numeric" inputMode="numeric" autoComplete="off" placeholder={`${formatCredits(10)} to ${formatCredits(max)}`} value={stake} disabled={busy} aria-invalid={problem ? true : undefined} aria-describedby={`lp-hint-${eventId}`} onChange={e => setStake(e.target.value)} />
+      <p className="fw-hint" id={`lp-hint-${eventId}`} role={problem ? 'alert' : undefined}>
+        {problem ? <span className="fw-bad">{problem}</span> : <span>Max {formatCredits(max)} per live pick · up to {LIVE_PICK.maxPerEvent} per game</span>}
+      </p>
     </div>
-    <button type="button" className="fw-btn sp-live-pick-go" data-solid disabled={busy || !side || !valid || moved} aria-busy={moved || undefined} data-updating={moved || undefined} onClick={() => void lockIn()}>{busy ? `Checking… up to ${left}s` : moved ? 'Odds updating…' : 'Lock in live pick'}</button>
-    <p className="sp-fine" role="status" aria-live="polite">{busy ? 'We re-check the score and price for a few seconds (at most 9). If the game or the price moves, nothing is placed and no cash is taken.' : message || (demo ? 'Sample game · play cash only. Prices move like a real game.' : max < 10 ? 'Not enough cash for a live pick.' : `Stake 10 to ${formatCredits(max)}. Priced from the live market; locked when you confirm.`)}</p>
-  </div>
+    <div className="fw-quick">
+      {quick.map((v, i) => <button key={i} type="button" disabled={busy || v < 10 || max < 10} aria-label={i === 3 ? `Stake the maximum, ${formatCredits(cap)} cash` : `Stake ${formatCredits(v)} cash`} onClick={() => setStake(String(Math.max(v, 10)))}>{i === 3 ? 'Max' : formatCredits(v)}</button>)}
+    </div>
+    <div className="sp-slip-return" aria-live="polite" data-dir={dir}>
+      <span className="fw-label" style={{ margin: 0 }}>To win</span>
+      {amount > 0 && !problem && shownPrice != null ? <b key={shownPrice}>{formatCredits(toWin)}</b> : <span className="sp-slip-hint">Enter a stake</span>}
+    </div>
+    {message ? <p className="sp-slip-moved" role="alert">{message}</p> : null}
+    <button type="submit" className="fw-submit sp-live-pick-go" disabled={busy || hold || !side || !valid} aria-busy={busy || hold || undefined} data-updating={hold || undefined}>
+      {busy || hold ? <span className="spin" aria-hidden /> : null}
+      {busy ? `Checking… up to ${left}s` : repricing ? 'Repricing…' : moved ? 'Odds updating…' : 'Lock in live pick'}
+    </button>
+    <p className="sp-fine" role="status" aria-live="polite">{busy ? 'We re-check the score and price for a few seconds (at most 9). If the game or the price moves, nothing is placed and no cash is taken.' : repricing ? 'Waiting for a fresh score and price. Lock turns back on as soon as the market is steady.' : demo ? 'Sample game · play cash only. Prices move like a real game.' : 'Play money only, nothing real is at stake. Priced from the live market and locked when you confirm.'}</p>
+  </form>
 }
 
 
@@ -120,13 +137,15 @@ export function LivePickSlip({ selection, onClear, onMinimize, onAcceptPrice, on
   const name = selection.side === 'draw' ? 'Draw' : selection.side === 'home' ? selection.home : selection.away
   const colors = matchupColors(selection.sport, selection.away, selection.home)
   const color = selection.side === 'home' ? colors[1] : selection.side === 'away' ? colors[0] : '#64748b'
-  return <section className="fw-panel fw-trade sp-slip sp-sheet sp-live-slip" data-open="" data-themed="" style={{ '--tc': color } as React.CSSProperties} aria-labelledby="sp-live-slip-title" aria-busy={busy || undefined}>
+  return <section className="fw-panel fw-trade sp-slip sp-sheet sp-live-slip" data-open="" data-themed="" style={{ '--tc': color, '--tc-ink': onColor(color) } as React.CSSProperties} aria-labelledby="sp-live-slip-title" aria-busy={busy || undefined}>
     {onMinimize ? <SheetHandle onMinimize={onMinimize} disabled={busy} /> : null}
     <div className="fw-section-head"><h2 id="sp-live-slip-title">Pick slip</h2><button type="button" className="sp-clear" aria-label="Clear live pick slip" disabled={busy} onClick={onClear}><X aria-hidden />Clear</button></div>
     <div className="sp-slip-pick"><div className="sp-slip-top" data-accent={color}>
-      {selection.side !== 'draw' ? <TeamBadge sport={selection.sport} name={name} size={44} /> : null}
-      <div><small>Live · Winner</small><strong>{name}</strong></div><span className="pl-odds">{formatOdds(selection.price)}</span>
-    </div><span className="sp-slip-game">{selection.away} @ {selection.home} · price checked before acceptance</span></div>
+      {selection.side !== 'draw' && selection.sport !== 'tennis' ? <span className="sp-slip-watermark" aria-hidden><TeamBadge sport={selection.sport} name={name} size={144} /></span> : null}
+      {selection.side !== 'draw' ? <TeamBadge sport={selection.sport} name={name} size={48} /> : <span className="sp-slip-sport">Draw</span>}
+      <div><small>Live · Winner</small><strong>{name}</strong></div>
+      <span className="sp-slip-odds"><LiveNumber value={selection.price} format={formatOdds} kind="price" chip={false} /></span>
+    </div><span className="sp-slip-game">{selection.away} @ {selection.home} · live price, re-checked before it locks</span></div>
     <LivePickPanel {...props} eventId={selection.eventId} home={selection.home} away={selection.away} sport={selection.sport} selectedSide={selection.side} selectedPrice={selection.price} onAcceptPrice={onAcceptPrice} onBusyChange={onBusyChange} />
   </section>
 }
