@@ -5,7 +5,7 @@ import type { BookQuote, EventRef, EventResult, OddsProvider, OddsSnapshot, Prov
  * service: the response shapes below follow the public v4 docs as remembered,
  * and no provider site was reachable while this was written. The pure
  * `normalize*` functions are covered by fixture tests; confirm against a real
- * key before enabling (see docs/sports/STATUS.md).
+ * key before enabling.
  *
  * The key comes from THE_ODDS_API_KEY and is only ever sent as a query
  * parameter to the provider; it is never logged or returned to clients.
