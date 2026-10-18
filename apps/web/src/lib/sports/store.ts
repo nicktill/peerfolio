@@ -451,7 +451,14 @@ export async function openRisk(tx: Conn, memberId: string): Promise<{ count: num
   return { count: (singles?.n ?? 0) + (parlays?.n ?? 0), stake: (singles?.stake ?? 0) + (parlays?.stake ?? 0) }
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+/** A malformed id from a URL is "not found", not a database error. */
+export function assertLeagueId(leagueId: string) {
+  if (!UUID.test(leagueId)) throw new SportsError("League not found", 404)
+}
+
 export async function placeSportsPick(db: Db, userId: string, leagueId: string, req: PickRequest & { requestId: string }, now?: Date) {
+  assertLeagueId(leagueId)
   const result = await withDeadlockRetry(() => placeOnce(db, userId, leagueId, req, now))
   // One summary per placement. Ids and money only: no names, no tokens.
   emit("info", result.replayed ? "sports.pick_replayed" : "sports.pick_placed", {
@@ -637,6 +644,7 @@ async function loadParlayRows(conn: Conn, where: SQL, limit: number, lockedAt?: 
  * returns the original parlay.
  */
 export async function placeSportsParlay(db: Db, userId: string, leagueId: string, req: ParlayRequest & { requestId: string }, now?: Date) {
+  assertLeagueId(leagueId)
   const result = await withDeadlockRetry(() => placeParlayOnce(db, userId, leagueId, req, now))
   emit("info", result.replayed ? "sports.parlay_replayed" : "sports.parlay_placed", {
     parlayId: result.parlay.id,

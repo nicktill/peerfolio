@@ -91,6 +91,8 @@ if (prop) {
 assert.equal(await cash(U[2]!), 1000, "rejections do not debit")
 await checkInvariant("after parlay placement")
 
+assert.match((await fails(placeSportsParlay(db, U[0]!.id, "not-a-uuid", { stake: 20, requestId: "abcdefgh", legs: [leg(ML(0, "home")), leg(ML(1, "home"))] }, now)))!, /not found/i, "malformed league id is a 404")
+
 // ---- B. parlays that will win / lose / push / void ----
 const pc = await parlay(U[2]!, [leg(ML(0, "home")), leg(ML(2, "home"))], 20)   // E3 ties -> push, drops
 const pd = await parlay(U[3]!, [leg(ML(4, "home")), leg(ML(5, "home"))], 20)   // both voided -> refund
