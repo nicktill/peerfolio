@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server"
 import { eq, sql } from "drizzle-orm"
 import { db, leagueMembers, leagues } from "@web/db"
+import { enforceRateLimit } from "@web/lib/rate-limit-guard"
 import { ApiError, readJson, withUser } from "@web/lib/api"
 
 export const POST = withUser<unknown>(async (userId, request) => {
+  await enforceRateLimit("leagueJoin", userId)
   const { code } = await readJson<{ code?: string }>(request)
   if (!code?.trim()) throw new ApiError("Enter an invite code")
 

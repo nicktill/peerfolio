@@ -142,7 +142,7 @@ describe("join limiter and collusion report (should-fix)", () => {
     assert.notEqual(bucketOf(new Date(0), w), bucketOf(new Date(w), w))
     assert.equal(withinLimit(LIMITS.join.max, LIMITS.join.max), true)
     assert.equal(withinLimit(LIMITS.join.max + 1, LIMITS.join.max), false)
-    assert.deepEqual(Object.keys(LIMITS).sort(), ["create", "join", "pick"])
+    for (const name of ["create", "join", "pick"] as const) assert.ok(LIMITS[name].max > 0)
   })
   it("finds members who keep taking opposite sides", () => {
     const picks = ["m1", "m2", "m3"].flatMap((m) => [

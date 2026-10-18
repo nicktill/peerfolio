@@ -1,8 +1,7 @@
-import { decodeProtectedHeader } from "jose"
 import { getPlaidClient } from "@web/lib/plaid"
 import { verificationProfiles, type PlaidProfile } from "@web/lib/plaid-profile"
 
-import { createKeyResolver, MAX_KEY_ID_LENGTH, verifySignedWebhook, type PlaidJWK } from "@web/lib/plaid-webhook-core"
+import { createKeyResolver, verifySignedWebhook, webhookKeyId, type PlaidJWK } from "@web/lib/plaid-webhook-core"
 const resolveKey = createKeyResolver({
   profiles: () => verificationProfiles(process.env),
   fetchKey: async (profile, kid) => {
@@ -22,14 +21,8 @@ const resolveKey = createKeyResolver({
 export async function verifyPlaidWebhook(rawBody: string, token: string | null): Promise<boolean> {
   if (!token) return false
 
-  let kid: string
-  try {
-    const header = decodeProtectedHeader(token)
-    if (header.alg !== "ES256" || !header.kid || header.kid.length > MAX_KEY_ID_LENGTH) return false
-    kid = header.kid
-  } catch {
-    return false
-  }
+  const kid = webhookKeyId(token)
+  if (!kid) return false
 
   const jwk = await resolveKey(kid)
   return jwk ? verifySignedWebhook(rawBody, token, jwk) : false

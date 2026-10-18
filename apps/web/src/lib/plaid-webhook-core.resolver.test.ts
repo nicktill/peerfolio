@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { createKeyResolver, MAX_KEY_ID_LENGTH, type PlaidJWK } from "./plaid-webhook-core.ts"
+import { createKeyResolver, MAX_KEY_ID_LENGTH, MAX_WEBHOOK_TOKEN_LENGTH, webhookKeyId, type PlaidJWK } from "./plaid-webhook-core.ts"
 
 const jwk = { kty: "EC", crv: "P-256", x: "x", y: "y" } as PlaidJWK
 
@@ -19,6 +19,24 @@ function harness(profiles: string[], knows: Record<string, string[]>, start = 1_
   })
   return { resolve, calls, advance: (ms: number) => { now += ms } }
 }
+
+describe("webhook token pre-check", () => {
+  const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64url")
+  const token = (header: unknown) => `${b64(header)}.${b64({})}.sig`
+  it("accepts an ES256 token with a short kid", () => {
+    assert.equal(webhookKeyId(token({ alg: "ES256", kid: "abc" })), "abc")
+  })
+  it("rejects malformed, oversize, non-ES256 and kid-less tokens", () => {
+    assert.equal(webhookKeyId("not-a-jwt"), null)
+    assert.equal(webhookKeyId("a.b"), null)
+    assert.equal(webhookKeyId("!!!.b.c"), null)
+    assert.equal(webhookKeyId(token({ alg: "HS256", kid: "abc" })), null)
+    assert.equal(webhookKeyId(token({ alg: "none", kid: "abc" })), null)
+    assert.equal(webhookKeyId(token({ alg: "ES256" })), null)
+    assert.equal(webhookKeyId(token({ alg: "ES256", kid: "k".repeat(MAX_KEY_ID_LENGTH + 1) })), null)
+    assert.equal(webhookKeyId(`${b64({ alg: "ES256", kid: "abc" })}.${"x".repeat(MAX_WEBHOOK_TOKEN_LENGTH)}.sig`), null)
+  })
+})
 
 describe("webhook key resolution", () => {
   it("tries the sandbox profile first outside production", async () => {
@@ -42,6 +60,9 @@ describe("webhook key resolution", () => {
     assert.equal(h.calls.length, 2)
     for (let i = 0; i < 5; i++) assert.equal(await h.resolve("nope"), null)
     assert.equal(h.calls.length, 2)
+    h.advance(4 * 60_000)
+    await h.resolve("nope")
+    assert.equal(h.calls.length, 2) // still negative-cached inside five minutes
     h.advance(61_000)
     await h.resolve("nope")
     assert.equal(h.calls.length, 4)

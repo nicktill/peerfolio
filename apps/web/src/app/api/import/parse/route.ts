@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { ApiError, readJson, withUser } from "@web/lib/api"
+import { db } from "@web/db"
+import { takeRateLimit } from "@web/lib/sports/store"
 import OpenAI from "openai"
 import { IMAGE_TYPES, ImportAiError, parseWithAi } from "@web/lib/import-ai"
 import { parseHoldingsText } from "@web/lib/import-parse"
@@ -14,18 +16,6 @@ const Body = z
     image: z.object({ mediaType: z.enum(IMAGE_TYPES), data: z.string().min(100).max(5_600_000).regex(/^[A-Za-z0-9+/=]+$/) }).optional(),
   })
   .refine((b) => b.image || b.text.trim().length >= 3, { message: "Paste something first" })
-
-/** Reads by the AI cost money, so each person gets a modest number an hour. */
-const AI_READS_PER_HOUR = 12
-const aiReads = new Map<string, number[]>()
-
-function takeAiRead(userId: string) {
-  const now = Date.now()
-  const recent = (aiReads.get(userId) ?? []).filter((t) => now - t < 3_600_000)
-  if (recent.length >= AI_READS_PER_HOUR) return false
-  aiReads.set(userId, [...recent, now])
-  return true
-}
 
 /**
  * Turns pasted or uploaded holdings into a preview. Nothing is saved here.
@@ -44,7 +34,8 @@ export const POST = withUser<unknown>(async (userId, request) => {
     if (parsed.data.image) throw new ApiError("Reading screenshots isn't switched on yet. Paste the text of your positions instead.", 422)
     throw new ApiError("We couldn't read that as a table. Upload a CSV from your brokerage, or type one holding per line, like AAPL 10 @ 150.", 422)
   }
-  if (!takeAiRead(userId)) throw new ApiError("That's a lot of imports for one hour. Try again a bit later, or upload a CSV.", 429)
+  // AI reads cost money, so each person gets a modest number an hour (LIMITS.importAi).
+  if (!(await takeRateLimit(db, "importAi", userId))) throw new ApiError("That's a lot of imports for one hour. Try again a bit later, or upload a CSV.", 429)
 
   try {
     const outcome = await parseWithAi(parsed.data.text, { client: new OpenAI({ apiKey, maxRetries: 0, timeout: 45_000 }), image: parsed.data.image })

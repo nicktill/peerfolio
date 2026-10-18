@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { ApiError, readJson, withUser } from "@web/lib/api"
+import { enforceRateLimit } from "@web/lib/rate-limit-guard"
 import { placeTrade, requireFantasyMember } from "@web/lib/fantasy"
 import { saveOrderNote, saveTradeNote } from "@web/lib/fantasy-notes"
 
@@ -25,6 +26,7 @@ const Trade = z.discriminatedUnion("side", [
 
 export const POST = withUser<Ctx>(async (userId, request, { params }) => {
   const { id } = await params
+  await enforceRateLimit("trade", userId)
   const parsed = Trade.safeParse(await readJson(request))
   if (!parsed.success) throw new ApiError(parsed.error.issues[0]?.message ?? "Invalid trade")
   const { note, ...order } = parsed.data

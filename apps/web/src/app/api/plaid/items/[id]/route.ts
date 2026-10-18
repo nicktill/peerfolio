@@ -5,6 +5,8 @@ import { disconnectItem } from "@web/lib/plaid-disconnect"
 import { syncItem } from "@web/lib/plaid-sync"
 import { ApiError, withUser } from "@web/lib/api"
 
+import { enforceSyncLimit } from "@web/lib/rate-limit-guard"
+
 export const maxDuration = 120
 
 type Ctx = { params: Promise<{ id: string }> }
@@ -21,6 +23,7 @@ async function requireOwnedItem(userId: string, id: string) {
 export const POST = withUser<Ctx>(async (userId, _request, { params }) => {
   const { id } = await params
   await requireOwnedItem(userId, id)
+  await enforceSyncLimit(userId)
 
   const result = await syncItem(id)
 
