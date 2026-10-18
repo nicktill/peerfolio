@@ -245,7 +245,8 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
   })
   const liveGames = scoreGames.filter(g => (sport === "all" || g.sport === sport) && matchesSearch(query, [g.home, g.away], g.sport))
   const searching = query.trim().length > 0
-  const scoresFailed = !!scores.error || (scores.data?.failedSports ?? []).some(s => sport === "all" || s === sport)
+  // A failed refresh keeps the last good list; useApi clears `error` at the start of each poll, so only a load with nothing to show counts, or the notice would blink in and out.
+  const scoresFailed = (!scores.data && !!scores.error) || (scores.data?.failedSports ?? []).some(s => sport === "all" || s === sport)
 
   return (
     <div className="fw fw-play-space" data-play-world="sports" data-accent={league.accent}>
@@ -315,7 +316,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
               const matching = shown.filter((market) => scoreboardMatch(market.event, [game]))
               if (!matching.length) return null
               return <GameCard game={{ key: `${game.sport}:${game.id}`, event: matching[0]!.event, markets: matching }} selected={parlay.mode === "parlay" ? null : current} onSelect={(market, line) => { if (livePending) return; setLiveSelected(null); parlay.mode === "parlay" ? parlay.toggle(market, line) : setSelected({ market, line }) }} disabled={ended || livePending} now={now} />
-            }} onShowUpcoming={() => setView("upcoming")} query={searching ? query.trim() : undefined} enableAdminTest={id !== "sample"} livePick={{ leagueId: league.id, liveBetting: id === "sample" || league.liveBetting, mode: parlay.mode, selected: liveSelected, busy: livePending, onSelect: (selection) => { if (livePending || ended) return; setSelected(null); setLiveSelected(selection); parlay.setMode("single") }, credits: data.you.credits, startingCredits: league.startingCredits, maxStakePct: league.maxStakePct ?? 10, onPlaced: () => void onPickPlaced() }} games={liveGames} tracked={data.liveEvents ?? []} now={now} loading={scores.loading} failed={scoresFailed} /></ParlayIdsContext.Provider>}
+            }} onShowUpcoming={() => setView("upcoming")} query={searching ? query.trim() : undefined} enableAdminTest={id !== "sample"} livePick={{ leagueId: league.id, liveBetting: id === "sample" || league.liveBetting, mode: parlay.mode, selected: liveSelected, busy: livePending, onSelect: (selection) => { if (livePending || ended) return; setSelected(null); setLiveSelected(selection); parlay.setMode("single") }, credits: data.you.credits, startingCredits: league.startingCredits, maxStakePct: league.maxStakePct ?? 10, onPlaced: () => void onPickPlaced() }} games={liveGames} tracked={data.liveEvents ?? []} now={now} loading={scores.loading && !scores.data} failed={scoresFailed} /></ParlayIdsContext.Provider>}
           </section>
 
           <section className="fw-panel reveal" style={revealStyle(3)} aria-labelledby="sp-standings-title">

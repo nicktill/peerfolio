@@ -71,10 +71,14 @@ function LiveCard({ g, now, tracked, enableAdminTest, livePick }: { g: ScoreGame
   const split = exchange ?? est
   let offer: TestOffer | null = null
   try { if (view && fresh) { const aged = ageView(view, elapsedMs); offer = testOffer(aged, Date.parse(aged.serverTime)) } } catch { /* stale quotes never become selectable lines */ }
+  // Three-way sports keep the Draw row even while a quote is briefly missing, so the card does not grow and shrink.
+  const drawPrice = offer?.prices.draw ?? null
+  const hasDraw = drawPrice != null || split?.draw != null
   const selectable = !!tracked && !!livePick?.liveBetting && livePick.mode !== 'parlay'
 
   return <article className="sp-game sp-live-card" data-matchup style={{ '--away-color': colors[0], '--home-color': colors[1] } as React.CSSProperties}>
     <CardHead g={g} chip={<GameStatusChip input={statusInput} now={now} />} />
+    {!split && tracked ? <div className="sp-odds-bar" data-empty aria-hidden><div className="sp-odds-track" /><div className="sp-odds-labels"><span>&nbsp;</span></div></div> : null}
     {split ? <div className="sp-odds-bar" role="img" aria-label={`Win probability: ${g.away} ${split.away} percent, ${split.draw != null ? `draw ${split.draw} percent, ` : ''}${g.home} ${split.home} percent`}>
       <div className="sp-odds-track">
         <i style={{ width: `${split.away}%`, background: colors[0] }} />
@@ -88,16 +92,18 @@ function LiveCard({ g, now, tracked, enableAdminTest, livePick }: { g: ScoreGame
       </div>
     </div> : null}
     <TeamRows g={g} showScore trendId={fresh ? tracked?.id : undefined} trendLive={ex ? ex.homeProb : null} offer={selectable ? offer : null} livePick={selectable ? livePick : undefined} eventId={tracked?.id} />
-    {selectable && offer?.prices.draw != null ? <button type="button" className="sp-line sp-live-draw" aria-label={`Live pick Draw, ${formatOdds(offer.prices.draw)}`} aria-pressed={livePick?.selected?.eventId === tracked!.id && livePick.selected.side === 'draw'} disabled={livePick?.busy} onClick={() => livePick!.onSelect({ eventId: tracked!.id, home: g.home, away: g.away, sport: g.sport, side: 'draw', price: offer!.prices.draw! })}><span>Draw</span><b>{formatOdds(offer.prices.draw)}</b></button> : null}
+    {selectable && hasDraw ? <button type="button" className="sp-line sp-live-draw" aria-label={drawPrice != null ? `Live pick Draw, ${formatOdds(drawPrice)}` : 'Draw, price unavailable'} aria-pressed={livePick?.selected?.eventId === tracked!.id && livePick.selected.side === 'draw'} disabled={livePick?.busy || drawPrice == null} onClick={drawPrice != null ? () => livePick!.onSelect({ eventId: tracked!.id, home: g.home, away: g.away, sport: g.sport, side: 'draw', price: drawPrice }) : undefined}><span>Draw</span><b>{drawPrice != null ? formatOdds(drawPrice) : '\u2013'}</b></button> : null}
     <div className="sp-live-footer"><span>{fresh ? (updated < 30 ? 'Updated just now' : `Updated ${updated}s ago`) : 'Last reported score · updates delayed'}</span><span><Lock aria-hidden />Pregame picks locked</span></div>
     {tracked && enableAdminTest && !livePick?.liveBetting ? <AdminLiveTestPanel eventId={tracked.id} home={g.home} away={g.away} /> : null}
   </article>
 }
 
 export function ScoreboardGames({ games, tracked, now, loading, failed, enableAdminTest = false, livePick, query, onShowUpcoming, renderUpcoming }: { query?: string; onShowUpcoming?: () => void; renderUpcoming?: (game: ScoreGame) => React.ReactNode; games: ScoreGame[]; tracked: Tracked[]; now: number; loading: boolean; failed: boolean; enableAdminTest?: boolean; livePick?: LivePickConfig }) {
-  const live = games.filter(g => g.status === 'live')
+  // Same order on every poll, whatever order the feed returns games in, so cards never swap places.
+  const byStart = (x: ScoreGame, y: ScoreGame) => Date.parse(x.startsAt) - Date.parse(y.startsAt) || `${x.sport}:${x.id}`.localeCompare(`${y.sport}:${y.id}`)
+  const live = games.filter(g => g.status === 'live').sort(byStart)
   // Quiet right now: show what is coming up in the next few days instead of an empty panel.
-  const upcoming = games.filter(g => g.status === 'upcoming' && Date.parse(g.startsAt) > now).slice(0, UPCOMING_LIMIT)
+  const upcoming = games.filter(g => g.status === 'upcoming' && Date.parse(g.startsAt) > now).sort(byStart).slice(0, UPCOMING_LIMIT)
   if (loading && !games.length) return <p className="fw-empty" role="status">Loading live games…</p>
   if (!live.length && !upcoming.length && query) return <p className="fw-empty" role="status">No games match &ldquo;{query}&rdquo;</p>
   if (!live.length && !upcoming.length) return <p className="fw-empty" role="status">{failed ? 'Live scores are temporarily unavailable. Please try again shortly.' : 'No games scheduled in the next few days for this sport.'}</p>
