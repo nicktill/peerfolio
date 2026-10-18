@@ -32,6 +32,38 @@ test('three-way draw is priced using existing margin and preserved as a selectio
   assert.doesNotThrow(() => validateTestRequest(offer, 'draw', 10, offer.prices.draw!))
 })
 
+test('live longshots remain playable in two-way and three-way markets', () => {
+  for (const chance of [0.07, 0.01, 0.001, 0.000001]) {
+    for (const home of [chance, 1 - chance]) {
+      const v = view()
+      if (v.odds.status !== 'ok') throw new Error('fixture')
+      v.odds = { ...v.odds, homeProb: home, awayProb: 1 - home }
+      const offer = testOffer(v, NOW)
+      for (const selection of ['home', 'away'] as const) {
+        const p = offer.prices[selection]!
+        assert.ok(Number.isFinite(p) && Number.isInteger(p) && Math.abs(p) >= 100)
+        assert.doesNotThrow(() => validateTestRequest(offer, selection, 10, p))
+      }
+    }
+    const v = view()
+    if (v.odds.status !== 'ok') throw new Error('fixture')
+    v.odds = { ...v.odds, homeProb: 1 - chance, drawProb: chance / 2, awayProb: chance / 2 }
+    const offer = testOffer(v, NOW)
+    for (const selection of ['home', 'draw', 'away'] as const) {
+      const p = offer.prices[selection]!
+      assert.ok(Number.isFinite(p) && Number.isInteger(p) && Math.abs(p) >= 100)
+      assert.doesNotThrow(() => validateTestRequest(offer, selection, 10, p))
+    }
+  }
+})
+
+test('a longshot quote still needs fresh, agreeing exchange data', () => {
+  const v = view()
+  if (v.odds.status !== 'ok') throw new Error('fixture')
+  v.odds = { ...v.odds, homeProb: 0.07, awayProb: 0.93, asOf: new Date(NOW - 16_000).toISOString() }
+  assert.throws(() => testOffer(v, NOW), /fresh, agreeing/)
+})
+
 test('source, score, period and probability changes suspend a test; normal clock progress does not', () => {
   const before = testOffer(view(), NOW)
   for (const change of [{ source: 'kalshi' as const }, { homeScore: 3 }, { awayScore: 2 }, { period: 'P3' }, { homeProb: 0.7, awayProb: 0.3 }, { eventId: 'other' }]) assert.throws(() => compareTestOffers(before, { ...before, ...change }))

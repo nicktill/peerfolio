@@ -11,6 +11,8 @@ import type { LiveSelection } from './live/types.ts'
 export const LIVE_PICK = {
   /** Largest live stake, as a percent of starting cash (never above the league's own pick limit). */
   maxStakePct: 5,
+  /** Longshots may win more than starting cash; stake limits bound the amount at risk. */
+  maxReturnPctOfStart: Infinity,
   /** Live picks one member may hold on one game. */
   maxPerEvent: 2,
   /** Minimum gap between a member's live picks, across all games. */

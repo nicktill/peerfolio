@@ -64,13 +64,13 @@ export const DEFAULT_THREEWAY_PRICING: ThreeWayPricing = { margin: HOUSE_MARGIN,
 
 const rawAmerican = (prob: number): number => (prob >= 0.5 ? -(prob / (1 - prob)) * 100 : ((1 - prob) / prob) * 100)
 
-/** American prices [home, draw, away], each at fair + margin/3 implied, rounded against the player. Null if invalid or lopsided. */
+/** American prices [home, draw, away], rounded against the player. Extreme live favourites taper the margin below margin/3. */
 export function priceThreeWay(fair: Triple, cfg: ThreeWayPricing = DEFAULT_THREEWAY_PRICING): Triple | null {
   if (!fair.every((p) => Number.isFinite(p) && p > 0 && p < 1)) return null
   if (Math.abs(sum3(fair) - 1) > 1e-6) return null
   if (fair.some((p) => p < cfg.minFairProb)) return null
-  const share = cfg.margin / 3
-  const out = fair.map((p) => tidyAgainstPlayer(rawAmerican(p + share)))
+  const share = Math.min(cfg.margin / 3, (1 - Math.max(...fair)) / 2)
+  const out = fair.map((p) => tidyAgainstPlayer(rawAmerican(p + share < 1 ? p + share : p)))
   if (out.some((x) => !Number.isFinite(x) || (x > -100 && x < 100))) return null
   return out as Triple
 }
