@@ -1,0 +1,448 @@
+{
+ "source": "ESPN summary 401872984 (Texans at Titans, final, 2026-10-11), passing/rushing/receiving categories only",
+ "boxscore": {
+  "players": [
+   {
+    "team": {
+     "displayName": "Houston Texans"
+    },
+    "statistics": [
+     {
+      "name": "passing",
+      "keys": [
+       "completions/passingAttempts",
+       "passingYards",
+       "yardsPerPassAttempt",
+       "passingTouchdowns",
+       "interceptions",
+       "sacks-sackYardsLost",
+       "adjQBR",
+       "QBRating"
+      ],
+      "athletes": [
+       {
+        "athlete": {
+         "displayName": "C.J. Stroud"
+        },
+        "stats": [
+         "26/34",
+         "261",
+         "7.7",
+         "1",
+         "0",
+         "2-11",
+         "62.6",
+         "107.6"
+        ]
+       }
+      ]
+     },
+     {
+      "name": "rushing",
+      "keys": [
+       "rushingAttempts",
+       "rushingYards",
+       "yardsPerRushAttempt",
+       "rushingTouchdowns",
+       "longRushing"
+      ],
+      "athletes": [
+       {
+        "athlete": {
+         "displayName": "Woody Marks"
+        },
+        "stats": [
+         "15",
+         "62",
+         "4.1",
+         "0",
+         "12"
+        ]
+       },
+       {
+        "athlete": {
+         "displayName": "David Montgomery"
+        },
+        "stats": [
+         "5",
+         "11",
+         "2.2",
+         "0",
+         "5"
+        ]
+       },
+       {
+        "athlete": {
+         "displayName": "C.J. Stroud"
+        },
+        "stats": [
+         "6",
+         "5",
+         "0.8",
+         "1",
+         "2"
+        ]
+       },
+       {
+        "athlete": {
+         "displayName": "Jaylin Noel"
+        },
+        "stats": [
+         "1",
+         "1",
+         "1.0",
+         "0",
+         "1"
+        ]
+       }
+      ]
+     },
+     {
+      "name": "receiving",
+      "keys": [
+       "receptions",
+       "receivingYards",
+       "yardsPerReception",
+       "receivingTouchdowns",
+       "longReception",
+       "receivingTargets"
+      ],
+      "athletes": [
+       {
+        "athlete": {
+         "displayName": "Xavier Hutchinson"
+        },
+        "stats": [
+         "4",
+         "65",
+         "16.3",
+         "0",
+         "18",
+         "5"
+        ]
+       },
+       {
+        "athlete": {
+         "displayName": "Nico Collins"
+        },
+        "stats": [
+         "5",
+         "56",
+         "11.2",
+         "0",
+         "20",
+         "7"
+        ]
+       },
+       {
+        "athlete": {
+         "displayName": "Jaylin Noel"
+        },
+        "stats": [
+         "5",
+         "41",
+         "8.2",
+         "1",
+         "13",
+         "5"
+        ]
+       },
+       {
+        "athlete": {
+         "displayName": "Kayshon Boutte"
+        },
+        "stats": [
+         "3",
+         "38",
+         "12.7",
+         "0",
+         "23",
+         "5"
+        ]
+       },
+       {
+        "athlete": {
+         "displayName": "Dalton Schultz"
+        },
+        "stats": [
+         "3",
+         "30",
+         "10.0",
+         "0",
+         "14",
+         "4"
+        ]
+       },
+       {
+        "athlete": {
+         "displayName": "Woody Marks"
+        },
+        "stats": [
+         "4",
+         "23",
+         "5.8",
+         "0",
+         "11",
+         "4"
+        ]
+       },
+       {
+        "athlete": {
+         "displayName": "Foster Moreau"
+        },
+        "stats": [
+         "2",
+         "8",
+         "4.0",
+         "0",
+         "7",
+         "3"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "team": {
+     "displayName": "Tennessee Titans"
+    },
+    "statistics": [
+     {
+      "name": "passing",
+      "keys": [
+       "completions/passingAttempts",
+       "passingYards",
+       "yardsPerPassAttempt",
+       "passingTouchdowns",
+       "interceptions",
+       "sacks-sackYardsLost",
+       "adjQBR",
+       "QBRating"
+      ],
+      "athletes": [
+       {
+        "athlete": {
+         "displayName": "Cam Ward"
+        },
+        "stats": [
+         "23/36",
+         "170",
+         "4.7",
+         "0",
+         "1",
+         "4-40",
+         "15.3",
+         "63.4"
+        ]
+       }
+      ]
+     },
+     {
+      "name": "rushing",
+      "keys": [
+       "rushingAttempts",
+       "rushingYards",
+       "yardsPerRushAttempt",
+       "rushingTouchdowns",
+       "longRushing"
+      ],
+      "athletes": [
+       {
+        "athlete": {
+         "displayName": "Tony Pollard"
+        },
+        "stats": [
+         "14",
+         "52",
+         "3.7",
+         "0",
+         "14"
+        ]
+       },
+       {
+        "athlete": {
+         "displayName": "Kalel Mullings"
+        },
+        "stats": [
+         "1",
+         "3",
+         "3.0",
+         "0",
+         "3"
+        ]
+       },
+       {
+        "athlete": {
+         "displayName": "Cam Ward"
+        },
+        "stats": [
+         "1",
+         "2",
+         "2.0",
+         "0",
+         "2"
+        ]
+       },
+       {
+        "athlete": {
+         "displayName": "Tyjae Spears"
+        },
+        "stats": [
+         "2",
+         "0",
+         "0.0",
+         "0",
+         "3"
+        ]
+       }
+      ]
+     },
+     {
+      "name": "receiving",
+      "keys": [
+       "receptions",
+       "receivingYards",
+       "yardsPerReception",
+       "receivingTouchdowns",
+       "longReception",
+       "receivingTargets"
+      ],
+      "athletes": [
+       {
+        "athlete": {
+         "displayName": "Wan'Dale Robinson"
+        },
+        "stats": [
+         "6",
+         "53",
+         "8.8",
+         "0",
+         "17",
+         "7"
+        ]
+       },
+       {
+        "athlete": {
+         "displayName": "Calvin Ridley"
+        },
+        "stats": [
+         "2",
+         "33",
+         "16.5",
+         "0",
+         "23",
+         "3"
+        ]
+       },
+       {
+        "athlete": {
+         "displayName": "Chimere Dike"
+        },
+        "stats": [
+         "3",
+         "28",
+         "9.3",
+         "0",
+         "13",
+         "4"
+        ]
+       },
+       {
+        "athlete": {
+         "displayName": "Tyjae Spears"
+        },
+        "stats": [
+         "9",
+         "28",
+         "3.1",
+         "0",
+         "12",
+         "9"
+        ]
+       },
+       {
+        "athlete": {
+         "displayName": "Elic Ayomanor"
+        },
+        "stats": [
+         "1",
+         "17",
+         "17.0",
+         "0",
+         "17",
+         "2"
+        ]
+       },
+       {
+        "athlete": {
+         "displayName": "Carnell Tate"
+        },
+        "stats": [
+         "1",
+         "6",
+         "6.0",
+         "0",
+         "6",
+         "5"
+        ]
+       },
+       {
+        "athlete": {
+         "displayName": "Daniel Bellinger"
+        },
+        "stats": [
+         "1",
+         "5",
+         "5.0",
+         "0",
+         "5",
+         "2"
+        ]
+       },
+       {
+        "athlete": {
+         "displayName": "Tony Pollard"
+        },
+        "stats": [
+         "0",
+         "0",
+         "0.0",
+         "0",
+         "0",
+         "1"
+        ]
+       },
+       {
+        "athlete": {
+         "displayName": "Kylen Granson"
+        },
+        "stats": [
+         "0",
+         "0",
+         "0.0",
+         "0",
+         "0",
+         "1"
+        ]
+       },
+       {
+        "athlete": {
+         "displayName": "Gunnar Helm"
+        },
+        "stats": [
+         "0",
+         "0",
+         "0.0",
+         "0",
+         "0",
+         "1"
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ }
+}

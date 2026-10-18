@@ -43,6 +43,11 @@ export const EXCHANGE_ODDS = {
   /** Gamma-level preselection only (the real gates run on CLOB books). */
   minLiquidity: 500,
   coarseSpread: 0.1,
+  /** Props: Gamma-level preselection only (the real gates run on CLOB books). */
+  propCoarseSpread: 0.08,
+  propMinLiquidity: 100,
+  /** Most prop books read per game; the deepest by Gamma liquidity. */
+  propsPerGame: 60,
   /** A spread/total line is only offered while its probability is within 0.5 +- this. */
   mainLineBand: 0.25,
   /** Candidate lines per kind whose books are fetched (the first that passes the gates is used). */
@@ -70,6 +75,38 @@ export type PmMarket = {
   updatedAt: Date | null
 }
 
+/**
+ * Player over/under props we publish: exchange `sportsMarketType` -> our stat key (the Odds API key names, so the UI labels and the
+ * settlement stat extraction in providers/espn.ts share them) and the stat name in the market question. Only stats the ESPN box score
+ * reports exactly are listed; anything else (anytime / first touchdown, goalscorers, threes, longest reception) is deliberately absent.
+ */
+export const PROP_STATS: Partial<Record<Sport, Record<string, { statKey: string; label: string }>>> = {
+  nba: {
+    points: { statKey: "player_points", label: "Points" },
+    rebounds: { statKey: "player_rebounds", label: "Rebounds" },
+    assists: { statKey: "player_assists", label: "Assists" },
+  },
+  nfl: {
+    passing_yards: { statKey: "player_pass_yds", label: "Passing Yards" },
+    rushing_yards: { statKey: "player_rush_yds", label: "Rushing Yards" },
+    receiving_yards: { statKey: "player_reception_yds", label: "Receiving Yards" },
+  },
+}
+const PROP_TYPES = new Set(Object.values(PROP_STATS).flatMap((m) => Object.keys(m!)))
+
+/** One player over/under market. `over` is the token whose price is P(more than `line`). */
+export type PmProp = {
+  type: string
+  player: string
+  line: number
+  overToken: string
+  /** Gamma's own mid of the OVER side (preselection only, never a price). */
+  coarse: number | null
+  liquidity: number | null
+  acceptingOrders: boolean
+  updatedAt: Date | null
+}
+
 export type PmGameGroup = {
   /** Slug of the main event (ends with a date); the "-more-markets" event is folded in. */
   slug: string
@@ -78,10 +115,45 @@ export type PmGameGroup = {
   live: boolean
   ended: boolean
   markets: PmMarket[]
+  props: PmProp[]
 }
 
-const SLUG = /^(.*-\d{4}-\d{2}-\d{2})(-more-markets)?$/
+const SLUG = /^(.*-\d{4}-\d{2}-\d{2})(-more-markets|-player-props)?$/
 const KINDS = new Set(["moneyline", "spreads", "totals"])
+const PROP_QUESTION = /^(.+?):\s*(Points|Rebounds|Assists|Passing Yards|Rushing Yards|Receiving Yards)\s+O\/U\s+(\d+(?:\.\d+)?)\s*$/i
+
+/** One player prop market, or null unless it is exactly "<Player>: <Stat> O/U <x.5>" with a Yes/No or Over/Under pair whose rules say Yes/Over means MORE than the line. */
+export function parsePropMarket(raw: Record<string, unknown>): PmProp | null {
+  const type = String(raw.sportsMarketType ?? "")
+  if (!PROP_TYPES.has(type)) return null
+  const outcomes = json<string[]>(raw.outcomes)
+  const tokens = json<string[]>(raw.clobTokenIds)
+  if (!outcomes || !tokens || outcomes.length !== 2 || tokens.length !== 2) return null
+  const q = PROP_QUESTION.exec(String(raw.question ?? "").trim())
+  const line = num(raw.line)
+  if (!q || line == null || Number(q[3]) !== line || Number.isInteger(line) || line <= 0) return null
+  const label = Object.values(PROP_STATS).flatMap((m) => Object.entries(m!)).find(([t]) => t === type)?.[1].label
+  if (!label || label.toLowerCase() !== q[2]!.toLowerCase()) return null
+  const names = outcomes.map((o) => String(o).trim().toLowerCase())
+  const overIdx = names[0] === "yes" && names[1] === "no" ? 0 : names[1] === "yes" && names[0] === "no" ? 1 : names[0] === "over" && names[1] === "under" ? 0 : names[1] === "over" && names[0] === "under" ? 1 : -1
+  if (overIdx < 0) return null
+  // The rules must say the over side wins on MORE than the line (a "at least" or differently measured market is not ours).
+  const rules = String(raw.description ?? "")
+  if (!new RegExp(`more than ${line.toString().replace(".", "\\.")}\\b`, "i").test(rules)) return null
+  const bid = num(raw.bestBid)
+  const ask = num(raw.bestAsk)
+  const first = bid != null && ask != null && ask >= bid && ask - bid <= EXCHANGE_ODDS.propCoarseSpread ? (bid + ask) / 2 : null
+  return {
+    type,
+    player: q[1]!.trim(),
+    line,
+    overToken: String(tokens[overIdx]),
+    coarse: first == null ? null : overIdx === 0 ? first : 1 - first,
+    liquidity: num(raw.liquidityNum),
+    acceptingOrders: raw.acceptingOrders !== false,
+    updatedAt: date(raw.updatedAt),
+  }
+}
 
 /**
  * Groups a Gamma `events` page into games. Only plain game events and their "-more-markets" companion count; halftime,
@@ -96,7 +168,7 @@ export function parseGammaGroups(payload: unknown): PmGameGroup[] {
     const m = SLUG.exec(String(ev.slug ?? ""))
     if (!m) continue
     const base = m[1]!
-    const g = groups.get(base) ?? { slug: base, title: "", startsAt: null, live: false, ended: false, markets: [] }
+    const g = groups.get(base) ?? { slug: base, title: "", startsAt: null, live: false, ended: false, markets: [], props: [] }
     if (!m[2]) {
       mains.add(base)
       g.title = String(ev.title ?? "")
@@ -106,7 +178,13 @@ export function parseGammaGroups(payload: unknown): PmGameGroup[] {
     }
     for (const raw of Array.isArray(ev.markets) ? (ev.markets as Record<string, unknown>[]) : []) {
       const type = String(raw.sportsMarketType ?? "")
-      if (!KINDS.has(type)) continue
+      if (PROP_TYPES.has(type)) {
+        const prop = parsePropMarket(raw)
+        if (prop) g.props.push(prop)
+        continue
+      }
+      // The player-props companion event carries props only; its other markets are never games' lines.
+      if (m[2] === "-player-props" || !KINDS.has(type)) continue
       const outcomes = json<string[]>(raw.outcomes)
       const tokens = json<string[]>(raw.clobTokenIds)
       if (!outcomes || !tokens || outcomes.length !== 2 || tokens.length !== 2) continue
@@ -210,6 +288,34 @@ export type PlannedGame = {
   three: { home: PmMarket; draw: PmMarket; away: PmMarket } | null
   spreads: LineCandidate[]
   totals: LineCandidate[]
+  /** Player props worth reading, grouped per stat and player; within a group the line nearest 50% first. */
+  props: PropGroup[]
+}
+
+export type PropGroup = { statKey: string; player: string; candidates: PmProp[] }
+
+/** Folded player name, to tell one player's several lines from another's. */
+const playerId = (name: string) => name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "")
+
+/** Prop groups for a sport: only listed stats, only books Gamma shows as live, tight and not empty, only lines near even money. */
+export function planProps(sport: Sport, props: PmProp[]): PropGroup[] {
+  const stats = PROP_STATS[sport]
+  if (!stats) return []
+  const groups = new Map<string, PropGroup & { liquidity: number }>()
+  for (const p of props) {
+    const st = stats[p.type]
+    if (!st || !p.acceptingOrders || p.coarse == null || p.liquidity == null || p.liquidity < EXCHANGE_ODDS.propMinLiquidity) continue
+    if (Math.abs(p.coarse - 0.5) > EXCHANGE_ODDS.mainLineBand) continue
+    const k = `${st.statKey}|${playerId(p.player)}`
+    const g = groups.get(k) ?? { statKey: st.statKey, player: p.player, candidates: [], liquidity: 0 }
+    g.candidates.push(p)
+    g.liquidity = Math.max(g.liquidity, p.liquidity)
+    groups.set(k, g)
+  }
+  return [...groups.values()]
+    .sort((a, b) => b.liquidity - a.liquidity)
+    .slice(0, EXCHANGE_ODDS.propsPerGame)
+    .map(({ statKey, player, candidates }) => ({ statKey, player, candidates: candidates.sort((a, b) => Math.abs(a.coarse! - 0.5) - Math.abs(b.coarse! - 0.5)).slice(0, EXCHANGE_ODDS.candidatesPerKind) }))
 }
 
 const coarseMid = (m: PmMarket): number | null => {
@@ -274,7 +380,7 @@ export function planGames(sport: Sport, schedule: EventResult[], groups: PmGameG
     const t3 = moneyline ? null : threeWayOf(g)
     // Team markets are in the exchange's order; ours is home = teams[homeIndex].
     const three = t3 ? { home: t3.teams[m.homeIndex], draw: t3.draw, away: t3.teams[1 - m.homeIndex] } : null
-    games.push({ espn: e, group: g, homeIndex: m.homeIndex, teams: m.candidate.teams, startsAt, moneyline, three, spreads: nearest(spreads), totals: nearest(totals) })
+    games.push({ espn: e, group: g, homeIndex: m.homeIndex, teams: m.candidate.teams, startsAt, moneyline, three, spreads: nearest(spreads), totals: nearest(totals), props: planProps(sport, g.props) })
   }
   return { games, unmatched }
 }
@@ -286,6 +392,7 @@ export function tokensNeeded(games: PlannedGame[]): string[] {
     if (g.moneyline) out.add(g.moneyline.tokens[g.homeIndex]!)
     if (g.three) for (const mk of [g.three.home, g.three.draw, g.three.away]) out.add(mk.yesToken!)
     for (const c of [...g.spreads, ...g.totals]) out.add(c.market.tokens[0]!)
+    for (const pg of g.props) for (const c of pg.candidates) out.add(c.overToken)
   }
   return [...out]
 }
@@ -401,6 +508,35 @@ export function assemble(sport: Sport, games: PlannedGame[], books: ReadonlyMap<
         break
       }
       if (reason) hide(kind, reason)
+    }
+
+    // Player props: per stat and player, the first listed line (nearest 50%) whose over book passes every gate. A miss is a gate hit,
+    // held like any other (the guard neither freezes nor reopens a published prop for it), and counted per stat, never per player.
+    for (const pg of g.props) {
+      let reason = "no market"
+      for (const c of pg.candidates) {
+        const r = gateBook(books.get(c.overToken), readAt, now, c)
+        if (!r.ok) {
+          reason = r.reason
+          continue
+        }
+        reason = ""
+        markets.push({
+          key: pg.statKey,
+          kind: "player_prop",
+          player: pg.player,
+          outcomes: [
+            { selection: "over", quotes: [quote(r.mid, c.line, readAt)] },
+            { selection: "under", quotes: [quote(1 - r.mid, c.line, readAt)] },
+          ],
+        })
+        break
+      }
+      if (reason) {
+        const k = `${pg.statKey}: ${reason}`
+        hidden[k] = (hidden[k] ?? 0) + 1
+        held.push(`${gameId}::${pg.statKey}|${pg.player}`)
+      }
     }
 
     if (markets.length === 0) continue
