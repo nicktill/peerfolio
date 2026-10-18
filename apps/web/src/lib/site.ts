@@ -11,9 +11,9 @@ export const SITE = {
   name: "Peerfolio",
   title: "Peerfolio",
   /** Link previews and social cards: the site name is shown separately, so no prefix or dash. */
-  shareTitle: "Track your portfolio. Compete with friends.",
+  shareTitle: "Track your money. Race your friends.",
   description:
-    "Track your portfolio, race friends on returns, and play fantasy investing or sports picks with play money. Friends see percentages, not dollars.",
+    "Track your portfolio, race friends on returns, and play fantasy stocks or sports picks with play money. Friends see percentages, not dollars.",
   keywords: [
     "portfolio tracker",
     "social investing",
@@ -21,6 +21,8 @@ export const SITE = {
     "time-weighted return",
     "fantasy investing",
     "play-money sports picks",
+    "sports pick leagues",
+    "link brokerage account",
     "investment leagues",
   ],
   baseUrl: process.env.NEXTAUTH_URL ?? "https://www.peerfolio.org",
