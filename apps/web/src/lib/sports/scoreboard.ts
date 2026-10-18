@@ -4,6 +4,8 @@ export const SCOREBOARD_PATHS: Record<string, string[]> = {
   cfb: ['football/college-football'], mls: ['soccer/usa.1'], tennis: ['tennis/atp', 'tennis/wta'],
 }
 export type ScoreGame = {
+  /** View-only play description from the scoreboard, never a pricing or settlement input. */
+  lastPlay?: string
   id: string; sport: string; home: string; away: string; startsAt: string
   homeRecord: string | null; awayRecord: string | null
   status: 'upcoming' | 'live' | 'final' | 'unavailable'
@@ -99,14 +101,27 @@ export function normalizeGames(raw: unknown, sport: string, fetchedAt: string): 
         ...(clockText ? { clock: clockText } : {}),
       }
       const probs = live && sport !== 'tennis' ? liveWinProbs(c, sport === 'mls') : null
+      const play = live ? str(obj(obj(c.situation).lastPlay).text).replace(/\s+/g, ' ').trim().slice(0, 240) : ''
       result.push({ id: str(c.id) || str(e.id), sport, home: name(home), away: name(away), startsAt,
         homeRecord: record(home), awayRecord: record(away), status: unavailable ? 'unavailable' : final ? 'final' : live ? 'live' : 'upcoming',
         homeScore: score(home), awayScore: score(away), detail: str(type.shortDetail) || str(type.detail) || str(status.displayClock), fetchedAt,
-        ...sets, ...feed,
+        ...sets, ...feed, ...(play ? { lastPlay: play } : {}),
         ...(probs ? { homeWinProb: probs.home, awayWinProb: probs.away, ...(probs.draw != null ? { drawProb: probs.draw } : {}), probSource: 'espn' as const } : {}) })
     }
   }
   return result
+}
+/** Overlay the fast feed only for games in play (including their transition to final). Upcoming data keeps its usual cadence. */
+export function mergeLiveScores(games: ScoreGame[], updates: ScoreGame[]): ScoreGame[] {
+  const live = new Map(updates.map(g => [`${g.sport}:${g.id}`, g]))
+  const seen = new Set<string>()
+  const merged = games.map(g => {
+    const key = `${g.sport}:${g.id}`
+    seen.add(key)
+    const update = live.get(key)
+    return update && (g.status === 'live' || update.status === 'live') && Date.parse(update.fetchedAt) >= Date.parse(g.fetchedAt) ? update : g
+  })
+  return [...merged, ...updates.filter(g => g.status === 'live' && !seen.has(`${g.sport}:${g.id}`))]
 }
 /** ESPN dates scoreboards in US Eastern time, including games after midnight UTC. ESPN rejects date ranges, so each day is its own request. */
 export function scoreboardDays(now: Date, ahead = 1): string[] {
