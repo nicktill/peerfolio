@@ -296,13 +296,13 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
     .orderBy(desc(sportsPicks.acceptedAt))
     .limit(100)
 
-  // Other members' picks are revealed only once the market has locked: never while anyone can still pick it.
+  // Picks (the viewer's own included) are listed for the league only once the market has locked: never while anyone can still pick it.
   const others = await db
     .select(pickSelect)
     .from(sportsPicks)
     .innerJoin(sportsMarkets, eq(sportsMarkets.id, sportsPicks.marketId))
     .innerJoin(sportsEvents, eq(sportsEvents.id, sportsMarkets.eventId))
-    .where(and(eq(sportsPicks.leagueId, leagueId), sql`${sportsPicks.memberId} <> ${me.id}`, sql`(${sportsMarkets.status} <> 'open' OR ${sportsMarkets.lockAt} <= ${now.toISOString()}::timestamptz)`))
+    .where(and(eq(sportsPicks.leagueId, leagueId), sql`(${sportsMarkets.status} <> 'open' OR ${sportsMarkets.lockAt} <= ${now.toISOString()}::timestamptz)`))
     .orderBy(desc(sportsPicks.acceptedAt))
     .limit(60)
 
@@ -346,7 +346,7 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
       }
     }),
     picks: mine.map(shapePick),
-    leaguePicks: others.map((p) => ({ ...shapePick(p), name: nameOf.get(p.memberId) ?? "Player" })),
+    leaguePicks: others.map((p) => ({ ...shapePick(p), name: nameOf.get(p.memberId) ?? "Player", you: p.memberId === me.id })),
   }
 }
 

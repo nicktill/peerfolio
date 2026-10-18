@@ -48,6 +48,7 @@ type PickRow = {
   payout: number | null
   status: string
   acceptedAt: string
+  you?: boolean
   market: { kind: string; player: string | null; statKey: string | null }
   event: EventInfo
 }
@@ -481,7 +482,7 @@ function MirrorReport({ leagueId }: { leagueId: string }) {
     <section className="fw-panel reveal" style={revealStyle(5)} aria-labelledby="sp-report-title">
       <div className="fw-section-head">
         <h2 id="sp-report-title">Mirrored picks</h2>
-        <p>Owner only</p>
+        <p>Only you, as the owner, can see this. It flags players who often take opposite sides of the same market.</p>
       </div>
       {!data ? null : data.pairs.length === 0 ? (
         <p className="fw-empty">No one is consistently taking the opposite side of another player.</p>

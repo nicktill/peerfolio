@@ -29,6 +29,7 @@ export type PickRow = {
   market: { kind: string; player: string | null; statKey: string | null }
   event: EventInfo
   name?: string
+  you?: boolean
 }
 export type Standing = { name: string; credits: number; isYou: boolean; image?: string | null; record?: { won: number; lost: number } }
 
@@ -289,7 +290,7 @@ export function PickTicket({ pick, showName }: { pick: PickRow; showName?: boole
       <div className="sl-ticket-body">
         <b>{pickSentence(m, pick)}</b>
         <span>
-          {showName && pick.name ? <em>{pick.name.split(" ")[0]} · </em> : null}
+          {showName && pick.name ? <em>{pick.name.split(" ")[0]}{pick.you ? " (You)" : ""} · </em> : null}
           {eventTitle(pick.event)} · {marketTitle(m)}
         </span>
         <span className="numeric sl-ticket-money">
