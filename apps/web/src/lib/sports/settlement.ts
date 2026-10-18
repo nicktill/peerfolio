@@ -268,6 +268,22 @@ export function gradeThreeWay(selection: string, homeScore: number | null, awayS
   return result === selection ? "win" : "loss"
 }
 
+/** A player name folded for matching across feeds ("C.J. Stroud" = "CJ Stroud", "Luka Dončić" = "Luka Doncic"). Suffixes stay: Jr. and Sr. are different people. */
+export const playerKey = (name: string): string => name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "")
+
+/**
+ * One player's stat from a box score: the exact name first, else the one entry whose folded name matches. Two different entries
+ * folding to the same name is ambiguous and reads as missing (the prop then voids), never a guess.
+ */
+export function playerStat(stats: Record<string, Record<string, number>> | undefined, player: string, statKey: string): number | undefined {
+  if (!stats) return undefined
+  const exact = stats[player]
+  if (exact) return exact[statKey]
+  const want = playerKey(player)
+  const hits = Object.keys(stats).filter((k) => playerKey(k) === want)
+  return hits.length === 1 ? stats[hits[0]!]![statKey] : undefined
+}
+
 export type GradableLine = {
   sport?: string
   kind: MarketKind
@@ -306,7 +322,7 @@ export function gradePick(line: GradableLine, result: EventResult): Outcome {
     line.kind === "total"
       ? h + a
       : line.player && line.statKey
-        ? result.playerStats?.[line.player]?.[line.statKey]
+        ? playerStat(result.playerStats, line.player, line.statKey)
         : undefined
   // A player who never appears in the box score voids the prop (DNP policy).
   if (actual == null || !Number.isFinite(actual) || line.point == null || !Number.isFinite(line.point)) return "void"

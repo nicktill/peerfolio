@@ -90,7 +90,14 @@ export type EventResult = {
 }
 
 /** What a results source needs to find a game: ids differ across vendors, so names and time travel too. */
-export type EventRef = { externalId: string; homeName: string; awayName: string; startsAt: Date }
+export type EventRef = {
+  externalId: string
+  homeName: string
+  awayName: string
+  startsAt: Date
+  /** The event has player props open: a source with box scores should attach `playerStats` to its final. */
+  wantPlayerStats?: boolean
+}
 
 export interface ResultsProvider {
   readonly name: string

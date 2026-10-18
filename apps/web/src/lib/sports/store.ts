@@ -1392,6 +1392,17 @@ export async function settleDueEvents(db: Db, results: ResultsProvider[], now: D
     .innerJoin(sportsMarkets, eq(sportsMarkets.eventId, sportsEvents.id))
     .where(and(inArray(sportsMarkets.status, ["open", "locked"]), sql`${sportsEvents.startsAt} < ${now.toISOString()}::timestamptz`))
   const out = { settled: 0, voided: 0, waiting: 0, review: 0, failedSources: 0, swept: await sweepVoidedMarkets(db, now), meteredCalls: 0, meteredSkipped: 0 }
+  // Events with player props still unsettled: only these cost a box score request.
+  const withProps = new Set(
+    events.length
+      ? (
+          await db
+            .selectDistinct({ id: sportsMarkets.eventId })
+            .from(sportsMarkets)
+            .where(and(inArray(sportsMarkets.eventId, events.map((e) => e.event.id)), eq(sportsMarkets.kind, "player_prop"), inArray(sportsMarkets.status, ["open", "locked"])))
+        ).map((r) => r.id)
+      : [],
+  )
   const free = results.filter((p) => !p.metered)
   const metered = results.filter((p) => p.metered)
 
@@ -1409,7 +1420,7 @@ export async function settleDueEvents(db: Db, results: ResultsProvider[], now: D
     const ofSport = events.map((e) => e.event).filter((e) => e.sport === sport)
     if (!ofSport.length) continue
     const cfg = typeof cfgIn === "function" ? cfgIn(sport) : cfgIn
-    const toRef = (e: (typeof ofSport)[number]): EventRef => ({ externalId: e.externalId, homeName: e.homeName, awayName: e.awayName, startsAt: e.startsAt })
+    const toRef = (e: (typeof ofSport)[number]): EventRef => ({ externalId: e.externalId, homeName: e.homeName, awayName: e.awayName, startsAt: e.startsAt, ...(withProps.has(e.id) ? { wantPlayerStats: true } : {}) })
     const answers = await Promise.all(free.filter((p) => !p.sports || p.sports.includes(sport)).map((p) => ask(p, sport, ofSport.map(toRef))))
 
     // Metered sources (Odds API /scores) only for the events a free source has already finalised, and only inside their own credit pace.
@@ -1467,6 +1478,9 @@ export async function settleDueEvents(db: Db, results: ResultsProvider[], now: D
             await tx.select({ id: sportsMarkets.id }).from(sportsMarkets).where(eq(sportsMarkets.id, m.id)).for("update")
           }
           for (const m of markets) {
+            // A final without a box score yet: props wait (the box score may just not have loaded), then void and refund after the
+            // no-result period like any game nobody could report. The rest of the game's markets settle on the score as usual.
+            if (res.kind === "final" && m.kind === "player_prop" && !res.result.playerStats && now.getTime() - event.startsAt.getTime() < cfg.noResultVoidMs) continue
             await settleMarketPicks(
               tx,
               m.id,

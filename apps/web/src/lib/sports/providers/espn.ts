@@ -1,3 +1,4 @@
+import { playerKey, resultsForEvent } from "../settlement.ts"
 import type { EventRef, EventResult, ResultsProvider, ResultStatus, Sport } from "../types.ts"
 
 /**
@@ -110,6 +111,70 @@ export function normalizeScoreboard(board: EspnScoreboard, sport: Sport): EventR
   return out
 }
 
+/* ---- box scores (player prop settlement) ---- */
+
+type BoxAthlete = { athlete?: { displayName?: string }; didNotPlay?: boolean; stats?: string[] }
+type BoxCategory = { name?: string; keys?: string[]; athletes?: BoxAthlete[] }
+export type EspnSummary = { boxscore?: { players?: { team?: { displayName?: string }; statistics?: BoxCategory[] }[] } }
+
+/** ESPN box score column -> our stat key, per sport. Exactly the stats we publish props on, nothing else. */
+const BOX_STATS: Partial<Record<Sport, Record<string, string>>> = {
+  nba: { points: "player_points", rebounds: "player_rebounds", assists: "player_assists" },
+  nfl: { passingYards: "player_pass_yds", rushingYards: "player_rush_yds", receivingYards: "player_reception_yds" },
+}
+
+const stat = (s: string | undefined): number | null => (s == null || s.trim() === "" ? null : Number.isFinite(Number(s)) ? Number(s) : null)
+
+/**
+ * Per-player stat values from an ESPN summary box score, or null when it cannot be trusted (missing, or NBA points that do not add
+ * up to the team's final score). A player who did not play is absent, so a prop on him voids instead of grading as zero: NBA
+ * `didNotPlay` rows and rows with no minutes. NFL players appear only in the categories they have a line in (a player with no
+ * carries has no rushing row), so absence there also voids. Two players folding to the same name in one game are dropped.
+ */
+export function parseBoxscore(summary: EspnSummary, sport: Sport, teamScores?: Record<string, number | null>): Record<string, Record<string, number>> | null {
+  const columns = BOX_STATS[sport]
+  const teams = summary.boxscore?.players
+  if (!columns || !Array.isArray(teams) || teams.length !== 2) return null
+  const out: Record<string, Record<string, number>> = {}
+  const clash = new Set<string>()
+  for (const team of teams) {
+    let points = 0
+    let sawStats = false
+    for (const cat of team.statistics ?? []) {
+      const keys = cat.keys ?? []
+      for (const a of cat.athletes ?? []) {
+        const name = a.athlete?.displayName
+        if (!name || a.didNotPlay || !a.stats || a.stats.length !== keys.length) continue
+        if (sport === "nba") {
+          const minutes = stat(a.stats[keys.indexOf("minutes")])
+          if (minutes == null || minutes <= 0) continue
+        }
+        for (const [col, key] of Object.entries(columns)) {
+          const i = keys.indexOf(col)
+          const v = i < 0 ? null : stat(a.stats[i])
+          if (v == null) continue
+          sawStats = true
+          if (sport === "nba" && col === "points") points += v
+          const id = playerKey(name)
+          if (out[name]?.[key] != null) clash.add(id)
+          out[name] = { ...out[name], [key]: v }
+        }
+      }
+    }
+    if (!sawStats) return null
+    const expected = teamScores?.[team.team?.displayName ?? ""]
+    if (sport === "nba" && expected != null && expected !== points) return null
+  }
+  const seen = new Map<string, string>()
+  for (const name of Object.keys(out)) {
+    const id = playerKey(name)
+    if (seen.has(id)) clash.add(id)
+    seen.set(id, name)
+  }
+  for (const name of Object.keys(out)) if (clash.has(playerKey(name))) delete out[name]
+  return out
+}
+
 /** Most scoreboard days asked per sport in one run; older events are past the no-result void anyway. */
 const MAX_DAYS = 10
 const day = (d: Date) => d.toISOString().slice(0, 10).replace(/-/g, "")
@@ -185,6 +250,29 @@ export class EspnResultsProvider implements ResultsProvider {
         }
       }
     }
-    return out
+    return sport === "nba" || sport === "nfl" ? this.withBoxscores(sport, events, out) : out
+  }
+
+  /** Attaches box score stats to the finals of events that have player props open. A failed or untrustworthy box score leaves the result without stats, so the props wait. */
+  private async withBoxscores(sport: Sport, events: EventRef[], results: EventResult[]): Promise<EventResult[]> {
+    const want = new Map<string, EventResult>()
+    for (const ref of events) {
+      if (!ref.wantPlayerStats) continue
+      for (const r of resultsForEvent(ref, results).results) if (r.status === "final") want.set(r.externalId, r)
+    }
+    if (want.size === 0) return results
+    const league = LEAGUES[sport][0]!
+    const stats = new Map<string, Record<string, Record<string, number>>>()
+    for (const r of want.values()) {
+      try {
+        const res = await this.fetchFn(`${this.baseUrl}/${league}/summary?event=${encodeURIComponent(r.externalId)}`, { signal: AbortSignal.timeout(8_000) })
+        if (!res.ok) continue
+        const parsed = parseBoxscore((await res.json()) as EspnSummary, sport, { [r.homeName ?? ""]: r.homeScore, [r.awayName ?? ""]: r.awayScore })
+        if (parsed) stats.set(r.externalId, parsed)
+      } catch {
+        // No box score this run: the props wait for the next one.
+      }
+    }
+    return results.map((r) => (stats.has(r.externalId) ? { ...r, playerStats: stats.get(r.externalId) } : r))
   }
 }

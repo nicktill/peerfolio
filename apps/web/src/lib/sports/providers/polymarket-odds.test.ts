@@ -375,7 +375,7 @@ describe("MLS three-way moneyline from three Yes/No markets, spreads and totals 
 describe("college football matching (Polymarket titles carry the school only)", () => {
   const start = new Date("2026-10-17T23:00:00Z")
   const group = (a: string, h: string): PmGameGroup => ({
-    slug: "cfb-x-2026-10-17", title: `${a} vs. ${h}`, startsAt: start, live: false, ended: false,
+    slug: "cfb-x-2026-10-17", title: `${a} vs. ${h}`, startsAt: start, live: false, ended: false, props: [],
     markets: [{ type: "moneyline", question: `${a} vs. ${h}`, groupTitle: "Moneyline", outcomes: [a, h], tokens: ["t1", "t2"], yesToken: null, line: null, bid: 0.3, ask: 0.31, liquidity: 9000, acceptingOrders: true, updatedAt: start }],
   })
   const row = (a: string, h: string, aShort?: string, hShort?: string) =>
