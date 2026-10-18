@@ -303,7 +303,7 @@ export function PickTicket({ pick, showName }: { pick: PickRow; showName?: boole
           ) : (
             <span>No payout</span>
           )}
-          <em className="sl-price" title="Price accepted">{formatOdds(pick.price)}</em>
+          <em className="sl-price" title="Odds you locked in">{formatOdds(pick.price)}</em>
         </span>
       </div>
       <div className="sl-ticket-side">
@@ -470,7 +470,7 @@ export function NextGames({ picks, events }: { picks: PickRow[]; events: EventIn
     <div className="fw-section-head"><h2 id="sp-next-title">Upcoming games</h2><Clock size={14} aria-hidden /></div>
     {games.length ? <ul>{games.map((event) => <li key={keyOf(event)}>
       <div className="sp-next-teams"><TeamBadge sport={event.sport} name={event.away} size={24} /><TeamBadge sport={event.sport} name={event.home} size={24} /></div>
-      <div><span className="sp-next-sport">{SPORT_LABEL[event.sport] ?? event.sport}{picked.has(keyOf(event)) ? " · You have a pick" : ""}</span><b>{event.away} {event.sport === "tennis" ? "vs" : "@"} {event.home}</b><span>{openPickPhase(event.startsAt, new Date()).label}</span></div>
+      <div><span className="sp-next-sport">{SPORT_LABEL[event.sport] ?? event.sport}{picked.has(keyOf(event)) ? " · You have a pick" : ""}</span><b>{eventTitle(event)}</b><span>{openPickPhase(event.startsAt, new Date()).label}</span></div>
     </li>)}</ul> : <p className="fw-empty">Upcoming matchups will appear when lines are posted.</p>}
     {all.length > 5 ? <button type="button" className="fw-link sp-next-more" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>{expanded ? "Show fewer" : `Show ${all.length - 5} more`}</button> : null}
   </section>

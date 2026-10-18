@@ -89,8 +89,8 @@ export function kickoffGateDecided(ctx: Pick<PickContext, "now" | "market" | "ev
 }
 
 export function acceptPick(req: PickRequest, ctx: PickContext, limits: PickLimits = DEFAULT_LIMITS): AcceptedPick {
-  if (!Number.isInteger(req.stake) || req.stake <= 0) throw new PickRejected("invalid_stake", "Stake must be a whole number")
-  if (!isPickWindowOpen(ctx.market, ctx.eventStatus, ctx.now, ctx.eventStartsAt)) throw new PickRejected("market_closed", "Picks are closed for this market")
+  if (!Number.isInteger(req.stake) || req.stake <= 0) throw new PickRejected("invalid_stake", "Enter a whole-number stake")
+  if (!isPickWindowOpen(ctx.market, ctx.eventStatus, ctx.now, ctx.eventStartsAt)) throw new PickRejected("market_closed", "Picks are closed for this game. They lock at kickoff")
   if (ctx.line.marketId !== ctx.market.id) throw new PickRejected("line_mismatch", "That line is not part of this market")
   if (ctx.line.price !== req.expectedPrice || ctx.line.point !== req.expectedPoint) {
     const shown = `${ctx.line.price > 0 ? "+" : ""}${ctx.line.price}${ctx.line.point != null ? ` (${ctx.line.point > 0 ? "+" : ""}${ctx.line.point})` : ""}`
@@ -100,17 +100,17 @@ export function acceptPick(req: PickRequest, ctx: PickContext, limits: PickLimit
 
   const start = ctx.league.startingCredits
   const maxStake = Math.floor((start * limits.maxStakePctOfStart) / 100)
-  if (req.stake < limits.minStake) throw new PickRejected("stake_too_small", `Minimum stake is ${limits.minStake}`)
-  if (req.stake > maxStake) throw new PickRejected("stake_too_large", `Maximum stake per pick is ${maxStake}`)
-  if (req.stake > ctx.member.credits) throw new PickRejected("insufficient_credits", "Not enough cash")
+  if (req.stake < limits.minStake) throw new PickRejected("stake_too_small", `Minimum pick is $${limits.minStake}`)
+  if (req.stake > maxStake) throw new PickRejected("stake_too_large", `Maximum pick in this league is $${maxStake.toLocaleString("en-US")}. Try a smaller stake`)
+  if (req.stake > ctx.member.credits) throw new PickRejected("insufficient_credits", "Not enough cash for that stake")
   if (ctx.openPickCount >= limits.maxOpenPicks) throw new PickRejected("too_many_picks", `You can have ${limits.maxOpenPicks} open picks at a time`)
   if (ctx.openStakeTotal + req.stake > Math.floor((start * limits.maxExposurePctOfStart) / 100)) {
-    throw new PickRejected("too_much_exposure", "That would put too much cash at risk at once")
+    throw new PickRejected("too_much_exposure", "That would put too much cash at risk at once. Wait for a pick to settle or try a smaller stake")
   }
 
   const ret = totalReturn(req.stake, ctx.line.price)
   if (ret - req.stake > Math.floor((start * limits.maxReturnPctOfStart) / 100)) {
-    throw new PickRejected("return_too_large", "That pick could win too much for one slip")
+    throw new PickRejected("return_too_large", "That pick could win too much for one pick. Try a smaller stake")
   }
   return { stake: req.stake, price: ctx.line.price, point: ctx.line.point, totalReturn: ret, acceptedAt: ctx.now }
 }

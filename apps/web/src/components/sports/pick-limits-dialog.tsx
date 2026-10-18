@@ -54,7 +54,7 @@ function LimitsForm({ leagueId, startingCredits, maxStakePct, onClose, onSaved }
       <div>
         <label htmlFor="pick-limit-pct">Largest single pick (% of starting cash)</label>
         <input id="pick-limit-pct" data-autofocus className="fw-input numeric" inputMode="numeric" autoComplete="off" value={pct} onChange={(e) => setPct(e.target.value)} aria-invalid={!valid || undefined} />
-        <p className="fw-hint">{valid ? `${formatCredits(Math.floor((startingCredits * value) / 100))} per pick, out of ${formatCredits(startingCredits)} starting cash. Applies to new picks only.` : <span className="fw-bad">Choose a whole number from {MIN} to {MAX}.</span>}</p>
+        <p className="fw-hint">{valid ? `${formatCredits(Math.floor((startingCredits * value) / 100))} per pick, out of ${formatCredits(startingCredits)} starting cash. Applies to new picks only. Total cash at risk stays capped at 60% of starting cash.` : <span className="fw-bad">Choose a whole number from {MIN} to {MAX}.</span>}</p>
       </div>
       <Row label="Quick picks">
         {PRESETS.map((p) => (
