@@ -30,24 +30,35 @@ export class CashoutRejected extends Error {
   }
 }
 
-const price = (totalReturn: number, probability: number) => Math.floor(totalReturn * probability * (1 - CASHOUT_FEE) + 1e-9)
+export const price = (totalReturn: number, probability: number) => Math.floor(totalReturn * probability * (1 - CASHOUT_FEE) + 1e-9)
+
+/** Before kickoff: the chance implied by the same line's current price. Null when the line is closed, or its point moved (then it is not the same bet). */
+export function pregameProbability(point: number | null, line: { price: number; point: number | null } | null, windowOpen: boolean): number | null {
+  if (!windowOpen || !line) return null
+  if ((line.point ?? null) !== (point ?? null)) return null
+  return americanToProb(line.price)
+}
+
+/** In play: a fresh, confident live moneyline chance for a side, else null. `elapsedMs` is the time since the view was read. */
+export function liveProbability(kind: string, selection: string, view: LiveView | null, elapsedMs = 0): number | null {
+  if (!view || view.status !== "live" || view.odds.status !== "ok") return null
+  if (kind !== "moneyline") return null
+  if (view.odds.confidence !== "high" || view.odds.mismatch) return null
+  if (freshnessOf(view.odds.ageMs + Math.max(0, elapsedMs)) !== "live") return null
+  return sideProb(view, kind, selection)
+}
 
 /** Before kickoff: the same line's current price. Null when the line is closed, or its point moved (then it is not the same bet). */
 export function pregameCashout(pick: CashoutPick, line: { price: number; point: number | null } | null, windowOpen: boolean): CashoutQuote | null {
-  if (!windowOpen || !line) return null
-  if ((line.point ?? null) !== (pick.point ?? null)) return null
-  const probability = americanToProb(line.price)
+  const probability = pregameProbability(pick.point, line, windowOpen)
+  if (probability == null) return null
   const value = Math.min(price(pick.totalReturn, probability), pick.totalReturn)
   return value >= 1 ? { value, source: "pregame", probability } : null
 }
 
 /** In play: a fresh, confident live quote for a moneyline side. `elapsedMs` is the time since the view was read. */
 export function liveCashout(pick: CashoutPick, view: LiveView | null, elapsedMs = 0): CashoutQuote | null {
-  if (!view || view.status !== "live" || view.odds.status !== "ok") return null
-  if (pick.kind !== "moneyline") return null
-  if (view.odds.confidence !== "high" || view.odds.mismatch) return null
-  if (freshnessOf(view.odds.ageMs + Math.max(0, elapsedMs)) !== "live") return null
-  const probability = sideProb(view, pick.kind, pick.selection)
+  const probability = liveProbability(pick.kind, pick.selection, view, elapsedMs)
   if (probability == null) return null
   const value = Math.min(price(pick.totalReturn, probability), pick.totalReturn)
   return value >= 1 ? { value, source: "live", probability } : null

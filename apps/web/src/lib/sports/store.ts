@@ -638,7 +638,7 @@ async function loadParlayRows(conn: Conn, where: SQL, limit: number, lockedAt?: 
       stake: p.stake,
       price: decimalToAmerican(p.combinedDecimal),
       totalReturn: p.totalReturn,
-      payout: p.status === "open" ? null : (p.payout ?? (p.status === "lost" ? 0 : p.stake)),
+      payout: p.status === "open" ? null : (p.payout ?? (p.status === "lost" || p.status === "cashed_out" ? 0 : p.stake)),
       status: p.status as ParlayStatus,
       acceptedAt: p.acceptedAt.toISOString(),
       legs: legs

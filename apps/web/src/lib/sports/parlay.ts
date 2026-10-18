@@ -18,7 +18,8 @@ export const PARLAY_LIMITS = {
 export type ParlayLimits = { minLegs: number; maxLegs: number; minStake: number; maxStakePctOfStart: number }
 
 export type ParlayLegStatus = "open" | "won" | "lost" | "push" | "void"
-export type ParlayStatus = "open" | "won" | "lost" | "void"
+/** cashed_out: the member sold the whole parlay back before it settled (sports_parlays.payout is the amount paid). */
+export type ParlayStatus = "open" | "won" | "lost" | "void" | "cashed_out"
 
 export type ParlayLegRow = {
   lineId: string
@@ -171,4 +172,5 @@ export function decideParlay(stake: number, legs: readonly { status: ParlayLegSt
 }
 
 export const parlaySettleKey = (parlayId: string) => `parlay:${parlayId}:settle`
+export const parlayCashoutKey = (parlayId: string) => `parlay:${parlayId}:cashout`
 export const parlayPlaceKey = (parlayId: string) => `parlay:${parlayId}:place`

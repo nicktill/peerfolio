@@ -6,6 +6,7 @@
  */
 import { SECURITIES } from "@web/lib/demo-data"
 import { americanToDecimal } from "@web/lib/sports/odds"
+import { priceParlayCashout } from "@web/lib/sports/parlay-cashout"
 
 const KEY = "pf-sample-state"
 export const SAMPLE_EVENT = "pf-sample-changed"
@@ -17,6 +18,8 @@ type SampleState = {
   trades: { id: string; side: "buy" | "sell"; ticker: string; shares: number; price: number; at: string }[]
   credits: number | null
   picks: SportsPick[]
+  /** Sample parlays sold back: id to the amount paid. */
+  cashedParlays?: Record<string, number>
 }
 type SportsPick = {
   id: string
@@ -35,7 +38,7 @@ type SportsPick = {
 }
 
 /** Cash, holdings and credits start from the snapshot (`null` until a view or write supplies it). */
-const fresh = (): SampleState => ({ cash: null, held: null, trades: [], credits: null, picks: [] })
+const fresh = (): SampleState => ({ cash: null, held: null, trades: [], credits: null, picks: [], cashedParlays: {} })
 
 type FantasyBase = { you: { cash: number; positions: { ticker: string; shares: number; averageCost: number }[] } }
 function startFantasy(state: SampleState, base: FantasyBase) {
@@ -149,7 +152,7 @@ type Line = { id: string; selection: string; point: number | null; price: number
 type Market = { id: string; kind: string; player: string | null; statKey: string | null; event: SportsPick["event"]; lines: Line[]; picked: { selection: string; stake: number } | null }
 
 /** The sports league page's data with your picks on the slip: cash, open and settled picks, standings. */
-export function sportsView<T extends { you: any; markets: Market[]; picks: any[]; leaguePicks: any[]; standings: { name: string; credits: number; isYou: boolean }[] }>(base: T): T {
+export function sportsView<T extends { you: any; markets: Market[]; picks: any[]; leaguePicks: any[]; parlays?: any[]; standings: { name: string; credits: number; isYou: boolean }[] }>(base: T): T {
   const s = load()
   if (s.credits === null) s.credits = base.you.credits
   const mine = s.picks.map((p) => {
@@ -172,6 +175,7 @@ export function sportsView<T extends { you: any; markets: Market[]; picks: any[]
       return { ...person, record: { won: history.filter((p) => p.status === "won").length, lost: history.filter((p) => p.status === "lost").length } }
     }),
     picks: [...mine, ...base.picks],
+    ...(base.parlays ? { parlays: base.parlays.map((p) => (s.cashedParlays?.[p.id] != null ? { ...p, status: "cashed_out", payout: s.cashedParlays[p.id] } : p)) } : {}),
     leaguePicks: [...mine.map((p) => ({ ...p, name: "You" })), ...base.leaguePicks],
   }
 }
@@ -231,6 +235,31 @@ export function applyCashout(base: { markets: Market[] }, pickId: string, expect
   const pick = state.picks.find((p) => p.id === pickId)!
   pick.status = "cashed_out"
   pick.payout = amount
+  state.credits = (state.credits ?? 0) + amount
+  save(state)
+  return { cashout: { amount } }
+}
+
+type SampleParlay = { id: string; stake: number; totalReturn: number; status: string; legs: { lineId: string; selection: string; price: number; point: number | null; status: "open" | "won" | "lost" | "push" | "void"; market: { kind: string } }[] }
+type SampleParlayQuote = { available: false; reason: string } | { available: true; value: number; source: string; stake: number; totalReturn: number }
+
+/** GET .../parlays/<id>/cashout in the sample: the same pricing rules as the server, with every open leg at its line's current price. */
+export function sampleParlayCashoutQuote(base: { markets: Market[]; parlays: SampleParlay[] }, parlayId: string): SampleParlayQuote {
+  const parlay = base.parlays.find((p) => p.id === parlayId)
+  if (!parlay || parlay.status !== "open" || load().cashedParlays?.[parlayId] != null) return { available: false, reason: "This parlay can't be sold in the sample" }
+  const lines = new Map(base.markets.flatMap((m) => m.lines.map((l) => [l.id, l] as const)))
+  const priced = priceParlayCashout(parlay, parlay.legs.map((l) => ({ status: l.status, price: l.price, kind: l.market.kind, selection: l.selection, point: l.point, phase: "pregame" as const, line: lines.get(l.lineId) ?? null, view: null })))
+  return priced.available ? { available: true, value: priced.value, source: priced.source, stake: parlay.stake, totalReturn: parlay.totalReturn } : priced
+}
+
+/** POST .../parlays/<id>/cashout in the sample. */
+export function applyParlayCashout(base: { markets: Market[]; parlays: SampleParlay[] }, parlayId: string, expectedValue: number) {
+  const quote = sampleParlayCashoutQuote(base, parlayId)
+  if (!quote.available) throw new Error("Cash-out isn't available for this parlay.")
+  if (quote.value < Math.floor(expectedValue * 0.99)) throw new Error("The price moved. Review the new cash-out value and try again.")
+  const amount = Math.min(expectedValue, quote.value)
+  const state = structuredClone(load())
+  state.cashedParlays = { ...state.cashedParlays, [parlayId]: amount }
   state.credits = (state.credits ?? 0) + amount
   save(state)
   return { cashout: { amount } }
