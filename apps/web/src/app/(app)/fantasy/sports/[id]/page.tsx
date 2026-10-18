@@ -311,7 +311,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
                 <button ref={searchButton} type="button" className="sp-search-btn" aria-label="Search games" title="Search games" aria-expanded={false} onClick={() => setSearchOpen(true)}><Search aria-hidden /><span>Search</span></button>
               )}
             </div>
-            {parlay.mode === "parlay" ? <div className="sp-parlay-guidance"><p className="pl-bar-hint">{view === "live" ? "Parlays use upcoming games only · live picks are singles. " : ""}{parlay.legs.length ? `${parlay.legs.length} of ${data.limits.parlay?.maxLegs ?? 6} legs selected · tap a line again to remove it` : `Build your ticket · pick 2–${data.limits.parlay?.maxLegs ?? 6} legs from different games`}</p>{parlay.note ? <p className="pl-note" role="status">{parlay.note}</p> : null}</div> : null}
+            {parlay.mode === "parlay" && parlay.note ? <div className="sp-parlay-guidance"><p className="pl-note" role="status">{parlay.note}</p></div> : null}
             {view === "upcoming" ? <ParlayIdsContext.Provider value={parlay.mode === "parlay" ? parlay.ids : null}><div className="sp-scroll">{searching && shown.length === 0 ? <p className="fw-empty" role="status">No games match &ldquo;{query.trim()}&rdquo;</p> : <Markets markets={shown} selected={parlay.mode === "parlay" ? null : current} onSelect={(market, line) => { if (livePending) return; setLiveSelected(null); parlay.mode === "parlay" ? parlay.toggle(market, line) : setSelected({ market, line }) }} disabled={ended || livePending} now={now} />}</div></ParlayIdsContext.Provider> : <ParlayIdsContext.Provider value={parlay.mode === "parlay" ? parlay.ids : null}><ScoreboardGames renderUpcoming={(game) => {
               const matching = shown.filter((market) => scoreboardMatch(market.event, [game]))
               if (!matching.length) return null
@@ -787,16 +787,19 @@ function LineButton({ market: m, line: l, selected, onSelect, disabled, team, co
   const label = lineLabel(m, l)
   const mine = m.picked?.selection === l.selection
   const side = sideTeam(m.event, m.kind, l.selection)
-  const inParlay = useContext(ParlayIdsContext)?.has(l.id) ?? false
+  const parlayIds = useContext(ParlayIdsContext)
+  const inParlay = parlayIds?.has(l.id) ?? false
+  // A line you already hold as a single can still be a parlay leg; only single mode treats it as taken.
+  const taken = !!m.picked && !parlayIds
   return (
     <button
       type="button"
       className="sp-line"
       data-team={team || undefined}
       data-accent={color || undefined}
-      aria-pressed={selected?.line.id === l.id || inParlay || mine}
+      aria-pressed={selected?.line.id === l.id || inParlay || (mine && taken)}
       data-picked={mine || undefined}
-      disabled={disabled || !!m.picked}
+      disabled={disabled || taken}
       style={color ? ({ "--tc": color, "--tc-ink": onColor(color) } as React.CSSProperties) : undefined}
       aria-label={`${pickSentence(m, l)}, ${formatOdds(l.price)}, 100 cash wins ${winOn100(l.price)}${mine ? `, your pick, ${credits(m.picked!.stake)}` : ""}`}
       onClick={() => onSelect(m, l)}
@@ -806,7 +809,7 @@ function LineButton({ market: m, line: l, selected, onSelect, disabled, team, co
         {label.name}
         {label.point ? <small>{label.point}</small> : null}
         {team && side ? <small className="sp-team-record">{(l.selection === "home" ? m.event.homeRecord : m.event.awayRecord) ? ` (${l.selection === "home" ? m.event.homeRecord : m.event.awayRecord})` : null}</small> : null}
-        {(selected?.line.id === l.id || inParlay) && !mine ? <Check className="sp-selected-check" aria-label="Selected"/> : null}
+        {(selected?.line.id === l.id || inParlay) && !taken ? <Check className="sp-selected-check" aria-label="Selected"/> : null}
         {mine ? (
           <em className="sp-line-tag">
             <Lock aria-hidden /> Your pick · {credits(m.picked!.stake)}
