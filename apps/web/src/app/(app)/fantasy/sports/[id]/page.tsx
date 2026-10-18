@@ -135,7 +135,9 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
   const yourPicksRef = useRef<HTMLElement>(null)
   const [revealPicks, setRevealPicks] = useState(false)
   const [slipVisible, setSlipVisible] = useState(true)
-  const [floatOpen, setFloatOpen] = useState(false)
+  // Pinned = the member opened the floating slip and has not collapsed it. It follows them down the page, and tucks away while the real slip is on screen.
+  const [floatPinned, setFloatPinned] = useState(false)
+  const floatOpen = floatPinned && !slipVisible
   // Phone: the pick sheet can be tucked down to a bar so you can keep browsing and adding legs.
   const [sheetMin, setSheetMin] = useState(false)
   const [phone, setPhone] = useState(false)
@@ -155,8 +157,8 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
   const summaryRef = useRef<HTMLButtonElement>(null)
   const refocusSummary = useRef(false)
   const reduceMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  const openFloat = () => { setAnchorHeight(dockRef.current?.offsetHeight ?? null); setPlaced(false); setFloatOpen(true) }
-  const closeFloat = (restoreFocus = true) => { refocusSummary.current = restoreFocus; setFloatOpen(false); setPlaced(false) }
+  const openFloat = () => { setAnchorHeight(dockRef.current?.offsetHeight ?? null); setPlaced(false); setFloatPinned(true) }
+  const closeFloat = (restoreFocus = true) => { refocusSummary.current = restoreFocus; setFloatPinned(false); setPlaced(false) }
   const activeSlip = parlay.mode === "parlay" ? parlay.legs.length > 0 : !!selected || !!liveSelected
   // An empty slip is never tucked away, and picking a different single line opens the sheet; adding parlay legs leaves it as it is.
   const singleKey = parlay.mode === "single" ? (liveSelected ? `${liveSelected.eventId}:${liveSelected.side}` : selected?.line.id ?? "") : ""
@@ -168,9 +170,9 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
     observer.observe(slipRef.current)
     return () => observer.disconnect()
   }, [data?.league.id])
-  // The floating ticket is a request, not a mode: scrolling the real slip back into view, or emptying it, folds it away.
-  useEffect(() => { if (floatOpen && slipVisible) { setFloatOpen(false); setPlaced(false) } }, [floatOpen, slipVisible])
-  useEffect(() => { if (floatOpen && !activeSlip && !placed) { setFloatOpen(false) } }, [floatOpen, activeSlip, placed])
+  // Scrolling back up to the real slip only hides the floating one; scrolling down brings it back until Collapse. Emptying the slip unpins it.
+  useEffect(() => { if (floatPinned && slipVisible && placed) setPlaced(false) }, [floatPinned, slipVisible, placed])
+  useEffect(() => { if (floatPinned && !activeSlip && !placed) setFloatPinned(false) }, [floatPinned, activeSlip, placed])
   useEffect(() => {
     if (!floatOpen) return
     floatClose.current?.focus({ preventScroll: true })
