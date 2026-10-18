@@ -6,7 +6,7 @@ import "@web/components/sports/sports-workspace.css"
 
 import { use, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, ArrowUp, ArrowDown, Check, Link2, Lock, X } from "lucide-react"
+import { ArrowLeft, ArrowUp, ArrowDown, Check, Link2, Lock, Search, X } from "lucide-react"
 import { Choice } from "@web/components/fantasy/choice"
 import { timeLeft } from "@web/components/fantasy/time-left"
 import { ScoreboardGames } from "@web/components/sports/scoreboard-games"
@@ -28,6 +28,7 @@ import { PlayerBadge, TeamBadge } from "@web/components/sports/team-badge"
 import { ParlayIdsContext, ParlayModeBar, ParlaySlip, useParlay } from "@web/components/sports/parlay-slip"
 import type { ParlayLimits, ParlayRow } from "@web/components/sports/parlay-types"
 import { plural } from "@web/lib/plural"
+import { matchesSearch } from "@web/lib/sports/search"
 import { mutate, useApi } from "@web/lib/use-api"
 
 type Line = DisplayLine & { id: string; price: number }
@@ -97,6 +98,16 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
     strip.scrollTo({ left, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' })
   }, [sport])
   const [view, setView] = useState<"upcoming" | "live">("upcoming")
+  const [query, setQuery] = useState("")
+  const [searchOpen, setSearchOpen] = useState(false)
+  const searchInput = useRef<HTMLInputElement>(null)
+  const searchButton = useRef<HTMLButtonElement>(null)
+  const refocusSearchButton = useRef(false)
+  useEffect(() => {
+    if (searchOpen) searchInput.current?.focus()
+    else if (refocusSearchButton.current) { refocusSearchButton.current = false; searchButton.current?.focus() }
+  }, [searchOpen])
+  const closeSearch = () => { refocusSearchButton.current = true; setQuery(""); setSearchOpen(false) }
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 5000); return () => clearInterval(timer) }, [])
   const parlay = useParlay(data?.markets, now, data?.limits.parlay)
@@ -133,11 +144,12 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
   const ended = !!league.endsAt && new Date(league.endsAt).getTime() < Date.now()
   const status = ended ? "Final standings" : league.endsAt ? timeLeft(league.endsAt) : "No end"
   const scoreGames = scores.data?.games ?? []
-  const shown = markets.filter(m => (sport === "all" || m.event.sport === sport) && Date.parse(m.lockAt) > now && Date.parse(m.event.startsAt) > now).map(m => {
+  const shown = markets.filter(m => (sport === "all" || m.event.sport === sport) && matchesSearch(query, [m.event.home, m.event.away, m.player], m.event.sport) && Date.parse(m.lockAt) > now && Date.parse(m.event.startsAt) > now).map(m => {
     const meta = scoreboardMatch(m.event, scoreGames)
     return meta ? { ...m, event: { ...m.event, homeRecord: meta.homeRecord, awayRecord: meta.awayRecord } } : m
   })
-  const liveGames = scoreGames.filter(g => sport === "all" || g.sport === sport)
+  const liveGames = scoreGames.filter(g => (sport === "all" || g.sport === sport) && matchesSearch(query, [g.home, g.away], g.sport))
+  const searching = query.trim().length > 0
   const scoresFailed = !!scores.error || (scores.data?.failedSports ?? []).some(s => sport === "all" || s === sport)
 
   return (
@@ -161,26 +173,49 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
         <div className="fw-main">
           <section className="fw-panel sp-open-lines reveal" style={revealStyle(2)} aria-labelledby="sp-markets-title">
             <div className="fw-section-head">
-              <div className="sp-title-copy"><h2 id="sp-markets-title">Open lines<InfoTip side="bottom" label="How lines work" text={<>Everyone gets the same line, and it can update until kickoff. Once you lock a pick, your price never changes. <b>+125</b> means 100 cash wins 125. <b>-110</b> means risking 110 wins 100. On a <b>spread</b>, your team must win by more than the number (or lose by less).</>} /></h2><p>{view === "upcoming" ? "Picks lock at kickoff" : "Live tracking · picks locked"}</p></div>
+              <div className="sp-title-copy"><h2 id="sp-markets-title">Open lines<InfoTip side="bottom" label="How lines work" text={<>Everyone gets the same line, and it can update until kickoff. Once you lock a pick, your price never changes. <b>+125</b> means 100 cash wins 125. <b>-110</b> means risking 110 wins 100. On a <b>spread</b>, your team must win by more than the number (or lose by less).</>} /></h2><p>{view === "upcoming" ? "Live prices from real markets · pick before kickoff or live in game · build parlays · play money only" : "Pregame picks are locked · live picks open on games showing a live price"}</p></div>
               <div className="sp-view-switch" role="group" aria-label="Game status">
                 <button type="button" aria-pressed={view === "upcoming"} onClick={() => setView("upcoming")}>Upcoming</button>
                 <button type="button" aria-pressed={view === "live"} onClick={() => setView("live")}>Live</button>
               </div>
             </div>
-            {league.sports.length > 1 ? (
-              <div ref={sportFilters} className="sp-filter fw-choices" role="group" aria-label="Filter by sport">
-                <Choice active={sport === "all"} onClick={() => setSport("all")}>
-                  All
-                </Choice>
-                {league.sports.map((s) => (
-                  <Choice key={s} active={sport === s} onClick={() => setSport(s)}>
-                    <LeagueBrand sport={s} />
+            <div className="sp-filter-bar" data-search={searchOpen || undefined}>
+              {league.sports.length > 1 ? (
+                <div ref={sportFilters} className="sp-filter fw-choices" role="group" aria-label="Filter by sport">
+                  <Choice active={sport === "all"} onClick={() => setSport("all")}>
+                    All
                   </Choice>
-                ))}
-              </div>
-            ) : null}
+                  {league.sports.map((s) => (
+                    <Choice key={s} active={sport === s} onClick={() => setSport(s)}>
+                      <LeagueBrand sport={s} />
+                    </Choice>
+                  ))}
+                </div>
+              ) : <span className="sp-filter-gap" />}
+              {searchOpen ? (
+                <div className="sp-search" role="search">
+                  <Search className="sp-search-icon" aria-hidden />
+                  <input
+                    ref={searchInput}
+                    type="search"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); closeSearch() } }}
+                    placeholder="Team, player or league"
+                    aria-label="Search games"
+                    autoComplete="off"
+                    spellCheck={false}
+                    enterKeyHint="search"
+                  />
+                  {query ? <button type="button" className="sp-search-clear" aria-label="Clear search" onClick={() => { setQuery(""); searchInput.current?.focus() }}><X aria-hidden /></button> : null}
+                  <button type="button" className="sp-search-done" onClick={closeSearch}>Done</button>
+                </div>
+              ) : (
+                <button ref={searchButton} type="button" className="sp-search-btn" aria-label="Search games" title="Search games" onClick={() => setSearchOpen(true)}><Search aria-hidden /></button>
+              )}
+            </div>
             {view === "upcoming" ? <ParlayModeBar mode={parlay.mode} onMode={(m) => { setSelected(null); parlay.setMode(m) }} count={parlay.legs.length} max={data.limits.parlay?.maxLegs ?? 6} note={parlay.mode === "parlay" ? parlay.note : null} /> : null}
-            {view === "upcoming" ? <ParlayIdsContext.Provider value={parlay.mode === "parlay" ? parlay.ids : null}><div className="sp-scroll"><Markets markets={shown} selected={parlay.mode === "parlay" ? null : current} onSelect={(market, line) => (parlay.mode === "parlay" ? parlay.toggle(market, line) : setSelected({ market, line }))} disabled={ended} now={now} /></div></ParlayIdsContext.Provider> : <ScoreboardGames enableAdminTest={id !== "sample"} livePick={id !== "sample" ? { leagueId: league.id, liveBetting: league.liveBetting, credits: data.you.credits, startingCredits: league.startingCredits, maxStakePct: league.maxStakePct, onPlaced: () => void refetch() } : undefined} games={liveGames} tracked={data.liveEvents ?? []} now={now} loading={scores.loading} failed={scoresFailed} />}
+            {view === "upcoming" ? <ParlayIdsContext.Provider value={parlay.mode === "parlay" ? parlay.ids : null}><div className="sp-scroll">{searching && shown.length === 0 ? <p className="fw-empty" role="status">No games match &ldquo;{query.trim()}&rdquo;</p> : <Markets markets={shown} selected={parlay.mode === "parlay" ? null : current} onSelect={(market, line) => (parlay.mode === "parlay" ? parlay.toggle(market, line) : setSelected({ market, line }))} disabled={ended} now={now} />}</div></ParlayIdsContext.Provider> : <ScoreboardGames onShowUpcoming={() => setView("upcoming")} query={searching ? query.trim() : undefined} enableAdminTest={id !== "sample"} livePick={id !== "sample" ? { leagueId: league.id, liveBetting: league.liveBetting, credits: data.you.credits, startingCredits: league.startingCredits, maxStakePct: league.maxStakePct, onPlaced: () => void refetch() } : undefined} games={liveGames} tracked={data.liveEvents ?? []} now={now} loading={scores.loading} failed={scoresFailed} />}
           </section>
 
           <section className="fw-panel reveal" style={revealStyle(3)} aria-labelledby="sp-standings-title">
@@ -591,7 +626,7 @@ function GameCard({ game, selected, onSelect, disabled, now }: { game: { key: st
           <b><LeagueBrand sport={event.sport} /></b> · {timeOf(event.startsAt)}
           {showLive ? <span className="sp-feed-chip" data-live><i />Live odds</span> : null}
           <select className="sp-market-select" aria-label={`Market for ${eventTitle(event)}`} value={active?.key ?? ""} onChange={e => setTab(e.target.value)}>
-            {groups.map(g => <option key={g.key} value={g.key}>{g.label}</option>)}
+            {groups.map(g => <option key={g.key} value={g.key}>{g.markets.length === 0 ? `${g.label} (unavailable)` : g.label}</option>)}
           </select>
         </span>
       </div>
