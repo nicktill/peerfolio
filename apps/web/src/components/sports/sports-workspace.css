@@ -616,3 +616,39 @@
 .sp-status[data-dim] { opacity: .62; }
 @media (max-width: 480px) { .sp-status small { display: none; } }
 @media (prefers-reduced-motion: reduce) { .sp-status { transition: none; } }
+
+/* Live numbers: prices, percents and scores roll toward the direction they moved, flash, and show a fading delta chip. */
+.ld { position: relative; display: inline-block; white-space: nowrap; border-radius: 4px; }
+.ld-in { display: inline-block; }
+.ld-out, .ld-chip { position: absolute; pointer-events: none; }
+.ld-out { inset: 0; display: inline-block; }
+.ld-chip { right: 100%; top: 50%; margin-right: 6px; transform: translateY(-50%); padding: 1px 6px; border-radius: 999px; font: 600 10.5px/1.5 var(--fw-mono); font-variant-numeric: tabular-nums; color: var(--fw-fg); background: var(--fw-elev, rgba(128, 128, 128, .18)); border: 1px solid var(--fw-line, rgba(128, 128, 128, .3)); animation: ld-chip 2.5s ease both; z-index: 2; }
+.ld-chip[data-tone="good"] { color: #34d399; border-color: color-mix(in srgb, #34d399 45%, transparent); }
+.ld-chip[data-tone="bad"] { color: #f87171; border-color: color-mix(in srgb, #f87171 45%, transparent); }
+.ld[data-dir="up"] .ld-in { animation: ld-in-up .45s cubic-bezier(.22, 1, .36, 1) both; }
+.ld[data-dir="down"] .ld-in { animation: ld-in-down .45s cubic-bezier(.22, 1, .36, 1) both; }
+.ld[data-dir="up"] .ld-out { animation: ld-out-up .45s cubic-bezier(.22, 1, .36, 1) both; }
+.ld[data-dir="down"] .ld-out { animation: ld-out-down .45s cubic-bezier(.22, 1, .36, 1) both; }
+.ld[data-flash="good"] { animation: ld-good 2.5s ease-out; }
+.ld[data-flash="bad"] { animation: ld-bad 2.5s ease-out; }
+.ld[data-flash="flat"] { animation: ld-flat 1.6s ease-out; }
+.ld[data-kind="score"][data-flash] .ld-chip { font-size: 12px; font-weight: 700; }
+/* A scoring play also lights up the whole team row for a moment. */
+.sp-live-side:has(.ld[data-kind="score"][data-flash]) { animation: ld-row 2.5s ease-out; }
+@keyframes ld-in-up { from { transform: translateY(70%); opacity: 0; } }
+@keyframes ld-in-down { from { transform: translateY(-70%); opacity: 0; } }
+@keyframes ld-out-up { to { transform: translateY(-70%); opacity: 0; } }
+@keyframes ld-out-down { to { transform: translateY(70%); opacity: 0; } }
+@keyframes ld-chip { 0% { opacity: 0; transform: translate(6px, -50%); } 12%, 70% { opacity: 1; transform: translate(0, -50%); } 100% { opacity: 0; transform: translate(0, -50%); } }
+@keyframes ld-good { 0%, 40% { background: color-mix(in srgb, #34d399 28%, transparent); color: #34d399; } 100% { background: transparent; } }
+@keyframes ld-bad { 0%, 40% { background: color-mix(in srgb, #f87171 28%, transparent); color: #f87171; } 100% { background: transparent; } }
+@keyframes ld-flat { 0% { background: color-mix(in srgb, var(--fw-fg3, #888) 30%, transparent); } 100% { background: transparent; } }
+@keyframes ld-row { 0%, 30% { background: color-mix(in srgb, #34d399 14%, transparent); } 100% { background: transparent; } }
+@media (prefers-reduced-motion: reduce) {
+  .ld[data-dir] .ld-in, .ld[data-dir] .ld-out { animation: none; }
+  .ld-out { display: none; }
+  .ld-chip { animation: ld-chip-still 2.5s ease both; }
+  .ld[data-flash="good"], .ld[data-flash="bad"], .ld[data-flash="flat"] { animation-duration: 1.2s; }
+  .sp-live-side:has(.ld[data-kind="score"][data-flash]) { animation-duration: 1.2s; }
+}
+@keyframes ld-chip-still { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }

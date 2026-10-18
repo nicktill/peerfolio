@@ -8,6 +8,10 @@ import { livePosition, type PositionPick } from "@web/lib/sports/live/position"
 import { ageView, type LiveView } from "@web/lib/sports/live/view"
 import { formatCredits, signedCredits } from "@web/lib/sports/format"
 import { teamLook } from "@web/lib/sports/teams"
+import { LiveNumber } from "./live-delta"
+
+const pctText = (n: number) => `${n}%`
+const scoreText = (n: number) => String(n)
 
 type Entry = { view: LiveView | null; receivedAt: number; subs: number; timer: number | undefined; failures: number; listeners: Set<() => void> }
 /** One poll per game for the whole page, however many tickets show it (module level, shared by every strip). */
@@ -96,7 +100,7 @@ export function LiveGameStrip({ eventId, sport, home, away, active, pick, onFina
         </span>
         {view?.score ? (
           <span className="sl-live-score numeric">
-            {a.abbr} {view.score.away ?? "–"} <i>·</i> {h.abbr} {view.score.home ?? "–"}
+            {a.abbr} <LiveNumber value={view.score.away} format={scoreText} kind="score" seenKey={`strip:${eventId}:a`} /> <i>·</i> {h.abbr} <LiveNumber value={view.score.home} format={scoreText} kind="score" seenKey={`strip:${eventId}:h`} />
           </span>
         ) : null}
         {line ? <span className="sl-live-clock numeric">{line}</span> : null}
@@ -109,9 +113,9 @@ export function LiveGameStrip({ eventId, sport, home, away, active, pick, onFina
             <span data-dim={dim("home") || undefined} style={{ width: `${split.home}%`, background: h.color }} />
           </div>
           <div className="sl-live-odds numeric">
-            <span data-mine={mine === "away" || undefined}>{a.abbr} {split.away}%</span>
-            {split.draw != null ? <span data-mine={mine === "draw" || undefined}>Draw {split.draw}%</span> : null}
-            <span data-mine={mine === "home" || undefined}>{h.abbr} {split.home}%</span>
+            <span data-mine={mine === "away" || undefined}>{a.abbr} <LiveNumber value={split.away} format={pctText} kind="pct" /></span>
+            {split.draw != null ? <span data-mine={mine === "draw" || undefined}>Draw <LiveNumber value={split.draw} format={pctText} kind="pct" /></span> : null}
+            <span data-mine={mine === "home" || undefined}>{h.abbr} <LiveNumber value={split.home} format={pctText} kind="pct" /></span>
           </div>
           {odds && odds.confidence === "low" ? <p className="sl-live-note">{odds.mismatch ? "Sources differ, treat as rough" : "Thin market, treat as rough"}</p> : null}
         </>
