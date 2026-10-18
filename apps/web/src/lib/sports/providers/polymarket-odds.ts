@@ -237,6 +237,9 @@ export function planGames(sport: Sport, schedule: EventResult[], groups: PmGameG
     // College football: Polymarket titles carry the school only ("Troy"), ESPN's full name adds the nickname ("Troy Trojans").
     // Retry on ESPN's school name. Same rules apply (both teams, close start, unique), so a near-miss still stays unmatched.
     if (!m && sport === "cfb" && e.homeShort && e.awayShort) m = matchGame({ homeName: e.homeShort, awayName: e.awayShort, startsAt: e.startsAt }, candidates)
+    // MLS: exchanges often write the city alone ("Atlanta", "Seattle") where ESPN writes the club. Retry accepting a leading city;
+    // still both teams, close start and unique, and a city that fits both sides ("Los Angeles" vs "Los Angeles") stays unmatched.
+    if (!m && sport === "mls") m = matchGame({ homeName: e.homeName, awayName: e.awayName, startsAt: e.startsAt }, candidates, { loose: true })
     if (!m) {
       unmatched++
       continue
@@ -296,20 +299,25 @@ export type Hidden = Record<string, number>
  * P(home) for a game (null when none / unusable). Anything that fails a gate is counted in `hidden` and left out.
  */
 export type KalshiView = { home: (g: PlannedGame) => number | null; three: (g: PlannedGame) => ThreeWayBooks | null }
-export function assemble(sport: Sport, games: PlannedGame[], books: ReadonlyMap<string, ClobBook>, kalshi: KalshiView, readAt: Date, now: Date): { events: ProviderEvent[]; hidden: Hidden; held: string[] } {
+export function assemble(sport: Sport, games: PlannedGame[], books: ReadonlyMap<string, ClobBook>, kalshi: KalshiView, readAt: Date, now: Date): { events: ProviderEvent[]; hidden: Hidden; held: string[]; detail: string[] } {
   const hidden: Hidden = {}
+  /** Which games lost which market and why (first few), so a run note can name them. */
+  const detail: string[] = []
+  let gameName = ""
   /** `externalId::marketKey` of markets a gate hid THIS run on a game that is still on ESPN's schedule and not live: a transient miss, not a withdrawal. */
   const held: string[] = []
   let gameId = ""
   const hide = (what: string, reason: string) => {
     const k = `${what}: ${reason}`
     hidden[k] = (hidden[k] ?? 0) + 1
+    if (reason !== "no market" && detail.length < 8) detail.push(`${gameName} ${what} (${reason})`)
     // "no market" means the exchange does not list that line at all; every other reason is a gate (spread, thin book, disagreement...).
     if (reason !== "no market") held.push(`${gameId}::${what}|`)
   }
   const events: ProviderEvent[] = []
   for (const g of games) {
     gameId = g.espn.externalId
+    gameName = `${g.espn.awayName} @ ${g.espn.homeName}`
     const markets: ProviderMarket[] = []
 
     if (g.moneyline) {
@@ -406,7 +414,7 @@ export function assemble(sport: Sport, games: PlannedGame[], books: ReadonlyMap<
       markets,
     })
   }
-  return { events, hidden, held }
+  return { events, hidden, held, detail }
 }
 
 /* ---------------- Kalshi cross-check ---------------- */
@@ -603,9 +611,9 @@ export class ExchangeOddsProvider implements OddsProvider {
       }
     }
 
-    const { events, hidden, held } = assemble(sport, games, books, { home: (g) => kalshiHomeProb(kalshi, g, now), three: (g) => kalshiThreeBooks(kalshi, g, now) }, now, now)
+    const { events, hidden, held, detail } = assemble(sport, games, books, { home: (g) => kalshiHomeProb(kalshi, g, now), three: (g) => kalshiThreeBooks(kalshi, g, now) }, now, now)
     const hiddenText = Object.entries(hidden).map(([k, n]) => `${k} x${n}`).join("; ")
-    notes.unshift(`exchange: ${events.length} of ${schedule.length} scheduled games priced${unmatched ? `, ${unmatched} not matched to an exchange game` : ""}${hiddenText ? `; hidden: ${hiddenText}` : ""}${failures ? `; ${failures} book request(s) failed` : ""}`)
+    notes.unshift(`exchange: ${events.length} of ${schedule.length} scheduled games priced${unmatched ? `, ${unmatched} not matched to an exchange game` : ""}${hiddenText ? `; hidden: ${hiddenText}` : ""}${detail.length ? `; e.g. ${detail.join(", ")}` : ""}${failures ? `; ${failures} book request(s) failed` : ""}`)
     if (truncated) notes.push(`gamma: listing truncated at ${EXCHANGE_ODDS.maxPages} pages`)
     return { ...base, events, held, complete: failures === 0 && !truncated, notes }
   }

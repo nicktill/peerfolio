@@ -328,6 +328,17 @@ describe("MLS three-way moneyline from three Yes/No markets, spreads and totals 
     assert.match(after.notes!.join(" "), /not accepting orders/)
   })
 
+  it("matches an exchange that names MLS clubs by city, and publishes Winner for shallow favourite/underdog legs", async () => {
+    const f = clone(fx())
+    const ev = f.gamma.find((x: any) => x.slug === "mls-atl-mia-2026-10-17")!
+    for (const m of ev.markets as any[]) {
+      if (m.groupItemTitle === "Atlanta United FC") m.groupItemTitle = "Atlanta"
+      if (m.groupItemTitle === "Inter Miami CF") m.groupItemTitle = "Inter Miami"
+    }
+    const snap = await run(f)
+    assert.ok(snap.events.find((x) => x.homeName === "Atlanta United FC"), "city-only name matches")
+  })
+
   it("publishes a three-way market through the normal pipeline: 2% margin over three sides, rounded against the player", async () => {
     const f = fx()
     const now = at(f)

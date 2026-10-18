@@ -525,7 +525,7 @@ const ORDER: Record<string, Record<string, number>> = { teams: { away: 0, draw: 
 function GameCard({ game, selected, onSelect, disabled, now }: { game: { key: string; event: EventInfo; markets: Market[] }; selected: { line: Line } | null; onSelect: (m: Market, l: Line) => void; disabled: boolean; now: number }) {
   const { event } = game
   const tennis = event.sport === "tennis"
-  const groups = (
+  const baseGroups = (
     [
       { key: "winner", label: "Winner", test: (m: Market) => m.kind === "moneyline" },
       { key: "spread", label: "Spread", test: (m: Market) => m.kind === "spread" },
@@ -535,6 +535,9 @@ function GameCard({ game, selected, onSelect, disabled, now }: { game: { key: st
   )
     .map((g) => ({ ...g, markets: game.markets.filter(g.test) }))
     .filter((g) => g.markets.length > 0)
+  // Spread/Total but no Winner (e.g. a thin soccer book): keep a Winner entry that says so rather than silently dropping it.
+  const winnerMissing = !baseGroups.some((g) => g.key === "winner") && baseGroups.some((g) => g.key === "spread" || g.key === "total")
+  const groups = winnerMissing ? [{ key: "winner" as const, label: "Winner", test: () => false, markets: [] as Market[] }, ...baseGroups] : baseGroups
   const [tab, setTab] = useState<string>(groups[0]?.key ?? "winner")
   const active = groups.find((g) => g.key === tab) ?? groups[0]
   const winner = game.markets.find((m) => m.kind === "moneyline")
@@ -577,7 +580,13 @@ function GameCard({ game, selected, onSelect, disabled, now }: { game: { key: st
         </div>
       ) : null}
 
-      {active ? (
+      {active && active.markets.length === 0 ? (
+        <div key={active.key} className="sp-panel" role="note">
+          <p className="sp-fine">Winner line unavailable right now. It returns when the market has enough depth.</p>
+        </div>
+      ) : null}
+
+      {active && active.markets.length > 0 ? (
         <div key={active.key} className="sp-panel" role="group" aria-label={`${active.label} markets`}>
           {active.markets.map((m) => (
             <div key={m.id} className="sp-market">
