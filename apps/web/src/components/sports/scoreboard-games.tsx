@@ -110,7 +110,9 @@ function LiveCard({ g, now, tracked, enableAdminTest, livePick }: { g: ScoreGame
 export function ScoreboardGames({ games, tracked, now, loading, failed, enableAdminTest = false, livePick, query, onShowUpcoming, renderUpcoming }: { query?: string; onShowUpcoming?: () => void; renderUpcoming?: (game: ScoreGame) => React.ReactNode; games: ScoreGame[]; tracked: Tracked[]; now: number; loading: boolean; failed: boolean; enableAdminTest?: boolean; livePick?: LivePickConfig }) {
   // Same order on every poll, whatever order the feed returns games in, so cards never swap places.
   const byStart = (x: ScoreGame, y: ScoreGame) => Date.parse(x.startsAt) - Date.parse(y.startsAt) || `${x.sport}:${x.id}`.localeCompare(`${y.sport}:${y.id}`)
-  const live = games.filter(g => g.status === 'live').sort(byStart)
+  // A game past its scheduled start whose feed still says "upcoming" is under way: keep it in Live now rather than letting it fall between the two lists.
+  const underWay = (g: ScoreGame) => g.status === 'upcoming' && Date.parse(g.startsAt) <= now && now - Date.parse(g.startsAt) < 5 * 3600_000
+  const live = games.filter(g => g.status === 'live' || underWay(g)).sort(byStart)
   // Quiet right now: show what is coming up in the next few days instead of an empty panel.
   const upcoming = games.filter(g => g.status === 'upcoming' && Date.parse(g.startsAt) > now).sort(byStart).slice(0, UPCOMING_LIMIT)
   if (loading && !games.length) return <p className="fw-empty" role="status">Loading live games…</p>
