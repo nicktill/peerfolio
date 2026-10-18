@@ -1,7 +1,9 @@
 import { LandingHeader } from "@web/components/landing/landing-header"
 import type { Metadata } from "next"
 import { redirect } from "next/navigation"
-import { ArrowDown, EyeOff, LineChart, Sparkles, Trophy } from "lucide-react"
+import { ArrowDown, EyeOff } from "lucide-react"
+import { TickerLogo } from "@web/components/ui/ticker-logo"
+import { TeamBadge } from "@web/components/sports/team-badge"
 import { SiteFooter } from "@web/components/site-footer"
 import { ChatBubble } from "@web/components/landing/chat-bubble"
 import { HeroBackdrop } from "@web/components/landing/hero-backdrop"
@@ -77,10 +79,30 @@ export default async function HomePage() {
                 See how it works <ArrowDown className="size-4" aria-hidden />
               </a>
             </div>
-            <ul style={revealStyle(3)} className="reveal pf-modes mt-5" aria-label="Ways to play">
-              <li><LineChart aria-hidden />Real portfolios</li>
-              <li><Sparkles aria-hidden />Fantasy stocks</li>
-              <li><Trophy aria-hidden />Sports picks</li>
+            <ul style={revealStyle(3)} className="reveal pf-modes mx-auto mt-6" aria-label="Ways to play">
+              <li data-mode="real">
+                <span className="pf-mode-logos" aria-hidden>
+                  {["AAPL", "NVDA", "VTI"].map((t) => <TickerLogo key={t} symbol={t} size="xs" className="!size-[26px] !text-[8px]" />)}
+                </span>
+                <b>Real portfolios</b>
+                <small>Link a brokerage or add positions</small>
+              </li>
+              <li data-mode="fantasy">
+                <span className="pf-mode-logos" aria-hidden>
+                  {["TSLA", "AMZN", "MSFT"].map((t) => <TickerLogo key={t} symbol={t} size="xs" className="!size-[26px] !text-[8px]" />)}
+                </span>
+                <b>Fantasy stocks</b>
+                <small>Play-money picks, real prices</small>
+              </li>
+              <li data-mode="sports">
+                <span className="pf-mode-logos" aria-hidden>
+                  <span><TeamBadge sport="nfl" name="Kansas City Chiefs" size={26} /></span>
+                  <span><TeamBadge sport="nba" name="Los Angeles Lakers" size={26} /></span>
+                  <span><TeamBadge sport="mlb" name="Los Angeles Dodgers" size={26} /></span>
+                </span>
+                <b>Sports picks</b>
+                <small>Live games, spreads and props</small>
+              </li>
             </ul>
             <p style={revealStyle(3)} className="reveal pf-muted mt-3 text-xs">Free. Join friends in a league, or play on your own.</p>
           </div>

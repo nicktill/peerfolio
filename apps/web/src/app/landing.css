@@ -315,7 +315,17 @@ html.lenis, html.lenis body { height: auto; }
 }
 
 /* Hero: the three ways to play, at a glance. */
-.pf-modes { list-style: none; margin: 20px 0 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
-.pf-modes li { display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border: 1px solid var(--hair); border-radius: 999px; background: var(--panel); font: 500 13px/18px var(--sans, inherit); color: var(--fg2); }
-.pf-modes svg { width: 15px; height: 15px; color: var(--pf-accent); }
-@media (max-width: 700px) { .pf-modes { gap: 6px; } .pf-modes li { padding: 6px 11px; font-size: 12px; } }
+.pf-modes { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; max-width: 640px; }
+.pf-modes li { --m: var(--pf-accent); position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 10px 13px; border: 1px solid color-mix(in srgb, var(--m) 28%, var(--hair)); border-radius: 18px; background: linear-gradient(180deg, color-mix(in srgb, var(--m) 10%, var(--panel)), var(--panel) 70%); text-align: center; transition: transform .25s cubic-bezier(.2, .9, .3, 1.2), box-shadow .25s, border-color .25s; }
+.pf-modes li[data-mode="real"] { --m: #3fae7f; }
+.pf-modes li[data-mode="fantasy"] { --m: #c4a15b; }
+.pf-modes li[data-mode="sports"] { --m: #4a7fd4; }
+.pf-modes li:hover { transform: translateY(-3px); border-color: color-mix(in srgb, var(--m) 55%, var(--hair)); box-shadow: 0 14px 28px -16px color-mix(in srgb, var(--m) 70%, transparent); }
+.pf-mode-logos { display: inline-flex; align-items: center; justify-content: center; margin-bottom: 6px; }
+.pf-mode-logos > * { margin-left: -9px; border-radius: 50%; box-shadow: 0 0 0 2.5px var(--panel); background: var(--panel); }
+.pf-mode-logos > :first-child { margin-left: 0; }
+.pf-mode-logos > span { display: grid; place-items: center; width: 26px; height: 26px; overflow: hidden; }
+.pf-modes b { font: 600 14px/18px var(--sans, inherit); color: var(--fg); }
+.pf-modes small { font: 400 12px/16px var(--sans, inherit); color: var(--fg3); text-wrap: balance; }
+@media (max-width: 700px) { .pf-modes { gap: 8px; } .pf-modes li { padding: 11px 6px 10px; border-radius: 16px; } .pf-modes b { font-size: 12.5px; } .pf-modes small { display: none; } .pf-mode-logos > * { margin-left: -8px; } }
+@media (prefers-reduced-motion: reduce) { .pf-modes li { transition: none; } .pf-modes li:hover { transform: none; } }
