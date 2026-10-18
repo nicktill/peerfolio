@@ -78,147 +78,50 @@ chart compares rates of return, not who has more money.
 
 Public profiles are opt-in and off by default.
 
-## Quickstart
+## Running it locally
 
-No hosted database, OAuth app or Plaid keys needed to see the app running:
+No hosted services or API keys are needed to see the app running:
 
 ```sh
-docker compose up -d                            # Postgres on :5433
+docker compose up -d                            # local Postgres
 npm install
-cp apps/web/.env.example apps/web/.env.local    # generate the two secrets it names
+cp apps/web/.env.example apps/web/.env.local    # fill in the values it names
 npm run db:migrate --workspace=@repo/web
-npm run db:seed --workspace=@repo/web           # five demo portfolios, 120 days each
+npm run db:seed --workspace=@repo/web           # demo portfolios
 npm run dev
 ```
 
-Then open **http://localhost:3000/dev-login** and sign in as any seeded user.
+Then open http://localhost:3000/dev-login and sign in as a seeded demo user.
+The developer login only exists in local, non-production builds. All demo
+people and numbers are invented.
 
-Two pages can also be looked at without signing in, on invented data:
-**/preview/portfolio** and **/preview/news**. Both 404 in production builds.
-
-Port 3000 taken? `PORT=3200 npm run dev --workspace=@repo/web`. Set
-`NEXTAUTH_URL` to the same port in `.env.local` — if it disagrees, sign-in
-hangs instead of failing loudly.
-
-The developer login is off by default and never runs in production. Locally it
-needs only `ENABLE_DEV_LOGIN=true` in a non-production build. It also works on a
-Vercel **preview** deployment, so a branch can be reviewed without an OAuth app
-per preview URL, but only when these are set on the Preview environment:
-
-- `ENABLE_DEV_LOGIN=true`
-- `DEV_LOGIN_DEMO_DATABASE=true`: you're stating the preview's `DATABASE_URL` is a disposable demo database. Without it the login stays off, so a preview that points at real data can never offer it. It also lets the login apply pending migrations.
-- optionally `DEV_LOGIN_SECRET` (16+ characters): if set, a passcode is asked for. Otherwise the page is one click on a demo person.
-- optionally `DEV_LOGIN_EMAILS`: comma-separated emails it may open. Defaults to the five demo people.
-
-**/demo** is the one-click entry: it signs in as `theo@example.com` (first demo person) and lands on the dashboard, showing a small "Demo data" pill in the app. It 404s wherever the login is off, and redirects to `/dev-login` if `DEV_LOGIN_SECRET` is set. A preview needs, on the **Preview environment only**: `ENABLE_DEV_LOGIN=true`, `DEV_LOGIN_DEMO_DATABASE=true`, a separate demo `DATABASE_URL`, `NEXTAUTH_SECRET`, and optionally `DEV_LOGIN_SECRET` and `PRODUCTION_DATABASE_URL` (if it equals `DATABASE_URL` the login stays off). Leave `NEXTAUTH_URL` unset on previews so NextAuth uses the deployment's own URL (`VERCEL_URL`). Never set any of these on Production and never point Preview at the production database. Production builds run migrations on deploy; previews never do (`scripts/migrate-on-deploy.mjs` skips unless `VERCEL_ENV=production`).
-
-On a preview, a demo account that doesn't exist yet is created on first sign-in along with a demo world (four other players, "The Group Chat" league, and a "Friday Draft" fantasy league with standings and a trade feed), so a fresh demo database needs no seeding. Point previews at a database that holds only demo accounts. `VERCEL_ENV=production` always turns the login off, so the route 404s and the provider isn't registered there.
-
-For the real thing you need a Postgres URL (Neon and Supabase both work),
-Google OAuth credentials and Plaid sandbox keys. `apps/web/.env.example`
-documents every variable, including how to generate `ENCRYPTION_KEY` and
-`CRON_SECRET`.
-
-### Daily snapshots
-
-`/api/cron/snapshot` is what makes performance history exist at all. Plaid
-exposes no historical portfolio value, so the series only grows forward from
-the day someone connects and can never be backfilled. Miss a day and that day
-is gone for everyone.
-
-The daily snapshot is scheduled in `apps/web/vercel.json` at 22:30 UTC.
-Confirm that your Vercel plan enables that job and inspect its run history. If
-you use an external scheduler instead, avoid also scheduling a duplicate job:
-
-- **Vercel dashboard** — Settings → Cron Jobs, path `/api/cron/snapshot`.
-- **Any external scheduler** (cron-job.org, GitHub Actions, your own box):
-
-  ```sh
-  curl -H "Authorization: Bearer $CRON_SECRET" https://<your-domain>/api/cron/snapshot
-  ```
-
-The endpoint refuses without a matching `CRON_SECRET`, so it is safe to expose.
-
-**Prices.** `/api/cron/prices` refreshes live quotes and picks up the official
-close. `.github/workflows/prices.yml` calls it every 5 minutes during market
-hours and every 10 minutes for a few hours after the close. Add one repository secret
-(Settings → Secrets and variables → Actions): `CRON_SECRET`, the same value as
-in Vercel. It calls `https://www.peerfolio.org` unless you set a `PEERFOLIO_URL`
-repository variable. A run
-turns red when it tried to refresh and nothing arrived.
-
-Before writing snapshots it reprices manual positions from the previous
-session's closes (`MASSIVE_API_KEY`). That's two market data calls a night, one
-for US stocks and ETFs and one for crypto, however many positions exist.
-
-### Plaid webhooks
-
-Point `PLAID_WEBHOOK_URL` at `https://<your-domain>/api/plaid/webhook`.
-Requests are signature-verified. Without a reachable webhook, connections that
-fall out of auth go stale silently instead of prompting a reconnect.
+`apps/web/.env.example` lists the configuration the app reads. Deployment,
+scheduled jobs and third-party service setup are managed privately.
 
 ## Verified vs. manual accounts
 
-Accounts carry a **source**. Plaid-connected accounts are `plaid`; typed-in
-ones are `manual`.
+Accounts carry a **source**: connected-brokerage accounts are verified, and
+typed-in accounts are manual. Manual portfolios can play in private leagues,
+but **only verified portfolios can rank on the public board**, so nothing
+self-reported is ever presented as verified.
 
-Manual accounts exist so people can start building history before their
-brokerage is connectable — waiting costs history permanently. Manual
-portfolios play in private leagues. **Only Plaid-verified portfolios can rank
-on the public board**, so nothing self-reported is ever presented as verified.
-That makes verification the reason to connect, rather than a prerequisite to
-launching.
-
-## Architecture
+## Layout
 
 ```
 apps/web/src
-├── app/(app)/        Signed-in surfaces: dashboard (Portfolio), leagues, fantasy,
-│                     board, news, settings
-├── app/preview/      Sign-in-free Portfolio and News pages on sample data
-├── app/u/[handle]/   Public trader profiles
-├── app/api/          Route handlers (every Plaid route is session-guarded)
-│                     plus the cron jobs for snapshots, prices and news
-├── components/       UI primitives, hand-rolled SVG charts, feature components
-├── db/               Drizzle schema and client (server-only)
-└── lib/              Plaid client + sync, returns math, crypto, formatting
+├── app/(app)/        Signed-in surfaces
+├── app/api/          Route handlers
+├── components/       UI and hand-rolled SVG charts
+├── db/               Database schema and client
+└── lib/              Shared logic
 ```
-
-**Security notes.** Plaid access tokens are encrypted with AES-256-GCM and
-never leave the server — no route returns one, and nothing is kept in
-`localStorage`. `src/db/index.ts` imports `server-only`, so a client component
-that reaches for the database fails the build rather than shipping the driver
-to the browser.
 
 ## Scripts
 
 | Command | What it does |
 |---|---|
-| `npm run dev` | Dev server on :3000 |
+| `npm run dev` | Dev server |
 | `npm run build` | Build all workspaces |
-| `npm run lint` | ESLint, zero warnings tolerated |
-| `npm run check-types` | `tsc --noEmit` |
-| `npm test` | Unit tests (`node:test`, no framework) |
-| `npm run db:generate --workspace=@repo/web` | Write a migration from schema changes |
-| `npm run db:migrate --workspace=@repo/web` | Apply migrations |
-| `npm run db:studio --workspace=@repo/web` | Drizzle Studio |
-
-## Charts
-
-Charts are hand-rolled SVG rather than a charting library — that's what let the
-dashboard bundle drop from 303 kB to 128 kB of first-load JS.
-
-The palette is validated for colour-vision deficiency, and the slot **ordering**
-in `globals.css` is the accessibility mechanism, not decoration. Re-run the
-validator before reshuffling it. Gain and loss always ship an arrow and a sign
-alongside the colour, because that red/green pair sits in the CVD warn band and
-colour alone wouldn't be readable for everyone.
-
-
-### News refresh cadence
-
-Trading-day briefings publish around **7:00 AM, 10:15 AM, noon, 2:15 PM, and 4:20 PM Eastern**. On early-close days, the final recap targets 20 minutes after the close. GitHub’s UTC schedule covers daylight saving and standard time; delayed or duplicate runs catch up the latest due slot without generating the same slot twice. Holidays and weekends skip intraday updates. The existing Vercel evening cron remains a backup.
-
-The latest published summary is shared through `/api/news`, with a server read cache invalidated after publication. Both signed-in News and the landing preview poll this endpoint; visitors do not trigger a new AI summary for every read. The landing preview mounts its News component in the background so quotes, the briefing and earnings are warm before the tab is selected. Preview deployments without provider keys reuse the cached public production quote/calendar endpoints, without forwarding cookies or accessing account data.
-
-AI generation remains metered by `NEWS_AI_MONTHLY_BUDGET_USD` (default **$1/month**). When the cap is reached, sourced headline-only summaries are used. Five updates per trading day increases generation volume; it does not increase the configured spending cap. RSS/provider outages preserve the last published summary.
+| `npm run lint` | ESLint |
+| `npm run check-types` | Type check |
+| `npm test` | Unit tests |
