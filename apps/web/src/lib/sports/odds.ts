@@ -108,10 +108,10 @@ export function consensusTwoWay(
 }
 
 /**
- * The house margin on every offered line: the two sides' implied probabilities sum to at least 1 + HOUSE_MARGIN.
+ * The usual house margin: the two sides' implied probabilities sum to at least 1 + HOUSE_MARGIN.
  * 2% total (1% per side) is about -105/-105 on an even game. It is a free play-money game, so the edge is kept small
  * so that heavy players are not punished. Applies to newly published and repriced lines only: an accepted pick keeps
- * the price it was given.
+ * the price it was given. Extreme live favourites taper the margin to keep implied probabilities below 100%.
  */
 export const HOUSE_MARGIN = 0.02
 
@@ -144,10 +144,13 @@ export function tidyAgainstPlayer(rawAmericanOdds: number): number {
 }
 
 export function priceTwoWay(fairProbA: number, cfg: PricingConfig = DEFAULT_PRICING): [number, number] | null {
+  if (!Number.isFinite(fairProbA) || fairProbA <= 0 || fairProbA >= 1) return null
   const fairB = 1 - fairProbA
   if (fairProbA < cfg.minFairProb || fairB < cfg.minFairProb) return null
-  const half = cfg.margin / 2
-  return [tidyAgainstPlayer(rawAmerican(fairProbA + half)), tidyAgainstPlayer(rawAmerican(fairB + half))]
+  // At extreme live probabilities, taper the margin so the favourite never reaches 100% implied probability.
+  const half = Math.min(cfg.margin / 2, Math.min(fairProbA, fairB) / 2)
+  const quote = (p: number) => tidyAgainstPlayer(rawAmerican(p + half < 1 ? p + half : p))
+  return [quote(fairProbA), quote(fairB)]
 }
 
 /** Total return (stake included) for a winning pick, floored to whole credits. The 1e-9 keeps a product that is a whole number in exact arithmetic (e.g. 486 at -1944) from flooring one credit low on float error. */

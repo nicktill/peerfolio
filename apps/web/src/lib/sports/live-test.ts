@@ -1,5 +1,5 @@
-import { priceTwoWay, totalReturn } from './odds.ts'
-import { priceThreeWay } from './threeway.ts'
+import { DEFAULT_PRICING, priceTwoWay, totalReturn } from './odds.ts'
+import { DEFAULT_THREEWAY_PRICING, priceThreeWay } from './threeway.ts'
 import type { LiveView } from './live/view.ts'
 import type { LiveSelection } from './live/types.ts'
 
@@ -35,8 +35,11 @@ export function testOffer(view: LiveView | null, now: number): TestOffer {
   const q = view.odds
   if (q.status !== 'ok' || q.source === 'espn' || q.freshness !== 'live' || q.confidence === 'low' || q.mismatch || !fresh(q.asOf, now)) return reject('A fresh, agreeing exchange quote is required')
   if (![q.homeProb, q.awayProb, ...(q.drawProb == null ? [] : [q.drawProb])].every(p => Number.isFinite(p) && p > 0 && p < 1) || Math.abs(q.homeProb + q.awayProb + (q.drawProb ?? 0) - 1) > 1e-6) return reject('Invalid exchange probabilities')
-  const priced = q.drawProb == null ? priceTwoWay(q.homeProb) : priceThreeWay([q.homeProb, q.drawProb, q.awayProb])
-  if (!priced) return reject('Market is outside the supported price range')
+  // Live picks accept any non-zero chance. Freshness and quote quality are checked above, independently of probability.
+  const priced = q.drawProb == null
+    ? priceTwoWay(q.homeProb, { ...DEFAULT_PRICING, minFairProb: 0 })
+    : priceThreeWay([q.homeProb, q.drawProb, q.awayProb], { ...DEFAULT_THREEWAY_PRICING, minFairProb: 0 })
+  if (!priced) return reject('Invalid exchange prices')
   const prices = q.drawProb == null ? { home: priced[0], away: priced[1] } : { home: priced[0], draw: priced[1], away: priced[2] }
   return { eventId: view.eventId, source: q.source, quoteAsOf: q.asOf, stateAsOf: view.stateAsOf!, homeProb: q.homeProb, awayProb: q.awayProb, drawProb: q.drawProb, homeScore: view.score.home!, awayScore: view.score.away!, period: view.period, clock: view.clock, prices }
 }

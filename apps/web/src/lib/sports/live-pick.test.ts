@@ -9,12 +9,23 @@ import type { LiveView } from './live/view.ts'
 
 const NOW = Date.parse('2026-10-18T00:00:00Z')
 const view = (now = NOW): LiveView => ({ eventId: 'g', status: 'live', score: { home: 2, away: 1 }, period: 'P2', clock: '10:00', stateAsOf: new Date(now - 1000).toISOString(), stateFreshness: 'live', serverTime: new Date(now).toISOString(), odds: { status: 'ok', homeProb: 0.6, awayProb: 0.4, drawProb: null, source: 'polymarket', asOf: new Date(now - 1000).toISOString(), ageMs: 1000, freshness: 'live', confidence: 'high', mismatch: null } })
-const limits = { ...DEFAULT_LIMITS, maxStakePctOfStart: Math.min(10, LIVE_PICK.maxStakePct), live: true }
+const limits = { ...DEFAULT_LIMITS, maxStakePctOfStart: Math.min(10, LIVE_PICK.maxStakePct), maxReturnPctOfStart: LIVE_PICK.maxReturnPctOfStart, live: true }
 const ctx = (over: Partial<PickContext> = {}): PickContext => ({
   now: new Date(NOW), market: { id: 'm', status: 'locked', lockAt: new Date(NOW - 3600_000) }, eventStatus: 'scheduled', eventStartsAt: new Date(NOW - 3600_000),
   line: { id: 'l', marketId: 'm', price: -150, point: null }, member: { credits: 1000 }, league: { startingCredits: 1000 }, picksOnMarket: 0, openPickCount: 0, openStakeTotal: 0, ...over,
 })
 const req = (stake: number) => ({ stake, lineId: 'l', expectedPrice: -150, expectedPoint: null })
+
+test('a 7% live longshot can win more than the old payout cap at a valid stake', () => {
+  const v = view()
+  if (v.odds.status !== 'ok') throw new Error('fixture')
+  v.odds = { ...v.odds, homeProb: 0.07, awayProb: 0.93 }
+  const price = testOffer(v, NOW).prices.home!
+  const context = ctx({ line: { id: 'l', marketId: 'm', price, point: null } })
+  const accepted = acceptPick({ ...req(50), expectedPrice: price }, context, limits)
+  assert.ok(accepted.totalReturn - accepted.stake > 500)
+  assert.throws(() => acceptPick({ ...req(51), expectedPrice: price }, context, limits), /stake|risk|maximum/i)
+})
 
 test('live acceptance: in-progress game on a locked live market is accepted at the offered price', () => {
   const a = acceptPick(req(50), ctx(), limits)
