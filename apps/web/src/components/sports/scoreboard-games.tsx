@@ -33,8 +33,9 @@ function SetScores({ sets, live }: { sets?: TennisSet[]; live: boolean }) {
   if (!sets?.length) return null
   return <span className="sp-sets">{sets.map((s, i) => <span key={i} className="sp-set" data-current={live && i === sets.length - 1 || undefined} style={live && i === sets.length - 1 ? { color: 'var(--fw-fg1)', fontWeight: 700 } : undefined}>{s.games}{s.tiebreak != null ? <sup>{s.tiebreak}</sup> : null}</span>)}</span>
 }
-function CardHead({ g, chip }: { g: ScoreGame; chip: React.ReactNode }) {
-  return <div className="sp-game-head"><div className="sp-matchup"><strong>{g.away} {g.sport === "tennis" ? "vs" : "@"} {g.home}</strong></div><span className="sp-game-meta"><LeagueBrand sport={g.sport} />{chip}</span></div>
+/** `live` puts a small status dot before the league: green when the feed is current, amber when it is lagging. */
+function CardHead({ g, chip, live }: { g: ScoreGame; chip: React.ReactNode; live?: { fresh: boolean; updated: number } }) {
+  return <div className="sp-game-head"><div className="sp-matchup"><strong>{g.away} {g.sport === "tennis" ? "vs" : "@"} {g.home}</strong></div><span className="sp-game-meta">{live ? <i className="sp-live-dot" data-delayed={!live.fresh || undefined} role="img" aria-label={live.fresh ? "Live" : "Live, updates delayed"} title={live.fresh ? (live.updated < 30 ? "Live · updated just now" : `Live · updated ${live.updated}s ago`) : "Score feed delayed"} /> : null}<LeagueBrand sport={g.sport} />{chip}</span></div>
 }
 function TeamRows({ g, showScore, trendId, trendLive, offer, stale, pickable, livePick, eventId }: { g: ScoreGame; showScore: boolean; trendId?: string; trendLive?: number | null; offer?: TestOffer | null; stale?: boolean; pickable?: boolean; livePick?: LivePickConfig; eventId?: string }) {
   const colors = matchupColors(g.sport, g.away, g.home)
@@ -86,7 +87,7 @@ function LiveCard({ g, now, tracked, enableAdminTest, livePick }: { g: ScoreGame
   const selectable = reserveOdds && livePick?.mode !== 'parlay'
 
   return <article className="sp-game sp-live-card" data-matchup style={{ '--away-color': colors[0], '--home-color': colors[1] } as React.CSSProperties}>
-    <CardHead g={g} chip={<GameStatusChip input={statusInput} now={now} />} />
+    <CardHead g={g} chip={<GameStatusChip input={statusInput} now={now} />} live={g.status === 'live' ? { fresh, updated } : undefined} />
     {!split && tracked ? <div className="sp-odds-bar" data-empty aria-hidden><div className="sp-odds-track" /><div className="sp-odds-labels"><span>&nbsp;</span></div></div> : null}
     {split ? <div className="sp-odds-bar" role="img" aria-label={`Win probability: ${g.away} ${split.away} percent, ${split.draw != null ? `draw ${split.draw} percent, ` : ''}${g.home} ${split.home} percent`}>
       <div className="sp-odds-track">
@@ -102,8 +103,8 @@ function LiveCard({ g, now, tracked, enableAdminTest, livePick }: { g: ScoreGame
     </div> : null}
     <TeamRows g={g} showScore trendId={fresh ? tracked?.id : undefined} trendLive={ex ? ex.homeProb : null} offer={reserveOdds ? shownOffer : null} stale={!offer} pickable={selectable} livePick={reserveOdds ? livePick : undefined} eventId={tracked?.id} />
     {selectable && hasDraw ? <button type="button" className="sp-line sp-live-draw" aria-label={drawPrice != null ? `Live pick Draw, ${formatOdds(drawPrice)}` : 'Draw, price unavailable'} aria-pressed={livePick?.selected?.eventId === tracked!.id && livePick.selected.side === 'draw'} disabled={livePick?.busy || drawPrice == null} onClick={drawPrice != null ? () => livePick!.onSelect({ eventId: tracked!.id, home: g.home, away: g.away, sport: g.sport, side: 'draw', price: drawPrice }) : undefined}><span>Draw</span><b>{drawPrice != null ? formatOdds(drawPrice) : '\u2013'}</b></button> : null}
-    <div className="sp-live-footer"><span>{fresh ? (updated < 30 ? 'Updated just now' : `Updated ${updated}s ago`) : 'Last reported score · updates delayed'}</span>{livePick?.mode === 'parlay' ? <span><Lock aria-hidden />Live picks are singles</span> : <span />}</div>
     {g.status === 'live' ? <p className="sp-last-play" title={fresh ? g.lastPlay : undefined}><span>Last play</span> {fresh ? g.lastPlay || 'Waiting for the next play…' : 'Score feed delayed'}</p> : null}
+    {livePick?.mode === 'parlay' ? <p className="sp-fine sp-live-singles"><Lock aria-hidden />Live picks are singles</p> : null}
     {tracked && enableAdminTest && !livePick?.liveBetting ? <AdminLiveTestPanel eventId={tracked.id} home={g.home} away={g.away} /> : null}
   </article>
 }
