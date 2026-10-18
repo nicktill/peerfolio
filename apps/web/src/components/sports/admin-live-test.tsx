@@ -50,7 +50,7 @@ export function AdminLiveTestPanel({ eventId, home, away }: { eventId: string; h
   }
   async function submit(selection: LiveSelection, expectedPrice: number) {
     if (!offer || busy) return
-    setBusy(true); setMessage('Checking new quote and score observations for 12 seconds…')
+    setBusy(true); setMessage('Checking for a fresh price and unchanged score (a few seconds)…')
     try {
       const response = await fetch(`/api/sports/live-test/${eventId}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: offer.token, selection, stake, expectedPrice }) })
       const data = await response.json()

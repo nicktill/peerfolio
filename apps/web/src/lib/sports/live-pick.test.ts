@@ -73,9 +73,9 @@ const accept = async (mutate?: (v: LiveView, read: number) => void) => {
   })
 }
 
-test('offer acceptance returns the offered price after the 12 second delayed reread', async () => {
+test('offer acceptance returns the offered price after the short delayed reread', async () => {
   const receipt = await accept()
-  assert.equal(receipt.delayMs, 12_000); assert.equal(receipt.stake, 50)
+  assert.equal(receipt.delayMs, 4_000); assert.equal(receipt.stake, 50)
 })
 
 test('live stake bounds replace the paper bounds', async () => {

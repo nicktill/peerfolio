@@ -14,7 +14,7 @@ import type { LiveSelection } from '@web/lib/sports/live/types'
 type Signed = { offer: TestOffer; token: string; minStake: number; maxStake: number }
 type Props = { leagueId: string; eventId: string; home: string; away: string; sport: string; credits: number; startingCredits: number; maxStakePct: number; onPlaced: () => void }
 
-/** In-play pick for a tracked game. The price shown is the live fair price; the server re-checks the game for 12 seconds before it accepts. */
+/** In-play pick for a tracked game. The price shown is the live fair price; the server re-checks the game and price for a few seconds before it accepts. */
 export function LivePickPanel({ leagueId, eventId, home, away, sport, credits, startingCredits, maxStakePct, onPlaced }: Props) {
   const { toast } = useToast()
   const { view, elapsedMs } = useLiveGame(eventId, true)
@@ -44,7 +44,7 @@ export function LivePickPanel({ leagueId, eventId, home, away, sport, credits, s
   async function lockIn() {
     if (!side || price == null || !valid || phase === 'checking') return
     setMessage('')
-    setPhase('checking'); setLeft(LIVE_TEST.delayMs / 1000)
+    setPhase('checking'); setLeft(LIVE_TEST.holdMaxMs / 1000)
     window.clearInterval(timer.current)
     timer.current = window.setInterval(() => setLeft(n => Math.max(0, n - 1)), 1000)
     try {
@@ -81,7 +81,7 @@ export function LivePickPanel({ leagueId, eventId, home, away, sport, credits, s
       <button type="button" className="fw-btn" disabled={busy || max < 10} onClick={() => setStake(String(max))}>Max</button>
       <span className="sp-fine numeric">To win <b>{formatCredits(toWin)}</b></span>
     </div>
-    <button type="button" className="fw-btn sp-live-pick-go" data-solid disabled={busy || !side || !valid} onClick={() => void lockIn()}>{busy ? `Checking the game… ${left}s` : 'Lock in live pick'}</button>
-    <p className="sp-fine" role="status" aria-live="polite">{busy ? 'We re-check the score and price for 12 seconds. If the game changes, nothing is placed and no cash is taken.' : message || (max < 10 ? 'Not enough cash for a live pick.' : `Stake 10 to ${formatCredits(max)}. Priced from the live market; locked when you confirm.`)}</p>
+    <button type="button" className="fw-btn sp-live-pick-go" data-solid disabled={busy || !side || !valid} onClick={() => void lockIn()}>{busy ? `Checking… up to ${left}s` : 'Lock in live pick'}</button>
+    <p className="sp-fine" role="status" aria-live="polite">{busy ? 'We re-check the score and price for a few seconds (at most 9). If the game or the price moves, nothing is placed and no cash is taken.' : message || (max < 10 ? 'Not enough cash for a live pick.' : `Stake 10 to ${formatCredits(max)}. Priced from the live market; locked when you confirm.`)}</p>
   </div>
 }

@@ -96,7 +96,7 @@ describe("sports pages", () => {
     assert.match(text, /Sports league open: "Sunday Crew"/)
     assert.match(text, /play-money/)
     assert.match(text, /kickoff/)
-    assert.match(text, /12 seconds/)
+    assert.match(text, /few seconds/)
     assert.match(text, /Est\. value/)
     assert.match(text, /cannot place|can't place/)
     assert.match(text, /never give betting or investment advice/)
