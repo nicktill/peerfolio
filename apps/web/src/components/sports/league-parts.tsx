@@ -34,6 +34,10 @@ export type PickRow = {
   name?: string
   you?: boolean
 }
+/** A settled parlay counts as one win or loss in records, form and rates; stats only, never rendered as a pick. */
+export const parlayStatRows = (parlays: ParlayRow[] = []): PickRow[] =>
+  parlays.map((p) => ({ id: p.id, selection: "", stake: p.stake, price: p.price, point: null, totalReturn: p.totalReturn, payout: p.payout, status: p.status, acceptedAt: p.acceptedAt, market: { kind: "parlay", player: null, statKey: null }, event: p.legs[0]?.event ?? { sport: "", home: "", away: "", startsAt: p.acceptedAt }, name: p.name, you: p.you }))
+
 export type Standing = { name: string; credits: number; isYou: boolean; image?: string | null; record?: { won: number; lost: number } }
 
 const credits = formatCredits
@@ -155,7 +159,8 @@ export function LeagueHero({
 }
 
 /** Credits as bars from a marked starting line, with form dots and record: who is winning, at a glance. */
-export function Leaderboard({ standings: live, start, leaguePicks, demo }: { standings: Standing[]; start: number; leaguePicks: PickRow[]; demo?: boolean }) {
+export function Leaderboard({ standings: live, start, leaguePicks: singles, parlays, demo }: { standings: Standing[]; start: number; leaguePicks: PickRow[]; parlays?: ParlayRow[]; demo?: boolean }) {
+  const leaguePicks = useMemo(() => (parlays?.length ? [...singles, ...parlayStatRows(parlays)] : singles), [singles, parlays])
   // ?demo=ranks shuffles credits every few seconds so the rank animation can be seen without waiting for a real result.
   const [offsets, setOffsets] = useState<Record<string, number>>({})
   useEffect(() => {
@@ -379,11 +384,13 @@ function PickMark({ pick, size }: { pick: PickRow; size: number }) {
 }
 
 /** Quick league facts: hit rate ring, the biggest win, who is hottest, who is sharpest. Fills the rail with something useful. */
-export function LeaguePulse({ leaguePicks }: { leaguePicks: PickRow[] }) {
+export function LeaguePulse({ leaguePicks: singles, parlays }: { leaguePicks: PickRow[]; parlays?: ParlayRow[] }) {
+  const leaguePicks = useMemo(() => (parlays?.length ? [...singles, ...parlayStatRows(parlays)] : singles), [singles, parlays])
   const done = leaguePicks.filter(settled)
   const wins = done.filter((p) => p.status === "won")
+  const singleWins = wins.filter((p) => p.market.kind !== "parlay")
   const rate = done.length ? wins.length / done.length : 0
-  const biggest = wins.reduce<PickRow | null>((b, p) => (b === null || (p.payout ?? 0) - p.stake > (b.payout ?? 0) - b.stake ? p : b), null)
+  const biggest = singleWins.reduce<PickRow | null>((b, p) => (b === null || (p.payout ?? 0) - p.stake > (b.payout ?? 0) - b.stake ? p : b), null)
   const stats = statsByName(leaguePicks)
   let hot: { name: string; streak: number } | null = null
   let sharp: { name: string; rate: number; n: number } | null = null

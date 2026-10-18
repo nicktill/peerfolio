@@ -22,7 +22,7 @@ import { eventTitle, formatCredits, formatOdds, lineLabel, lockLabel, marketTitl
 import { americanToDecimal } from "@web/lib/sports/odds"
 import { onColor, oddsLabel, teamLook } from "@web/lib/sports/teams"
 import { InfoTip } from "@web/components/ui/tip"
-import { LeagueHero, LeaguePulse, Leaderboard, NextGames, PickFeed } from "@web/components/sports/league-parts"
+import { parlayStatRows, LeagueHero, LeaguePulse, Leaderboard, NextGames, PickFeed } from "@web/components/sports/league-parts"
 import { PickLockEffect, type PickLockFx } from "@web/components/sports/pick-lock-effect"
 import { PlayerBadge, TeamBadge } from "@web/components/sports/team-badge"
 import { ParlayIdsContext, ParlayModeBar, ParlaySlip, useParlay } from "@web/components/sports/parlay-slip"
@@ -126,6 +126,9 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
   const gone = !!selected && !current
   const parlays = data.parlays ?? []
   const leagueParlays = data.leagueParlays ?? []
+  // Everyone's parlays for stats: yours (named for the leaderboard) plus the league's, once each.
+  const yourName = standings.find((p) => p.isYou)?.name
+  const statParlays = [...leagueParlays, ...parlays.filter((p) => !leagueParlays.some((q) => q.id === p.id)).map((p) => ({ ...p, name: yourName, you: true }))]
   const atRisk = picks.filter((p) => p.status === "open").reduce((sum, p) => sum + p.stake, 0) + parlays.filter((p) => p.status === "open").reduce((sum, p) => sum + p.stake, 0)
   const ended = !!league.endsAt && new Date(league.endsAt).getTime() < Date.now()
   const status = ended ? "Final standings" : league.endsAt ? timeLeft(league.endsAt) : "No end"
@@ -149,7 +152,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
         you={you}
         atRisk={atRisk}
         openCount={picks.filter((p) => p.status === "open").length + parlays.filter((p) => p.status === "open").length}
-        leaguePicks={leaguePicks}
+        leaguePicks={[...leaguePicks, ...parlayStatRows(statParlays)]}
         status={status}
         invite={<>{league.isOwner && id !== "sample" ? <PickLimitsButton leagueId={league.id} startingCredits={league.startingCredits} maxStakePct={league.maxStakePct} liveBetting={league.liveBetting} onSaved={() => void refetch()} /> : null}<InviteButton code={league.inviteCode} /></>}
       />
@@ -185,7 +188,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
               <h2 id="sp-standings-title">Leaderboard</h2>
               <p>Cash, form and record</p>
             </div>
-            <Leaderboard standings={standings} start={league.startingCredits} leaguePicks={leaguePicks} demo={demo === "ranks"} />
+            <Leaderboard standings={standings} start={league.startingCredits} leaguePicks={leaguePicks} parlays={statParlays} demo={demo === "ranks"} />
           </section>
 
 
@@ -233,7 +236,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
             </div>
             <PickFeed picks={picks} parlays={parlays} empty="Nothing yet. Tap a line under Open lines to make your first pick." />
           </section>
-          <div className="sp-desktop-context"><LeaguePulse leaguePicks={leaguePicks} /></div>
+          <div className="sp-desktop-context"><LeaguePulse leaguePicks={leaguePicks} parlays={statParlays} /></div>
           <NextGames picks={picks} events={markets.map((market) => market.event)} />
         </aside>
       </div>
