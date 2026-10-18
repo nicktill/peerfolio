@@ -14,6 +14,8 @@ import { eventTitle, formatCredits, formatOdds, marketTitle, openPickPhase, pick
 import { marketSelectionColor } from "@web/lib/sports/matchup-colors"
 import { Avatar, initialsFor } from "@web/components/ui/avatar"
 import { LiveGameStrip } from "@web/components/sports/live-game"
+import { ParlayTicket } from "@web/components/sports/parlay-ticket"
+import type { ParlayRow } from "@web/components/sports/parlay-types"
 
 export type EventInfo = { id?: string; sport: string; home: string; away: string; startsAt: string }
 export type PickRow = {
@@ -326,20 +328,25 @@ export function PickTicket({ pick, showName }: { pick: PickRow; showName?: boole
 }
 
 /** Locked picks with a result filter and a hit-rate summary above the tickets. */
-export function PickFeed({ picks, empty, showName }: { picks: PickRow[]; empty: string; showName?: boolean }) {
+export function PickFeed({ picks, parlays = [], empty, showName }: { picks: PickRow[]; parlays?: ParlayRow[]; empty: string; showName?: boolean }) {
   const [filter, setFilter] = useState<"all" | "won" | "lost" | "open">("all")
-  const won = picks.filter((p) => p.status === "won").length
-  const lost = picks.filter((p) => p.status === "lost").length
-  const open = picks.filter((p) => p.status === "open").length
-  const shown = filter === "all" ? picks : picks.filter((p) => p.status === filter)
-  if (picks.length === 0) return <EmptyScene kind="picks" title="No picks yet" body={empty} />
+  // Singles and parlays share one feed, newest first (singles keep the server's order when there are no parlays).
+  const items = useMemo(() => {
+    const all = [...picks.map((pick) => ({ kind: "pick" as const, pick, at: pick.acceptedAt, status: pick.status })), ...parlays.map((parlay) => ({ kind: "parlay" as const, parlay, at: parlay.acceptedAt, status: parlay.status }))]
+    return parlays.length ? all.sort((a, b) => Date.parse(b.at) - Date.parse(a.at)) : all
+  }, [picks, parlays])
+  const won = items.filter((p) => p.status === "won").length
+  const lost = items.filter((p) => p.status === "lost").length
+  const open = items.filter((p) => p.status === "open").length
+  const shown = filter === "all" ? items : items.filter((p) => p.status === filter)
+  if (items.length === 0) return <EmptyScene kind="picks" title="No picks yet" body={empty} />
   return (
     <>
       <div className="sl-feed-head">
         <div className="sl-tabs" role="tablist" aria-label="Filter picks">
           {(
             [
-              ["all", `All ${picks.length}`],
+              ["all", `All ${items.length}`],
               ["won", `Won ${won}`],
               ["lost", `Lost ${lost}`],
               ["open", `Open ${open}`],
@@ -357,7 +364,7 @@ export function PickFeed({ picks, empty, showName }: { picks: PickRow[]; empty: 
         ) : null}
       </div>
       <ul className="sl-tickets" key={filter}>
-        {shown.length === 0 ? <li className="fw-empty">Nothing here yet.</li> : shown.map((p) => <PickTicket key={p.id} pick={p} showName={showName} />)}
+        {shown.length === 0 ? <li className="fw-empty">Nothing here yet.</li> : shown.map((it) => (it.kind === "pick" ? <PickTicket key={it.pick.id} pick={it.pick} showName={showName} /> : <ParlayTicket key={it.parlay.id} parlay={it.parlay} showName={showName} />))}
       </ul>
     </>
   )

@@ -1,0 +1,80 @@
+"use client"
+
+import "./parlay.css"
+import { useEffect, useState } from "react"
+import { Check, ChevronDown, Clock, Layers, Minus, Target, Undo2, X } from "lucide-react"
+import { TeamBadge } from "@web/components/sports/team-badge"
+import type { ParlayLegRow, ParlayRow } from "@web/components/sports/parlay-types"
+import { eventTitle, formatCredits, formatOdds, marketTitle, openPickPhase, pickSentence, sideTeam, signedCredits } from "@web/lib/sports/format"
+
+const STATUS: Record<string, { label: string; icon: React.ReactNode }> = {
+  open: { label: "Open", icon: <Clock aria-hidden /> },
+  won: { label: "Won", icon: <Check aria-hidden /> },
+  lost: { label: "Lost", icon: <X aria-hidden /> },
+  push: { label: "Push", icon: <Minus aria-hidden /> },
+  void: { label: "Refunded", icon: <Undo2 aria-hidden /> },
+}
+
+const toWin = (p: ParlayRow) => Math.max(0, p.totalReturn - p.stake)
+
+function LegRow({ leg, now }: { leg: ParlayLegRow; now: Date | null }) {
+  const market = { kind: leg.market.kind, player: null, statKey: null, event: leg.event }
+  const side = sideTeam(leg.event, leg.market.kind, leg.selection)
+  const phase = leg.status === "open" && now ? openPickPhase(leg.event.startsAt, now) : null
+  const s = STATUS[leg.status] ?? STATUS.open!
+  return (
+    <li className="pl-ticket-leg" data-status={leg.status}>
+      {side ? <TeamBadge sport={leg.event.sport} name={side} size={28} /> : <span className="sl-prop" style={{ width: 28, height: 28 }}><Target aria-hidden /></span>}
+      <div>
+        <b>{pickSentence(market, leg)}</b>
+        <span>{eventTitle(leg.event)} · {marketTitle(market)} · <em>{formatOdds(leg.price)}</em></span>
+        {phase ? <span>{phase.label}</span> : null}
+      </div>
+      <span className="sl-chip" data-status={leg.status}>{s.icon}{s.label}</span>
+    </li>
+  )
+}
+
+/** A parlay as a ticket: combined odds, risk and to win, an overall result, and the legs with their own results. */
+export function ParlayTicket({ parlay, showName }: { parlay: ParlayRow; showName?: boolean }) {
+  const [open, setOpen] = useState(false)
+  // The clock only exists in the browser, so the first paint is stable and live status follows.
+  const [now, setNow] = useState<Date | null>(null)
+  useEffect(() => {
+    if (parlay.status !== "open") return
+    setNow(new Date())
+    const t = window.setInterval(() => setNow(new Date()), 60_000)
+    return () => window.clearInterval(t)
+  }, [parlay.status])
+  const s = STATUS[parlay.status] ?? STATUS.open!
+  const net = parlay.payout == null ? null : parlay.payout - parlay.stake
+  const wonLegs = parlay.legs.filter((l) => l.status === "won").length
+  const openLegs = parlay.legs.filter((l) => l.status === "open").length
+  const progress = parlay.status === "open" ? `${wonLegs} of ${parlay.legs.length} won${openLegs ? `, ${openLegs} to play` : ""}` : parlay.status === "void" ? "All legs void, stake refunded" : null
+  const listId = `pl-legs-${parlay.id}`
+  return (
+    <li className="pl-ticket" data-status={parlay.status}>
+      <div className="pl-ticket-head">
+        <span className="pl-ticket-mark"><Layers aria-hidden /></span>
+        <div className="pl-ticket-body">
+          <b>{parlay.legs.length}-leg parlay · <em className="numeric">{formatOdds(parlay.price)}</em></b>
+          <span>{showName && parlay.name ? <em>{parlay.name.split(" ")[0]}{parlay.you ? " (You)" : ""} · </em> : null}{progress ?? `${wonLegs} of ${parlay.legs.length} legs won`}</span>
+          <span className="numeric pl-ticket-money">
+            <span>Risk <b>{formatCredits(parlay.stake)}</b></span>
+            <i aria-hidden>·</i>
+            {parlay.payout == null ? <span>To win <b>{formatCredits(toWin(parlay))}</b></span> : parlay.payout > 0 ? <span>Paid <b>{formatCredits(parlay.payout)}</b></span> : <span>No payout</span>}
+          </span>
+        </div>
+        <div className="pl-ticket-side">
+          <span className="sl-chip" data-status={parlay.status}>{s.icon}{s.label}</span>
+          {net != null && parlay.status !== "open" ? <strong className="numeric" data-tone={net > 0 ? "up" : net < 0 ? "down" : undefined}>{signedCredits(net)}</strong> : null}
+        </div>
+      </div>
+      <button type="button" className="pl-expand" aria-expanded={open} aria-controls={listId} onClick={() => setOpen(!open)}>
+        <span>{open ? "Hide legs" : `Show ${parlay.legs.length} legs`}</span>
+        <ChevronDown aria-hidden />
+      </button>
+      {open ? <ul className="pl-ticket-legs" id={listId}>{parlay.legs.map((l) => <LegRow key={l.lineId} leg={l} now={now} />)}</ul> : null}
+    </li>
+  )
+}

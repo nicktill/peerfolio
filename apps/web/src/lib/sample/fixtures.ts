@@ -7,6 +7,7 @@
 import { demoPortfolio } from "@web/lib/portfolio-demo"
 import { applyPick, applyTrade, fantasyView, sportsView } from "@web/lib/sample/store"
 import { getDemoMode } from "@web/lib/sample/demo-mode"
+import { parlayQuote } from "@web/lib/sports/parlay-math"
 import fantasyData from "@web/lib/sample/data/fantasy.json"
 import seasonData from "@web/lib/sample/data/season.json"
 import sportsData from "@web/lib/sample/data/sports.json"
@@ -68,6 +69,22 @@ for (const person of SPORTS_LEAGUE.standings) {
   Object.assign(person, { image: handle ? `/demo/avatars/${handle}.png` : null })
 }
 const SEASON = revive(seasonData)
+
+/** Sample parlays for review only: built from the sample markets, never submitted (writes to /parlays are refused in sample views). */
+function sampleParlay(id: string, picks: [number, string, "open" | "won" | "lost" | "push"][], stake: number, status: "open" | "won" | "lost", name?: string) {
+  const legs = picks.map(([i, selection, legStatus]) => {
+    const market = SPORTS_LEAGUE.markets[i]!
+    const line = market.lines.find((l) => l.selection === selection)!
+    return { lineId: line.id, selection, price: line.price, point: line.point, status: legStatus, market: { kind: market.kind, player: null }, event: { sport: market.event.sport, home: market.event.home, away: market.event.away, startsAt: market.event.startsAt } }
+  })
+  const quote = parlayQuote(legs.filter((l) => l.status !== "push").map((l) => l.price), stake)!
+  return { id, stake, price: quote.american, totalReturn: quote.totalReturn, payout: status === "won" ? quote.totalReturn : status === "lost" ? 0 : null, status, acceptedAt: new Date(Date.now() - 3 * 3600_000).toISOString(), legs, ...(name ? { name } : {}) }
+}
+Object.assign(SPORTS_LEAGUE, {
+  limits: { ...SPORTS_LEAGUE.limits, parlay: { minLegs: 2, maxLegs: 6, minStake: 10, maxStake: 100 } },
+  parlays: [sampleParlay("sample-parlay-1", [[0, "away", "open"], [1, "home", "open"], [11, "away", "open"]], 20, "open"), sampleParlay("sample-parlay-2", [[5, "home", "won"], [7, "under", "push"], [9, "away", "won"]], 25, "won")],
+  leagueParlays: [sampleParlay("sample-parlay-3", [[0, "home", "lost"], [2, "away", "won"]], 30, "lost", "Marcus Bell")],
+})
 
 const BOARD = {
   traders: ["maya", "priya", "theo", "deshawn", "sam"]
