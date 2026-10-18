@@ -593,7 +593,7 @@ function GameCard({ game, selected, onSelect, disabled, now }: { game: { key: st
             <div key={m.id} className="sp-market">
               {active.key === "props" ? <div className="sp-market-head"><span className="sp-market-title">{marketTitle(m)}</span></div> : null}
               <div className={`sp-lines${(m.kind === "moneyline" || m.kind === "spread") ? " sp-team-lines" : ""}`} data-three={m.lines.length === 3 || undefined}>
-                {(m.kind === "moneyline" ? [...m.lines].sort((x, y) => ORDER[tennis ? "tennis" : "teams"]![x.selection]! - ORDER[tennis ? "tennis" : "teams"]![y.selection]!) : m.lines).map((l) => (
+                {((m.kind === "moneyline" || m.kind === "spread") ? [...m.lines].sort((x, y) => ORDER[tennis ? "tennis" : "teams"]![x.selection]! - ORDER[tennis ? "tennis" : "teams"]![y.selection]!) : m.lines).map((l) => (
                   <LineButton key={l.id} market={m} line={l} selected={selected} onSelect={onSelect} disabled={disabled} team={(m.kind === "moneyline" || m.kind === "spread") && l.selection !== "draw"} color={marketSelectionColor(event, m.kind, l.selection)} />
                 ))}
               </div>
