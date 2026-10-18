@@ -50,7 +50,7 @@ function subscribe(id: string, listener: () => void) {
 }
 
 /** Reads the shared poll for a game; re-renders every second so the "as of" text keeps counting up between polls. */
-function useLiveGame(eventId: string | undefined, enabled: boolean) {
+export function useLiveGame(eventId: string | undefined, enabled: boolean) {
   const [, rerender] = useState(0)
   useEffect(() => {
     if (!eventId || !enabled) return
