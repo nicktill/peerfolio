@@ -59,7 +59,7 @@ export function priceParlayCashout(parlay: { stake: number; totalReturn: number 
       sources.add("pregame")
     } else if (leg.phase === "live") {
       p = liveProbability(leg.kind, leg.selection, leg.view, elapsedMs)
-      if (p == null) return no("Cash-out needs a fresh live price for every game in play")
+      if (p == null) return no(leg.kind === "moneyline" ? "Waiting for a fresh live price on a game in play" : "A spread or total leg in play can't be priced live, so cash-out opens once that game is over")
       sources.add("live")
     } else {
       return no("A game is over and waiting for its result")
