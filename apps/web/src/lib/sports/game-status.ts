@@ -96,7 +96,8 @@ export function formatGameStatus(g: StatusInput, now: number, tz?: string): Game
   const age = Number.isFinite(asOf) ? Math.max(0, now - asOf) : Infinity
   const mk = (text: string, tone: GameStatus['tone'], label = text, extra?: string, dim = false): GameStatus => ({ text, tone, dim, label, ...(extra ? { extra } : {}) })
 
-  if (g.status === 'upcoming') { const t = startsLabel(g.startsAt, now, tz); return mk(t, 'pre') }
+  // Past its scheduled start but the feed has not flipped to live yet: say so instead of showing a start time that has already gone by.
+  if (g.status === 'upcoming') { if (Date.parse(g.startsAt) <= now) return mk('Starting', 'pre'); const t = startsLabel(g.startsAt, now, tz); return mk(t, 'pre') }
   if (g.status === 'final') {
     const t = /FINAL_?(OT|PEN|SO|SHOOT)/i.test(name) ? (/OT/i.test(name) ? 'Final/OT' : 'Final/SO') : 'Final'
     return mk(t, 'final', t === 'Final' ? 'Final' : `Final, ${t.slice(6) === 'OT' ? 'after overtime' : 'after shootout'}`)
