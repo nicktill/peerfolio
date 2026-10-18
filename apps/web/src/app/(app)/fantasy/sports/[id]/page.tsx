@@ -204,7 +204,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
               <h2 id="sp-yours-title">Your picks</h2>
               <p>{picks.length === 0 ? "None yet" : plural(picks.length, "pick")}</p>
             </div>
-            <PickFeed picks={picks} empty="Nothing yet. Cash doesn't win leagues." />
+            <PickFeed picks={picks} empty="Nothing yet. Tap a line under Open lines to make your first pick." />
           </section>
           <div className="sp-desktop-context"><LeaguePulse leaguePicks={leaguePicks} /></div>
           <NextGames picks={picks} events={markets.map((market) => market.event)} />
@@ -213,7 +213,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
           <section className="fw-panel reveal" data-flat style={revealStyle(4)} aria-labelledby="sp-locked-title">
             <div className="fw-section-head">
               <h2 id="sp-locked-title">Locked picks</h2>
-              <p>Everyone&apos;s picks, once the market closes</p>
+              <p>Everyone&apos;s picks, shown after each game locks at kickoff</p>
             </div>
             <PickFeed picks={leaguePicks} showName empty="Picks show up here after each market locks, never before." />
           </section>
@@ -435,7 +435,7 @@ function Slip({
               aria-invalid={problem ? true : undefined}
             />
             <p className="fw-hint" id="sp-stake-hint" role={problem ? "alert" : undefined}>
-              {problem ? <span className="fw-bad">{problem}</span> : <span>Max {credits(limits.maxStake)} per pick (league cap){balance < limits.maxStake ? `, limited by your ${credits(balance)} cash` : ""}</span>}
+              {problem ? <span className="fw-bad">{problem}</span> : <span>Max {credits(limits.maxStake)} per pick (league limit){balance < limits.maxStake ? `, limited by your ${credits(balance)} cash` : ""}</span>}
             </p>
           </div>
           <div className="fw-quick">
@@ -456,7 +456,7 @@ function Slip({
           ) : null}
           {gone ? (
             <p className="sp-slip-moved" role="alert">
-              This market just closed to new picks (it was frozen because its line moved, or it locked). <button type="button" className="fw-link" onClick={onClear}>Dismiss</button>
+              This line is no longer open for picks (the game started or the odds moved a lot). <button type="button" className="fw-link" onClick={onClear}>Dismiss</button>
             </p>
           ) : null}
           <div className="sp-slip-return" aria-live="polite">
@@ -482,10 +482,10 @@ function MirrorReport({ leagueId }: { leagueId: string }) {
     <section className="fw-panel reveal" style={revealStyle(5)} aria-labelledby="sp-report-title">
       <div className="fw-section-head">
         <h2 id="sp-report-title">Mirrored picks</h2>
-        <p>Who keeps taking the other side</p>
+        <p>Who keeps picking against each other</p>
       </div>
       {!data ? null : data.pairs.length === 0 ? (
-        <p className="fw-empty">Nobody is fading anyone yet.</p>
+        <p className="fw-empty">No one has picked opposite sides yet.</p>
       ) : (
         <ul className="fw-picks">
           {data.pairs.map((p) => (
@@ -494,7 +494,7 @@ function MirrorReport({ leagueId }: { leagueId: string }) {
                 <strong>
                   {p.a} and {p.b}
                 </strong>
-                <span>Took opposite sides on {plural(p.markets, "market")}.</span>
+                <span>Picked opposite sides on {plural(p.markets, "market")}.</span>
               </div>
             </li>
           ))}
