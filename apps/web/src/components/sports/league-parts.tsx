@@ -11,6 +11,7 @@ import { Stat } from "@web/components/fantasy/balance-cards"
 import { PlayerBadge, TeamBadge } from "@web/components/sports/team-badge"
 import { toWin } from "@web/lib/sports/live/position"
 import { eventTitle, formatCredits, formatOdds, marketTitle, openPickPhase, pickSentence, sideTeam, SPORT_LABEL, signedCredits, type DisplayMarket } from "@web/lib/sports/format"
+import { LeagueBrand } from "@web/components/sports/league-brand"
 import { marketSelectionColor } from "@web/lib/sports/matchup-colors"
 import { Avatar, initialsFor } from "@web/components/ui/avatar"
 import { LiveGameStrip } from "@web/components/sports/live-game"
@@ -41,6 +42,8 @@ export const parlayStatRows = (parlays: ParlayRow[] = []): PickRow[] =>
 
 export type Standing = { name: string; credits: number; isYou: boolean; image?: string | null; record?: { won: number; lost: number } }
 
+/** The big US leagues get a logo in the header; others stay out of it. */
+const MAIN_LEAGUES = ["nfl", "nba", "nhl", "mlb", "mls"]
 const credits = formatCredits
 const signed = signedCredits
 const hue = (name: string) => [...name].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7)
@@ -121,8 +124,8 @@ export function LeagueHero({
           <li>
             {standings.length} {standings.length === 1 ? "player" : "players"}
           </li>
-          {league.sports.map((s) => (
-            <li key={s}>{SPORT_LABEL[s] ?? s}</li>
+          {league.sports.filter((s) => MAIN_LEAGUES.includes(s)).map((s) => (
+            <li key={s}><LeagueBrand sport={s} iconOnly /></li>
           ))}
         </ul>
         <div className="fw-actions">{invite}</div>
