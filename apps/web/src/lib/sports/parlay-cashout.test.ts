@@ -15,10 +15,10 @@ const leg = (over: Partial<ParlayCashoutLeg> = {}): ParlayCashoutLeg => ({
 })
 const parlay = { stake: 100, totalReturn: 400 }
 
-test("pregame legs: return x product of line probabilities x one fee", () => {
+test("pregame legs: return x product of line probabilities", () => {
   const r = priceParlayCashout(parlay, [leg(), leg({ line: { price: -200, point: null } })])
   assert.ok(r.available)
-  assert.equal(r.value, Math.floor(400 * 0.5 * (2 / 3) * 0.95 + 1e-9))
+  assert.equal(r.value, Math.ceil(400 * 0.5 * (2 / 3) - 1e-9))
   assert.equal(r.source, "pregame")
 })
 
@@ -26,13 +26,13 @@ test("unchanged lines return a little under the fair value, never above the tota
   const r = priceParlayCashout(parlay, [leg({ line: { price: -100000, point: null } }), leg({ line: { price: -100000, point: null } })])
   assert.ok(r.available)
   assert.ok(r.value <= 400)
-  assert.equal(r.value, Math.floor(400 * americanToProb(-100000) ** 2 * 0.95 + 1e-9))
+  assert.equal(r.value, Math.ceil(400 * americanToProb(-100000) ** 2 - 1e-9))
 })
 
 test("a won leg counts as certain", () => {
   const r = priceParlayCashout(parlay, [leg({ status: "won" }), leg()])
   assert.ok(r.available)
-  assert.equal(r.value, Math.floor(400 * 0.5 * 0.95 + 1e-9))
+  assert.equal(r.value, Math.ceil(400 * 0.5 - 1e-9))
 })
 
 test("a lost leg means no value", () => {
@@ -46,7 +46,7 @@ test("a pushed or void leg drops out and the return is rebuilt from the other le
   assert.ok(r.available)
   const base = parlayReturn(100, combinedDecimal([100, -110]))
   assert.equal(r.fullReturn, base)
-  assert.equal(r.value, Math.floor(base * 0.5 * 0.5 * 0.95 + 1e-9))
+  assert.equal(r.value, Math.ceil(base * 0.5 * 0.5 - 1e-9))
   const v = priceParlayCashout(parlay, [leg({ status: "void", price: 100 }), leg({ price: 100 }), leg({ status: "won", price: 100 })])
   assert.ok(v.available)
   assert.equal(v.fullReturn, parlayReturn(100, combinedDecimal([100, 100])))
@@ -72,7 +72,7 @@ test("a spread point that held is priced", () => {
 test("live moneyline leg uses the fresh high-confidence quote", () => {
   const r = priceParlayCashout(parlay, [leg({ status: "won" }), leg({ phase: "live", view: view() })])
   assert.ok(r.available)
-  assert.equal(r.value, Math.floor(400 * 0.6 * 0.95 + 1e-9))
+  assert.equal(r.value, Math.ceil(400 * 0.6 - 1e-9))
   assert.equal(r.source, "live")
   const mixed = priceParlayCashout(parlay, [leg(), leg({ phase: "live", view: view() })])
   assert.ok(mixed.available)
@@ -96,10 +96,11 @@ test("elapsed time since the read counts against freshness", () => {
   assert.equal(priceParlayCashout(parlay, legs, 15_000).available, false)
 })
 
-test("an estimate is the unrounded value without the fee", () => {
+test("the ticket estimate is the quote value", () => {
   const r = priceParlayCashout(parlay, [leg({ status: "won" }), leg({ phase: "live", view: view() })])
   assert.ok(r.available)
-  assert.ok(Math.abs(r.estimate - 240) < 1e-9)
+  assert.equal(r.estimate, r.value)
+  assert.equal(r.value, 240)
 })
 
 test("a value under one credit is not offered", () => {

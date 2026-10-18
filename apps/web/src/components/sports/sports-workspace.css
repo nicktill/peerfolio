@@ -1139,24 +1139,29 @@
 .sl-manage { height: 28px; padding: 0 11px; border: 1px solid var(--fw-line); border-radius: 999px; background: transparent; color: var(--fw-fg2); font: 500 12px var(--fw-sans); cursor: pointer; transition: color .15s, border-color .15s, background-color .15s; }
 .sl-manage:hover { color: var(--fw-fg); border-color: var(--fw-fg3); background: var(--fw-raise); }
 .sl-manage:focus-visible { outline: 2px solid var(--fw-accent); outline-offset: 2px; }
-.sp-manage-body { display: flex; flex-direction: column; gap: 14px; }
-.sp-manage-pick { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border: 1px solid var(--fw-hair); border-radius: 14px; background: var(--fw-bg); }
-.sp-manage-pick > b { font: 400 18px/24px var(--fw-serif); }
-.sp-manage-pick .sl-tk-money { padding: 0; border: 0; }
-.sp-manage-pick .sl-tk-money::before, .sp-manage-pick .sl-tk-money::after { display: none; }
-.sp-manage-legs { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
-.sp-manage-legs li { display: flex; flex-direction: column; gap: 1px; }
-.sp-manage-legs li > span { font: 500 14px/20px var(--fw-sans); color: var(--fw-fg); }
-.sp-manage-legs li > small { font: 400 12px/16px var(--fw-sans); color: var(--fw-fg3); }
-.sp-manage-card { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border: 1px solid var(--fw-hair); border-radius: 14px; }
-.sp-manage-card h3 { margin: 0; font: 600 11px/16px var(--fw-sans); text-transform: uppercase; letter-spacing: .09em; color: var(--fw-fg3); }
-.sp-manage-card h3 small { margin-left: 6px; font: 500 11px var(--fw-mono); text-transform: none; letter-spacing: 0; }
-.sp-manage-value { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 0; font-variant-numeric: tabular-nums; }
-.sp-manage-value strong { font: 400 30px/34px var(--fw-serif); }
-.sp-manage-value span { font: 500 12px var(--fw-mono); color: var(--fw-fg3); }
-.sp-manage-value span[data-tone="up"] { color: var(--gain-ink); } .sp-manage-value span[data-tone="down"] { color: var(--loss-ink); }
-.sp-manage-fine { margin: 0; font-size: 12px; line-height: 17px; color: var(--fw-fg3); }
-.sp-manage-cta { width: 100%; }
+/* Manage mode: the pick slip showing a pick you hold. It reuses the slip's own classes; these cover only what is new. */
+.sp-manage-slip .sp-manage-form { display: flex; flex-direction: column; gap: 16px; padding-top: 16px; }
+.sp-manage-slip .sl-tk-money { padding: 0 2px; border: 0; }
+.sp-manage-slip .sl-tk-money::before, .sp-manage-slip .sl-tk-money::after { display: none; }
+.sp-cashout { display: flex; flex-direction: column; gap: 10px; }
+.sp-cashout .sp-slip-return[data-dir] b { animation: sp-win-flash .6s ease-out; }
+.sp-cashout .sp-slip-hint { font: 400 12px var(--fw-sans); color: var(--fw-fg3); }
+.sp-cashout-pl { margin: -4px 0 0; text-align: right; font: 500 12px var(--fw-mono); color: var(--fw-fg3); font-variant-numeric: tabular-nums; }
+.sp-cashout-pl[data-tone="up"] { color: var(--gain-ink); } .sp-cashout-pl[data-tone="down"] { color: var(--loss-ink); }
+.sp-cashout .fw-submit[data-updating] { opacity: .6; cursor: progress; }
+.sp-cashout .fw-submit:disabled:not([data-updating]) { opacity: .55; cursor: not-allowed; }
+.sp-manage-add { display: flex; flex-direction: column; gap: 14px; padding-top: 16px; border-top: 1px dashed var(--fw-line); }
+.sp-manage-add h3 { margin: 0; font: 600 11px/16px var(--fw-sans); text-transform: uppercase; letter-spacing: .09em; color: var(--fw-fg3); }
+.sp-manage-add h3 small { margin-left: 6px; font: 500 11px var(--fw-mono); text-transform: none; letter-spacing: 0; }
+.sp-manage-addbtn { width: 100%; height: 44px; }
+.sp-manage-legs { display: flex; flex-direction: column; gap: 0; margin: 0; padding: 0; list-style: none; border: 1px solid var(--fw-hair); border-radius: var(--fw-r); overflow: hidden; }
+.sp-manage-legs li { display: flex; flex-direction: column; gap: 1px; padding: 8px 12px; background: var(--fw-bg); }
+.sp-manage-legs li + li { border-top: 1px solid var(--fw-hair); }
+.sp-manage-legs li > span { font: 500 13px/18px var(--fw-sans); color: var(--fw-fg); }
+.sp-manage-legs li > small { font: 400 11.5px/16px var(--fw-sans); color: var(--fw-fg3); }
+.sp-manage-legs li[data-status="won"] > small { color: var(--gain-ink); } .sp-manage-legs li[data-status="lost"] > small { color: var(--loss-ink); }
+.sl-ticket[data-managing], .pl-ticket[data-managing] { border-color: var(--fw-accent); }
+.sl-manage[aria-pressed="true"] { color: var(--fw-accent); border-color: var(--fw-accent); }
 @media (max-width: 700px) { .sl-manage { height: 32px; } }
 
 /* Live slip: the price the To win figure is computed at, so a re-price is visible as odds, not only as a new amount. */
@@ -1164,3 +1169,4 @@
 .sp-slip-at { font: 500 12px/16px var(--fw-mono); color: var(--fw-fg2); font-variant-numeric: tabular-nums; }
 .sp-slip-at[data-dir="up"] { color: var(--gain-ink); }
 .sp-slip-at[data-dir="down"] { color: var(--loss-ink); }
+.sp-manage-slip .sp-slip-sport svg { width: 20px; height: 20px; }

@@ -11,6 +11,8 @@ import { Choice } from "@web/components/fantasy/choice"
 import { timeLeft } from "@web/components/fantasy/time-left"
 import { LivePickSlip, type LivePickSelection } from "@web/components/sports/live-pick-panel"
 import { SheetHandle } from "@web/components/sports/sheet-handle"
+import { ManageSlip, type ManageTarget } from "@web/components/sports/manage-slip"
+import { SlipPickCard } from "@web/components/sports/slip-pick-card"
 import { SlipEmpty } from "@web/components/sports/slip-empty"
 import { ScoreboardGames } from "@web/components/sports/scoreboard-games"
 import { scoreboardMatch, type ScoreGame } from "@web/lib/sports/scoreboard"
@@ -31,7 +33,7 @@ import { LiveNumber } from "@web/components/sports/live-delta"
 import { PickLockEffect, type PickLockFx } from "@web/components/sports/pick-lock-effect"
 import { PlayerBadge, TeamBadge } from "@web/components/sports/team-badge"
 import { ParlayIdsContext, ParlayModeBar, ParlaySlip, useParlay } from "@web/components/sports/parlay-slip"
-import type { ParlayLimits, ParlayRow } from "@web/components/sports/parlay-types"
+import { stackParlays, type ParlayLimits, type ParlayRow } from "@web/components/sports/parlay-types"
 import { plural } from "@web/lib/plural"
 import { matchesSearch } from "@web/lib/sports/search"
 import { mutate, useApi } from "@web/lib/use-api"
@@ -95,6 +97,8 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
   const [selected, setSelected] = useState<{ market: Market; line: Line } | null>(null)
   const [liveSelected, setLiveSelected] = useState<LivePickSelection | null>(null)
   const [livePending, setLivePending] = useState(false)
+  // Manage mode: the pick slip shows a pick or parlay you hold (sell it back, add more). Exclusive with a selected line and parlay legs.
+  const [managing, setManaging] = useState<{ kind: "pick" | "parlay"; id: string } | null>(null)
   const [sport, setSport] = useState<string>("all")
   const sportFilters = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -161,10 +165,16 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
   const reduceMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches
   const openFloat = () => { setAnchorHeight(dockRef.current?.offsetHeight ?? null); setPlaced(false); setFloatPinned(true) }
   const closeFloat = (restoreFocus = true) => { refocusSummary.current = restoreFocus; setFloatPinned(false); setPlaced(false) }
-  const activeSlip = parlay.mode === "parlay" ? parlay.legs.length > 0 : !!selected || !!liveSelected
+  const activeSlip = parlay.mode === "parlay" ? parlay.legs.length > 0 : !!selected || !!liveSelected || !!managing
   // An empty slip is never tucked away, and picking a different single line opens the sheet; adding parlay legs leaves it as it is.
-  const singleKey = parlay.mode === "single" ? (liveSelected ? `${liveSelected.eventId}:${liveSelected.side}` : selected?.line.id ?? "") : ""
+  const singleKey = parlay.mode === "single" ? (managing ? `manage:${managing.id}` : liveSelected ? `${liveSelected.eventId}:${liveSelected.side}` : selected?.line.id ?? "") : ""
   useEffect(() => { if (!activeSlip) setSheetMin(false) }, [activeSlip])
+  // Sold, settled or gone elsewhere: the slip returns to empty.
+  useEffect(() => {
+    if (!managing || !data) return
+    const open = managing.kind === "pick" ? data.picks.some((p) => p.id === managing.id && p.status === "open") : (data.parlays ?? []).some((p) => p.id === managing.id && p.status === "open")
+    if (!open) setManaging(null)
+  }, [managing, data])
   useEffect(() => { if (singleKey) setSheetMin(false) }, [singleKey])
   useEffect(() => {
     if (!slipRef.current) return
@@ -203,6 +213,18 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
     if (floatOpen) setPlaced(true)
     await refetch()
     if (!floatOpen) setRevealPicks(true)
+  }
+  function startManage(target: ManageTarget) {
+    if (livePending) return
+    setSelected(null)
+    setLiveSelected(null)
+    parlay.clear()
+    parlay.setMode("single")
+    setManaging(target.kind === "pick" ? { kind: "pick", id: target.pick.id } : { kind: "parlay", id: (target.parlay.parts?.[0] ?? target.parlay).id })
+    setSheetMin(false)
+    // Desktop: open the slip dock like Open slip does when the slip is off screen; otherwise bring it into view. Phone: the bottom sheet opens.
+    if (!phone && !slipVisible) openFloat()
+    else if (!phone) slipRef.current?.scrollIntoView({ block: "nearest", behavior: reduceMotion() ? "instant" : "smooth" })
   }
   const sportsKey = data?.league.sports.slice().sort().join(",")
   const scores = useApi<{games: ScoreGame[]; failedSports: string[]}>(sportsKey ? `/api/sports/scoreboard?sports=${sportsKey}` : null, [], { refreshMs: 30_000 })
@@ -243,6 +265,11 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
   const yourName = standings.find((p) => p.isYou)?.name
   const statParlays = [...leagueParlays, ...parlays.filter((p) => !leagueParlays.some((q) => q.id === p.id)).map((p) => ({ ...p, name: yourName, you: true }))]
   const atRisk = picks.filter((p) => p.status === "open").reduce((sum, p) => sum + p.stake, 0) + parlays.filter((p) => p.status === "open").reduce((sum, p) => sum + p.stake, 0)
+  const managedTarget: ManageTarget | null = managing
+    ? managing.kind === "pick"
+      ? (() => { const pick = picks.find((p) => p.id === managing.id && p.status === "open"); return pick ? { kind: "pick" as const, pick } : null })()
+      : (() => { const stacked = stackParlays(parlays.filter((p) => p.status === "open")).find((p) => (p.parts ?? [p]).some((x) => x.id === managing.id)); return stacked ? { kind: "parlay" as const, parlay: stacked } : null })()
+    : null
   const ended = !!league.endsAt && new Date(league.endsAt).getTime() < Date.now()
   const status = ended ? "Final standings" : league.endsAt ? timeLeft(league.endsAt) : "No end"
   const scoreGames = (scores.data?.games ?? []).map((g) => (demo === "prices" && tick > 0 && g.status === "live" ? { ...g, homeScore: String((Number(g.homeScore) || 0) + 7 * Math.floor(tick / 3)), awayScore: String((Number(g.awayScore) || 0) + 3 * Math.floor(tick / 4)) } : g))
@@ -295,7 +322,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
                   ))}
                 </div>
               ) : <span className="sp-filter-gap" />}
-              <ParlayModeBar mode={parlay.mode} disabled={livePending} onMode={(m) => { if (livePending) return; setSelected(null); setLiveSelected(null); parlay.setMode(m) }} count={parlay.legs.length} />
+              <ParlayModeBar mode={parlay.mode} disabled={livePending} onMode={(m) => { if (livePending) return; setSelected(null); setLiveSelected(null); setManaging(null); parlay.setMode(m) }} count={parlay.legs.length} />
               <div className="sp-search" role="search" data-open={searchOpen || undefined}>
                 <button ref={searchButton} type="button" className="sp-search-trigger" aria-label="Search games" title="Search games" aria-expanded={searchOpen} tabIndex={searchOpen ? -1 : 0} onClick={() => setSearchOpen(true)}><Search aria-hidden /><span>Search</span></button>
                 <div className="sp-search-field" aria-hidden={!searchOpen}>
@@ -319,11 +346,11 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
               </div>
             </div>
             {parlay.mode === "parlay" && parlay.note ? <div className="sp-parlay-guidance"><p className="pl-note" role="status">{parlay.note}</p></div> : null}
-            {view === "upcoming" ? <ParlayIdsContext.Provider value={parlay.mode === "parlay" ? parlay.ids : null}><div className="sp-scroll">{searching && shown.length === 0 ? <p className="fw-empty" role="status">No games match &ldquo;{query.trim()}&rdquo;</p> : <Markets markets={shown} selected={parlay.mode === "parlay" ? null : current} onSelect={(market, line) => { if (livePending) return; setLiveSelected(null); parlay.mode === "parlay" ? parlay.toggle(market, line) : setSelected({ market, line }) }} disabled={ended || livePending} now={now} />}</div></ParlayIdsContext.Provider> : <ParlayIdsContext.Provider value={parlay.mode === "parlay" ? parlay.ids : null}><ScoreboardGames renderUpcoming={(game) => {
+            {view === "upcoming" ? <ParlayIdsContext.Provider value={parlay.mode === "parlay" ? parlay.ids : null}><div className="sp-scroll">{searching && shown.length === 0 ? <p className="fw-empty" role="status">No games match &ldquo;{query.trim()}&rdquo;</p> : <Markets markets={shown} selected={parlay.mode === "parlay" ? null : current} onSelect={(market, line) => { if (livePending) return; setLiveSelected(null); setManaging(null); parlay.mode === "parlay" ? parlay.toggle(market, line) : setSelected({ market, line }) }} disabled={ended || livePending} now={now} />}</div></ParlayIdsContext.Provider> : <ParlayIdsContext.Provider value={parlay.mode === "parlay" ? parlay.ids : null}><ScoreboardGames renderUpcoming={(game) => {
               const matching = shown.filter((market) => scoreboardMatch(market.event, [game]))
               if (!matching.length) return null
-              return <GameCard game={{ key: `${game.sport}:${game.id}`, event: matching[0]!.event, markets: matching }} selected={parlay.mode === "parlay" ? null : current} onSelect={(market, line) => { if (livePending) return; setLiveSelected(null); parlay.mode === "parlay" ? parlay.toggle(market, line) : setSelected({ market, line }) }} disabled={ended || livePending} now={now} />
-            }} onShowUpcoming={() => setView("upcoming")} query={searching ? query.trim() : undefined} enableAdminTest={id !== "sample"} livePick={{ leagueId: league.id, liveBetting: id === "sample" || league.liveBetting, mode: parlay.mode, selected: liveSelected, busy: livePending, onSelect: (selection) => { if (livePending || ended) return; setSelected(null); setLiveSelected(selection); parlay.setMode("single") }, credits: data.you.credits, startingCredits: league.startingCredits, maxStakePct: league.maxStakePct ?? 10, onPlaced: () => void onPickPlaced() }} games={liveGames} tracked={data.liveEvents ?? []} now={now} loading={scores.loading && !scores.data} failed={scoresFailed} /></ParlayIdsContext.Provider>}
+              return <GameCard game={{ key: `${game.sport}:${game.id}`, event: matching[0]!.event, markets: matching }} selected={parlay.mode === "parlay" ? null : current} onSelect={(market, line) => { if (livePending) return; setLiveSelected(null); setManaging(null); parlay.mode === "parlay" ? parlay.toggle(market, line) : setSelected({ market, line }) }} disabled={ended || livePending} now={now} />
+            }} onShowUpcoming={() => setView("upcoming")} query={searching ? query.trim() : undefined} enableAdminTest={id !== "sample"} livePick={{ leagueId: league.id, liveBetting: id === "sample" || league.liveBetting, mode: parlay.mode, selected: liveSelected, busy: livePending, onSelect: (selection) => { if (livePending || ended) return; setSelected(null); setManaging(null); setLiveSelected(selection); parlay.setMode("single") }, credits: data.you.credits, startingCredits: league.startingCredits, maxStakePct: league.maxStakePct ?? 10, onPlaced: () => void onPickPlaced() }} games={liveGames} tracked={data.liveEvents ?? []} now={now} loading={scores.loading && !scores.data} failed={scoresFailed} /></ParlayIdsContext.Provider>}
           </section>
 
           <section className="fw-panel reveal" style={revealStyle(3)} aria-labelledby="sp-standings-title">
@@ -364,7 +391,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
               onDraft={onDraft}
             />
           </div>
-          <div className="sp-slip-mode" hidden={parlay.mode !== "single" || !!liveSelected}>
+          <div className="sp-slip-mode" hidden={parlay.mode !== "single" || !!liveSelected || !!managedTarget}>
           <Slip
             leagueId={league.id}
             selected={current ?? selected}
@@ -383,6 +410,9 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
             }}
           />
           </div>
+          <div className="sp-slip-mode" hidden={!managedTarget}>
+            {managedTarget ? <ManageSlip leagueId={league.id} target={managedTarget} balance={you.credits} limits={data.limits} onClear={() => setManaging(null)} onMinimize={() => setSheetMin(true)} onChanged={() => void refetch()} /> : null}
+          </div>
           <div className="sp-slip-mode" hidden={parlay.mode !== "single" || !liveSelected}>
             {liveSelected ? <LivePickSlip key={`${liveSelected.eventId}:${liveSelected.side}`} selection={liveSelected} leagueId={league.id} credits={you.credits} startingCredits={league.startingCredits} maxStakePct={league.maxStakePct ?? 10} demo={id === "sample"} busy={livePending} onBusyChange={setLivePending} onMinimize={() => setSheetMin(true)} onClear={() => { if (!livePending) setLiveSelected(null) }} onAcceptPrice={(price) => setLiveSelected((previous) => previous ? { ...previous, price } : null)} onPlaced={() => { setLiveSelected(null); void onPickPlaced() }} onDraft={onDraft} /> : null}
           </div>
@@ -393,7 +423,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
               <h2 id="sp-yours-title">Your picks</h2>
               <p>{picks.length + parlays.length === 0 ? "None yet" : plural(picks.length + parlays.length, "pick")}</p>
             </div>
-            <PickFeed picks={picks} parlays={parlays} manage={{ leagueId: league.id, onChanged: () => void refetch() }} empty="Nothing yet. Tap a line under Open lines to make your first pick." />
+            <PickFeed picks={picks} parlays={parlays} manage={{ onManage: startManage, activeId: managing?.id ?? null }} empty="Nothing yet. Tap a line under Open lines to make your first pick." />
           </section>
           <div className="sp-desktop-context"><LeaguePulse leaguePicks={leaguePicks} parlays={statParlays} /></div>
           <NextGames picks={picks} events={markets.map((market) => market.event)} />
@@ -410,9 +440,9 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
           {id !== "sample" ? <MirrorReport leagueId={league.id} /> : null}
         </div>
       </div>
-      {activeSlip && (phone ? sheetMin : !slipVisible && !floatOpen) ? <button ref={summaryRef} key={parlay.mode === "parlay" ? parlay.legs.map(l => l.market.id + l.line.id).join(":") : liveSelected ? liveSelected.eventId + liveSelected.side : selected?.line.id} type="button" className="sp-review-pick" aria-haspopup="dialog" onClick={() => (phone ? setSheetMin(false) : openFloat())}><span className="sp-review-dot" aria-hidden /><span className="sp-review-copy"><small>ADDED TO YOUR SLIP</small><strong>{parlay.mode === "parlay" ? plural(parlay.legs.length, "leg") + " in your parlay" : liveSelected ? (liveSelected.side === "draw" ? "Draw" : liveSelected.side === "home" ? liveSelected.home : liveSelected.away) + " · " + formatOdds(liveSelected.price) : selected ? pickSentence(selected.market, selected.line) + " · " + formatOdds(selected.line.price) : "Your pick"}</strong>{draft.stake > 0 && draft.toWin != null ? <em className="numeric">{formatCredits(draft.stake)} to win {formatCredits(draft.toWin)}</em> : null}</span><span className="sp-review-action">Open slip <ArrowUp aria-hidden /></span></button> : null}
+      {activeSlip && (phone ? sheetMin : !slipVisible && !floatOpen) ? <button ref={summaryRef} key={parlay.mode === "parlay" ? parlay.legs.map(l => l.market.id + l.line.id).join(":") : managing ? managing.id : liveSelected ? liveSelected.eventId + liveSelected.side : selected?.line.id} type="button" className="sp-review-pick" aria-haspopup="dialog" onClick={() => (phone ? setSheetMin(false) : openFloat())}><span className="sp-review-dot" aria-hidden /><span className="sp-review-copy"><small>{managedTarget ? "MANAGING YOUR PICK" : "ADDED TO YOUR SLIP"}</small><strong>{managedTarget ? (managedTarget.kind === "pick" ? pickSentence({ kind: managedTarget.pick.market.kind, player: managedTarget.pick.market.player, statKey: managedTarget.pick.market.statKey, event: managedTarget.pick.event }, managedTarget.pick) + " · cash out" : plural(managedTarget.parlay.legs.length, "leg") + " parlay · cash out") : parlay.mode === "parlay" ? plural(parlay.legs.length, "leg") + " in your parlay" : liveSelected ? (liveSelected.side === "draw" ? "Draw" : liveSelected.side === "home" ? liveSelected.home : liveSelected.away) + " · " + formatOdds(liveSelected.price) : selected ? pickSentence(selected.market, selected.line) + " · " + formatOdds(selected.line.price) : "Your pick"}</strong>{draft.stake > 0 && draft.toWin != null ? <em className="numeric">{formatCredits(draft.stake)} to win {formatCredits(draft.toWin)}</em> : null}</span><span className="sp-review-action">Open slip <ArrowUp aria-hidden /></span></button> : null}
       {/* Keeps the last rows clear of the phone pick sheet. */}
-      <div className="sp-sheet-spacer" data-on={selected || liveSelected || (parlay.mode === "parlay" && parlay.legs.length > 0) ? "" : undefined} aria-hidden />
+      <div className="sp-sheet-spacer" data-on={selected || liveSelected || managedTarget || (parlay.mode === "parlay" && parlay.legs.length > 0) ? "" : undefined} aria-hidden />
     </div>
   )
 }
@@ -554,7 +584,6 @@ function Slip({
   const winnings = selected ? Math.floor(amount * americanToDecimal(selected.line.price)) - amount : 0
   useEffect(() => { onDraft?.({ stake: selected ? amount : 0, toWin: selected && amount > 0 ? winnings : null }) }, [onDraft, selected, amount, winnings])
   const slipSide = selected ? sideTeam(selected.market.event, selected.market.kind, selected.line.selection) : null
-  const slipLook = slipSide ? teamLook(selected?.market.event.sport, slipSide) : null
   // Match the selected card, including alternate accents used to distinguish similar teams.
   const slipColor = selected ? marketSelectionColor(selected.market.event, selected.market.kind, selected.line.selection) : null
   const problem =
@@ -600,26 +629,7 @@ function Slip({
         <SlipEmpty />
       ) : (
         <form onSubmit={submit}>
-          <div className="sp-slip-pick">
-            <div className="sp-slip-top" data-accent={slipColor ?? undefined}>
-              {slipSide && slipLook?.logo && selected.market.event.sport !== "tennis" ? <span className="sp-slip-watermark" aria-hidden><TeamBadge sport={selected.market.event.sport} name={slipSide} size={144} /></span> : null}
-              {slipSide ? (
-                <TeamBadge sport={selected.market.event.sport} name={slipSide} size={48} />
-              ) : selected.market.kind === "player_prop" && selected.market.player ? (
-                <PlayerBadge sport={selected.market.event.sport} name={selected.market.player} size={48} />
-              ) : (
-                <span className="sp-slip-sport">{SPORT_LABEL[selected.market.event.sport] ?? ""}</span>
-              )}
-              <div>
-                <small>{marketTitle(selected.market)}</small>
-                <strong>{pickSentence(selected.market, selected.line)}</strong>
-              </div>
-              <span className="sp-slip-odds"><LiveNumber value={selected.line.price} format={formatOdds} kind="price" chip={false} /></span>
-            </div>
-            <span className="sp-slip-game">
-              {eventTitle(selected.market.event)} · {lockLabel(selected.market.lockAt)}
-            </span>
-          </div>
+          <SlipPickCard sport={selected.market.event.sport} side={slipSide} player={selected.market.kind === "player_prop" ? selected.market.player : null} kicker={marketTitle(selected.market)} title={pickSentence(selected.market, selected.line)} price={selected.line.price} game={`${eventTitle(selected.market.event)} · ${lockLabel(selected.market.lockAt)}`} color={slipColor} />
           <div>
             <label className="fw-label" htmlFor="sp-stake">
               Stake (play cash)

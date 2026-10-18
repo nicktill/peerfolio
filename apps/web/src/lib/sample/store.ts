@@ -7,6 +7,7 @@
 import { SECURITIES } from "@web/lib/demo-data"
 import { americanToDecimal } from "@web/lib/sports/odds"
 import { priceParlayCashout } from "@web/lib/sports/parlay-cashout"
+import { pregameCashout } from "@web/lib/sports/cashout"
 
 const KEY = "pf-sample-state"
 export const SAMPLE_EVENT = "pf-sample-changed"
@@ -213,15 +214,16 @@ export function applyPick(base: { markets: Market[]; limits: { minStake: number;
   return { ok: true }
 }
 
-/** GET .../picks/<id>/cashout in the sample: sells at the line's current price less the fee. Only picks you placed here can be sold. */
+/** GET .../picks/<id>/cashout in the sample: sells at the line's current price (same pricing as the server). Only picks you placed here can be sold. */
 type SampleQuote = { available: false; reason: string } | { available: true; value: number; source: string; stake: number; totalReturn: number; add?: { lineId: string; price: number; point: number | null } }
 export function sampleCashoutQuote(base: { markets: Market[] }, pickId: string): SampleQuote {
   const pick = load().picks.find((p) => p.id === pickId)
   if (!pick || pick.status !== "open") return { available: false, reason: "This pick can't be sold in the sample" }
   const market = base.markets.find((m) => m.id === pick.marketId)
   const line = market?.lines.find((l) => l.id === pick.lineId)
-  const price = line?.price ?? pick.price
-  const value = Math.min(Math.floor((pick.totalReturn / americanToDecimal(price)) * 0.95), pick.totalReturn)
+  const quoted = pregameCashout({ stake: pick.stake, totalReturn: pick.totalReturn, kind: pick.market.kind, selection: pick.selection, point: pick.point ?? null }, { price: line?.price ?? pick.price, point: line?.point ?? pick.point ?? null }, true)
+  if (!quoted) return { available: false, reason: "The price isn't available right now" }
+  const value = quoted.value
   return { available: true, value, source: "pregame", stake: pick.stake, totalReturn: pick.totalReturn, ...(line ? { add: { lineId: line.id, price: line.price, point: line.point } } : {}) }
 }
 

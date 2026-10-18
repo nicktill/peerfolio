@@ -1,4 +1,5 @@
-import { liveProbability, pregameProbability, price } from "./cashout.ts"
+import { liveProbability, pregameProbability } from "./cashout.ts"
+import { price } from "./cashout-price.ts"
 import { combinedDecimal, parlayReturn, type ParlayLegStatus } from "./parlay.ts"
 import type { LiveView } from "./live/view.ts"
 
@@ -6,7 +7,7 @@ import type { LiveView } from "./live/view.ts"
  * Parlay cash-out pricing. Pure.
  *
  * value = (the parlay's return with pushed and voided legs dropped) x (product of each remaining leg's chance of winning) x (1 - fee),
- * the fee applied once, never above that return, floored to a whole credit. A won leg counts 1. A lost leg means the parlay is lost:
+ * the fee (none today) applied once, never above that return, in whole credits through the shared `price`. A won leg counts 1. A lost leg means the parlay is lost:
  * no value. An open leg is priced from the market's own current price for the same line before kickoff, or from a fresh confident
  * live moneyline quote once the game is on. If any open leg cannot be priced that way the whole parlay is not priced: nothing is guessed.
  */
@@ -32,7 +33,7 @@ export type ParlayCashoutPrice =
       probability: number
       /** The return with dropped legs removed. */
       fullReturn: number
-      /** The same without the fee or rounding: for a view-only estimate. */
+      /** The ticket estimate: the same number as `value`, so the ticket and the quote can never disagree. */
       estimate: number
       source: "pregame" | "live" | "mixed"
     }
@@ -65,7 +66,7 @@ export function priceParlayCashout(parlay: { stake: number; totalReturn: number 
     }
     probability *= p
   }
-  const value = Math.min(price(fullReturn, probability), fullReturn)
+  const value = price(fullReturn, probability)
   if (value < 1) return no("The price is too low to sell")
-  return { available: true, value, probability, fullReturn, estimate: fullReturn * probability, source: sources.size > 1 ? "mixed" : sources.has("live") ? "live" : "pregame" }
+  return { available: true, value, probability, fullReturn, estimate: value, source: sources.size > 1 ? "mixed" : sources.has("live") ? "live" : "pregame" }
 }

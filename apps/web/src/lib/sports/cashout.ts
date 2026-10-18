@@ -1,20 +1,21 @@
 import { americanToProb } from "./odds.ts"
 import { sideProb } from "./live/position.ts"
 import { freshnessOf } from "./live/freshness.ts"
+import { price } from "./cashout-price.ts"
 import type { LiveView } from "./live/view.ts"
 
 /**
  * Cash-out pricing. Pure.
  *
  * An open pick can be sold back before it settles. The price is the pick's total return times the current chance that
- * its side wins, less a house fee, so selling never beats waiting on average and an unchanged line returns a bit under the stake.
+ * its side wins, less the house fee (CASHOUT_FEE, currently none), so an unchanged line returns exactly the stake.
  * Two honest sources of "current chance":
  *  - before kickoff, the market's own current price for the same line (and the same point), while the market is open;
  *  - in play, the fresh live exchange quote for a moneyline side. Anything else (stale, thin or disagreeing quote, spreads
  *    and totals once the game has started, props) is not offered rather than guessed.
  */
 
-export const CASHOUT_FEE = 0.05
+export { CASHOUT_FEE, price } from "./cashout-price.ts"
 /** If the price fell by more than this share between the quote the member saw and the click, the sale is refused and re-quoted. */
 export const CASHOUT_TOLERANCE = 0.01
 
@@ -29,8 +30,6 @@ export class CashoutRejected extends Error {
     this.code = code
   }
 }
-
-export const price = (totalReturn: number, probability: number) => Math.floor(totalReturn * probability * (1 - CASHOUT_FEE) + 1e-9)
 
 /** Before kickoff: the chance implied by the same line's current price. Null when the line is closed, or its point moved (then it is not the same bet). */
 export function pregameProbability(point: number | null, line: { price: number; point: number | null } | null, windowOpen: boolean): number | null {
@@ -52,7 +51,7 @@ export function liveProbability(kind: string, selection: string, view: LiveView 
 export function pregameCashout(pick: CashoutPick, line: { price: number; point: number | null } | null, windowOpen: boolean): CashoutQuote | null {
   const probability = pregameProbability(pick.point, line, windowOpen)
   if (probability == null) return null
-  const value = Math.min(price(pick.totalReturn, probability), pick.totalReturn)
+  const value = price(pick.totalReturn, probability)
   return value >= 1 ? { value, source: "pregame", probability } : null
 }
 
@@ -60,7 +59,7 @@ export function pregameCashout(pick: CashoutPick, line: { price: number; point: 
 export function liveCashout(pick: CashoutPick, view: LiveView | null, elapsedMs = 0): CashoutQuote | null {
   const probability = liveProbability(pick.kind, pick.selection, view, elapsedMs)
   if (probability == null) return null
-  const value = Math.min(price(pick.totalReturn, probability), pick.totalReturn)
+  const value = price(pick.totalReturn, probability)
   return value >= 1 ? { value, source: "live", probability } : null
 }
 

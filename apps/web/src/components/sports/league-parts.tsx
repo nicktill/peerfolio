@@ -16,8 +16,7 @@ import { marketSelectionColor } from "@web/lib/sports/matchup-colors"
 import { Avatar, initialsFor } from "@web/components/ui/avatar"
 import { LiveGameStrip, useLiveGame } from "@web/components/sports/live-game"
 import { TicketFig, TicketMoney } from "@web/components/sports/ticket-figures"
-import { PickManager } from "@web/components/sports/pick-manage"
-import { ParlayManager } from "@web/components/sports/parlay-manage"
+import type { ManageTarget } from "@web/components/sports/manage-slip"
 import { ParlayTicket } from "@web/components/sports/parlay-ticket"
 import { stackParlays, type ParlayRow } from "@web/components/sports/parlay-types"
 
@@ -293,7 +292,7 @@ function useFirstWin(id: string, won: boolean): boolean {
   return first
 }
 
-export function PickTicket({ pick, showName, onManage }: { pick: PickRow; showName?: boolean; onManage?: (pick: PickRow) => void }) {
+export function PickTicket({ pick, showName, onManage, managed }: { pick: PickRow; showName?: boolean; onManage?: (pick: PickRow) => void; /** This ticket is open in the pick slip. */ managed?: boolean }) {
   const celebrate = useFirstWin(pick.id, pick.status === "won")
   const m = asMarket(pick)
   const base = RESULT[pick.status] ?? RESULT.open!
@@ -321,7 +320,7 @@ export function PickTicket({ pick, showName, onManage }: { pick: PickRow; showNa
   const netTone = net != null ? (net > 0 ? "up" : net < 0 ? "down" : undefined) : undefined
   const odds = formatOdds(pick.price)
   return (
-    <li className="sl-ticket" data-status={pick.status} data-live={inGame || undefined} data-celebrate={celebrate || undefined} style={color ? ({ "--tc": color } as React.CSSProperties) : undefined}>
+    <li className="sl-ticket" data-managing={managed || undefined} data-status={pick.status} data-live={inGame || undefined} data-celebrate={celebrate || undefined} style={color ? ({ "--tc": color } as React.CSSProperties) : undefined}>
       <div className="sl-tk-head">
         <span className="sl-ticket-mark">{side ? <TeamBadge sport={pick.event.sport} name={side} size={34} /> : pick.market.player ? <PlayerBadge sport={pick.event.sport} name={pick.market.player} size={34} /> : <span className="sl-prop"><Target aria-hidden /></span>}</span>
         <div className="sl-tk-title">
@@ -336,7 +335,7 @@ export function PickTicket({ pick, showName, onManage }: { pick: PickRow; showNa
             {r.icon}
             {r.label}
           </span>
-          {onManage && isOpen ? <button type="button" className="sl-manage" onClick={() => onManage(pick)}>Manage</button> : null}
+          {onManage && isOpen ? <button type="button" className="sl-manage" aria-pressed={managed || undefined} onClick={() => onManage(pick)}>{managed ? "Managing" : "Manage"}</button> : null}
         </span>
       </div>
       <TicketMoney>
@@ -344,7 +343,7 @@ export function PickTicket({ pick, showName, onManage }: { pick: PickRow; showNa
         {pick.payout == null ? <TicketFig label="To win" tone="up">{credits(toWin(pick))}</TicketFig> : pick.payout > 0 ? <TicketFig label="Paid" tone="up">{credits(pick.payout)}</TicketFig> : <TicketFig label="Payout" tone="down">None</TicketFig>}
         {isOpen ? (
           position ? (
-            <TicketFig label="Est. P/L" tone={plTone} title="Estimate from the live market. View only: no cash-out, your pick keeps its accepted price and payout.">
+            <TicketFig label="Est. P/L" tone={plTone} title="What your pick is worth at the live price, the same figure Manage offers to cash out. Your pick keeps its accepted odds and payout unless you sell.">
               <span aria-hidden className="sl-tk-arrow">{position.pl > 0.5 ? "▲" : position.pl < -0.5 ? "▼" : ""}</span>{signed(position.pl)}
               <span className="sr-only"> (estimated value {credits(position.value)})</span>
             </TicketFig>
@@ -364,11 +363,9 @@ export function PickTicket({ pick, showName, onManage }: { pick: PickRow; showNa
 }
 
 /** Locked picks with a result filter and a hit-rate summary above the tickets. */
-export function PickFeed({ picks, parlays = [], empty, showName, history = false, manage }: { manage?: { leagueId: string; onChanged: () => void }; picks: PickRow[]; parlays?: ParlayRow[]; empty: string; showName?: boolean; /** League-wide history: opens on All with live (open) picks first, then settled picks newest first. */ history?: boolean }) {
+export function PickFeed({ picks, parlays = [], empty, showName, history = false, manage }: { manage?: { onManage: (target: ManageTarget) => void; activeId?: string | null }; picks: PickRow[]; parlays?: ParlayRow[]; empty: string; showName?: boolean; /** League-wide history: opens on All with live (open) picks first, then settled picks newest first. */ history?: boolean }) {
   const [filter, setFilter] = useState<"all" | "won" | "lost" | "open">(history ? "all" : "open")
   const feedId = useId()
-  const [managing, setManaging] = useState<PickRow | null>(null)
-  const [managingParlay, setManagingParlay] = useState<ParlayRow | null>(null)
   // Switching tabs reuses the same list (no remount, no replayed entrance); just start from the top.
   const scrollRef = useRef<HTMLDivElement>(null)
   useEffect(() => { scrollRef.current?.scrollTo({ top: 0 }) }, [filter])
@@ -422,11 +419,9 @@ export function PickFeed({ picks, parlays = [], empty, showName, history = false
       </div>
       <div className="sl-picks-scroll" ref={scrollRef} id={`${feedId}-panel`} role="tabpanel" aria-labelledby={`${feedId}-${filter}`} tabIndex={0}>
         <ul className="sl-tickets">
-          {shown.length === 0 ? <li className="fw-empty">{filter === "open" ? "No open picks. Your settled picks are in Won, Lost or All." : "Nothing here yet."}</li> : shown.map((it) => (it.kind === "pick" ? <PickTicket key={it.pick.id} pick={it.pick} showName={showName} onManage={manage ? setManaging : undefined} /> : <ParlayTicket key={it.parlay.id} parlay={it.parlay} showName={showName} onManage={manage ? setManagingParlay : undefined} />))}
+          {shown.length === 0 ? <li className="fw-empty">{filter === "open" ? "No open picks. Your settled picks are in Won, Lost or All." : "Nothing here yet."}</li> : shown.map((it) => (it.kind === "pick" ? <PickTicket key={it.pick.id} pick={it.pick} showName={showName} onManage={manage ? (pick) => manage.onManage({ kind: "pick", pick }) : undefined} managed={manage?.activeId === it.pick.id} /> : <ParlayTicket key={it.parlay.id} parlay={it.parlay} showName={showName} onManage={manage ? (parlay) => manage.onManage({ kind: "parlay", parlay }) : undefined} managed={manage?.activeId === (it.parlay.parts?.[0] ?? it.parlay).id} />))}
         </ul>
       </div>
-      {manage && managing ? <PickManager leagueId={manage.leagueId} pick={managing} onClose={() => setManaging(null)} onChanged={manage.onChanged} /> : null}
-      {manage && managingParlay ? <ParlayManager leagueId={manage.leagueId} parlay={managingParlay} onClose={() => setManagingParlay(null)} onChanged={manage.onChanged} /> : null}
     </>
   )
 }

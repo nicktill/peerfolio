@@ -61,7 +61,7 @@ function LegStack({ legs }: { legs: ParlayLegRow[] }) {
 }
 
 /** A parlay as a ticket: combined odds, risk and to win, an overall result, and the legs with their own results. */
-export function ParlayTicket({ parlay, showName, onManage }: { parlay: ParlayRow; showName?: boolean; onManage?: (parlay: ParlayRow) => void }) {
+export function ParlayTicket({ parlay, showName, onManage, managed }: { parlay: ParlayRow; showName?: boolean; onManage?: (parlay: ParlayRow) => void; /** This ticket is open in the pick slip. */ managed?: boolean }) {
   const [open, setOpen] = useState(false)
   // The clock only exists in the browser, so the first paint is stable and live status follows.
   const [now, setNow] = useState<Date | null>(null)
@@ -74,7 +74,7 @@ export function ParlayTicket({ parlay, showName, onManage }: { parlay: ParlayRow
   const s = STATUS[parlay.status] ?? STATUS.open!
   const isOpen = parlay.status === "open"
   // The live estimate is view only: it needs every unfinished leg to be a moneyline in play with a fresh confident quote, else it is hidden.
-  // Cash-out itself (Manage) is priced by the server and may differ a little.
+  // It is the same pricing function as the server quote, so Manage shows the same number.
   const inPlay = now ? parlay.legs.filter((l) => l.status === "open" && l.event.id && openPickPhase(l.event.startsAt, now).phase === "in_progress") : []
   const live = useLiveGames([...new Set(inPlay.map((l) => l.event.id!))], !!onManage && isOpen && inPlay.length > 0)
   const priced = onManage && isOpen && now && inPlay.length > 0
@@ -93,7 +93,7 @@ export function ParlayTicket({ parlay, showName, onManage }: { parlay: ParlayRow
   const listId = `pl-legs-${parlay.id}`
   const netTone = net != null ? (net > 0 ? "up" : net < 0 ? "down" : undefined) : undefined
   return (
-    <li className="pl-ticket" data-status={parlay.status}>
+    <li className="pl-ticket" data-managing={managed || undefined} data-status={parlay.status}>
       <div className="sl-tk-head">
         <LegStack legs={parlay.legs} />
         <div className="sl-tk-title">
@@ -102,7 +102,7 @@ export function ParlayTicket({ parlay, showName, onManage }: { parlay: ParlayRow
         </div>
         <span className="sl-tk-end">
           <span className="sl-chip" data-status={parlay.status}>{s.icon}{s.label}</span>
-          {onManage && isOpen ? <button type="button" className="sl-manage" onClick={() => onManage(parlay)}>Manage</button> : null}
+          {onManage && isOpen ? <button type="button" className="sl-manage" aria-pressed={managed || undefined} onClick={() => onManage(parlay)}>{managed ? "Managing" : "Manage"}</button> : null}
         </span>
       </div>
       <TicketMoney label="Parlay money">
@@ -110,7 +110,7 @@ export function ParlayTicket({ parlay, showName, onManage }: { parlay: ParlayRow
         {parlay.payout == null ? <TicketFig label="To win" tone="up">{formatCredits(toWin(parlay))}</TicketFig> : parlay.status === "cashed_out" ? <TicketFig label="Cashed out" tone="up">{formatCredits(parlay.payout)}</TicketFig> : parlay.payout > 0 ? <TicketFig label="Paid" tone="up">{formatCredits(parlay.payout)}</TicketFig> : <TicketFig label="Payout" tone="down">None</TicketFig>}
         {isOpen || net == null ? (
           estimate != null ? (
-            <TicketFig label="Est. P/L" tone={estTone} title="Estimate from the live market. View only: your parlay keeps its accepted odds and payout. Cashing out is priced separately under Manage.">
+            <TicketFig label="Est. P/L" tone={estTone} title="What your parlay is worth at the live prices, the same figure Manage offers to cash out. Your parlay keeps its accepted odds and payout unless you sell.">
               <span aria-hidden className="sl-tk-arrow">{estimate > 0.5 ? "▲" : estimate < -0.5 ? "▼" : ""}</span>{signedCredits(estimate)}
               <span className="sr-only"> (estimated value {formatCredits(priced && priced.available ? priced.estimate : 0)})</span>
             </TicketFig>
