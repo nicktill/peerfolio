@@ -20,7 +20,7 @@ describe("settlement asks the metered source only when it can change the outcome
     assert.equal(needsMeteredSource({ finalFirstSeenAt: null }, [], true, NOW), false)
   })
   it("not during the settle delay, once after it", () => {
-    assert.equal(needsMeteredSource(seen(1), [res("final")], true, NOW), false)
+    assert.equal(needsMeteredSource(seen(0.1), [res("final")], true, NOW), false)
     assert.equal(needsMeteredSource({ finalFirstSeenAt: null }, [res("final")], true, NOW), false, "first sight this run")
     assert.equal(needsMeteredSource(seen(DEFAULT_RESOLVE.settleDelayMs / H), [res("final")], true, NOW), true)
   })
