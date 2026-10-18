@@ -274,6 +274,13 @@
       "when": 1792290310217,
       "tag": "0038_sports_live_betting",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1792292188243,
+      "tag": "0039_sports_parlays",
+      "breakpoints": true
     }
   ]
 }
