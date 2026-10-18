@@ -89,3 +89,20 @@ describe("cleanContext view settings", () => {
     assert.equal("benchmark" in hostile, false)
   })
 })
+
+describe("sports pages", () => {
+  it("names the open sports league and explains the rules without offering real-money advice", () => {
+    const text = describeView({ page: "sports", entityId: id }, "Sunday Crew")
+    assert.match(text, /Sports league open: "Sunday Crew"/)
+    assert.match(text, /play-money/)
+    assert.match(text, /kickoff/)
+    assert.match(text, /12 seconds/)
+    assert.match(text, /Est\. value/)
+    assert.match(text, /cannot place|can't place/)
+    assert.match(text, /never give betting or investment advice/)
+  })
+  it("handles the list and invite pages, and keeps the league id only for sports", () => {
+    assert.match(describeView({ page: "sports" }), /no league open/)
+    assert.equal(cleanContext({ page: "sports", entityId: id }).page, "sports")
+  })
+})

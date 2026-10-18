@@ -33,12 +33,23 @@ ${exemplarsForPrompt()}
 
 - Today's date and market state are given below; never guess the date. You may have web search: use it at most once, only for news or "why" questions your tools can't answer, never put their balances or holdings in a query, name and date what you report from it, and keep it apart from Peerfolio's own numbers.`
 
+/** How Sports leagues work, so the assistant explains them correctly and stays inside the game. Facts mirror the app's rules. */
+const SPORTS_GUIDANCE = [
+  "This is Sports, a game of play-money picks on real games (NFL, NBA, NHL, MLB, college football, MLS, tennis). It is virtual cash with no real value, not real-money betting and not investing: never encourage wagering real money, never give betting or investment advice, and don't say a pick is a good bet. You can explain odds, the league's rules and how they are doing.",
+  "Use get_sports_league for rank, cash, picks and limits (it defaults to the league open on the page); it is read-only and you cannot place, change or cancel picks, so if asked, say to use the pick slip.",
+  "Facts: each member starts with the same cash. Standings rank cash plus stake still at risk, so an open pick isn't a loss. Odds are American (-150 risks 150 to win 100; +130 wins 130 on 100); a won pick returns the stake plus winnings, a push or void returns the stake, a loss returns nothing. The pick slip shows the payout before confirming. The largest single pick is a per-league percent of starting cash (owner-set; the tool gives the exact amount), with a minimum pick and a cap on open picks. A pick locks at kickoff and lines are fixed once accepted. Other members' picks show only after they lock; you never know anyone's open pick.",
+  "Live picks: once a game is under way a member can take an in-play pick priced from the live market; the server re-checks the score and price for 12 seconds and places nothing if the game changes. Live stakes are capped lower and limited per game, and the owner can switch them off. \"Est. value\" on a live game is a view-only estimate of what an open pick is worth from the live market; there is no cash-out, and the pick keeps its accepted price and payout. You can't read live estimates, so say that if asked.",
+  "Parlays combine several picks on one slip: the odds multiply, every leg must win, and a lost leg loses the parlay (a push or void leg drops out of it). The tool may not list parlays yet; if it shows none, say you can't see them rather than guessing.",
+  "Don't invent scores, odds or game results; quote the tool. If no league is open, ask which one or use the overview.",
+].join(" ")
+
 /** What "this page" implies for a question, so "why am I down?" means the right thing wherever it's asked. */
 export const PAGE_GUIDANCE: Record<PageContext["page"], string> = {
   portfolio: "Questions about \"my portfolio\", performance or holdings refer to their real accounts here.",
   news: "Lean on get_market_news first, and tie stories to their holdings when a headline mentions them.",
   leagues: "Use get_league_standings for rank questions (it defaults to the league open on the page). Explain a rank by comparing returns over the same range; you only know other members' holdings when they chose to share them, so never guess at the rest. If the league has few ranked members or short history, say the ranking is early.",
-  fantasy: "Use get_fantasy_league for rank, strategy and trade questions (it defaults to the league open on the page). Picks are public inside a fantasy league, so you may discuss other members' holdings from the tool. Its prices are stored ones, not live quotes: say so when exact figures matter. This is a game with virtual money, separate from their real portfolio.",
+  fantasy: "Use get_fantasy_league for rank, strategy and trade questions (it defaults to the league open on the page). Picks are public inside a fantasy league, so you may discuss other members' holdings from the tool. Its prices are stored ones, not live quotes: say so when exact figures matter. This is a game with virtual money, separate from their real portfolio. Sports leagues (picks on real games) are a separate area: use get_sports_league for those.",
+  sports: SPORTS_GUIDANCE,
   wealth: "They are in Wealth Lab, their own planning sandbox. Use project_wealth for every what-if or how-much-to-save question, and offer to try a more conservative case (lower return, longer horizon) when it helps. Assumptions here are theirs and hypothetical.",
   board: "You can't read the public board yet. If asked about rankings, say so, then offer to analyze their own portfolio instead.",
   other: "",
@@ -49,6 +60,7 @@ const PAGE_NAME: Record<PageContext["page"], string> = {
   news: "News page",
   leagues: "Leagues page",
   fantasy: "Fantasy page",
+  sports: "Sports (play-money picks) area of the Fantasy section",
   wealth: "Wealth Lab",
   board: "Board page",
   other: "app",
@@ -71,6 +83,9 @@ export function describeView(context: PageContext, entityName?: string | null): 
   if (context.page === "leagues" || context.page === "fantasy") {
     const kind = context.page === "fantasy" ? "fantasy league" : "league"
     lines.push(context.entityId ? `They have one ${kind} open${name ? `: "${name}" (id ${context.entityId})` : ` (id ${context.entityId})`}. "This ${kind}" means that one.` : `They are on the list of their ${kind}s, with none open.`)
+  }
+  if (context.page === "sports") {
+    lines.push(context.entityId ? `They have one Sports league open${name ? `: "${name}" (id ${context.entityId})` : ` (id ${context.entityId})`}. "This league" means that one.` : "They are on the Sports list or an invite page, with no league open or joined yet.")
   }
   if (context.page === "portfolio" && (context.range || context.benchmark)) {
     const parts = [context.range ? `the ${context.range} range` : null, context.benchmark ? `${context.benchmark} overlaid as the benchmark` : null].filter(Boolean)

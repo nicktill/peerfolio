@@ -17,7 +17,7 @@ import { addReport, parseConversations, parseReports, recentItems, removeById, t
  * removes them. See lib/ai/saved.ts for the limits.
  */
 
-export type Page = "portfolio" | "leagues" | "fantasy" | "news" | "board" | "wealth" | "other"
+export type Page = "portfolio" | "leagues" | "fantasy" | "sports" | "news" | "board" | "wealth" | "other"
 export type Phase = "idle" | "reading" | "analyzing" | "writing"
 
 export type { Msg }
@@ -76,6 +76,7 @@ const uid = () => Math.random().toString(36).slice(2, 10)
 export function pageOf(pathname: string): Page {
   if (pathname.startsWith("/dashboard")) return "portfolio"
   if (pathname.startsWith("/leagues")) return "leagues"
+  if (pathname.startsWith("/fantasy/sports") || pathname.startsWith("/join/sports")) return "sports"
   if (pathname.startsWith("/fantasy")) return "fantasy"
   if (pathname.startsWith("/news")) return "news"
   if (pathname.startsWith("/board")) return "board"
@@ -83,14 +84,21 @@ export function pageOf(pathname: string): Page {
   return "other"
 }
 
+/** The Fantasy list page in its Sports mode is a Sports page as far as the assistant is concerned (the page publishes its mode). */
+export function viewPage(page: Page, detail: boolean): Page {
+  return page === "fantasy" && !detail && readAssistantView().mode === "sports" ? "sports" : page
+}
+
 export function AssistantProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const { data: session } = useSession()
   const userId = session?.user?.id ?? null
   const page = pageOf(pathname)
-  const entityId = pathname.split("/")[2]
+  // /fantasy/sports/<id> is a Sports league (the id sits one segment further in); /join/sports/<code> is an invite, not a league.
+  const rawId = pathname.split("/")[page === "sports" ? 3 : 2]
   // /leagues/<id> and /fantasy/<id> are a specific league; /fantasy/join/<code> and the section roots are not.
-  const detail = !!entityId && entityId !== "join" && (page === "leagues" || page === "fantasy")
+  const detail = !!rawId && (page === "sports" ? pathname.startsWith("/fantasy/sports/") : rawId !== "join" && (page === "leagues" || page === "fantasy"))
+  const entityId = page === "sports" ? (detail ? rawId : undefined) : rawId
 
   const [messages, setMessages] = useState<Msg[]>([])
   const [phase, setPhase] = useState<Phase>("idle")
@@ -174,7 +182,7 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
           signal: controller.signal,
           body: JSON.stringify({
             messages: requestMessages(history),
-            context: { page: live.current.page, entityId: live.current.entityId, ...(live.current.page === "portfolio" ? readAssistantView() : {}) },
+            context: { page: viewPage(live.current.page, !!live.current.entityId && live.current.entityId !== "join"), entityId: live.current.entityId, ...(live.current.page === "portfolio" ? readAssistantView() : {}) },
           }),
         })
         if (!res.ok || !res.body) {
@@ -328,7 +336,9 @@ export function AssistantProvider({ children }: { children: React.ReactNode }) {
 export function useAssistant() {
   const value = useContext(Ctx)
   if (!value) throw new Error("useAssistant must be used inside AssistantProvider")
-  return value
+  // The Fantasy list in its Sports mode reads as the Sports page (labels, suggestions, placeholder).
+  const page = viewPage(value.page, value.detail)
+  return page === value.page ? value : { ...value, page }
 }
 
 export type PageCopy = {
@@ -396,6 +406,16 @@ export const PAGE_COPY: Record<Page, PageCopy> = {
     ],
     note: "Board data is coming soon.",
   },
+  sports: {
+    title: "Make sense of your picks",
+    subtitle: "Play money only. I can read your league's standings, cash and picks, and explain odds and rules.",
+    suggestions: [
+      { label: "How am I doing in this league?", featured: true },
+      { label: "What are my open picks?" },
+      { label: "How do parlays work?" },
+      { label: "What is Est. value on a live game?" },
+    ],
+  },
   wealth: {
     title: "Plan your wealth",
     subtitle: "I can run your what-ifs through Wealth Lab's engine, so the numbers are computed, not guessed.",
@@ -414,6 +434,16 @@ export const PAGE_COPY: Record<Page, PageCopy> = {
 
 /** The section's list page, where no single league is open: questions here span all of the person's leagues. */
 const LIST_COPY: Partial<Record<Page, PageCopy>> = {
+  sports: {
+    title: "How are your Sports leagues going?",
+    subtitle: "Play money only. I can read your leagues and explain how picks, odds and limits work.",
+    suggestions: [
+      { label: "Which Sports league am I leading?", featured: true },
+      { label: "How do picks and odds work?" },
+      { label: "How do live picks work?" },
+      { label: "How do parlays work?" },
+    ],
+  },
   leagues: {
     title: "How are your leagues going?",
     subtitle: "I can read the standings of every league you're in.",
@@ -445,6 +475,7 @@ export const PAGE_LABEL: Record<Page, string> = {
   portfolio: "Portfolio",
   leagues: "Leagues",
   fantasy: "Fantasy",
+  sports: "Sports",
   news: "News",
   board: "Board",
   wealth: "Wealth Lab",

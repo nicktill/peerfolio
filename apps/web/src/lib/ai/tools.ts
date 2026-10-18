@@ -6,6 +6,9 @@ import { buildLeagueStandings, listLeaguesForUser, requireMembership } from "@we
 import { shapeStandings } from "@web/lib/ai/league-view"
 import { shapeFantasy, type FantasyLeagueLike } from "@web/lib/ai/fantasy-view"
 import { loadFantasyLeague } from "@web/lib/fantasy"
+import { shapeSports, type SportsLeagueLike } from "@web/lib/ai/sports-view"
+import { getSportsLeagueDetail, listSportsLeagues } from "@web/lib/sports/store"
+import { sportsAccessFor } from "@web/lib/sports/access"
 import { eq } from "drizzle-orm"
 import { db, fantasyLeagues, fantasyMembers } from "@web/db"
 import { BENCHMARKS, compareToBenchmark } from "@web/lib/benchmarks"
@@ -36,6 +39,8 @@ export type ToolContext = {
   pageLeagueId?: string
   /** The fantasy league open on the page; same rule as `pageLeagueId`. */
   pageFantasyId?: string
+  /** The Sports league open on the page; same rule as `pageLeagueId`. */
+  pageSportsId?: string
   /** Called when a tool produces something the interface should render itself. */
   emit: (event: { type: "xray"; data: XRay } | { type: "visual"; data: Visual } | { type: "link"; label: string; href: string }) => void
 }
@@ -152,6 +157,23 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
       const data = await loadFantasyLeague(ctx.userId, leagueId, { refresh: false })
       return shapeFantasy(data as unknown as FantasyLeagueLike)
     }
+    case "get_sports_league": {
+      if (!(await sportsAccessFor(ctx.userId))) return { reason: "Sports isn't available for this account." }
+      let leagueId = requestedLeagueId(parseArgs(rawArgs), ctx.pageSportsId)
+      if (!leagueId) {
+        const mine = await listSportsLeagues(db, ctx.userId)
+        const plan = planLeagueLookup(mine)
+        if (plan.kind === "none") return { reason: "The user isn't in any Sports league." }
+        if (plan.kind === "overview") {
+          const overview = mine.slice(0, MAX_LEAGUE_OVERVIEW).map((l) => ({ id: l.id, league: l.name, members: l.memberCount, closed: l.isClosed, yourCash: l.credits, startingCash: l.startingCredits, top: l.leaders.map((x) => ({ member: x.isYou ? "You" : x.name, total: x.credits })) }))
+          return { overview, truncated: plan.truncated, note: "Total = cash + stake at risk. Pass a league id for full detail." }
+        }
+        leagueId = plan.id
+      }
+      // Membership is checked inside (the league is "not found" for anyone else); other members' picks are listed only once locked.
+      const data = await getSportsLeagueDetail(db, ctx.userId, leagueId, new Date())
+      return shapeSports(data as unknown as SportsLeagueLike)
+    }
     case "compare_to_benchmark": {
       const args = parseArgs(rawArgs)
       const symbol = parseBenchmark(args)
@@ -208,6 +230,7 @@ export async function runTool(name: string, rawArgs: string, ctx: ToolContext): 
         return view.standings ? { page, ...view, standings: view.standings.filter((r, i) => i < 5 || r.isYou), note: "Top five and you." } : { page, ...view }
       }
       if (page === "fantasy") return { page, ...((await runTool("get_fantasy_league", JSON.stringify({ leagueId: null }), ctx)) as object) }
+      if (page === "sports") return { page, ...((await runTool("get_sports_league", JSON.stringify({ leagueId: null }), ctx)) as object) }
       if (page === "news") {
         const news = (await runTool("get_market_news", "{}", ctx)) as { recap: { headline: string; takeaways: unknown[] } | null; headlines: unknown[] }
         return { page, recap: news.recap ? { headline: news.recap.headline, takeaways: news.recap.takeaways.slice(0, 3) } : null, headlines: news.headlines.slice(0, 5) }

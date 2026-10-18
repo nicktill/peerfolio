@@ -8,7 +8,7 @@ import { useEffect, useRef } from "react"
  * the merged view when a question is sent, so nothing re-renders and a page that publishes nothing costs nothing.
  * The server keeps only whitelisted or bounded values from it.
  */
-export type PublishedView = { range?: string; benchmark?: string; account?: string; holding?: string }
+export type PublishedView = { range?: string; benchmark?: string; account?: string; holding?: string; mode?: string }
 
 const parts = new Map<symbol, PublishedView>()
 
@@ -22,12 +22,12 @@ export function readAssistantView(): PublishedView {
 
 export function useAssistantView(view: PublishedView) {
   const owner = useRef<symbol>(Symbol("assistant-view"))
-  const { range, benchmark, account, holding } = view
+  const { range, benchmark, account, holding, mode } = view
   useEffect(() => {
     const id = owner.current
-    parts.set(id, { range, benchmark, account, holding })
+    parts.set(id, { range, benchmark, account, holding, mode })
     return () => {
       parts.delete(id)
     }
-  }, [range, benchmark, account, holding])
+  }, [range, benchmark, account, holding, mode])
 }

@@ -1,6 +1,7 @@
 import "server-only"
 import { and, eq } from "drizzle-orm"
-import { db, fantasyLeagues, fantasyMembers } from "@web/db"
+import { db, fantasyLeagues, fantasyMembers, sportsLeagues, sportsMembers } from "@web/db"
+import { sportsAccessFor } from "@web/lib/sports/access"
 import { requireMembership } from "@web/lib/social"
 import type { PageContext } from "@web/lib/ai/limits"
 
@@ -10,12 +11,25 @@ import type { PageContext } from "@web/lib/ai/limits"
  * context is returned without it, so neither the prompt nor the tools ever act on a league they can't see.
  */
 export async function verifyPageEntity(userId: string, context: PageContext): Promise<{ context: PageContext; entityName: string | null }> {
-  if (!context.entityId || (context.page !== "leagues" && context.page !== "fantasy")) return { context, entityName: null }
+  if (!context.entityId || (context.page !== "leagues" && context.page !== "fantasy" && context.page !== "sports")) return { context, entityName: null }
   const leagueId = context.entityId
   try {
     if (context.page === "leagues") {
       const { league } = await requireMembership(userId, leagueId)
       return { context, entityName: league.name }
+    }
+    if (context.page === "sports") {
+      // Sports follows its own access rule (flag, then beta grant); a non-member or an off flag drops the id.
+      if (await sportsAccessFor(userId)) {
+        const [league] = await db
+          .select({ name: sportsLeagues.name })
+          .from(sportsMembers)
+          .innerJoin(sportsLeagues, eq(sportsMembers.leagueId, sportsLeagues.id))
+          .where(and(eq(sportsMembers.userId, userId), eq(sportsMembers.leagueId, leagueId)))
+          .limit(1)
+        if (league) return { context, entityName: league.name }
+      }
+      return { context: { ...context, entityId: undefined }, entityName: null }
     }
     const [row] = await db
       .select({ name: fantasyLeagues.name })
