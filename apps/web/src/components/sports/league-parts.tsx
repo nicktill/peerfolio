@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useId, useMemo, useState } from "react"
+import { useEffect, useId, useMemo, useRef, useState } from "react"
 import { motion } from "motion/react"
 import { Check, Clock, Crown, Flame, Link2, Minus, Target, TrendingUp, Undo2, Wallet, X } from "lucide-react"
 import { AnimatedNumber } from "@web/components/ui/animated-number"
@@ -342,6 +342,9 @@ export function PickTicket({ pick, showName }: { pick: PickRow; showName?: boole
 export function PickFeed({ picks, parlays = [], empty, showName, history = false }: { picks: PickRow[]; parlays?: ParlayRow[]; empty: string; showName?: boolean; /** League-wide history: opens on All with live (open) picks first, then settled picks newest first. */ history?: boolean }) {
   const [filter, setFilter] = useState<"all" | "won" | "lost" | "open">(history ? "all" : "open")
   const feedId = useId()
+  // Switching tabs reuses the same list (no remount, no replayed entrance); just start from the top.
+  const scrollRef = useRef<HTMLDivElement>(null)
+  useEffect(() => { scrollRef.current?.scrollTo({ top: 0 }) }, [filter])
   // Singles and parlays share one feed, newest first (singles keep the server's order when there are no parlays).
   const items = useMemo(() => {
     const all = [...picks.map((pick) => ({ kind: "pick" as const, pick, at: pick.acceptedAt, status: pick.status })), ...parlays.map((parlay) => ({ kind: "parlay" as const, parlay, at: parlay.acceptedAt, status: parlay.status }))]
@@ -390,7 +393,7 @@ export function PickFeed({ picks, parlays = [], empty, showName, history = false
           </span>
         ) : null}
       </div>
-      <div className="sl-picks-scroll" key={filter} id={`${feedId}-panel`} role="tabpanel" aria-labelledby={`${feedId}-${filter}`} tabIndex={0}>
+      <div className="sl-picks-scroll" ref={scrollRef} id={`${feedId}-panel`} role="tabpanel" aria-labelledby={`${feedId}-${filter}`} tabIndex={0}>
         <ul className="sl-tickets">
           {shown.length === 0 ? <li className="fw-empty">{filter === "open" ? "No open picks. Your settled picks are in Won, Lost or All." : "Nothing here yet."}</li> : shown.map((it) => (it.kind === "pick" ? <PickTicket key={it.pick.id} pick={it.pick} showName={showName} /> : <ParlayTicket key={it.parlay.id} parlay={it.parlay} showName={showName} />))}
         </ul>

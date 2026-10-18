@@ -448,7 +448,8 @@ function Markets({ markets, selected, onSelect, disabled, now }: { markets: Mark
       g.markets.push(m)
       byEvent.set(key, g)
     }
-    return [...byEvent.values()]
+    // Games that kick off together (a whole NFL slate shares 1:00 PM) need a tiebreak, or they swap places between refreshes.
+    return [...byEvent.values()].sort((a, b) => Date.parse(a.event.startsAt) - Date.parse(b.event.startsAt) || a.event.sport.localeCompare(b.event.sport) || a.event.home.localeCompare(b.event.home) || a.event.away.localeCompare(b.event.away))
   }, [markets])
 
   if (games.length === 0) return <p className="fw-empty">No open lines right now. Games post about a day ahead.</p>
