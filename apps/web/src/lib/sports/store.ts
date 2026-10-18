@@ -365,7 +365,7 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
         minLegs: PARLAY_LIMITS.minLegs,
         maxLegs: PARLAY_LIMITS.maxLegs,
         minStake: PARLAY_LIMITS.minStake,
-        maxStake: Math.floor((league.startingCredits * league.maxStakePct) / 100),
+        maxStake: me.credits,
       },
     },
     standings,
@@ -532,7 +532,7 @@ async function placeOnce(db: Db, userId: string, leagueId: string, req: PickRequ
     }
     let accepted
     try {
-      accepted = acceptPick(req, pickCtx, { ...DEFAULT_LIMITS, maxStakePctOfStart: league.maxStakePct })
+      accepted = acceptPick(req, pickCtx, { ...DEFAULT_LIMITS, maxStakePctOfStart: Infinity })
     } catch (error) {
       if (error instanceof PickRejected) {
         // Rejections caused only by the kickoff gate are warnings (they mean a lock was late or a start moved); the rest are routine.

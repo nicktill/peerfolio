@@ -124,7 +124,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
   const searchButton = useRef<HTMLButtonElement>(null)
   const refocusSearchButton = useRef(false)
   useEffect(() => {
-    if (searchOpen) searchInput.current?.focus()
+    if (searchOpen) searchInput.current?.focus({ preventScroll: true })
     else if (refocusSearchButton.current) { refocusSearchButton.current = false; searchButton.current?.focus() }
   }, [searchOpen])
   const closeSearch = () => { refocusSearchButton.current = true; setQuery(""); setSearchOpen(false) }
@@ -289,27 +289,27 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
                 </div>
               ) : <span className="sp-filter-gap" />}
               <ParlayModeBar mode={parlay.mode} disabled={livePending} onMode={(m) => { if (livePending) return; setSelected(null); setLiveSelected(null); parlay.setMode(m) }} count={parlay.legs.length} />
-              {searchOpen ? (
-                <div className="sp-search" role="search">
+              <div className="sp-search" role="search" data-open={searchOpen || undefined}>
+                <button ref={searchButton} type="button" className="sp-search-trigger" aria-label="Search games" title="Search games" aria-expanded={searchOpen} tabIndex={searchOpen ? -1 : 0} onClick={() => setSearchOpen(true)}><Search aria-hidden /><span>Search</span></button>
+                <div className="sp-search-field" aria-hidden={!searchOpen}>
                   <Search className="sp-search-icon" aria-hidden />
                   <input
                     ref={searchInput}
                     type="search"
                     value={query}
+                    tabIndex={searchOpen ? 0 : -1}
                     onChange={(e) => setQuery(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); closeSearch() } }}
+                    onBlur={() => { if (!query) setSearchOpen(false) }}
                     placeholder="Team, player or league"
                     aria-label="Search games"
                     autoComplete="off"
                     spellCheck={false}
                     enterKeyHint="search"
                   />
-                  {query ? <button type="button" className="sp-search-clear" aria-label="Clear search" onClick={() => { setQuery(""); searchInput.current?.focus() }}><X aria-hidden /></button> : null}
-                  <button type="button" className="sp-search-done" aria-label="Close search" onClick={closeSearch}><X aria-hidden /></button>
+                  <button type="button" className="sp-search-done" tabIndex={searchOpen ? 0 : -1} aria-label={query ? "Clear and close search" : "Close search"} onMouseDown={(e) => e.preventDefault()} onClick={closeSearch}><X aria-hidden /></button>
                 </div>
-              ) : (
-                <button ref={searchButton} type="button" className="sp-search-btn" aria-label="Search games" title="Search games" aria-expanded={false} onClick={() => setSearchOpen(true)}><Search aria-hidden /><span>Search</span></button>
-              )}
+              </div>
             </div>
             {parlay.mode === "parlay" && parlay.note ? <div className="sp-parlay-guidance"><p className="pl-note" role="status">{parlay.note}</p></div> : null}
             {view === "upcoming" ? <ParlayIdsContext.Provider value={parlay.mode === "parlay" ? parlay.ids : null}><div className="sp-scroll">{searching && shown.length === 0 ? <p className="fw-empty" role="status">No games match &ldquo;{query.trim()}&rdquo;</p> : <Markets markets={shown} selected={parlay.mode === "parlay" ? null : current} onSelect={(market, line) => { if (livePending) return; setLiveSelected(null); parlay.mode === "parlay" ? parlay.toggle(market, line) : setSelected({ market, line }) }} disabled={ended || livePending} now={now} />}</div></ParlayIdsContext.Provider> : <ParlayIdsContext.Provider value={parlay.mode === "parlay" ? parlay.ids : null}><ScoreboardGames renderUpcoming={(game) => {
