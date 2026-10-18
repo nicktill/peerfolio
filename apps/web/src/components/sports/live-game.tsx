@@ -1,10 +1,12 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Radio } from "lucide-react"
+import { ArrowDown, ArrowUp, Radio } from "lucide-react"
 import { PIPELINE } from "@web/lib/sports/live/freshness"
 import { chipFor, PAUSED_REASON, splitPct, splitPct3, statusLine } from "@web/lib/sports/live/format"
+import { livePosition, type PositionPick } from "@web/lib/sports/live/position"
 import { ageView, type LiveView } from "@web/lib/sports/live/view"
+import { formatCredits, signedCredits } from "@web/lib/sports/format"
 import { teamLook } from "@web/lib/sports/teams"
 
 type Entry = { view: LiveView | null; receivedAt: number; subs: number; timer: number | undefined; failures: number; listeners: Set<() => void> }
@@ -66,10 +68,11 @@ export function useLiveGame(eventId: string | undefined, enabled: boolean) {
 }
 
 /**
- * In-game strip under a pick: score, period/clock, the market's win probability and a freshness chip.
- * VIEW ONLY: it offers no way to act on the number, and the pick above keeps its accepted price and payout.
+ * In-game strip under a pick: score, period/clock, the market's win probability (the user's side highlighted), a compact
+ * freshness chip and, for an open moneyline pick, an estimated live value. VIEW ONLY: it offers no way to act on any number,
+ * and the pick above keeps its accepted price and payout.
  */
-export function LiveGameStrip({ eventId, sport, home, away, active }: { eventId?: string; sport: string; home: string; away: string; active: boolean }) {
+export function LiveGameStrip({ eventId, sport, home, away, active, pick }: { eventId?: string; sport: string; home: string; away: string; active: boolean; pick?: PositionPick }) {
   const { view, elapsedMs } = useLiveGame(eventId, active)
   if (!eventId || !active) return null
   const chip = chipFor(view, elapsedMs)
@@ -78,13 +81,16 @@ export function LiveGameStrip({ eventId, sport, home, away, active }: { eventId?
   const h = teamLook(sport, home)
   const a = teamLook(sport, away)
   const line = view ? statusLine(view) : null
+  const mine = pick && (pick.kind === "moneyline" || pick.kind === "spread") ? pick.selection : null
+  const position = pick ? livePosition(pick, view, elapsedMs) : null
+  const dim = (side: string) => (mine === "home" || mine === "away" || mine === "draw") && mine !== side
   return (
     <div className="sl-live" data-tone={chip.tone} role="group" aria-label="Live game status">
       <div className="sl-live-top">
         <span className="sl-live-chip" data-tone={chip.tone}>
           <Radio aria-hidden />
           {chip.label}
-          {chip.ago ? <small>{chip.ago}</small> : null}
+          {chip.ago ? <small>{chip.ago.replace(" ago", "")}</small> : null}
         </span>
         {view?.score ? (
           <span className="sl-live-score numeric">
@@ -96,14 +102,14 @@ export function LiveGameStrip({ eventId, sport, home, away, active }: { eventId?
       {split ? (
         <>
           <div className="sl-live-bar" role="img" aria-label={`Win probability: ${away} ${split.away} percent, ${split.draw != null ? `draw ${split.draw} percent, ` : ""}${home} ${split.home} percent`}>
-            <span style={{ width: `${split.away}%`, background: a.color }} />
-            {split.draw != null ? <span style={{ width: `${split.draw}%`, background: "var(--fw-fg3)" }} /> : null}
-            <span style={{ width: `${split.home}%`, background: h.color }} />
+            <span data-dim={dim("away") || undefined} style={{ width: `${split.away}%`, background: a.color }} />
+            {split.draw != null ? <span data-dim={dim("draw") || undefined} style={{ width: `${split.draw}%`, background: "var(--fw-fg3)" }} /> : null}
+            <span data-dim={dim("home") || undefined} style={{ width: `${split.home}%`, background: h.color }} />
           </div>
           <div className="sl-live-odds numeric">
-            <span>{a.abbr} {split.away}%</span>
-            {split.draw != null ? <span>Draw {split.draw}%</span> : null}
-            <span>{h.abbr} {split.home}%</span>
+            <span data-mine={mine === "away" || undefined}>{a.abbr} {split.away}%</span>
+            {split.draw != null ? <span data-mine={mine === "draw" || undefined}>Draw {split.draw}%</span> : null}
+            <span data-mine={mine === "home" || undefined}>{h.abbr} {split.home}%</span>
           </div>
           {odds && odds.confidence === "low" ? <p className="sl-live-note">{odds.mismatch ? "Sources differ, treat as rough" : "Thin market, treat as rough"}</p> : null}
         </>
@@ -112,7 +118,16 @@ export function LiveGameStrip({ eventId, sport, home, away, active }: { eventId?
       ) : chip.tone === "paused" ? (
         <p className="sl-live-note">{PAUSED_REASON.stale}</p>
       ) : null}
-      <p className="sl-live-fine">Market-implied chance, view only. Your pick keeps its accepted price and payout.</p>
+      {position ? (
+        <div className="sl-live-value numeric" data-tone={position.pl > 0.5 ? "up" : position.pl < -0.5 ? "down" : undefined}>
+          <span>Est. value <b>{formatCredits(position.value)}</b></span>
+          <strong>
+            {position.pl > 0.5 ? <ArrowUp aria-hidden /> : position.pl < -0.5 ? <ArrowDown aria-hidden /> : null}
+            {signedCredits(position.pl)}
+          </strong>
+        </div>
+      ) : null}
+      <p className="sl-live-fine">{pick ? "Estimate from the live market, view only. No cash-out; your pick keeps its accepted price and payout." : "Market-implied chance, view only."}</p>
     </div>
   )
 }
