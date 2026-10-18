@@ -7,6 +7,7 @@ import { DEFAULT_PUBLISH, detectMove, exchangeBucket, fetchBucket, fetchKind, fr
 import { bucketOf, LIMITS, PRUNE_AFTER_WINDOWS, withinLimit, type LimitName } from "./rate-limit.ts"
 import { emit } from "./log.ts"
 import { acceptPick, DEFAULT_LIMITS, kickoffGateDecided, PickRejected, type PickContext, type PickRequest } from "./picks.ts"
+import { isLiveMarketKey } from "./live-pick.ts"
 import { mirroredPairs } from "./report.ts"
 import { REPRICE } from "./reprice-config.ts"
 import { type Decision, type RepriceResult, type RepriceTarget } from "./reprice.ts"
@@ -246,6 +247,7 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
     status: sportsPicks.status,
     acceptedAt: sportsPicks.acceptedAt,
     kind: sportsMarkets.kind,
+    marketKey: sportsMarkets.marketKey,
     player: sportsMarkets.player,
     statKey: sportsMarkets.statKey,
     lockAt: sportsMarkets.lockAt,
@@ -265,6 +267,7 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
     status: string
     acceptedAt: Date
     kind: string
+    marketKey: string
     player: string | null
     statKey: string | null
     eventId: string
@@ -283,6 +286,7 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
     payout: p.status === "won" ? p.totalReturn : p.status === "push" || p.status === "void" ? p.stake : p.status === "lost" ? 0 : null,
     status: p.status,
     acceptedAt: p.acceptedAt.toISOString(),
+    live: isLiveMarketKey(p.marketKey),
     market: { kind: p.kind, player: p.player, statKey: p.statKey },
     event: { id: p.eventId, sport: p.sport, home: p.home, away: p.away, startsAt: p.startsAt.toISOString() },
   })
@@ -319,6 +323,7 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
       inviteCode: league.inviteCode,
       startingCredits: league.startingCredits,
       maxStakePct: league.maxStakePct,
+      liveBetting: league.liveBetting,
       endsAt: league.endsAt?.toISOString() ?? null,
       isOwner: league.ownerId === userId,
     },

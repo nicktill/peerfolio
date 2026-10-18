@@ -27,3 +27,16 @@ export async function verifyTestOffer(token: string, userId: string, eventId: st
     return { offer, nonce: payload.jti, bucket: Math.floor(payload.iat / 86_400) }
   } catch { throw new ApiError('Test offer expired or invalid; refresh it', 409) }
 }
+
+/** League live-pick offers: same short-lived signed offer, but a different audience (a paper token never works here) and bound to the league. */
+export async function signLiveOffer(userId: string, leagueId: string, offer: TestOffer) {
+  return new SignJWT({ offer, leagueId }).setProtectedHeader({ alg: 'HS256' }).setIssuer('peerfolio-live-test').setAudience('league-live-pick').setSubject(userId).setJti(crypto.randomUUID()).setIssuedAt().setExpirationTime(`${LIVE_TEST.offerTtlMs / 1000}s`).sign(signingKey())
+}
+export async function verifyLiveOffer(token: string, userId: string, leagueId: string, eventId: string) {
+  try {
+    const { payload } = await jwtVerify(token, signingKey(), { algorithms: ['HS256'], issuer: 'peerfolio-live-test', audience: 'league-live-pick', subject: userId })
+    const offer = payload.offer as TestOffer | undefined
+    if (!offer || offer.eventId !== eventId || payload.leagueId !== leagueId || !payload.jti || !payload.iat) throw new Error('Invalid offer')
+    return { offer, nonce: payload.jti, bucket: Math.floor(payload.iat / 86_400) }
+  } catch { throw new ApiError('That offer expired. Refresh and try again.', 409) }
+}

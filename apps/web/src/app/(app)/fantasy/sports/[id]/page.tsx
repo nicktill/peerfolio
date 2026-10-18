@@ -48,12 +48,13 @@ type PickRow = {
   payout: number | null
   status: string
   acceptedAt: string
+  live?: boolean
   you?: boolean
   market: { kind: string; player: string | null; statKey: string | null }
   event: EventInfo
 }
 type Detail = {
-  league: { id: string; name: string; emoji: string; accent: string; sports: string[]; inviteCode: string; startingCredits: number; maxStakePct: number; endsAt: string | null; isOwner: boolean }
+  league: { id: string; name: string; emoji: string; accent: string; sports: string[]; inviteCode: string; startingCredits: number; maxStakePct: number; liveBetting: boolean; endsAt: string | null; isOwner: boolean }
   you: { credits: number }
   limits: { minStake: number; maxStake: number; maxOpenPicks: number }
   standings: { name: string; credits: number; isYou: boolean }[]
@@ -143,7 +144,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
         openCount={picks.filter((p) => p.status === "open").length}
         leaguePicks={leaguePicks}
         status={status}
-        invite={<>{league.isOwner && id !== "sample" ? <PickLimitsButton leagueId={league.id} startingCredits={league.startingCredits} maxStakePct={league.maxStakePct} onSaved={() => void refetch()} /> : null}<InviteButton code={league.inviteCode} /></>}
+        invite={<>{league.isOwner && id !== "sample" ? <PickLimitsButton leagueId={league.id} startingCredits={league.startingCredits} maxStakePct={league.maxStakePct} liveBetting={league.liveBetting} onSaved={() => void refetch()} /> : null}<InviteButton code={league.inviteCode} /></>}
       />
 
       <div className="fw-grid">
@@ -168,7 +169,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
                 ))}
               </div>
             ) : null}
-            {view === "upcoming" ? <div className="sp-scroll"><Markets markets={shown} selected={current} onSelect={(market, line) => setSelected({ market, line })} disabled={ended} now={now} /></div> : <ScoreboardGames enableAdminTest={id !== "sample"} games={liveGames} tracked={data.liveEvents ?? []} now={now} loading={scores.loading} failed={scoresFailed} />}
+            {view === "upcoming" ? <div className="sp-scroll"><Markets markets={shown} selected={current} onSelect={(market, line) => setSelected({ market, line })} disabled={ended} now={now} /></div> : <ScoreboardGames enableAdminTest={id !== "sample"} livePick={id !== "sample" ? { leagueId: league.id, liveBetting: league.liveBetting, credits: data.you.credits, startingCredits: league.startingCredits, maxStakePct: league.maxStakePct, onPlaced: () => void refetch() } : undefined} games={liveGames} tracked={data.liveEvents ?? []} now={now} loading={scores.loading} failed={scoresFailed} />}
           </section>
 
           <section className="fw-panel reveal" style={revealStyle(3)} aria-labelledby="sp-standings-title">

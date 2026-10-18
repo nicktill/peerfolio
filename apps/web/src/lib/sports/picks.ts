@@ -17,6 +17,8 @@ export type PickLimits = {
   maxExposurePctOfStart: number
   /** No single pick may return more than this multiple of starting credits. */
   maxReturnPctOfStart: number
+  /** In-play pick (lib/sports/live-pick.ts): the kickoff gate is replaced by "the game has started and is not finished". */
+  live?: boolean
 }
 
 export const DEFAULT_LIMITS: PickLimits = {
@@ -90,7 +92,10 @@ export function kickoffGateDecided(ctx: Pick<PickContext, "now" | "market" | "ev
 
 export function acceptPick(req: PickRequest, ctx: PickContext, limits: PickLimits = DEFAULT_LIMITS): AcceptedPick {
   if (!Number.isInteger(req.stake) || req.stake <= 0) throw new PickRejected("invalid_stake", "Enter a whole-number stake")
-  if (!isPickWindowOpen(ctx.market, ctx.eventStatus, ctx.now, ctx.eventStartsAt)) throw new PickRejected("market_closed", "Picks are closed for this game. They lock at kickoff")
+  const open = limits.live
+    ? ctx.eventStatus === "scheduled" && ctx.now.getTime() >= ctx.eventStartsAt.getTime() && ctx.market.status === "locked"
+    : isPickWindowOpen(ctx.market, ctx.eventStatus, ctx.now, ctx.eventStartsAt)
+  if (!open) throw new PickRejected("market_closed", "Picks are closed for this game. They lock at kickoff")
   if (ctx.line.marketId !== ctx.market.id) throw new PickRejected("line_mismatch", "That line is not part of this market")
   if (ctx.line.price !== req.expectedPrice || ctx.line.point !== req.expectedPoint) {
     const shown = `${ctx.line.price > 0 ? "+" : ""}${ctx.line.price}${ctx.line.point != null ? ` (${ctx.line.point > 0 ? "+" : ""}${ctx.line.point})` : ""}`

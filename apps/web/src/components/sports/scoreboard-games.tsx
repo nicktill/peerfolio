@@ -6,10 +6,12 @@ import { TeamBadge } from './team-badge'
 import { useLiveGame } from './live-game'
 import { chipFor, splitPct, splitPct3 } from '@web/lib/sports/live/format'
 import { AdminLiveTestPanel } from './admin-live-test'
+import { LivePickPanel } from './live-pick-panel'
 import { type ScoreGame, scoreboardMatch } from '@web/lib/sports/scoreboard'
 import { OddsTrend } from './odds-trend'
 import { matchupColors } from '@web/lib/sports/matchup-colors'
 
+export type LivePickConfig = { leagueId: string; liveBetting: boolean; credits: number; startingCredits: number; maxStakePct: number; onPlaced: () => void }
 type Tracked = {id: string; sport: string; home: string; away: string; startsAt: string}
 const when = (iso: string) => new Date(iso).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' })
 const UPCOMING_LIMIT = 12
@@ -25,7 +27,7 @@ function TeamRows({ g, showScore, trendId }: { g: ScoreGame; showScore: boolean;
   </div>
 }
 type Split = { home: number; away: number; draw: number | null }
-function LiveCard({ g, now, tracked, enableAdminTest }: { g: ScoreGame; now: number; tracked?: Tracked; enableAdminTest: boolean }) {
+function LiveCard({ g, now, tracked, enableAdminTest, livePick }: { g: ScoreGame; now: number; tracked?: Tracked; enableAdminTest: boolean; livePick?: LivePickConfig }) {
   const fresh = now - Date.parse(g.fetchedAt) < 120_000
   const { view, elapsedMs } = useLiveGame(tracked?.id, fresh)
   const chip = chipFor(view, elapsedMs)
@@ -53,18 +55,21 @@ function LiveCard({ g, now, tracked, enableAdminTest }: { g: ScoreGame; now: num
     <TeamRows g={g} showScore trendId={fresh ? tracked?.id : undefined} />
     <div className="sp-live-footer"><span>{fresh ? g.detail : 'Last reported score · updates delayed'}</span><span><Lock aria-hidden />Picks locked</span></div>
     <p className="sp-fine">{exchange ? 'Market-implied chance · view only' : est ? 'Est. from ESPN odds · view only' : 'View only · live win probabilities unavailable'}</p>
-    {tracked && enableAdminTest ? <AdminLiveTestPanel eventId={tracked.id} home={g.home} away={g.away} /> : null}
+    {livePick?.liveBetting ? (tracked && fresh
+      ? <LivePickPanel leagueId={livePick.leagueId} eventId={tracked.id} home={g.home} away={g.away} sport={g.sport} credits={livePick.credits} startingCredits={livePick.startingCredits} maxStakePct={livePick.maxStakePct} onPlaced={livePick.onPlaced} />
+      : <p className="sp-fine">Live picks are not available for this game right now.</p>) : null}
+    {tracked && enableAdminTest && !livePick?.liveBetting ? <AdminLiveTestPanel eventId={tracked.id} home={g.home} away={g.away} /> : null}
   </article>
 }
 
-export function ScoreboardGames({ games, tracked, now, loading, failed, enableAdminTest = false }: { games: ScoreGame[]; tracked: Tracked[]; now: number; loading: boolean; failed: boolean; enableAdminTest?: boolean }) {
+export function ScoreboardGames({ games, tracked, now, loading, failed, enableAdminTest = false, livePick }: { games: ScoreGame[]; tracked: Tracked[]; now: number; loading: boolean; failed: boolean; enableAdminTest?: boolean; livePick?: LivePickConfig }) {
   const live = games.filter(g => g.status === 'live')
   // Quiet right now: show what is coming up in the next few days instead of an empty panel.
   const upcoming = games.filter(g => g.status === 'upcoming' && Date.parse(g.startsAt) > now).slice(0, UPCOMING_LIMIT)
   if (loading && !games.length) return <p className="fw-empty" role="status">Loading live games…</p>
   if (!live.length && !upcoming.length) return <p className="fw-empty" role="status">{failed ? 'Live scores are temporarily unavailable. Please try again shortly.' : 'No games scheduled in the next few days for this sport.'}</p>
   const card = (g: ScoreGame, isLive: boolean) => isLive
-    ? <LiveCard key={`${g.sport}:${g.id}`} g={g} now={now} tracked={tracked.find(t => scoreboardMatch(t, [g]))} enableAdminTest={enableAdminTest} />
+    ? <LiveCard key={`${g.sport}:${g.id}`} g={g} now={now} tracked={tracked.find(t => scoreboardMatch(t, [g]))} enableAdminTest={enableAdminTest} livePick={livePick} />
     : <article key={`${g.sport}:${g.id}`} className="sp-game sp-live-card">
       <CardHead g={g} chip={<span>{when(g.startsAt)}</span>} />
       <TeamRows g={g} showScore={false} />
