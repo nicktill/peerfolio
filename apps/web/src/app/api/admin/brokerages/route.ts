@@ -13,7 +13,8 @@ export const GET = withUser<unknown>(async (userId, request) => {
   const [list, capacity, orphanedPool2, requests] = await Promise.all([
     db.select({
       id: users.id, email: users.email, name: users.name, allowed: sql<boolean>`not ${users.brokerageLinkingBlocked}`, linkLimit: users.brokerageLinkLimit,
-      used: sql<number>`(select count(*)::int from production_link_attempts a where a.user_id = ${users.id})`,
+      // Qualified by hand: in a single-table select drizzle renders ${users.id} as a bare "id", which here would resolve to the attempt's own id.
+      used: sql<number>`(select count(*)::int from production_link_attempts a where a.user_id = "users"."id")`,
     }).from(users)
       .where(q ? or(ilike(users.email, `%${q}%`), ilike(users.name, `%${q}%`)) : undefined)
       .orderBy(desc(users.createdAt)).limit(50),
