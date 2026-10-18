@@ -6,6 +6,8 @@ import { DEFAULT_PUBLISH, EXCHANGE_PUBLISH } from "@web/lib/sports/lines"
 import { DbUsageStore, freezeUnguardedMarkets, lockDueMarkets, makeDbCallCap, makeExchangeGate, makeFetchGate, pruneRateLimits, publishLines } from "@web/lib/sports/store"
 import { publicationHealth } from "@web/lib/sports/health"
 import { SPORTS } from "@web/lib/sports/types"
+import { writeHeartbeat } from "@web/lib/sports/live/store"
+import { hiddenSkips } from "@web/lib/sports/health-report"
 
 export const maxDuration = 120
 
@@ -41,6 +43,8 @@ export const GET = withSportsCron<unknown>(async () => {
   const unguarded = await freezeUnguardedMarkets(db, now)
   await pruneRateLimits(db, now)
   const health = publicationHealth(published)
+  // Run record for the admin health page (one overwritten row). Never allowed to fail the job.
+  await writeHeartbeat(db, { name: "sports-publish", at: now, ok: health.httpStatus === 200, consecutiveFailures: 0, details: { status: health.status, mode, failedSports: health.failedSports, locked, unguarded, hidden: hiddenSkips(published) } }).catch(() => undefined)
   const summary = JSON.stringify({ job: "sports.publish", at: now.toISOString(), mode, health, published, locked, unguarded })
   if (health.httpStatus !== 200) console.error(summary)
   else if (health.status !== "ok") console.warn(summary)

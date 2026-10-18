@@ -3,6 +3,7 @@ import { ApiError } from "@web/lib/api"
 import { db, withSportsCron } from "@web/lib/sports/api"
 import { buildResultsProviders, resolveConfigFor, sportsWithoutQuorum } from "@web/lib/sports/providers"
 import { SPORTS } from "@web/lib/sports/types"
+import { writeHeartbeat } from "@web/lib/sports/live/store"
 import { DbUsageStore, lockDueMarkets, settleDueEvents } from "@web/lib/sports/store"
 
 export const maxDuration = 120
@@ -22,6 +23,7 @@ export const GET = withSportsCron<unknown>(async () => {
   if (short.length) console.error(JSON.stringify({ job: "sports.settle", status: "partial", sportsWithoutQuorum: short }))
   const settled = await settleDueEvents(db, providers, now, config, new DbUsageStore(db))
   const status = settled.failedSources > 0 ? "degraded" : "ok"
+  await writeHeartbeat(db, { name: "sports-settle", at: now, ok: settled.failedSources === 0, consecutiveFailures: 0, details: { status, locked, settled } }).catch(() => undefined)
   const summary = JSON.stringify({ job: "sports.settle", at: now.toISOString(), status, locked, settled })
   if (settled.failedSources > 0) console.error(summary)
   else console.info(summary)
