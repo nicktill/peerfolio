@@ -545,10 +545,13 @@
 .sp-next-more { display: block; margin: 10px auto 2px; padding: 6px 10px; font: 500 12px var(--fw-sans); color: var(--fw-fg2); }
 
 /* Win-probability sparkline in each live team row, just left of the score. */
-.sp-spark { flex: none; margin-left: auto; color: var(--fw-fg3); animation: sp-spark-in .5s ease-out; }
+.sp-spark { flex: none; position: relative; margin-left: auto; display: inline-flex; align-items: center; width: 64px; height: 26px; color: var(--fw-fg3); animation: sp-spark-in .5s ease-out; }
+.sp-spark-slot { animation: none; }
+.sp-spark svg { flex: none; }
+.sp-spark-delta { position: absolute; right: 0; top: -2px; font: 600 10px/1 var(--fw-mono); font-style: normal; font-variant-numeric: tabular-nums; }
 .sp-spark + .sp-live-score, .sp-spark + .sp-sets { margin-left: 14px; }
 @keyframes sp-spark-in { from { opacity: 0; } to { opacity: 1; } }
-@media (max-width: 420px) { .sp-spark { width: 48px; height: auto; } }
+@media (max-width: 420px) { .sp-spark { width: 48px; } .sp-spark svg { width: 48px; height: auto; } }
 @media (prefers-reduced-motion: reduce) { .sp-spark { animation: none; } }
 
 /* Live (in-play) picks */
