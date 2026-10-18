@@ -3,12 +3,15 @@ import { ApiError } from '@web/lib/api'
 import { db, withSportsPublic } from '@web/lib/sports/api'
 import { triggerFromScoreboard } from '@web/lib/sports/settle-now'
 import { eventTriggersEnabled } from '@web/lib/sports/settle-trigger'
+import { isSportEnabled } from '@web/lib/sports/enabled'
 import { SCOREBOARD_PATHS, normalizeGames, scoreboardDays, type ScoreGame } from '@web/lib/sports/scoreboard'
 
 /** Public view data only. Next's shared fetch cache bounds free upstream requests across viewers. */
 export const GET = withSportsPublic(async (request) => {
-  const sports = [...new Set((new URL(request.url).searchParams.get('sports') ?? '').split(','))]
-  if (!sports.length || sports.some(s => !Object.hasOwn(SCOREBOARD_PATHS, s))) throw new ApiError('Unknown sport', 400)
+  const asked = [...new Set((new URL(request.url).searchParams.get('sports') ?? '').split(','))]
+  if (!asked.length || asked.some(s => !Object.hasOwn(SCOREBOARD_PATHS, s))) throw new ApiError('Unknown sport', 400)
+  // Paused sports (SPORTS_DISABLED) are dropped, not rejected: an old client may still ask for them. No upstream call is made for them.
+  const sports = asked.filter(s => isSportEnabled(s))
   const now = new Date()
   const days = scoreboardDays(now, 3)
   const failed = new Set<string>()

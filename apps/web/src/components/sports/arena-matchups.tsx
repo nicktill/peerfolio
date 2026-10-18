@@ -7,7 +7,7 @@ import { sampleActive } from "@web/lib/sample/fixtures"
 import { pickHeroGames } from "@web/lib/sports/hero-order"
 import type { ScoreGame } from "@web/lib/sports/scoreboard"
 
-const SCOREBOARD = "/api/sports/scoreboard?sports=cfb,mlb,mls,nba,nfl,nhl,tennis"
+const SCOREBOARD = "/api/sports/scoreboard?sports=cfb,mlb,mls,nba,nfl,nhl"
 const time = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" }) + " ET"
 
 /** Real scoreboard snapshots. Motion decorates the pills; scores only change when ESPN reports them. */
