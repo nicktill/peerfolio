@@ -44,8 +44,25 @@ jobs:
           # only after the LIVE_ODDS_ENABLED repository variable gate above, or a deliberate manual run.
           LIVE_ODDS_ENABLED: "1"
           LIVE_ODDS_BOOK_TS: ${{ vars.LIVE_ODDS_BOOK_TS }}
+          APP_URL: ${{ vars.PEERFOLIO_URL || 'https://www.peerfolio.org' }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           [ -n "$DATABASE_URL" ] || { echo "Set the DATABASE_URL repository secret." >&2; exit 1; }
+          # GitHub's own schedule can fire hours late, so this job (which runs around the clock) also calls the settle and
+          # publish routes on time, the same endpoints the Sports cron workflow calls. It stops with the job.
+          if [ -n "$CRON_SECRET" ]; then
+            (
+              n=0
+              while true; do
+                curl --silent --max-time 120 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "${APP_URL%/}/api/cron/sports/settle" || true
+                if [ $((n % 3)) -eq 0 ]; then
+                  curl --silent --max-time 120 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "${APP_URL%/}/api/cron/sports/publish" || true
+                fi
+                n=$((n + 1))
+                sleep 300
+              done
+            ) &
+          fi
           # SIGTERM at 5h50m lets the worker finish its cycle and exit 0. Exit code 124 is that normal handover, not a failure.
           code=0
           timeout --signal=TERM --kill-after=60s 350m node --experimental-strip-types scripts/live-odds-worker.mts || code=$?
