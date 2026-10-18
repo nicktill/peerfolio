@@ -127,6 +127,7 @@ describe("soccer extra time review", () => {
     for (const s of ["epl", "laliga", "ucl"] as const) {
       const r = normalizeCompetition(comp("STATUS_FULL_TIME", "Arsenal", "Liverpool", "2", "2"), undefined, s)!
       assert.equal(r.status, "final")
+      assert.equal(r.officialFinal, true)
       assert.equal(r.beyondRegulation, undefined)
       assert.equal(r.homeScore, 2)
       const out = resolveResult([r], { now: new Date("2026-03-18T14:00:00Z"), startsAt: new Date("2026-03-17T20:00:00Z"), finalFirstSeenAt: new Date("2026-03-17T23:00:00Z"), sport: s }, { ...DEFAULT_RESOLVE, minSources: 1 })
