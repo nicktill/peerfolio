@@ -271,6 +271,7 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
     point: sportsPicks.point,
     totalReturn: sportsPicks.totalReturn,
     status: sportsPicks.status,
+    cashoutAmount: sportsPicks.cashoutAmount,
     acceptedAt: sportsPicks.acceptedAt,
     kind: sportsMarkets.kind,
     marketKey: sportsMarkets.marketKey,
@@ -291,6 +292,7 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
     point: number | null
     totalReturn: number
     status: string
+    cashoutAmount: number | null
     acceptedAt: Date
     kind: string
     marketKey: string
@@ -309,7 +311,7 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
     point: p.point,
     totalReturn: p.totalReturn,
     // What actually comes back: the full return on a win, the stake on a push or void, nothing on a loss, unknown while open.
-    payout: p.status === "won" ? p.totalReturn : p.status === "push" || p.status === "void" ? p.stake : p.status === "lost" ? 0 : null,
+    payout: p.status === "won" ? p.totalReturn : p.status === "push" || p.status === "void" ? p.stake : p.status === "lost" ? 0 : p.status === "cashed_out" ? (p.cashoutAmount ?? 0) : null,
     status: p.status,
     acceptedAt: p.acceptedAt.toISOString(),
     live: isLiveMarketKey(p.marketKey),
@@ -517,6 +519,10 @@ async function placeOnce(db: Db, userId: string, leagueId: string, req: PickRequ
       .from(sportsPicks)
       .where(and(eq(sportsPicks.memberId, member.id), eq(sportsPicks.marketId, row.market.id)))
     const risk = await openRisk(tx, member.id)
+    // Betting the same line again adds to the open pick instead of creating a second one.
+    const [sameLine] = existing?.n
+      ? await tx.select().from(sportsPicks).where(and(eq(sportsPicks.memberId, member.id), eq(sportsPicks.marketId, row.market.id), eq(sportsPicks.lineId, row.line.id), eq(sportsPicks.status, "open"))).for("update")
+      : []
 
     const pickCtx: PickContext = {
       now,
@@ -526,8 +532,8 @@ async function placeOnce(db: Db, userId: string, leagueId: string, req: PickRequ
       line: { id: row.line.id, marketId: row.line.marketId, price: row.line.price, point: row.line.point },
       member: { credits: member.credits },
       league: { startingCredits: league.startingCredits },
-      picksOnMarket: existing?.n ?? 0,
-      openPickCount: risk.count,
+      picksOnMarket: (existing?.n ?? 0) - (sameLine ? 1 : 0),
+      openPickCount: risk.count - (sameLine ? 1 : 0),
       openStakeTotal: risk.stake,
     }
     let accepted
@@ -551,6 +557,17 @@ async function placeOnce(db: Db, userId: string, leagueId: string, req: PickRequ
         throw new SportsError(error.message, error.code === "insufficient_credits" ? 402 : 409)
       }
       throw error
+    }
+
+    if (sameLine) {
+      // The ledger key carries the request id, so a retried add is recognised and never debits twice.
+      const charged = await tx.insert(sportsLedger).values({ memberId: member.id, pickId: sameLine.id, type: "place", amount: -accepted.stake, idempotencyKey: `pick:${sameLine.id}:add:${req.requestId}` }).onConflictDoNothing().returning({ id: sportsLedger.id })
+      if (charged.length === 0) return { pick: sameLine, replayed: true }
+      const stake = sameLine.stake + accepted.stake
+      const total = sameLine.totalReturn + accepted.totalReturn
+      const [merged] = await tx.update(sportsPicks).set({ stake, totalReturn: total, price: decimalToAmerican(total / stake) }).where(eq(sportsPicks.id, sameLine.id)).returning()
+      await tx.update(sportsMembers).set({ credits: sql`${sportsMembers.credits} - ${accepted.stake}` }).where(eq(sportsMembers.id, member.id))
+      return { pick: merged!, replayed: false }
     }
 
     const [pick] = await tx

@@ -388,7 +388,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
               <h2 id="sp-yours-title">Your picks</h2>
               <p>{picks.length + parlays.length === 0 ? "None yet" : plural(picks.length + parlays.length, "pick")}</p>
             </div>
-            <PickFeed picks={picks} parlays={parlays} empty="Nothing yet. Tap a line under Open lines to make your first pick." />
+            <PickFeed picks={picks} parlays={parlays} manage={{ leagueId: league.id, onChanged: () => void refetch() }} empty="Nothing yet. Tap a line under Open lines to make your first pick." />
           </section>
           <div className="sp-desktop-context"><LeaguePulse leaguePicks={leaguePicks} parlays={statParlays} /></div>
           <NextGames picks={picks} events={markets.map((market) => market.event)} />

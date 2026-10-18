@@ -1,0 +1,1 @@
+ALTER TABLE "sports_picks" ADD COLUMN "cashout_amount" integer;

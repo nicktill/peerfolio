@@ -281,6 +281,13 @@
       "when": 1792292188243,
       "tag": "0039_sports_parlays",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1792341356879,
+      "tag": "0040_sports_cashout",
+      "breakpoints": true
     }
   ]
 }

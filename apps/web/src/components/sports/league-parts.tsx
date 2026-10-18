@@ -16,6 +16,7 @@ import { marketSelectionColor } from "@web/lib/sports/matchup-colors"
 import { Avatar, initialsFor } from "@web/components/ui/avatar"
 import { LiveGameStrip, useLiveGame } from "@web/components/sports/live-game"
 import { TicketFig, TicketMoney } from "@web/components/sports/ticket-figures"
+import { PickManager } from "@web/components/sports/pick-manage"
 import { ParlayTicket } from "@web/components/sports/parlay-ticket"
 import { stackParlays, type ParlayRow } from "@web/components/sports/parlay-types"
 
@@ -262,6 +263,7 @@ const RESULT: Record<string, { label: string; icon: React.ReactNode }> = {
   lost: { label: "Lost", icon: <X aria-hidden /> },
   push: { label: "Push", icon: <Minus aria-hidden /> },
   void: { label: "Refunded", icon: <Undo2 aria-hidden /> },
+  cashed_out: { label: "Cashed out", icon: <Wallet aria-hidden /> },
 }
 
 /** One pick as a ticket: the team mark, the sentence, the price, and what it paid. */
@@ -290,7 +292,7 @@ function useFirstWin(id: string, won: boolean): boolean {
   return first
 }
 
-export function PickTicket({ pick, showName }: { pick: PickRow; showName?: boolean }) {
+export function PickTicket({ pick, showName, onManage }: { pick: PickRow; showName?: boolean; onManage?: (pick: PickRow) => void }) {
   const celebrate = useFirstWin(pick.id, pick.status === "won")
   const m = asMarket(pick)
   const base = RESULT[pick.status] ?? RESULT.open!
@@ -328,9 +330,12 @@ export function PickTicket({ pick, showName }: { pick: PickRow; showName?: boole
             {eventTitle(pick.event)} · {marketTitle(m)}{pick.live ? " · Live bet" : ""}{!isOpen ? ` · ${odds}` : ""}
           </span>
         </div>
-        <span className="sl-chip" data-status={pick.status} data-live={inGame || undefined}>
-          {r.icon}
-          {r.label}
+        <span className="sl-tk-end">
+          <span className="sl-chip" data-status={pick.status} data-live={inGame || undefined}>
+            {r.icon}
+            {r.label}
+          </span>
+          {onManage && isOpen ? <button type="button" className="sl-manage" onClick={() => onManage(pick)}>Manage</button> : null}
         </span>
       </div>
       <TicketMoney>
@@ -358,9 +363,10 @@ export function PickTicket({ pick, showName }: { pick: PickRow; showName?: boole
 }
 
 /** Locked picks with a result filter and a hit-rate summary above the tickets. */
-export function PickFeed({ picks, parlays = [], empty, showName, history = false }: { picks: PickRow[]; parlays?: ParlayRow[]; empty: string; showName?: boolean; /** League-wide history: opens on All with live (open) picks first, then settled picks newest first. */ history?: boolean }) {
+export function PickFeed({ picks, parlays = [], empty, showName, history = false, manage }: { manage?: { leagueId: string; onChanged: () => void }; picks: PickRow[]; parlays?: ParlayRow[]; empty: string; showName?: boolean; /** League-wide history: opens on All with live (open) picks first, then settled picks newest first. */ history?: boolean }) {
   const [filter, setFilter] = useState<"all" | "won" | "lost" | "open">(history ? "all" : "open")
   const feedId = useId()
+  const [managing, setManaging] = useState<PickRow | null>(null)
   // Switching tabs reuses the same list (no remount, no replayed entrance); just start from the top.
   const scrollRef = useRef<HTMLDivElement>(null)
   useEffect(() => { scrollRef.current?.scrollTo({ top: 0 }) }, [filter])
@@ -414,9 +420,10 @@ export function PickFeed({ picks, parlays = [], empty, showName, history = false
       </div>
       <div className="sl-picks-scroll" ref={scrollRef} id={`${feedId}-panel`} role="tabpanel" aria-labelledby={`${feedId}-${filter}`} tabIndex={0}>
         <ul className="sl-tickets">
-          {shown.length === 0 ? <li className="fw-empty">{filter === "open" ? "No open picks. Your settled picks are in Won, Lost or All." : "Nothing here yet."}</li> : shown.map((it) => (it.kind === "pick" ? <PickTicket key={it.pick.id} pick={it.pick} showName={showName} /> : <ParlayTicket key={it.parlay.id} parlay={it.parlay} showName={showName} />))}
+          {shown.length === 0 ? <li className="fw-empty">{filter === "open" ? "No open picks. Your settled picks are in Won, Lost or All." : "Nothing here yet."}</li> : shown.map((it) => (it.kind === "pick" ? <PickTicket key={it.pick.id} pick={it.pick} showName={showName} onManage={manage ? setManaging : undefined} /> : <ParlayTicket key={it.parlay.id} parlay={it.parlay} showName={showName} />))}
         </ul>
       </div>
+      {manage && managing ? <PickManager leagueId={manage.leagueId} pick={managing} onClose={() => setManaging(null)} onChanged={manage.onChanged} /> : null}
     </>
   )
 }
