@@ -12,7 +12,7 @@ export const PARLAY_LIMITS = {
   maxLegs: 6,
   minStake: 10,
   /** Default max stake as a share of the league's starting credits; a league's own pick limit overrides it. */
-  maxStakePctOfStart: 2,
+  maxStakePctOfStart: Infinity,
 } as const
 
 export type ParlayLimits = { minLegs: number; maxLegs: number; minStake: number; maxStakePctOfStart: number }
