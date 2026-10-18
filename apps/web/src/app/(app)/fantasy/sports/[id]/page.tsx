@@ -217,7 +217,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
             </div>
             <PickFeed picks={leaguePicks} showName empty="Picks show up here after each market locks, never before." />
           </section>
-      {league.isOwner ? <MirrorReport leagueId={league.id} /> : null}
+      {id !== "sample" ? <MirrorReport leagueId={league.id} /> : null}
       {/* Keeps the last rows clear of the phone pick sheet. */}
       <div className="sp-sheet-spacer" data-on={selected ? "" : undefined} aria-hidden />
     </div>
@@ -482,10 +482,10 @@ function MirrorReport({ leagueId }: { leagueId: string }) {
     <section className="fw-panel reveal" style={revealStyle(5)} aria-labelledby="sp-report-title">
       <div className="fw-section-head">
         <h2 id="sp-report-title">Mirrored picks</h2>
-        <p>Only you, as the owner, can see this. It flags players who often take opposite sides of the same market.</p>
+        <p>Who keeps taking the other side</p>
       </div>
       {!data ? null : data.pairs.length === 0 ? (
-        <p className="fw-empty">No one is consistently taking the opposite side of another player.</p>
+        <p className="fw-empty">Nobody is fading anyone yet.</p>
       ) : (
         <ul className="fw-picks">
           {data.pairs.map((p) => (
@@ -494,7 +494,7 @@ function MirrorReport({ leagueId }: { leagueId: string }) {
                 <strong>
                   {p.a} and {p.b}
                 </strong>
-                <span>Took opposite sides on {plural(p.markets, "market")}. Worth a look, not proof.</span>
+                <span>Took opposite sides on {plural(p.markets, "market")}.</span>
               </div>
             </li>
           ))}
