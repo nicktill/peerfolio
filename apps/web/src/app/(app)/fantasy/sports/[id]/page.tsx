@@ -4,7 +4,7 @@ import { sportsInviteLink } from "@web/components/fantasy/sports-invite-link"
 import "@web/components/fantasy/fantasy-workspace.css"
 import "@web/components/sports/sports-workspace.css"
 
-import { use, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { use, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { ArrowLeft, ArrowUp, ArrowDown, Check, Link2, Lock, X } from "lucide-react"
 import { Choice } from "@web/components/fantasy/choice"
@@ -22,9 +22,11 @@ import { eventTitle, formatCredits, formatOdds, lineLabel, lockLabel, marketTitl
 import { americanToDecimal } from "@web/lib/sports/odds"
 import { onColor, oddsLabel, teamLook } from "@web/lib/sports/teams"
 import { InfoTip } from "@web/components/ui/tip"
-import { LeagueHero, LeaguePulse, Leaderboard, NextGames, PickFeed } from "@web/components/sports/league-parts"
+import { parlayStatRows, LeagueHero, LeaguePulse, Leaderboard, NextGames, PickFeed } from "@web/components/sports/league-parts"
 import { PickLockEffect, type PickLockFx } from "@web/components/sports/pick-lock-effect"
 import { PlayerBadge, TeamBadge } from "@web/components/sports/team-badge"
+import { ParlayIdsContext, ParlayModeBar, ParlaySlip, useParlay } from "@web/components/sports/parlay-slip"
+import type { ParlayLimits, ParlayRow } from "@web/components/sports/parlay-types"
 import { plural } from "@web/lib/plural"
 import { mutate, useApi } from "@web/lib/use-api"
 
@@ -56,12 +58,14 @@ type PickRow = {
 type Detail = {
   league: { id: string; name: string; emoji: string; accent: string; sports: string[]; inviteCode: string; startingCredits: number; maxStakePct: number; liveBetting: boolean; endsAt: string | null; isOwner: boolean }
   you: { credits: number }
-  limits: { minStake: number; maxStake: number; maxOpenPicks: number }
+  limits: { minStake: number; maxStake: number; maxOpenPicks: number; parlay?: ParlayLimits }
   standings: { name: string; credits: number; isYou: boolean }[]
   liveEvents?: (EventInfo & { id: string })[]
   markets: Market[]
   picks: PickRow[]
   leaguePicks: (PickRow & { name: string })[]
+  parlays?: ParlayRow[]
+  leagueParlays?: ParlayRow[]
 }
 
 /** The freshly fetched market and line for what the user selected (same ids; the line row is updated in place on a reprice). */
@@ -95,6 +99,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
   const [view, setView] = useState<"upcoming" | "live">("upcoming")
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 5000); return () => clearInterval(timer) }, [])
+  const parlay = useParlay(data?.markets, now, data?.limits.parlay)
   const sportsKey = data?.league.sports.slice().sort().join(",")
   const scores = useApi<{games: ScoreGame[]; failedSports: string[]}>(sportsKey ? `/api/sports/scoreboard?sports=${sportsKey}` : null, [], { refreshMs: 30_000 })
   const [demo, setDemo] = useState<string | null>(null)
@@ -119,7 +124,12 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
   const current = selected ? resolveSelected(markets, selected) : null
   // The market closed (frozen, locked or gone) while it was on the slip: keep the slip, say so, and block submitting.
   const gone = !!selected && !current
-  const atRisk = picks.filter((p) => p.status === "open").reduce((sum, p) => sum + p.stake, 0)
+  const parlays = data.parlays ?? []
+  const leagueParlays = data.leagueParlays ?? []
+  // Everyone's parlays for stats: yours (named for the leaderboard) plus the league's, once each.
+  const yourName = standings.find((p) => p.isYou)?.name
+  const statParlays = [...leagueParlays, ...parlays.filter((p) => !leagueParlays.some((q) => q.id === p.id)).map((p) => ({ ...p, name: yourName, you: true }))]
+  const atRisk = picks.filter((p) => p.status === "open").reduce((sum, p) => sum + p.stake, 0) + parlays.filter((p) => p.status === "open").reduce((sum, p) => sum + p.stake, 0)
   const ended = !!league.endsAt && new Date(league.endsAt).getTime() < Date.now()
   const status = ended ? "Final standings" : league.endsAt ? timeLeft(league.endsAt) : "No end"
   const scoreGames = scores.data?.games ?? []
@@ -141,8 +151,8 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
         standings={standings}
         you={you}
         atRisk={atRisk}
-        openCount={picks.filter((p) => p.status === "open").length}
-        leaguePicks={leaguePicks}
+        openCount={picks.filter((p) => p.status === "open").length + parlays.filter((p) => p.status === "open").length}
+        leaguePicks={[...leaguePicks, ...parlayStatRows(statParlays)]}
         status={status}
         invite={<>{league.isOwner && id !== "sample" ? <PickLimitsButton leagueId={league.id} startingCredits={league.startingCredits} maxStakePct={league.maxStakePct} liveBetting={league.liveBetting} onSaved={() => void refetch()} /> : null}<InviteButton code={league.inviteCode} /></>}
       />
@@ -169,7 +179,8 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
                 ))}
               </div>
             ) : null}
-            {view === "upcoming" ? <div className="sp-scroll"><Markets markets={shown} selected={current} onSelect={(market, line) => setSelected({ market, line })} disabled={ended} now={now} /></div> : <ScoreboardGames enableAdminTest={id !== "sample"} livePick={id !== "sample" ? { leagueId: league.id, liveBetting: league.liveBetting, credits: data.you.credits, startingCredits: league.startingCredits, maxStakePct: league.maxStakePct, onPlaced: () => void refetch() } : undefined} games={liveGames} tracked={data.liveEvents ?? []} now={now} loading={scores.loading} failed={scoresFailed} />}
+            {view === "upcoming" ? <ParlayModeBar mode={parlay.mode} onMode={(m) => { setSelected(null); parlay.setMode(m) }} count={parlay.legs.length} max={data.limits.parlay?.maxLegs ?? 6} note={parlay.mode === "parlay" ? parlay.note : null} /> : null}
+            {view === "upcoming" ? <ParlayIdsContext.Provider value={parlay.mode === "parlay" ? parlay.ids : null}><div className="sp-scroll"><Markets markets={shown} selected={parlay.mode === "parlay" ? null : current} onSelect={(market, line) => (parlay.mode === "parlay" ? parlay.toggle(market, line) : setSelected({ market, line }))} disabled={ended} now={now} /></div></ParlayIdsContext.Provider> : <ScoreboardGames enableAdminTest={id !== "sample"} livePick={id !== "sample" ? { leagueId: league.id, liveBetting: league.liveBetting, credits: data.you.credits, startingCredits: league.startingCredits, maxStakePct: league.maxStakePct, onPlaced: () => void refetch() } : undefined} games={liveGames} tracked={data.liveEvents ?? []} now={now} loading={scores.loading} failed={scoresFailed} />}
           </section>
 
           <section className="fw-panel reveal" style={revealStyle(3)} aria-labelledby="sp-standings-title">
@@ -177,7 +188,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
               <h2 id="sp-standings-title">Leaderboard</h2>
               <p>Cash, form and record</p>
             </div>
-            <Leaderboard standings={standings} start={league.startingCredits} leaguePicks={leaguePicks} demo={demo === "ranks"} />
+            <Leaderboard standings={standings} start={league.startingCredits} leaguePicks={leaguePicks} parlays={statParlays} demo={demo === "ranks"} />
           </section>
 
 
@@ -185,7 +196,25 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
 
         <aside className="fw-rail sp-sports-rail reveal" style={revealStyle(3)}>
           <PickLockEffect fx={lockFx} onDone={clearLockFx} />
-          <Slip
+          {parlay.mode === "parlay" ? (
+            <ParlaySlip
+              leagueId={league.id}
+              legs={parlay.legs}
+              note={parlay.note}
+              balance={you.credits}
+              limits={data.limits}
+              closed={ended}
+              onRemove={parlay.remove}
+              onClear={parlay.clear}
+              onAccept={parlay.accept}
+              onLock={setLockFx}
+              onPlaced={() => {
+                parlay.clear()
+                void refetch()
+              }}
+              onStale={() => void refetch()}
+            />
+          ) : <Slip
             leagueId={league.id}
             selected={current ?? selected}
             gone={gone}
@@ -199,15 +228,15 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
               setSelected(null)
               void refetch()
             }}
-          />
+          />}
           <section className="fw-panel reveal" style={revealStyle(4)} aria-labelledby="sp-yours-title">
             <div className="fw-section-head">
               <h2 id="sp-yours-title">Your picks</h2>
-              <p>{picks.length === 0 ? "None yet" : plural(picks.length, "pick")}</p>
+              <p>{picks.length + parlays.length === 0 ? "None yet" : plural(picks.length + parlays.length, "pick")}</p>
             </div>
-            <PickFeed picks={picks} empty="Nothing yet. Tap a line under Open lines to make your first pick." />
+            <PickFeed picks={picks} parlays={parlays} empty="Nothing yet. Tap a line under Open lines to make your first pick." />
           </section>
-          <div className="sp-desktop-context"><LeaguePulse leaguePicks={leaguePicks} /></div>
+          <div className="sp-desktop-context"><LeaguePulse leaguePicks={leaguePicks} parlays={statParlays} /></div>
           <NextGames picks={picks} events={markets.map((market) => market.event)} />
         </aside>
       </div>
@@ -216,11 +245,11 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
               <h2 id="sp-locked-title">Locked picks</h2>
               <p>Everyone&apos;s picks, shown after each game locks at kickoff</p>
             </div>
-            <PickFeed picks={leaguePicks} showName empty="Picks show up here after each market locks, never before." />
+            <PickFeed picks={leaguePicks} parlays={leagueParlays} showName empty="Picks show up here after each market locks, never before." />
           </section>
       {id !== "sample" ? <MirrorReport leagueId={league.id} /> : null}
       {/* Keeps the last rows clear of the phone pick sheet. */}
-      <div className="sp-sheet-spacer" data-on={selected ? "" : undefined} aria-hidden />
+      <div className="sp-sheet-spacer" data-on={selected || (parlay.mode === "parlay" && parlay.legs.length > 0) ? "" : undefined} aria-hidden />
     </div>
   )
 }
@@ -610,13 +639,14 @@ function LineButton({ market: m, line: l, selected, onSelect, disabled, team, co
   const label = lineLabel(m, l)
   const mine = m.picked?.selection === l.selection
   const side = sideTeam(m.event, m.kind, l.selection)
+  const inParlay = useContext(ParlayIdsContext)?.has(l.id) ?? false
   return (
     <button
       type="button"
       className="sp-line"
       data-team={team || undefined}
       data-accent={color || undefined}
-      aria-pressed={selected?.line.id === l.id || mine}
+      aria-pressed={selected?.line.id === l.id || inParlay || mine}
       data-picked={mine || undefined}
       disabled={disabled || !!m.picked}
       style={color ? ({ "--tc": color, "--tc-ink": onColor(color) } as React.CSSProperties) : undefined}
@@ -628,7 +658,7 @@ function LineButton({ market: m, line: l, selected, onSelect, disabled, team, co
         {label.name}
         {label.point ? <small>{label.point}</small> : null}
         {team && side ? <small className="sp-team-record">{(l.selection === "home" ? m.event.homeRecord : m.event.awayRecord) ? ` (${l.selection === "home" ? m.event.homeRecord : m.event.awayRecord})` : null}</small> : null}
-        {selected?.line.id === l.id && !mine ? <Check className="sp-selected-check" aria-label="Selected"/> : null}
+        {(selected?.line.id === l.id || inParlay) && !mine ? <Check className="sp-selected-check" aria-label="Selected"/> : null}
         {mine ? (
           <em className="sp-line-tag">
             <Lock aria-hidden /> Your pick · {credits(m.picked!.stake)}
