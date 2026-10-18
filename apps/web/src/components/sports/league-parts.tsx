@@ -30,6 +30,7 @@ export type PickRow = {
   event: EventInfo
   live?: boolean
   name?: string
+  image?: string | null
   you?: boolean
 }
 export type Standing = { name: string; credits: number; isYou: boolean; image?: string | null; record?: { won: number; lost: number } }
@@ -291,7 +292,7 @@ export function PickTicket({ pick, showName }: { pick: PickRow; showName?: boole
       <div className="sl-ticket-body">
         <b>{pickSentence(m, pick)}</b>
         <span>
-          {showName && pick.name ? <em>{pick.name.split(" ")[0]}{pick.you ? " (You)" : ""} · </em> : null}
+          {showName && pick.name ? <span className="sl-picker" title={pick.you ? `${pick.name} (you)` : pick.name}><Badge name={pick.name} size={18} image={pick.image} /><span className="sr-only">{pick.name}{pick.you ? " (you)" : ""}</span></span> : null}
           {eventTitle(pick.event)} · {marketTitle(m)}
         </span>
         <span className="numeric sl-ticket-money">

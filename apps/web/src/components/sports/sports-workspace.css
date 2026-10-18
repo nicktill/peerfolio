@@ -552,3 +552,5 @@
 .sp-live-pick-stake .fw-input { width: 110px; min-height: 40px; }
 .sp-live-pick-go { width: 100%; min-height: 44px; }
 .sl-live-tag { font: 600 10px/14px var(--fw-sans); letter-spacing: 0.04em; text-transform: uppercase; color: var(--fw-fg); border: 1px solid var(--fw-hair2); border-radius: 6px; padding: 0 5px; margin-left: 4px; }
+.sl-picker { display: inline-flex; vertical-align: middle; margin-right: 6px; }
+.sl-picker .sl-av { display: inline-grid; place-items: center; overflow: hidden; border-radius: 50%; }

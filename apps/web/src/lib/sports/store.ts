@@ -200,6 +200,7 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
   const me = members.find((m) => m.userId === userId)
   if (!me) throw new SportsError("League not found", 404)
   const nameOf = new Map(members.map((m) => [m.id, m.name ?? "Player"]))
+  const imageOf = new Map(members.map((m) => [m.id, m.image]))
 
   // Standings: spendable credits plus stake still at risk, so an open pick doesn't read as a loss.
   const atRisk = await db
@@ -351,7 +352,7 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
       }
     }),
     picks: mine.map(shapePick),
-    leaguePicks: others.map((p) => ({ ...shapePick(p), name: nameOf.get(p.memberId) ?? "Player", you: p.memberId === me.id })),
+    leaguePicks: others.map((p) => ({ ...shapePick(p), name: nameOf.get(p.memberId) ?? "Player", image: imageOf.get(p.memberId) ?? null, you: p.memberId === me.id })),
   }
 }
 
