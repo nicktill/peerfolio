@@ -21,8 +21,11 @@ export function sideProb(view: LiveView, kind: string, selection: string): numbe
 }
 
 /** `elapsedMs` is the time since the response arrived, so the age shown matches the freshness chip. Null hides the value. */
-export function livePosition(pick: PositionPick, view: LiveView | null, elapsedMs: number): LivePosition | null {
-  if (!view || view.status !== "live" || view.odds.status !== "ok") return null
+export function livePosition(pick: PositionPick, view: LiveView | null, elapsedMs: number, started = false): LivePosition | null {
+  // The score feed can lag or lack a game (common in college football) while the exchange quote is live and fresh: when the game has
+  // started by the clock (`started`), trust the fresh quote unless the feed says it is over.
+  const running = view?.status === "live" || (started && (view?.status === "pre" || view?.status === "unknown"))
+  if (!view || !running || view.odds.status !== "ok") return null
   if (!(pick.stake > 0) || !(pick.totalReturn > 0)) return null
   if (freshnessOf(view.odds.ageMs + Math.max(0, elapsedMs)) === "stale") return null
   const prob = sideProb(view, pick.kind, pick.selection)

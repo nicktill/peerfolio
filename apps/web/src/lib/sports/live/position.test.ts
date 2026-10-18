@@ -33,3 +33,11 @@ test("hidden when stale, paused, not live, or not a moneyline", () => {
   assert.equal(livePosition(pick, null, 0), null)
   assert.equal(livePosition({ ...pick, kind: "spread" }, view(), 0), null)
 })
+
+test("a started game the score feed does not know still gets a value from a fresh exchange quote", () => {
+  const v = view()
+  assert.equal(livePosition(pick, { ...v, status: "unknown" } as typeof v, 0), null)
+  assert.ok(livePosition(pick, { ...v, status: "unknown" } as typeof v, 0, true))
+  assert.ok(livePosition(pick, { ...v, status: "pre" } as typeof v, 0, true))
+  assert.equal(livePosition(pick, { ...v, status: "final" } as typeof v, 0, true), null)
+})
