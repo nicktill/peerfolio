@@ -253,6 +253,13 @@
       "when": 1792284227417,
       "tag": "0035_sports_league_max_stake",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1792284566202,
+      "tag": "0036_users_sports_access",
+      "breakpoints": true
     }
   ]
 }
