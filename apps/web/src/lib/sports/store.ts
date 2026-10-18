@@ -363,10 +363,11 @@ export async function setLeagueMaxStakePct(db: Db, userId: string, leagueId: str
   return { maxStakePct: pct }
 }
 
-/** Owner-only: pairs of members who keep taking opposite sides of the same locked market. */
+/** Members only: pairs of members who keep taking opposite sides of the same locked market (locked picks are already public to the league). */
 export async function getMirroredPickReport(db: Db, userId: string, leagueId: string, now: Date) {
   const [league] = await db.select().from(sportsLeagues).where(eq(sportsLeagues.id, leagueId)).limit(1)
-  if (!league || league.ownerId !== userId) throw new SportsError("League not found", 404)
+  const [self] = league ? await db.select({ id: sportsMembers.id }).from(sportsMembers).where(and(eq(sportsMembers.leagueId, leagueId), eq(sportsMembers.userId, userId))).limit(1) : []
+  if (!league || !self) throw new SportsError("League not found", 404)
   const rows = await db
     .select({ memberId: sportsPicks.memberId, marketId: sportsPicks.marketId, selection: sportsPicks.selection })
     .from(sportsPicks)

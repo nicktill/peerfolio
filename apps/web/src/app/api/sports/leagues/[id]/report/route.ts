@@ -4,7 +4,7 @@ import { getMirroredPickReport } from "@web/lib/sports/store"
 
 type Ctx = { params: Promise<{ id: string }> }
 
-/** League owner only: members who keep taking opposite sides of the same locked market (possible credit funnelling). */
+/** League members: who keeps taking the opposite side of the same locked market. */
 export const GET = withSportsUser<Ctx>(async (userId, _request, { params }) => {
   const { id } = await params
   return NextResponse.json({ pairs: await getMirroredPickReport(db, userId, id, new Date()) })
