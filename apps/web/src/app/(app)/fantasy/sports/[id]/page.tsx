@@ -24,6 +24,7 @@ import { americanToDecimal } from "@web/lib/sports/odds"
 import { onColor, oddsLabel, teamLook } from "@web/lib/sports/teams"
 import { InfoTip } from "@web/components/ui/tip"
 import { parlayStatRows, LeagueHero, LeaguePulse, Leaderboard, NextGames, PickFeed } from "@web/components/sports/league-parts"
+import { LiveNumber } from "@web/components/sports/live-delta"
 import { PickLockEffect, type PickLockFx } from "@web/components/sports/pick-lock-effect"
 import { PlayerBadge, TeamBadge } from "@web/components/sports/team-badge"
 import { ParlayIdsContext, ParlayModeBar, ParlaySlip, useParlay } from "@web/components/sports/parlay-slip"
@@ -127,10 +128,19 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
     return () => { clearTimeout(first); clearInterval(every) }
   }, [demo])
 
+  // ?demo=prices nudges every price (and live score) every few seconds so the live-number motion can be previewed.
+  const [tick, setTick] = useState(0)
+  useEffect(() => {
+    if (demo !== "prices") return
+    const every = setInterval(() => setTick((n) => n + 1), 3500)
+    return () => clearInterval(every)
+  }, [demo])
+
   if (loading && !data) return <LeaguePageSkeleton />
   if (!data) return <p className="text-sm text-muted-foreground">{error ?? "Couldn't load this league."}</p>
 
-  const { league, you, standings, markets, picks, leaguePicks } = data
+  const { league, you, standings, picks, leaguePicks } = data
+  const markets = demo === "prices" && tick > 0 ? data.markets.map((m, mi) => ({ ...m, lines: m.lines.map((l, li) => (m.kind === "moneyline" || m.kind === "spread" ? { ...l, price: demoPrice(l.price, tick, mi + li) } : l)) })) : data.markets
   // Prices can be refreshed until kickoff, so the slip always shows the price from the latest fetch. A line or market that has
   // since closed drops out and the slip clears; the price you are shown is the price sent, and the server refuses a stale one.
   const current = selected ? resolveSelected(markets, selected) : null
@@ -144,7 +154,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
   const atRisk = picks.filter((p) => p.status === "open").reduce((sum, p) => sum + p.stake, 0) + parlays.filter((p) => p.status === "open").reduce((sum, p) => sum + p.stake, 0)
   const ended = !!league.endsAt && new Date(league.endsAt).getTime() < Date.now()
   const status = ended ? "Final standings" : league.endsAt ? timeLeft(league.endsAt) : "No end"
-  const scoreGames = scores.data?.games ?? []
+  const scoreGames = (scores.data?.games ?? []).map((g) => (demo === "prices" && tick > 0 && g.status === "live" ? { ...g, homeScore: String((Number(g.homeScore) || 0) + 7 * Math.floor(tick / 3)), awayScore: String((Number(g.awayScore) || 0) + 3 * Math.floor(tick / 4)) } : g))
   const shown = markets.filter(m => (sport === "all" || m.event.sport === sport) && matchesSearch(query, [m.event.home, m.event.away, m.player], m.event.sport) && Date.parse(m.lockAt) > now && Date.parse(m.event.startsAt) > now).map(m => {
     const meta = scoreboardMatch(m.event, scoreGames)
     return meta ? { ...m, event: { ...m.event, homeRecord: meta.homeRecord, awayRecord: meta.awayRecord, scoreGame: meta } } : m
@@ -479,7 +489,7 @@ function Slip({
                 <small>{marketTitle(selected.market)}</small>
                 <strong>{pickSentence(selected.market, selected.line)}</strong>
               </div>
-              <span className="sp-slip-odds">{formatOdds(selected.line.price)}</span>
+              <span className="sp-slip-odds"><LiveNumber value={selected.line.price} format={formatOdds} kind="price" chip={false} /></span>
             </div>
             <span className="sp-slip-game">
               {eventTitle(selected.market.event)} · {lockLabel(selected.market.lockAt)}
@@ -640,9 +650,9 @@ function GameCard({ game, selected, onSelect, disabled, now }: { game: { key: st
             <i style={{ flex: 1, background: secondColor }} />
           </div>
           <div className="sp-odds-labels">
-            <span>{Math.round((tennis ? chances.home : chances.away) * 100)}% <small>{oddsLabel(event.sport, first)}</small></span>
-            {chances.draw != null ? <span>{Math.round(chances.draw * 100)}% <small>Draw</small></span> : null}
-            <span><small>{oddsLabel(event.sport, second)}</small> {Math.round((tennis ? chances.away : chances.home) * 100)}%</span>
+            <span><LiveNumber value={Math.round((tennis ? chances.home : chances.away) * 100)} format={pctText} kind="pct" seenKey={`pct:${game.key}:a`} /> <small>{oddsLabel(event.sport, first)}</small></span>
+            {chances.draw != null ? <span><LiveNumber value={Math.round(chances.draw * 100)} format={pctText} kind="pct" seenKey={`pct:${game.key}:d`} /> <small>Draw</small></span> : null}
+            <span><small>{oddsLabel(event.sport, second)}</small> <LiveNumber value={Math.round((tennis ? chances.away : chances.home) * 100)} format={pctText} kind="pct" seenKey={`pct:${game.key}:b`} /></span>
           </div>
         </div>
       ) : null}
@@ -670,6 +680,15 @@ function GameCard({ game, selected, onSelect, disabled, now }: { game: { key: st
     </div>
   )
 }
+
+/** Deterministic wobble for ?demo=prices. */
+function demoPrice(price: number, tick: number, seed: number) {
+  const step = ((tick * 7 + seed * 5) % 5 - 2) * 5
+  const next = price + step
+  return next > -100 && next < 100 ? (price < 0 ? -105 : 105) : next
+}
+
+const pctText = (n: number) => `${n}%`
 
 function LineButton({ market: m, line: l, selected, onSelect, disabled, team, color }: { market: Market; line: Line; selected: { line: Line } | null; onSelect: (m: Market, l: Line) => void; disabled: boolean; team?: boolean; color?: string }) {
   const label = lineLabel(m, l)
@@ -702,7 +721,7 @@ function LineButton({ market: m, line: l, selected, onSelect, disabled, team, co
         ) : null}
       </span>
       <span className="sp-line-odds">
-        <span className="sp-price">{formatOdds(l.price)}</span>
+        <span className="sp-price"><LiveNumber value={l.price} format={formatOdds} kind="price" seenKey={`line:${l.id}`} /></span>
         <small>$100 wins ${winOn100(l.price)}</small>
       </span>
     </button>
