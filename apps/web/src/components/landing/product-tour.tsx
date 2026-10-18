@@ -23,9 +23,9 @@ const TABS: { id: TabId; label: string; title: string; body: string; points: str
     id: "portfolio",
     label: "Portfolio",
     title: "Your money in one place",
-    body: "Add what you hold and see where you stand.",
+    body: "Add what you hold by hand, or link a brokerage, and see where you stand.",
     points: ["Net worth across every account", "Returns that leave out deposits", "Put it in a league and friends see your return, never the amounts"],
-    note: "Brokerage linking via Plaid: coming soon",
+    note: "Optional brokerage linking via Plaid, with a limited number of connections per account for now",
   },
   {
     id: "leagues",
@@ -38,7 +38,7 @@ const TABS: { id: TabId; label: string; title: string; body: string; points: str
     id: "fantasy",
     label: "Fantasy leagues",
     title: "Play it with play money",
-    body: "Everyone starts with the same play money. No brokerage needed.",
+    body: "Everyone starts with the same play money. No brokerage needed. Nothing touches a real balance.",
     points: ["Buy and sell any stock", "Live standings", "A trade feed for the trash talk"],
   },
 ]
@@ -219,7 +219,7 @@ export function ProductTour() {
               <StackedStep key={t.id} t={t} i={i} />
             ))}
           </div>
-          <p className="pf-muted mt-12 text-sm">Also: a daily News tab with the market recap, movers and earnings week.</p>
+          <p className="pf-muted mt-12 text-sm">Also: a News tab with the market recap, movers and earnings week, an Ask Peerfolio assistant, and Sports leagues (beta) for play-money picks with friends.</p>
         </div>
       </section>
     )
@@ -281,7 +281,7 @@ export function ProductTour() {
               ))}
         </div>
       </div>
-      <p className="pf-tour-foot pf-muted mt-8 text-sm">Also: a daily News tab with the market recap, movers and earnings week.</p>
+      <p className="pf-tour-foot pf-muted mt-8 text-sm">Also: a News tab with the market recap, movers and earnings week, an Ask Peerfolio assistant, and Sports leagues (beta) for play-money picks with friends.</p>
     </div>
   )
 

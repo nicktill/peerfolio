@@ -22,6 +22,11 @@ export default function TermsPage() {
         choose, on a public board. It is a tracking and comparison tool.
       </p>
       <p>
+        Fantasy and Sports leagues use virtual play money only. Play money has no cash value, cannot be bought, sold,
+        deposited or withdrawn, and nothing in Peerfolio is real-money betting or gambling. Sports is in beta and may be
+        limited to some users.
+      </p>
+      <p>
         <strong>Peerfolio is not a broker, bank or investment adviser, and nothing in it is financial advice.</strong>{" "}
         We don&apos;t hold your money, place trades, or recommend securities. Seeing what other people hold or how they
         perform is not a recommendation to do the same. Make your own decisions, or talk to a licensed professional.
