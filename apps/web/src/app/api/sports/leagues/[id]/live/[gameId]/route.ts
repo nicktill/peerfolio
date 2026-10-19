@@ -59,7 +59,7 @@ export const POST = withSportsUser<Ctx>(async (userId, request, context) => {
   })
   inFlight.add(userId)
   try {
-    const receipt = await acceptTest({ offer: signed.offer, selection, stake: body.stake, expectedPrice: body.expectedPrice, requestedAt, bounds: liveStakeBounds(league.startingCredits, league.maxStakePct) }, {
+    const receipt = await acceptTest({ offer: signed.offer, selection, stake: body.stake, expectedPrice: body.expectedPrice, requestedAt, bounds: liveStakeBounds(league.startingCredits, league.maxStakePct), allowReprice: true }, {
       now: Date.now,
       read: () => readLiveView(db, gameId, new Date()),
       wait: ms => new Promise(resolve => setTimeout(resolve, ms)),
@@ -72,7 +72,7 @@ export const POST = withSportsUser<Ctx>(async (userId, request, context) => {
       },
     })
     try {
-      const { pick } = await placeLivePick(db, userId, id, { eventId: gameId, selection, stake: receipt.stake, price: receipt.offeredPrice, requestId: signed.nonce })
+      const { pick } = await placeLivePick(db, userId, id, { eventId: gameId, selection, stake: receipt.stake, price: receipt.acceptedPrice, requestId: signed.nonce })
       await log('accepted', null, { pickId: pick.id, acceptedAt: new Date(receipt.acceptedAt), quoteAgeMs: Math.round(receipt.quoteAgeMs), stateAgeMs: Math.round(receipt.stateAgeMs), receipt })
       return NextResponse.json({ pick: { id: pick.id, stake: pick.stake, price: pick.price, totalReturn: pick.totalReturn, selection: pick.selection } }, { status: 201, headers })
     } catch (error) {

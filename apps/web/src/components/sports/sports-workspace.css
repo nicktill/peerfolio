@@ -1229,3 +1229,5 @@
 .sp-slip-pick .sp-draw-mark { display: inline-flex; align-items: center; margin-top: 0; width: auto; }
 .sp-slip-pick .sp-draw-mark > * { flex: none; }
 .sp-slip-pick .sp-draw-mark i { display: grid; margin-top: 0; }
+
+.sl-position-fills{border-top:1px solid var(--fw-border, currentColor);padding:12px 16px}.sl-position-fills>summary{cursor:pointer;font-size:13px}.sl-position-fills>.sl-tickets{margin-top:12px}
