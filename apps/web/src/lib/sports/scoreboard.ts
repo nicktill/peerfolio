@@ -81,6 +81,21 @@ function tennisSets(x: Obj): TennisSet[] {
   }
   return out
 }
+/** Soccer scoreboards expose goals/cards in details, not situation.lastPlay. */
+function soccerEvent(competition: Obj): string {
+  const events = list(competition.details).map((event, index) => ({ event, index, time: Number(obj(event.clock).value) }))
+    .filter(({ event, time }) => Number.isFinite(time) && time >= 0 && str(obj(event.type).text))
+    .sort((a, b) => b.time - a.time || b.index - a.index)
+  const event = events[0]?.event
+  if (!event) return ''
+  const clock = str(obj(event.clock).displayValue)
+  const type = str(obj(event.type).text)
+  const player = list(event.athletesInvolved).map(a => str(a.displayName) || str(a.shortName)).filter(Boolean).join(', ')
+  const team = list(competition.competitors).find(c => str(obj(c.team).id) === str(obj(event.team).id))
+  const teamName = team ? str(obj(team.team).shortDisplayName) || str(obj(team.team).displayName) : ''
+  return [clock, type, player, teamName].filter(Boolean).join(' · ').replace(/\s+/g, ' ').trim().slice(0, 240)
+}
+
 export function normalizeGames(raw: unknown, sport: string, fetchedAt: string): ScoreGame[] {
   const result: ScoreGame[] = []
   for (const e of list(obj(raw).events)) {
@@ -121,7 +136,7 @@ export function normalizeGames(raw: unknown, sport: string, fetchedAt: string): 
       }
       const probs = live && sport !== 'tennis' ? liveWinProbs(c, isSoccer(sport)) : null
       const pre = !live && !final && !unavailable && sport !== 'tennis' ? pregameWinProbs(c, isSoccer(sport)) : null
-      const play = live ? str(obj(obj(c.situation).lastPlay).text).replace(/\s+/g, ' ').trim().slice(0, 240) : ''
+      const play = live ? (str(obj(obj(c.situation).lastPlay).text).replace(/\s+/g, ' ').trim().slice(0, 240) || (isSoccer(sport) ? soccerEvent(c) : '')) : ''
       result.push({ id: str(c.id) || str(e.id), sport, home: name(home), away: name(away), startsAt,
         homeRecord: record(home), awayRecord: record(away), status: unavailable ? 'unavailable' : final ? 'final' : live ? 'live' : 'upcoming',
         homeScore: score(home), awayScore: score(away), detail: str(type.shortDetail) || str(type.detail) || str(status.displayClock), fetchedAt,

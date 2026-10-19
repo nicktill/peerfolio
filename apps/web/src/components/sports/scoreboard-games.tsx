@@ -17,6 +17,7 @@ import { matchupColors } from '@web/lib/sports/matchup-colors'
 import { testOffer, type TestOffer } from '@web/lib/sports/live-test'
 import { ageView } from '@web/lib/sports/live/view'
 import type { LiveSelection } from '@web/lib/sports/live/types'
+import { isSoccer } from '@web/lib/sports/types'
 import { formatOdds, winOn100 } from '@web/lib/sports/format'
 import { oddsLabel } from '@web/lib/sports/teams'
 
@@ -105,7 +106,7 @@ function LiveCard({ g, now, tracked, enableAdminTest, livePick }: { g: ScoreGame
     </div> : null}
     <TeamRows g={g} showScore offer={reserveOdds ? shownOffer : null} stale={!offer} pickable={selectable} livePick={reserveOdds ? livePick : undefined} eventId={tracked?.id} />
     {selectable && hasDraw ? <button type="button" className="sp-line sp-live-draw" aria-label={drawPrice != null ? `Live pick Draw, ${formatOdds(drawPrice)}` : 'Draw, price unavailable'} aria-pressed={livePick?.selected?.eventId === tracked!.id && livePick.selected.side === 'draw'} disabled={livePick?.busy || drawPrice == null} onClick={drawPrice != null ? () => livePick!.onSelect({ eventId: tracked!.id, home: g.home, away: g.away, sport: g.sport, side: 'draw', price: drawPrice }) : undefined}><span>Draw</span><b>{drawPrice != null ? formatOdds(drawPrice) : '\u2013'}</b></button> : null}
-    {g.status === 'live' ? <p className="sp-last-play" title={fresh ? g.lastPlay : undefined}><span>Last play</span> {fresh ? g.lastPlay || 'Waiting for the next play…' : 'Score feed delayed'}</p> : null}
+    {g.status === 'live' && (g.lastPlay || !fresh) ? <p className="sp-last-play" title={fresh ? g.lastPlay : undefined}><span>{isSoccer(g.sport) ? 'Latest event' : 'Last play'}</span> {fresh ? g.lastPlay : 'Score feed delayed'}</p> : null}
     {livePick?.mode === 'parlay' ? <p className="sp-fine sp-live-singles"><Lock aria-hidden />Live picks are singles</p> : null}
     {tracked && enableAdminTest && !livePick?.liveBetting ? <AdminLiveTestPanel eventId={tracked.id} home={g.home} away={g.away} /> : null}
   </article>

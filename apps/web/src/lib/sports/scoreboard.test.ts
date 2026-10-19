@@ -126,3 +126,19 @@ test("pregameWinProbs reads the latest pregame moneyline, removes the vig, and r
   assert.equal(pregameWinProbs({ odds: [{ moneyline: { home: { close: { odds: "-900" } }, away: { close: { odds: "-900" } } } }] }, false), null)
   assert.equal(pregameWinProbs({}, false), null)
 })
+
+
+test('soccer reads the latest meaningful event from details, independently of array order', () => {
+ const c = { ...competition('in'), details: [
+  { type: { text: 'Goal' }, clock: { value: 3359, displayValue: "56'" }, athletesInvolved: [{ displayName: 'Martín Satriano' }], team: { id: 'getafe' } },
+  { type: { text: 'Yellow card' }, clock: { value: 1200, displayValue: "20'" } },
+ ], competitors: competition('in').competitors.map((x, i) => ({ ...x, team: { ...x.team, id: i === 0 ? 'getafe' : 'rayo', displayName: i === 0 ? 'Getafe' : 'Rayo Vallecano' } })) }
+ assert.equal(normalizeGames(board(c), 'laliga', at)[0]?.lastPlay, "56' · Goal · Martín Satriano · Getafe")
+ assert.equal(normalizeGames(board({ ...c, status: { type: { state: 'post', completed: true } } }), 'laliga', at)[0]?.lastPlay, undefined)
+ assert.equal(normalizeGames(board(c), 'nfl', at)[0]?.lastPlay, undefined)
+})
+
+test('missing soccer commentary is absent rather than a fabricated waiting message', () => {
+ const c = { ...competition('in'), details: [{ type: {}, clock: { value: 'invalid' } }] }
+ assert.equal(normalizeGames(board(c), 'epl', at)[0]?.lastPlay, undefined)
+})
