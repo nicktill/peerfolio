@@ -3,171 +3,164 @@
 import "@web/components/fantasy/fantasy-workspace.css"
 import "./sports-workspace.css"
 import "./market-board.css"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
 import { TeamBadge } from "@web/components/sports/team-badge"
 import { LeagueBrand } from "@web/components/sports/league-brand"
+import { GameStatusChip, statusInputFromGame } from "@web/components/sports/game-status-chip"
+import { HistoryTrack, useGameHistory } from "@web/components/sports/odds-trend"
+import { useLiveGame } from "@web/components/sports/live-game"
 import { matchupColors } from "@web/lib/sports/matchup-colors"
-import { gameChart } from "@web/lib/sports/live/trend"
-import { formatOdds } from "@web/lib/sports/format"
-import { onColor } from "@web/lib/sports/teams"
+import { mergeLiveState } from "@web/lib/sports/game-status"
+import { mergeLiveScores, scoreboardMatch, type ScoreGame } from "@web/lib/sports/scoreboard"
+import { americanToProb } from "@web/lib/sports/odds"
+import { splitPct } from "@web/lib/sports/live/format"
+import { oddsLabel } from "@web/lib/sports/teams"
+import { SPORT_LABEL } from "@web/lib/sports/format"
+import { inSampleView } from "@web/lib/sample/fixtures"
+import { useApi } from "@web/lib/use-api"
 
-type Game = { id: string; sport: string; away: string; home: string; live: boolean; detail: string; awayScore?: number; homeScore?: number; awayRec?: string; homeRec?: string; homeProb: number; awayOdds: number; homeOdds: number; vol: string; when?: string }
+type LeagueSummary = { id: string; name: string; sports: string[]; isClosed: boolean }
+type TrackedEvent = { id: string; sport: string; home: string; away: string; startsAt: string }
+type LineRow = { selection: string; price: number }
+type MarketRow = { kind: string; event: { sport: string; home: string; away: string; startsAt: string }; lines: LineRow[] }
+type Detail = { liveEvents?: TrackedEvent[]; markets: MarketRow[] }
 
-const G: Game[] = [
-  { id: "1", sport: "nfl", away: "Dallas Cowboys", home: "Green Bay Packers", live: true, detail: "Q3 5:02", awayScore: 7, homeScore: 20, awayRec: "2-3", homeRec: "3-2", homeProb: 0.83, awayOdds: 480, homeOdds: -550, vol: "14.8M" },
-  { id: "2", sport: "nba", away: "New York Knicks", home: "Boston Celtics", live: true, detail: "Q4 2:31", awayScore: 95, homeScore: 98, homeProb: 0.57, awayOdds: 125, homeOdds: -150, vol: "2.1M" },
-  { id: "3", sport: "mlb", away: "San Diego Padres", home: "Los Angeles Dodgers", live: true, detail: "Top 7th", awayScore: 1, homeScore: 3, homeProb: 0.74, awayOdds: 260, homeOdds: -290, vol: "980K" },
-  { id: "4", sport: "nhl", away: "Dallas Stars", home: "Colorado Avalanche", live: true, detail: "End of 1st", awayScore: 2, homeScore: 2, homeProb: 0.52, awayOdds: 105, homeOdds: -125, vol: "430K" },
-  { id: "5", sport: "mls", away: "LA Galaxy", home: "Seattle Sounders FC", live: true, detail: "72'", awayScore: 1, homeScore: 1, homeProb: 0.41, awayOdds: 230, homeOdds: 190, vol: "210K" },
-  { id: "6", sport: "nfl", away: "Washington Commanders", home: "San Francisco 49ers", live: false, detail: "", when: "Mon 8:15 PM", homeProb: 0.8, awayOdds: 330, homeOdds: -400, vol: "705K" },
-  { id: "7", sport: "nfl", away: "Miami Dolphins", home: "New York Jets", live: false, detail: "", when: "Sun 1:00 PM", homeProb: 0.7, awayOdds: 110, homeOdds: -130, vol: "55K" },
-  { id: "8", sport: "nfl", away: "Cleveland Browns", home: "Tennessee Titans", live: false, detail: "", when: "Sun 1:00 PM", homeProb: 0.47, awayOdds: -115, homeOdds: 105, vol: "40K" },
-  { id: "9", sport: "nba", away: "Los Angeles Lakers", home: "Golden State Warriors", live: false, detail: "", when: "Tue 10:00 PM", homeProb: 0.57, awayOdds: 125, homeOdds: -150, vol: "1.2M" },
-  { id: "10", sport: "nba", away: "Denver Nuggets", home: "Phoenix Suns", live: false, detail: "", when: "Tue 10:30 PM", homeProb: 0.38, awayOdds: -170, homeOdds: 145, vol: "640K" },
-  { id: "11", sport: "mlb", away: "Atlanta Braves", home: "Houston Astros", live: false, detail: "", when: "Wed 7:40 PM", homeProb: 0.51, awayOdds: 100, homeOdds: -115, vol: "310K" },
-  { id: "12", sport: "nhl", away: "Boston Bruins", home: "Toronto Maple Leafs", live: false, detail: "", when: "Wed 7:00 PM", homeProb: 0.46, awayOdds: -105, homeOdds: -115, vol: "190K" },
-]
+const DEFAULT_SPORTS = ["nfl", "nba", "mlb", "nhl", "mls", "epl", "laliga", "ucl", "wnba"]
+const SAMPLE_LEAGUE: LeagueSummary = { id: "sample", name: "Demo Sharps", sports: ["nfl", "nba", "mlb", "nhl", "mls"], isClosed: false }
+const KEY = "pf.market.league"
+const pct = (n: number) => `${n}%`
 
-const short = (n: string) => n.split(" ").slice(-1)[0]!
-const pct = (p: number) => `${Math.round(p * 100)}%`
-
-/** A believable win-chance history that ends at the game's current chance. */
-function series(g: Game) {
-  const n = 36
-  const seed = Number(g.id) * 7
-  const pts = Array.from({ length: n }, (_, i) => {
-    const t = i / (n - 1)
-    const drift = 0.5 + (g.homeProb - 0.5) * (g.live ? t ** 1.4 : 1)
-    const wob = Math.sin(i * 0.9 + seed) * 0.035 * (g.live ? 1 : 0.4) + Math.sin(i * 0.37 + seed * 2) * 0.02
-    return { t: i * 120_000, v: Math.min(0.97, Math.max(0.03, i === n - 1 ? g.homeProb : drift + wob)) }
-  })
-  return pts
+/** Moneyline prices as a vig-free split (home + away = 100), for games that have not started. */
+function impliedSplit(lines: LineRow[]): { home: number; away: number } | null {
+  const home = lines.find((l) => l.selection === "home")?.price
+  const away = lines.find((l) => l.selection === "away")?.price
+  if (home == null || away == null) return null
+  const h = americanToProb(home)
+  const a = americanToProb(away)
+  return splitPct(h / (h + a))
 }
 
-function Tint({ g, children, className }: { g: Game; children: React.ReactNode; className: string }) {
-  const [a, h] = matchupColors(g.sport, g.away, g.home)
-  return <article className={className} data-live={g.live || undefined} style={{ "--a": a, "--h": h } as React.CSSProperties}>{children}</article>
-}
-const Head = ({ g }: { g: Game }) => (
-  <div className="mk-head">
-    {g.live ? <span className="mk-live"><i />{g.detail}</span> : <span>{g.when}</span>}
-    <span className="mk-meta"><LeagueBrand sport={g.sport} /><b>{g.vol}</b></span>
-  </div>
-)
-
-function CardA({ g }: { g: Game }) {
-  return (
-    <Tint g={g} className="mk-card mk-a">
-      <Head g={g} />
-      {([["away", g.away, g.awayScore, 1 - g.homeProb, g.awayRec], ["home", g.home, g.homeScore, g.homeProb, g.homeRec]] as const).map(([k, name, score, p, rec]) => (
-        <div key={k} className="mk-row" data-side={k} data-lead={p > 0.5 || undefined}>
-          <TeamBadge sport={g.sport} name={name} size={30} />
-          <span className="mk-name"><b>{name}</b>{rec ? <small>{rec}</small> : null}</span>
-          <span className="mk-pct numeric">{pct(p)}</span>
-          {g.live ? <span className="mk-score numeric">{score}</span> : null}
-        </div>
-      ))}
-      <div className="mk-bar" aria-hidden><i style={{ width: pct(1 - g.homeProb), background: "var(--a)" }} /><i style={{ width: pct(g.homeProb), background: "var(--h)" }} /></div>
-    </Tint>
-  )
-}
-
-function CardB({ g }: { g: Game }) {
-  const geo = useMemo(() => gameChart(series(g), g.homeProb, 36 * 120_000, 240, 44), [g])
-  const [a, h] = matchupColors(g.sport, g.away, g.home)
-  return (
-    <Tint g={g} className="mk-card mk-b">
-      <Head g={g} />
-      {g.live ? <p className="mk-line numeric">{short(g.away)} {g.awayScore} <i>·</i> {short(g.home)} {g.homeScore}</p> : null}
-      <div className="mk-odds">
-        {([["away", g.away, g.awayOdds, a], ["home", g.home, g.homeOdds, h]] as const).map(([k, name, odds, c]) => (
-          <button key={k} type="button" style={{ "--c": c, "--ink": onColor(c) } as React.CSSProperties}>
-            <TeamBadge sport={g.sport} name={name} size={26} />
-            <span><b>{short(name)}</b><small>{pct(k === "home" ? g.homeProb : 1 - g.homeProb)}</small></span>
-            <em className="numeric">{formatOdds(odds)}</em>
-          </button>
-        ))}
+function MarketCard({ g, tracked, split: pregame, href, now }: { g: ScoreGame; tracked?: TrackedEvent; split: { home: number; away: number } | null; href: string | null; now: number }) {
+  const live = g.status === "live"
+  const fresh = now - Date.parse(g.fetchedAt) < 120_000
+  const { view } = useLiveGame(tracked?.id, live && fresh)
+  const history = useGameHistory(live && fresh ? tracked?.id : undefined)
+  const [awayColor, homeColor] = matchupColors(g.sport, g.away, g.home)
+  // Live: the exchange view wins, then ESPN's in-game odds. Upcoming: the pregame moneyline.
+  const exchange = live && view?.odds.status === "ok" ? view.odds : null
+  const split = exchange && exchange.drawProb == null ? splitPct(exchange.homeProb)
+    : live && fresh && g.probSource === "espn" && g.homeWinProb != null && g.drawProb == null ? splitPct(g.homeWinProb)
+    : !live ? pregame : null
+  const status = mergeLiveState(statusInputFromGame(g), view)
+  const body = (
+    <>
+      <div className="mk-head">
+        {live ? <GameStatusChip input={status} now={now} /> : <span className="mk-when">{new Intl.DateTimeFormat(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" }).format(new Date(g.startsAt))}</span>}
+        <span className="mk-meta"><LeagueBrand sport={g.sport} /></span>
       </div>
-      {geo ? (
-        <svg className="mk-chart" viewBox="0 0 240 44" preserveAspectRatio="none" aria-hidden>
-          <line x1={0} x2={240} y1={geo.midY} y2={geo.midY} stroke="currentColor" strokeDasharray="2 4" opacity={0.25} vectorEffect="non-scaling-stroke" />
-          <path d={geo.away} fill="none" stroke={a} strokeWidth={1.8} vectorEffect="non-scaling-stroke" />
-          <path d={geo.home} fill="none" stroke={h} strokeWidth={1.8} vectorEffect="non-scaling-stroke" />
-        </svg>
-      ) : null}
-    </Tint>
-  )
-}
-
-function CardC({ g }: { g: Game }) {
-  return (
-    <Tint g={g} className="mk-card mk-c">
-      <Head g={g} />
       <div className="mk-vs">
-        <div><TeamBadge sport={g.sport} name={g.away} size={46} /><b>{short(g.away)}</b><small>{g.awayRec ?? " "}</small></div>
-        <div className="mk-mid">{g.live ? <span className="numeric">{g.awayScore}<i>–</i>{g.homeScore}</span> : <span className="mk-at">at</span>}</div>
-        <div><TeamBadge sport={g.sport} name={g.home} size={46} /><b>{short(g.home)}</b><small>{g.homeRec ?? " "}</small></div>
+        <div><TeamBadge sport={g.sport} name={g.away} size={46} /><b>{oddsLabel(g.sport, g.away)}</b><small>{g.awayRecord ?? " "}</small></div>
+        <div className="mk-mid">{live ? <span className="numeric">{g.awayScore ?? "–"}<i>–</i>{g.homeScore ?? "–"}</span> : <span className="mk-at">{g.sport === "tennis" ? "vs" : "at"}</span>}</div>
+        <div><TeamBadge sport={g.sport} name={g.home} size={46} /><b>{oddsLabel(g.sport, g.home)}</b><small>{g.homeRecord ?? " "}</small></div>
       </div>
-      <div className="mk-wp" aria-hidden><i style={{ width: pct(1 - g.homeProb), background: "var(--a)" }} /><i style={{ width: pct(g.homeProb), background: "var(--h)" }} /></div>
-      <div className="mk-wl numeric"><span>{pct(1 - g.homeProb)}</span><small>Win chance</small><span>{pct(g.homeProb)}</span></div>
-    </Tint>
-  )
-}
-
-function CardD({ g }: { g: Game }) {
-  const [a, h] = matchupColors(g.sport, g.away, g.home)
-  const geo = useMemo(() => gameChart(series(g), g.homeProb, 36 * 120_000, 240, 52), [g])
-  const pill = (y: number, c: string, p: number) => <span className="mk-pill numeric" style={{ top: `${(Math.min(43, Math.max(9, y)) / 52) * 100}%`, background: c, color: onColor(c) }}>{pct(p)}</span>
-  let ay = geo?.awayEnd[1] ?? 0
-  let hy = geo?.homeEnd[1] ?? 0
-  if (Math.abs(ay - hy) < 20) { const m = (ay + hy) / 2; const up = ay < hy ? -1 : 1; ay = m + up * 10; hy = m - up * 10 }
-  return (
-    <Tint g={g} className="mk-card mk-c mk-d">
-      <Head g={g} />
-      <div className="mk-vs">
-        <div><TeamBadge sport={g.sport} name={g.away} size={46} /><b>{short(g.away)}</b><small>{g.awayRec ?? " "}</small></div>
-        <div className="mk-mid">{g.live ? <span className="numeric">{g.awayScore}<i>–</i>{g.homeScore}</span> : <span className="mk-at">at</span>}</div>
-        <div><TeamBadge sport={g.sport} name={g.home} size={46} /><b>{short(g.home)}</b><small>{g.homeRec ?? " "}</small></div>
-      </div>
-      {geo ? (
-        <div className="mk-trend" role="img" aria-label={`Win chance: ${short(g.away)} ${geo.awayPct} percent, ${short(g.home)} ${geo.homePct} percent`}>
-          <svg viewBox="0 0 240 52" preserveAspectRatio="none" aria-hidden>
-            <line x1={0} x2={240} y1={geo.midY} y2={geo.midY} stroke="currentColor" strokeDasharray="2 4" opacity={0.25} vectorEffect="non-scaling-stroke" />
-            <path d={geo.away} fill="none" stroke={a} strokeWidth={1.8} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-            <path d={geo.home} fill="none" stroke={h} strokeWidth={1.8} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-          </svg>
-          {pill(ay, a, geo.awayPct / 100)}
-          {pill(hy, h, geo.homePct / 100)}
+      {split ? (
+        <div className="mk-split" role="img" aria-label={`Win chance: ${g.away} ${split.away} percent, ${g.home} ${split.home} percent`}>
+          <div className="mk-track" data-history={history.length ? "" : undefined}>
+            <i style={{ width: pct(split.away), background: awayColor }} />
+            <i style={{ flex: 1, background: homeColor }} />
+            {live ? <HistoryTrack series={history} live={split.home / 100} awayColor={awayColor} homeColor={homeColor} /> : null}
+          </div>
+          <div className="mk-labels numeric"><span><b>{pct(split.away)}</b></span><small>{live ? "Win chance" : "Pregame odds"}</small><span><b>{pct(split.home)}</b></span></div>
         </div>
-      ) : null}
-    </Tint>
+      ) : <div className="mk-split mk-split-none" aria-hidden />}
+    </>
   )
+  const cls = "mk-card mk-d"
+  const style = { "--a": awayColor, "--h": homeColor } as React.CSSProperties
+  return href
+    ? <Link href={href} className={cls} data-live={live || undefined} style={style} aria-label={`${g.away} at ${g.home}. Open to pick.`}>{body}</Link>
+    : <article className={cls} data-live={live || undefined} style={style}>{body}</article>
 }
 
-const SPORTS = ["all", "nfl", "nba", "mlb", "nhl", "mls"] as const
+/** A browsable board of every game across your leagues' sports: live and upcoming, filtered by sport. Tapping a card opens that game in your league's pick screen. */
+export function MarketBoard() {
+  const pathname = usePathname()
+  const sample = inSampleView(pathname ?? "")
+  const leagues = useApi<{ leagues: LeagueSummary[] }>(sample ? null : "/api/sports/leagues")
+  const mine = sample ? [SAMPLE_LEAGUE] : (leagues.data?.leagues ?? []).filter((l) => !l.isClosed)
+  const [picked, setPicked] = useState<string | null>(null)
+  useEffect(() => {
+    try { setPicked(window.localStorage.getItem(KEY)) } catch { /* storage blocked: first league */ }
+  }, [])
+  const league = mine.find((l) => l.id === picked) ?? mine[0] ?? null
+  const choose = (id: string) => {
+    setPicked(id)
+    try { window.localStorage.setItem(KEY, id) } catch { /* not remembered */ }
+  }
 
-export function MarketBoardPreview() {
-  const [v, setV] = useState<"a" | "b" | "c" | "d">("d")
-  const [sport, setSport] = useState<(typeof SPORTS)[number]>("all")
-  const [view, setView] = useState<"live" | "upcoming">("live")
-  const games = G.filter((g) => (sport === "all" || g.sport === sport) && g.live === (view === "live"))
-  const Card = v === "a" ? CardA : v === "b" ? CardB : v === "c" ? CardC : CardD
+  const detail = useApi<Detail>(league ? `/api/sports/leagues/${league.id}` : null, [league?.id], { refreshMs: 30_000 })
+  const sports = league?.sports ?? DEFAULT_SPORTS
+  const sportsKey = [...sports].sort().join(",")
+  const scores = useApi<{ games: ScoreGame[]; failedSports: string[] }>(leagues.loading && !sample ? null : `/api/sports/scoreboard?sports=${sportsKey}`, [sportsKey, leagues.loading], { refreshMs: 30_000 })
+  const liveKey = [...new Set((scores.data?.games ?? []).filter((g) => g.status === "live").map((g) => g.sport))].sort().join(",")
+  const liveScores = useApi<{ games: ScoreGame[]; failedSports: string[] }>(liveKey ? `/api/sports/scoreboard?sports=${liveKey}&live=1` : null, [liveKey], { refreshMs: 10_000 })
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(Date.now()), 15_000)
+    return () => window.clearInterval(t)
+  }, [])
+
+  const games = useMemo(() => mergeLiveScores(scores.data?.games ?? [], liveScores.data?.games ?? []), [scores.data, liveScores.data])
+  const liveCount = games.filter((g) => g.status === "live").length
+  const [view, setView] = useState<"live" | "upcoming" | null>(null)
+  const shownView = view ?? (liveCount > 0 || !games.length ? "live" : "upcoming")
+  const [sport, setSport] = useState("all")
+  const present = [...new Set([...sports, ...games.map((g) => g.sport)])].filter((s) => games.some((g) => g.sport === s) || sports.includes(s))
+  const shown = games
+    .filter((g) => (sport === "all" || g.sport === sport) && (shownView === "live" ? g.status === "live" : g.status === "upcoming" && Date.parse(g.startsAt) > now))
+    .sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt))
+    .slice(0, 60)
+  const base = sample ? "/preview/sports/sample" : league ? `/fantasy/sports/${league.id}` : null
+  const failed = (!scores.data && !!scores.error) || (scores.data?.failedSports ?? []).length > 0
+
   return (
     <section className="fw mk" aria-label="Sports market">
       <header className="mk-top">
-        <div><h1>Sports market</h1><p>Live games, win chances and prices in one place. Sample data.</p></div>
-        <div className="mk-seg" role="group" aria-label="Card layout">
-          {(["a", "b", "c", "d"] as const).map((k) => <button key={k} type="button" aria-pressed={v === k} onClick={() => setV(k)}>{k === "a" ? "A Rows" : k === "b" ? "B Odds" : k === "c" ? "C Matchup" : "D Matchup + chart"}</button>)}
+        <div>
+          <h1>Sports market</h1>
+          <p>{league ? <>Tap a game to pick it in <b>{league.name}</b>.</> : "Live games, win chances and prices in one place."}</p>
         </div>
+        {mine.length > 1 ? (
+          <label className="mk-league">
+            <span className="sr-only">League for picks</span>
+            <select value={league?.id ?? ""} onChange={(e) => choose(e.target.value)}>{mine.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select>
+          </label>
+        ) : null}
       </header>
       <div className="mk-filters">
-        <div className="mk-chips" role="group" aria-label="Sport">{SPORTS.map((s) => <button key={s} type="button" aria-pressed={sport === s} onClick={() => setSport(s)}>{s === "all" ? "All" : s.toUpperCase()}</button>)}</div>
+        <div className="mk-chips" role="group" aria-label="Sport">
+          <button type="button" aria-pressed={sport === "all"} onClick={() => setSport("all")}>All</button>
+          {present.map((s) => <button key={s} type="button" aria-pressed={sport === s} onClick={() => setSport(s)}>{SPORT_LABEL[s] ?? s.toUpperCase()}</button>)}
+        </div>
         <div className="mk-seg" role="group" aria-label="Status">
-          <button type="button" aria-pressed={view === "live"} onClick={() => setView("live")}>Live now</button>
-          <button type="button" aria-pressed={view === "upcoming"} onClick={() => setView("upcoming")}>Upcoming</button>
+          <button type="button" aria-pressed={shownView === "live"} onClick={() => setView("live")}>Live now{liveCount ? <b className="numeric">{liveCount}</b> : null}</button>
+          <button type="button" aria-pressed={shownView === "upcoming"} onClick={() => setView("upcoming")}>Upcoming</button>
         </div>
       </div>
-      <div className="mk-grid" data-v={v}>{games.length ? games.map((g) => <Card key={g.id} g={g} />) : <p className="mk-empty">No games here right now.</p>}</div>
+      {!league && !leagues.loading && !sample ? (
+        <p className="mk-note" role="note">You can browse every game here. <Link href="/fantasy">Join or start a sports league</Link> to make picks.</p>
+      ) : null}
+      {failed ? <p className="mk-note" role="status">Some scores are unavailable. This list may be incomplete.</p> : null}
+      <div className="mk-grid" data-v="d">
+        {shown.map((g) => {
+          const tracked = detail.data?.liveEvents?.find((t) => scoreboardMatch(t, [g]))
+          const market = detail.data?.markets.find((m) => m.kind === "moneyline" && scoreboardMatch(m.event, [g]))
+          return <MarketCard key={`${g.sport}:${g.id}`} g={g} tracked={tracked} split={market ? impliedSplit(market.lines) : null} href={base ? `${base}?game=${encodeURIComponent(`${g.sport}:${g.id}`)}` : null} now={now} />
+        })}
+        {!shown.length ? <p className="mk-empty" role="status">{scores.loading && !games.length ? "Loading games…" : shownView === "live" ? "No games live right now." : "No upcoming games here."}</p> : null}
+      </div>
     </section>
   )
 }
