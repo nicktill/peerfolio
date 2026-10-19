@@ -82,3 +82,37 @@ a.mk-card { display: block; color: inherit; text-decoration: none; }
 
 .mk-split-none .mk-track { background: color-mix(in srgb, var(--fw-fg3) 22%, transparent); }
 .mk-split-none .mk-labels { justify-content: center; }
+
+/* Room to breathe, and a visual character per league. */
+.mk { gap: 24px; }
+.mk-grid { gap: 20px; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+.mk-card { padding: 18px 20px 20px; border-radius: 20px; }
+.mk-head { margin-bottom: 14px; }
+.mk-vs { gap: 10px; padding: 10px 0 6px; }
+.mk-split { margin-top: 18px; }
+.mk-sections { display: grid; gap: 48px; }
+.mk-sec { --sport: #64748b; display: grid; gap: 20px; }
+.mk-sec-head { display: flex; align-items: center; gap: 14px; }
+.mk-sec-head h2 { margin: 0; font: 400 24px/28px var(--fw-serif); letter-spacing: -.02em; }
+.mk-sec-head .sp-league-brand { gap: 10px; font: inherit; }
+.mk-sec-head .sp-league-mark img { width: 28px; height: 28px; }
+.mk-sec-count { flex: none; padding: 3px 10px; border: 1px solid color-mix(in srgb, var(--sport) 45%, var(--fw-hair)); border-radius: 999px; font: 500 11px var(--fw-mono); color: var(--fw-fg2); }
+.mk-sec-rule { flex: 1; height: 1px; background: linear-gradient(90deg, color-mix(in srgb, var(--sport) 70%, var(--fw-hair)), transparent); }
+.mk-grid[data-grouped] .mk-meta { display: none; }
+.mk-grid[data-grouped] .mk-head { margin-bottom: 10px; }
+
+/* Each league has its own colour and a quiet motif in the corner of its cards: yard lines, court arcs, rink lines, a diamond lattice, a pitch circle. */
+.mk-sec[data-sport], .mk-card[data-sport] { --sport: #64748b; }
+[data-sport="nfl"] { --sport: #5aa05a; } [data-sport="cfb"] { --sport: #d1873f; }
+[data-sport="nba"], [data-sport="wnba"], [data-sport="ncaab"] { --sport: #e0933a; }
+[data-sport="nhl"] { --sport: #6bb4e0; } [data-sport="mlb"] { --sport: #d05a5a; } [data-sport="tennis"] { --sport: #b8c378; }
+[data-sport="mls"], [data-sport="epl"], [data-sport="laliga"] { --sport: #3fae7f; } [data-sport="ucl"] { --sport: #6a86e0; }
+.mk-card[data-sport] { box-shadow: inset 0 2px 0 color-mix(in srgb, var(--sport) 55%, transparent); }
+.mk-card[data-sport]::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; -webkit-mask-image: linear-gradient(135deg, transparent 25%, #000 100%); mask-image: linear-gradient(135deg, transparent 25%, #000 100%); }
+.mk-card[data-sport="nfl"]::after, .mk-card[data-sport="cfb"]::after { background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--sport) 20%, transparent) 0 1px, transparent 1px 28px); }
+.mk-card[data-sport="nba"]::after, .mk-card[data-sport="wnba"]::after, .mk-card[data-sport="ncaab"]::after { background: radial-gradient(circle at 100% 0%, transparent 0 44px, color-mix(in srgb, var(--sport) 24%, transparent) 44px 45px, transparent 45px 74px, color-mix(in srgb, var(--sport) 18%, transparent) 74px 75px, transparent 75px 104px, color-mix(in srgb, var(--sport) 12%, transparent) 104px 105px, transparent 105px); }
+.mk-card[data-sport="nhl"]::after { background: radial-gradient(circle at 90% 85%, transparent 0 30px, color-mix(in srgb, var(--sport) 26%, transparent) 30px 31px, transparent 31px), linear-gradient(115deg, transparent 0 62%, color-mix(in srgb, var(--sport) 22%, transparent) 62% 62.6%, transparent 62.6%); }
+.mk-card[data-sport="mlb"]::after { background: repeating-linear-gradient(45deg, transparent 0 34px, color-mix(in srgb, var(--sport) 20%, transparent) 34px 35px), repeating-linear-gradient(-45deg, transparent 0 34px, color-mix(in srgb, var(--sport) 20%, transparent) 34px 35px); }
+.mk-card[data-sport="mls"]::after, .mk-card[data-sport="epl"]::after, .mk-card[data-sport="laliga"]::after, .mk-card[data-sport="ucl"]::after { background: radial-gradient(circle at 100% 100%, transparent 0 46px, color-mix(in srgb, var(--sport) 26%, transparent) 46px 47px, transparent 47px), linear-gradient(90deg, transparent calc(100% - 56px), color-mix(in srgb, var(--sport) 20%, transparent) calc(100% - 56px) calc(100% - 55px), transparent calc(100% - 55px)); }
+.mk-card[data-sport="tennis"]::after { background: linear-gradient(90deg, transparent calc(100% - 40px), color-mix(in srgb, var(--sport) 22%, transparent) calc(100% - 40px) calc(100% - 39px), transparent calc(100% - 39px)), linear-gradient(0deg, transparent 40%, color-mix(in srgb, var(--sport) 18%, transparent) 40% 40.6%, transparent 40.6%); }
+@media (max-width: 640px) { .mk-grid { gap: 14px; } .mk-sections { gap: 36px; } .mk-card { padding: 16px 16px 18px; } .mk-sec-head h2 { font-size: 22px; } }
