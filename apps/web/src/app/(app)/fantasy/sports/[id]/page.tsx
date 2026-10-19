@@ -6,7 +6,6 @@ import "@web/components/sports/sports-workspace.css"
 
 import { use, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
-import { useSearchParams } from "next/navigation"
 import { ArrowLeft, ArrowUp, ArrowDown, CalendarDays, Check, ChevronDown, Link2, Lock, Radio, Search, X } from "lucide-react"
 import { Choice } from "@web/components/fantasy/choice"
 import { timeLeft } from "@web/components/fantasy/time-left"
@@ -232,7 +231,9 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
   const sportsKey = data?.league.sports.slice().sort().join(",")
   const scores = useApi<{games: ScoreGame[]; failedSports: string[]}>(sportsKey ? `/api/sports/scoreboard?sports=${sportsKey}` : null, [], { refreshMs: 30_000 })
   // Arriving from the sports market (?game=sport:id): show that game's side, bring its card into view and flash it once.
-  const focusGame = useSearchParams().get("game")
+  // Read from the address bar after mount: useSearchParams would force this whole page behind a Suspense boundary at build time.
+  const [focusGame, setFocusGame] = useState<string | null>(null)
+  useEffect(() => { setFocusGame(new URLSearchParams(window.location.search).get("game")) }, [])
   const focused = useRef<string | null>(null)
   const focusMatch = focusGame ? (scores.data?.games ?? []).find((g) => `${g.sport}:${g.id}` === focusGame) : undefined
   useEffect(() => {
