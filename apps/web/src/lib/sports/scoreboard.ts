@@ -18,6 +18,8 @@ export type ScoreGame = {
   homeSets?: TennisSet[]; awaySets?: TennisSet[]
   /** VIEW ONLY. Vig-free moneyline win chance derived from ESPN's in-game odds (0-1). Never used for picks, settlement or tests. */
   homeWinProb?: number; awayWinProb?: number; drawProb?: number; probSource?: 'espn'
+  /** VIEW ONLY. Vig-free pregame moneyline win chance from ESPN's odds block, for games that have not started (0-1). Never used for picks, settlement or tests. */
+  pregameHome?: number; pregameAway?: number; pregameDraw?: number
 }
 export type TennisSet = { games: number; tiebreak?: number }
 type Obj = Record<string, unknown>
@@ -48,6 +50,21 @@ export function liveWinProbs(competition: Obj, threeWay: boolean): { home: numbe
     const ps = [implied(h), implied(a), ...(d != null ? [implied(d)] : [])]
     const total = ps.reduce((x, y) => x + y, 0)
     // A real book sums to roughly 1.02-1.15; anything else is a bad or half-updated quote.
+    if (total < 1 || total > 1.3) continue
+    const [ph, pa, pd] = ps.map(p => p / total) as [number, number, number | undefined]
+    return pd != null ? { home: ph, away: pa, draw: pd } : { home: ph, away: pa }
+  }
+  return null
+}
+/** Pre-game ESPN moneyline (latest of current, close, open), vig removed. Null unless sane. Display only. */
+export function pregameWinProbs(competition: Obj, threeWay: boolean): { home: number; away: number; draw?: number } | null {
+  for (const o of list(competition.odds)) {
+    const ml = obj(o.moneyline)
+    const price = (side: unknown) => { const q = obj(side); return american(obj(q.current).odds) ?? american(obj(q.close).odds) ?? american(obj(q.open).odds) }
+    const h = price(ml.home), a = price(ml.away), d = threeWay ? price(ml.draw) : null
+    if (h == null || a == null || (threeWay && d == null)) continue
+    const ps = [implied(h), implied(a), ...(d != null ? [implied(d)] : [])]
+    const total = ps.reduce((x, y) => x + y, 0)
     if (total < 1 || total > 1.3) continue
     const [ph, pa, pd] = ps.map(p => p / total) as [number, number, number | undefined]
     return pd != null ? { home: ph, away: pa, draw: pd } : { home: ph, away: pa }
@@ -103,11 +120,13 @@ export function normalizeGames(raw: unknown, sport: string, fetchedAt: string): 
         ...(clockText ? { clock: clockText } : {}),
       }
       const probs = live && sport !== 'tennis' ? liveWinProbs(c, isSoccer(sport)) : null
+      const pre = !live && !final && !unavailable && sport !== 'tennis' ? pregameWinProbs(c, isSoccer(sport)) : null
       const play = live ? str(obj(obj(c.situation).lastPlay).text).replace(/\s+/g, ' ').trim().slice(0, 240) : ''
       result.push({ id: str(c.id) || str(e.id), sport, home: name(home), away: name(away), startsAt,
         homeRecord: record(home), awayRecord: record(away), status: unavailable ? 'unavailable' : final ? 'final' : live ? 'live' : 'upcoming',
         homeScore: score(home), awayScore: score(away), detail: str(type.shortDetail) || str(type.detail) || str(status.displayClock), fetchedAt,
         ...sets, ...feed, ...(play ? { lastPlay: play } : {}),
+        ...(pre ? { pregameHome: pre.home, pregameAway: pre.away, ...(pre.draw != null ? { pregameDraw: pre.draw } : {}) } : {}),
         ...(probs ? { homeWinProb: probs.home, awayWinProb: probs.away, ...(probs.draw != null ? { drawProb: probs.draw } : {}), probSource: 'espn' as const } : {}) })
     }
   }
