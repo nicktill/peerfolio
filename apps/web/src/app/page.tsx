@@ -1,7 +1,9 @@
 import { LandingHeader } from "@web/components/landing/landing-header"
 import type { Metadata } from "next"
 import { redirect } from "next/navigation"
-import { ArrowDown, EyeOff, LineChart, Sparkles, Trophy } from "lucide-react"
+import { ArrowDown, EyeOff } from "lucide-react"
+import { TickerLogo } from "@web/components/ui/ticker-logo"
+import { teamLook } from "@web/lib/sports/teams"
 import { SiteFooter } from "@web/components/site-footer"
 import { ChatBubble } from "@web/components/landing/chat-bubble"
 import { HeroBackdrop } from "@web/components/landing/hero-backdrop"
@@ -68,7 +70,8 @@ export default async function HomePage() {
               <RotatingWord prefix="with " words={RIVALS} />
             </h1>
             <p style={revealStyle(1)} className="reveal pf-sub mx-auto mt-4 max-w-2xl text-balance text-base leading-7 sm:text-[17px]">
-              Compete with friends using your real portfolios, or play-money stocks and sports picks.
+              <span className="hidden sm:inline">Track your real portfolios, or play for fun with fantasy stocks or sports picks. Compete with friends in leagues where you see return percentages, never dollar amounts.</span>
+              <span className="sm:hidden">Track your real portfolios or play for fun. Compete with friends on returns, never dollars.</span>
             </p>
             <div style={revealStyle(2)} className="reveal mt-6 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
               <SignInButton />
@@ -76,12 +79,46 @@ export default async function HomePage() {
                 See how it works <ArrowDown className="size-4" aria-hidden />
               </a>
             </div>
-            <ul style={revealStyle(3)} className="reveal pf-modes mt-5" aria-label="Ways to play">
-              <li><LineChart aria-hidden />Real portfolios</li>
-              <li><Sparkles aria-hidden />Fantasy stocks</li>
-              <li><Trophy aria-hidden />Sports picks</li>
+            <ul style={revealStyle(3)} className="reveal pf-modes" aria-label="Ways to play">
+              <li data-mode="real">
+                <button type="button" aria-describedby="pf-tip-real">
+                  <span className="pf-mode-logos" aria-hidden>
+                    {["robinhood", "fidelity"].map((b) => (
+                      <span key={b}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={`/landing/brokerages/${b}.png`} alt="" width={18} height={18} decoding="async" />
+                      </span>
+                    ))}
+                  </span>
+                  Real portfolios
+                </button>
+                <span id="pf-tip-real" role="tooltip" className="pf-mode-tip">Link a brokerage or add positions by hand</span>
+              </li>
+              <li data-mode="fantasy">
+                <button type="button" aria-describedby="pf-tip-fantasy">
+                  <span className="pf-mode-logos" aria-hidden>
+                    {["TSLA", "MSFT"].map((t) => <TickerLogo key={t} symbol={t} size="xs" className="!size-[18px] !text-[6px]" />)}
+                  </span>
+                  Fantasy stocks
+                </button>
+                <span id="pf-tip-fantasy" role="tooltip" className="pf-mode-tip">Play-money picks at real prices</span>
+              </li>
+              <li data-mode="sports">
+                <button type="button" aria-describedby="pf-tip-sports">
+                  <span className="pf-mode-logos" aria-hidden>
+                    {([["nfl", "Kansas City Chiefs"], ["nba", "Los Angeles Lakers"]] as const).map(([sport, team]) => (
+                      <span key={team}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={teamLook(sport, team).logo ?? ""} alt="" width={18} height={18} loading="lazy" decoding="async" referrerPolicy="no-referrer" />
+                      </span>
+                    ))}
+                  </span>
+                  Sports picks
+                </button>
+                <span id="pf-tip-sports" role="tooltip" className="pf-mode-tip">Live games, spreads and props</span>
+              </li>
             </ul>
-            <p style={revealStyle(3)} className="reveal pf-muted mt-3 text-xs">Free. Friends see your returns, never your dollars.</p>
+            <p style={revealStyle(3)} className="reveal pf-muted mt-3 text-xs">Free. Join friends in a league, or play on your own.</p>
           </div>
 
           <div className="pf-hero-preview relative mx-auto max-w-[1280px] px-6 pb-16 sm:px-5 sm:pb-24 xl:pt-9">
