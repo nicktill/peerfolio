@@ -28,7 +28,7 @@ const KINDS: Record<FlowKind, { steps: readonly string[]; title: string; accent:
   sports: { steps: ["Name", "Look", "Sports", "Stakes", "Launch"], title: "Start a sports league", accent: "sky", emoji: "crest:hex:trophy:shimmer:stars", sub: "The name on the slip when someone's parlay hits." },
   league: { steps: ["Name", "Look", "Launch"], title: "Start a league", accent: "violet", emoji: "crest:circle:medal:float:aurora", sub: "A league for real portfolios. Pick a name people will want to join." },
 }
-const SPORTS = [
+export const SPORT_CHOICES = [
   { key: "nfl", label: "NFL", note: "Sundays, Mondays, Thursdays", team: "Kansas City Chiefs" },
   { key: "nba", label: "NBA", note: "Nightly in season", team: "Boston Celtics" },
   { key: "tennis", label: "Tennis", note: "Match winners and totals", team: "Carlos Alcaraz" },
@@ -156,7 +156,7 @@ export function CreateLeagueFlow({ kind = "fantasy", onClose, onCreated }: { kin
     kind === "fantasy"
       ? [weekly ? "Long race + weekly rounds" : "The long race", money(cash), daysLabel(days), cap ? `max ${cap}% per pick` : "no pick cap"]
       : kind === "sports"
-        ? [sportKeys.map((k) => SPORTS.find((x) => x.key === k)?.label).join(" · "), `${formatCredits(credits)} play cash`, daysLabel(days)]
+        ? [sportKeys.map((k) => SPORT_CHOICES.find((x) => x.key === k)?.label).join(" · "), `${formatCredits(credits)} play cash`, daysLabel(days)]
         : ["Real portfolios", "Invite by link", description.trim() ? "Has a description" : "No description"]
 
   return createPortal(
@@ -286,7 +286,7 @@ export function CreateLeagueFlow({ kind = "fantasy", onClose, onCreated }: { kin
               <h2>What are you betting on?</h2>
               <p className="cf-sub">Pick one or more. Lines are fixed contest lines, never live odds, and it is all play money.</p>
               <div className="cf-sports" role="group" aria-label="Sports">
-                {SPORTS.filter((sp) => sp.key !== "ncaab" || ncaabEnabled()).map((sp) => {
+                {SPORT_CHOICES.filter((sp) => sp.key !== "ncaab" || ncaabEnabled()).map((sp) => {
                   const on = sportKeys.includes(sp.key)
                   return (
                     <button key={sp.key} type="button" className="cf-sport" aria-pressed={on} onClick={() => setSportKeys((cur) => (cur.includes(sp.key) ? cur.filter((x) => x !== sp.key) : [...cur, sp.key]))}>

@@ -1,0 +1,1 @@
+ALTER TABLE "sports_leagues" ADD COLUMN "max_parlay_stake_pct" integer;

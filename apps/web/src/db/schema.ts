@@ -1129,6 +1129,8 @@ export const sportsLeagues = pgTable(
     memberLimit: integer("member_limit").notNull().default(50),
     /** Largest single pick as a percent of starting credits. The owner can change it. */
     maxStakePct: integer("max_stake_pct").notNull().default(10),
+    /** Largest parlay as a percent of starting credits. Null follows the single-pick limit. The owner can change it. */
+    maxParlayStakePct: integer("max_parlay_stake_pct"),
     /** In-play picks that count in the league (priced from the live exchange quote). The owner can switch them off. */
     liveBetting: boolean("live_betting").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

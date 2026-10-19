@@ -17,7 +17,7 @@ import { SlipEmpty } from "@web/components/sports/slip-empty"
 import { ScoreboardGames } from "@web/components/sports/scoreboard-games"
 import { mergeLiveScores, scoreboardMatch, type ScoreGame } from "@web/lib/sports/scoreboard"
 import { GameStatusChip, statusInputFromGame } from "@web/components/sports/game-status-chip"
-import { PickLimitsButton } from "@web/components/sports/pick-limits-dialog"
+import { EditSportsLeagueButton } from "@web/components/sports/edit-sports-league-dialog"
 import { matchupColors, marketSelectionColor } from "@web/lib/sports/matchup-colors"
 import { LeagueBrand } from "@web/components/sports/league-brand"
 import { revealStyle } from "@web/components/motion/reveal"
@@ -64,7 +64,7 @@ type PickRow = {
   event: EventInfo
 }
 type Detail = {
-  league: { id: string; name: string; emoji: string; accent: string; sports: string[]; inviteCode: string; startingCredits: number; maxStakePct: number; liveBetting: boolean; endsAt: string | null; isOwner: boolean }
+  league: { id: string; name: string; emoji: string; accent: string; sports: string[]; inviteCode: string; startingCredits: number; maxStakePct: number; maxParlayStakePct: number | null; liveBetting: boolean; endsAt: string | null; isOwner: boolean }
   you: { credits: number }
   limits: { minStake: number; maxStake: number; maxOpenPicks: number; parlay?: ParlayLimits }
   standings: { name: string; credits: number; isYou: boolean }[]
@@ -300,7 +300,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
         openCount={picks.filter((p) => p.status === "open").length + parlays.filter((p) => p.status === "open").length}
         leaguePicks={[...leaguePicks, ...parlayStatRows(statParlays)]}
         status={status}
-        invite={<>{league.isOwner && id !== "sample" ? <PickLimitsButton leagueId={league.id} startingCredits={league.startingCredits} maxStakePct={league.maxStakePct} liveBetting={league.liveBetting} onSaved={() => void refetch()} /> : null}<InviteButton code={league.inviteCode} /></>}
+        invite={<>{league.isOwner && id !== "sample" ? <EditSportsLeagueButton league={league} onSaved={() => void refetch()} /> : null}<InviteButton code={league.inviteCode} /></>}
       />
 
       <div className="fw-grid">
