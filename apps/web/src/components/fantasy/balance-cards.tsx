@@ -28,13 +28,13 @@ export function Stat({ label, icon, tone, children }: { label: React.ReactNode; 
 }
 
 /** Where you stand, and how far you've moved since you were last here. */
-export function RankStat({ rank, total, moved }: { rank: number; total: number; moved: number | null }) {
+export function RankStat({ rank, total, moved, observer = false }: { rank: number; total: number; moved: number | null; observer?: boolean }) {
   // Rank 0 is someone sitting out: no place in the table until they buy something.
   if (rank === 0) {
     return (
       <Stat label="Your rank" icon={<Trophy />} tone="rank">
-        <span className="fw-figure">Unranked</span>
-        <span className="fw-sub">Buy something to get back in the table</span>
+        <span className="fw-figure">{observer ? "Observer" : "Unranked"}</span>
+        <span className="fw-sub">{observer ? "Excluded from competition" : "Make a pick to enter the table"}</span>
       </Stat>
     )
   }

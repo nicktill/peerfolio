@@ -11,7 +11,7 @@ import { LookPicker } from "@web/components/fantasy/league-look-picker"
 import { mutate } from "@web/lib/use-api"
 
 /** Someone in the league, as the owner sees them when managing players. */
-export type ManageableMember = { userId: string; name: string | null; handle: string | null; image: string | null; isYou: boolean; inactive?: boolean; benched?: boolean }
+export type ManageableMember = { userId: string; name: string | null; handle: string | null; image: string | null; isYou: boolean; inactive?: boolean; benched?: boolean; observer?: boolean }
 
 export type EditableLeague = { id: string; name: string; emoji: string; accent: string; endsAt: string | null }
 
@@ -139,7 +139,8 @@ function Players({ leagueId, members, onChanged }: { leagueId: string; members: 
 
   return (
     <fieldset>
-      <legend>Players</legend>
+      <legend>Players &amp; observers</legend>
+      <p className="fw-sub">Observers keep access and can trade, but stay out of standings, season scoring, the trade feed and player counts. Buying does not restore their place.</p>
       <ul className="fw-members">
         {others.map((m) => {
           const name = m.name ?? m.handle ?? "Member"
@@ -149,7 +150,7 @@ function Players({ leagueId, members, onChanged }: { leagueId: string; members: 
               <Avatar src={m.image} name={m.name} handle={m.handle} size="sm" />
               <div>
                 <strong>{name}</strong>
-                <small>{m.inactive ? (m.benched ? "Inactive · set by you, until they buy" : "Inactive · hasn't bought anything") : "Playing"}</small>
+                <small>{m.observer ? "Observer · excluded from competition" : m.inactive ? (m.benched ? "Inactive · set by you, until they buy" : "Inactive · hasn't bought anything") : "Playing"}</small>
               </div>
               <div className="fw-member-actions">
                 {confirming === m.userId ? (
@@ -168,7 +169,7 @@ function Players({ leagueId, members, onChanged }: { leagueId: string; members: 
                   </>
                 ) : (
                   <>
-                    {m.inactive && !m.benched ? null : (
+                    {m.observer || (m.inactive && !m.benched) ? null : (
                       <button
                         type="button"
                         className="fw-btn"
@@ -180,6 +181,10 @@ function Players({ leagueId, members, onChanged }: { leagueId: string; members: 
                         {m.benched ? "Reactivate" : "Make inactive"}
                       </button>
                     )}
+                    <button type="button" className="fw-btn" disabled={busy === m.userId}
+                      onClick={() => act(m.userId, () => mutate(url, { method: "PATCH", body: { observer: !m.observer } }), m.observer ? `${name} can compete again.` : `${name} is now an observer.`)}>
+                      {m.observer ? "Include in competition" : "Make observer"}
+                    </button>
                     <button type="button" className="fw-btn fw-danger" onClick={() => setConfirming(m.userId)}>
                       Remove
                     </button>

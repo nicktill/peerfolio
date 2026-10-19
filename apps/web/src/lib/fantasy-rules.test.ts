@@ -7,6 +7,7 @@ import {
   fillsAtOpen,
   isClosed,
   isInactiveMember,
+  isRankedMember,
   MAX_PENDING_ORDERS,
   ORDER_EXPIRY_DAYS,
   queuedFillDecision,
@@ -261,5 +262,28 @@ describe("inactive members", () => {
     const old = { joinedAt: at("2026-01-05T15:00:00Z"), inactive: false }
     assert.equal(isInactiveMember(old, true, at("2026-10-19T12:00:00Z")), false)
     assert.equal(isInactiveMember({ ...old, inactive: true }, true, at("2026-10-19T12:00:00Z")), true)
+  })
+})
+
+describe("ranking eligibility", () => {
+  it("leaves a new member unranked but active during the grace period", () => {
+    const member = { joinedAt: new Date("2026-10-19T15:00:00Z"), inactive: false }
+    assert.equal(isRankedMember(member, false), false)
+    assert.equal(isInactiveMember(member, false, member.joinedAt), false)
+    assert.equal(isInactiveMember(member, false, new Date("2026-10-26T15:00:00Z")), true)
+  })
+  it("ranks a first pick and honors an owner's mark until a buy clears it", () => {
+    assert.equal(isRankedMember({ inactive: false }, true), true)
+    assert.equal(isRankedMember({ inactive: true }, true), false)
+    assert.equal(isRankedMember({ inactive: true }, false), false)
+  })
+})
+
+describe("observer accounts", () => {
+  it("never ranks an observer, including after a buy clears inactivity", () => {
+    assert.equal(isRankedMember({ inactive: true, observer: true }, true), false)
+    assert.equal(isRankedMember({ inactive: false, observer: true }, true), false)
+    assert.equal(isRankedMember({ inactive: false, observer: true }, false), false)
+    assert.equal(isRankedMember({ inactive: false, observer: false }, true), true)
   })
 })

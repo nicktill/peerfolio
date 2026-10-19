@@ -93,7 +93,7 @@ export default function SeasonPage({ params }: { params: Promise<{ id: string }>
       </header>
 
       {season.mode === "draft" && league.isOwner && !league.isClosed ? (
-        <EditLeagueDialog league={{ id, name: league.name, emoji: league.emoji, accent: league.accent, endsAt: league.endsAt }} open={editing} onClose={() => setEditing(false)} onSaved={refetch} />
+        <EditLeagueDialog members={data.members} league={{ id, name: league.name, emoji: league.emoji, accent: league.accent, endsAt: league.endsAt }} open={editing} onClose={() => setEditing(false)} onSaved={refetch} />
       ) : null}
 
       <details className="fw-panel fs-how reveal" style={revealStyle(1)} open={standings.length === 0 || !seen} onToggle={(e) => { if (!e.currentTarget.open) { try { localStorage.setItem("fs-how-seen", "1") } catch {} setSeen(true) } }}>

@@ -1,18 +1,19 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { ApiError, readJson, withUser } from "@web/lib/api"
-import { removeFantasyMember, setMemberInactive } from "@web/lib/fantasy"
+import { removeFantasyMember, setMemberInactive, setMemberObserver } from "@web/lib/fantasy"
 
 type Ctx = { params: Promise<{ id: string; userId: string }> }
 
-const Patch = z.object({ inactive: z.boolean() }).strict()
+const Patch = z.union([z.object({ inactive: z.boolean() }).strict(), z.object({ observer: z.boolean() }).strict()])
 
 /** Owner only: bench a member, or bring them back. */
 export const PATCH = withUser<Ctx>(async (userId, request, { params }) => {
   const { id, userId: target } = await params
   const parsed = Patch.safeParse(await readJson(request))
-  if (!parsed.success) throw new ApiError("Say whether they're inactive")
-  await setMemberInactive(userId, id, target, parsed.data.inactive)
+  if (!parsed.success) throw new ApiError("Choose inactive or observer status")
+  if ("observer" in parsed.data) await setMemberObserver(userId, id, target, parsed.data.observer)
+  else await setMemberInactive(userId, id, target, parsed.data.inactive)
   return NextResponse.json({ ok: true })
 })
 

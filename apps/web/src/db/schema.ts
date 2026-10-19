@@ -585,6 +585,8 @@ export const fantasyMembers = pgTable(
     joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
     /** Set by the owner: sits below the table, greyed out, and isn't ranked. A member who never trades also becomes inactive by themselves, see `isInactiveMember`. */
     inactive: boolean("inactive").notNull().default(false),
+    /** Keeps access and trading, but never participates in public competition. */
+    observer: boolean("observer").notNull().default(false),
   },
   (t) => [
     uniqueIndex("fantasy_members_unique_idx").on(t.leagueId, t.userId),

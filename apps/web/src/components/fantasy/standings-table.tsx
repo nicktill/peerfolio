@@ -55,10 +55,10 @@ function Row({ standing, onReact }: { standing: Standing; onReact: (toUserId: st
   return (
     <li
       className={`fw-standing ${standing.isYou ? "fw-you" : ""}`}
-      data-medal={!standing.inactive && standing.rank <= 3 ? standing.rank : undefined}
+      data-medal={standing.rank > 0 && standing.rank <= 3 ? standing.rank : undefined}
       data-inactive={standing.inactive || undefined}
     >
-      <span className="fw-avatar-slot" data-rank={standing.inactive ? undefined : standing.rank} aria-label={standing.inactive ? "Inactive" : `Rank ${standing.rank}`}>
+      <span className="fw-avatar-slot" data-rank={standing.rank > 0 ? standing.rank : undefined} aria-label={standing.inactive ? "Inactive" : standing.rank === 0 ? "Unranked" : `Rank ${standing.rank}`}>
         <Avatar src={standing.image} name={standing.name} handle={standing.handle} size="md" />
       </span>
       <div className="fw-standing-who">
@@ -68,9 +68,9 @@ function Row({ standing, onReact }: { standing: Standing; onReact: (toUserId: st
         </strong>
         <span className="fw-handle">{standing.handle ? `@${standing.handle}` : plural(standing.days, "day")}</span>
       </div>
-      <div className="fw-spark">{standing.inactive ? null : <Sparkline points={standing.spark} className="hidden shrink-0 sm:block" />}</div>
+      <div className="fw-spark">{standing.rank === 0 ? null : <Sparkline points={standing.spark} className="hidden shrink-0 sm:block" />}</div>
       <div className="fw-return">
-        {standing.inactive ? <span className="fw-inactive-tag">Inactive</span> : <Delta value={standing.percent} size="md" variant="plain" />}
+        {standing.inactive ? <span className="fw-inactive-tag">Inactive</span> : standing.rank === 0 ? <span className="fw-inactive-tag">Unranked</span> : <Delta value={standing.percent} size="md" variant="plain" />}
       </div>
 
       <div className="fw-standing-extras">

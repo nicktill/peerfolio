@@ -63,7 +63,8 @@ type LeagueData = {
     activeCount: number
   }
   standings: (Standing & { value: number })[]
-  you: { cash: number; value: number; percent: number; rank: number; positions: Position[]; orders: Order[] }
+  members: (Standing & { observer: boolean })[]
+  you: { cash: number; value: number; percent: number; rank: number; observer: boolean; positions: Position[]; orders: Order[] }
   feed: FeedItem[]
   /** Null for a league that never turned weekly rounds on: it looks and works exactly as before. */
   season: { mode: "trading" | "draft" } | null
@@ -166,10 +167,10 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
       </header>
 
       {data.season ? (
-        <LeagueTop leagueId={league.id} rank={you.rank} total={league.activeCount} moved={moved} percent={you.percent} value={you.value} cash={you.cash} startingCash={league.startingCash} />
+        <LeagueTop observer={you.observer} leagueId={league.id} rank={you.rank} total={league.activeCount} moved={moved} percent={you.percent} value={you.value} cash={you.cash} startingCash={league.startingCash} />
       ) : (
         <dl className="fw-panel fw-scoreboard reveal" style={revealStyle(1)}>
-          <RankStat rank={you.rank} total={league.activeCount} moved={moved} />
+          <RankStat observer={you.observer} rank={you.rank} total={league.activeCount} moved={moved} />
           <ReturnStat percent={you.percent} value={you.value} startingCash={league.startingCash} />
           <PortfolioStat value={you.value} cash={you.cash} />
           <CashStat cash={you.cash} value={you.value} />
@@ -178,7 +179,7 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
       )}
 
       {league.isOwner && !league.isClosed ? (
-        <EditLeagueDialog league={league} members={standings} open={editing} onClose={() => setEditing(false)} onSaved={refetch} />
+        <EditLeagueDialog league={league} members={data.members ?? standings} open={editing} onClose={() => setEditing(false)} onSaved={refetch} />
       ) : null}
 
       <div className="fw-grid">
@@ -193,7 +194,7 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
                 rich
                 explore
                 height={260}
-                series={standings.filter((s) => !s.inactive).map((s) => ({ id: s.userId, label: s.name?.split(" ")[0] ?? s.handle ?? "", initials: initialsFor(s.name, s.handle), points: s.spark, isYou: s.isYou }))}
+                series={standings.filter((s) => s.rank > 0).map((s) => ({ id: s.userId, label: s.name?.split(" ")[0] ?? s.handle ?? "", initials: initialsFor(s.name, s.handle), points: s.spark, isYou: s.isYou }))}
               />
             </div>
           </section>
@@ -203,6 +204,7 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
               <h2 id="fw-standings-title">Standings</h2>
               <p>Matching returns to 0.01% share a rank.</p>
             </div>
+            {you.observer ? <p className="fw-sub">You are an observer. Your trades still work, but you are excluded from competition and player counts.</p> : null}
             <StandingsTable standings={standings} onReact={react} />
           </section>
         </div>

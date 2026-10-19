@@ -361,3 +361,8 @@ export function isInactiveMember(
   if (member.inactive) return true
   return !hasBought && weekdaysElapsed(member.joinedAt, now) >= GRACE_MARKET_DAYS
 }
+
+/** A first purchase (including a pending buy) is required to enter the rankings. */
+export function isRankedMember(member: { inactive: boolean; observer?: boolean }, hasBought: boolean): boolean {
+  return hasBought && !member.inactive && !member.observer
+}
