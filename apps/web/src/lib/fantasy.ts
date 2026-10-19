@@ -14,6 +14,7 @@ import {
   securities,
   users,
 } from "@web/db"
+import { loadBuyers } from "@web/lib/fantasy-members"
 import { rankReturns } from "@web/lib/return-display"
 import { ApiError } from "@web/lib/api"
 import { generateInviteCode } from "@web/lib/crypto"
@@ -27,6 +28,7 @@ import {
   findLedgerMismatches,
   isClosed,
   isInactiveMember,
+  isRankedMember,
   portfolioValue,
   positionStats,
   raceSeries,
@@ -110,6 +112,12 @@ export async function setMemberInactive(userId: string, leagueId: string, target
   await db.update(fantasyMembers).set({ inactive }).where(eq(fantasyMembers.id, target.id))
 }
 
+/** Owner only: exclude a debug account from competition while preserving access. */
+export async function setMemberObserver(userId: string, leagueId: string, targetUserId: string, observer: boolean) {
+  const target = await requireOwnerTarget(userId, leagueId, targetUserId)
+  await db.update(fantasyMembers).set({ observer }).where(eq(fantasyMembers.id, target.id))
+}
+
 /** Owner only: take someone out of the league, with their picks and trades. They can rejoin from the invite link. */
 export async function removeFantasyMember(userId: string, leagueId: string, targetUserId: string) {
   const target = await requireOwnerTarget(userId, leagueId, targetUserId)
@@ -136,7 +144,7 @@ export async function joinFantasyLeague(userId: string, inviteCode: string) {
   const [{ count }] = (await db
     .select({ count: sql<number>`count(*)::int` })
     .from(fantasyMembers)
-    .where(eq(fantasyMembers.leagueId, league.id))) as [{ count: number }]
+    .where(and(eq(fantasyMembers.leagueId, league.id), eq(fantasyMembers.observer, false)))) as [{ count: number }]
   if (count >= league.memberLimit) throw new ApiError("This league is full", 409)
 
   await db
@@ -153,7 +161,7 @@ export async function previewFantasyLeague(inviteCode: string) {
   const [{ count }] = (await db
     .select({ count: sql<number>`count(*)::int` })
     .from(fantasyMembers)
-    .where(eq(fantasyMembers.leagueId, league.id))) as [{ count: number }]
+    .where(and(eq(fantasyMembers.leagueId, league.id), eq(fantasyMembers.observer, false)))) as [{ count: number }]
   const [season] = await db.select({ mode: fantasySeasons.mode, picks: fantasySeasons.picksPerRound }).from(fantasySeasons).where(eq(fantasySeasons.leagueId, league.id)).orderBy(desc(fantasySeasons.number)).limit(1)
   const playsAs = season?.mode === "draft" ? `Weekly draft: pick ${season.picks ?? 5} stocks before each round` : "Free trading with play money"
   return { id: league.id, name: league.name, emoji: league.emoji, startingCash: n(league.startingCash), endsAt: league.endsAt, memberCount: count, playsAs }
@@ -183,7 +191,7 @@ export async function listFantasyLeaguesForUser(userId: string) {
   const ids = rows.map((r) => r.league.id)
   // Everyone in these leagues, so your rank is worked out the same way the league page ranks.
   const everyone = await db
-    .select({ id: fantasyMembers.id, leagueId: fantasyMembers.leagueId, userId: fantasyMembers.userId, name: users.name, image: users.image, joinedAt: fantasyMembers.joinedAt, inactive: fantasyMembers.inactive })
+    .select({ id: fantasyMembers.id, leagueId: fantasyMembers.leagueId, userId: fantasyMembers.userId, name: users.name, image: users.image, joinedAt: fantasyMembers.joinedAt, inactive: fantasyMembers.inactive, observer: fantasyMembers.observer })
     .from(fantasyMembers)
     .innerJoin(users, eq(fantasyMembers.userId, users.id))
     .where(inArray(fantasyMembers.leagueId, ids))
@@ -195,7 +203,7 @@ export async function listFantasyLeaguesForUser(userId: string) {
     // Scored the same way as the league page, so a finished league shows its final return here too.
     const scored = (id: string) => returnPct(scoredValue(league.endsAt, lastSnapshots.get(id) ?? [], values.get(id) ?? startingCash), startingCash)
     const members = everyone.filter((m) => m.leagueId === league.id)
-    const sitsOut = (m: (typeof members)[number]) => isInactiveMember(m, buyers.has(m.id))
+    const sitsOut = (m: (typeof members)[number]) => !isRankedMember(m, buyers.has(m.id))
     const standings = rankReturns(members.filter((m) => !sitsOut(m)).map((m) => ({ id: m.id, percent: scored(m.id) })))
     const level = standings.length > 1 && standings.every((s) => s.rank === 1)
     const who = new Map(members.map((m) => [m.id, m]))
@@ -210,25 +218,12 @@ export async function listFantasyLeaguesForUser(userId: string) {
       accent: league.accent,
       endsAt: league.endsAt,
       isClosed: isClosed(league.endsAt),
-      memberCount: members.length || 1,
+      memberCount: members.filter((m) => !m.observer).length,
       yourReturn: scored(memberId),
       // Everyone level (a new league, all at 0.00%) has no ranking worth showing. Null too while you're sitting out.
       yourRank: standings.length > 1 && standings.every((s) => s.rank === 1) ? null : (standings.find((s) => s.id === memberId)?.rank ?? null),
     }
   })
-}
-
-/** Members who have bought something in their league, or have a buy waiting for the open. */
-async function loadBuyers(memberIds: string[]): Promise<Set<string>> {
-  if (memberIds.length === 0) return new Set()
-  const [trades, orders] = await Promise.all([
-    db.selectDistinct({ id: fantasyTrades.memberId }).from(fantasyTrades).where(and(inArray(fantasyTrades.memberId, memberIds), eq(fantasyTrades.side, "buy"))),
-    db
-      .selectDistinct({ id: fantasyOrders.memberId })
-      .from(fantasyOrders)
-      .where(and(inArray(fantasyOrders.memberId, memberIds), eq(fantasyOrders.side, "buy"), eq(fantasyOrders.status, "pending"))),
-  ])
-  return new Set([...trades, ...orders].map((r) => r.id))
 }
 
 type PositionRow = { memberId: string; securityId: string; ticker: string; name: string | null; shares: number; costBasis: number; price: number; priceAsOf: string | null }
@@ -614,10 +609,11 @@ export type FantasyStanding = {
   holdings: { ticker: string; name: string | null; weight: number }[]
   reactions: Record<string, number>
   isYou: boolean
-  /** Sitting out: not ranked (rank is 0), listed below everyone who is. */
+  /** Past the grace period without a pick, or marked inactive by the owner. */
   inactive: boolean
   /** The owner benched them, as opposed to never having bought. Cleared by their next buy, or by the owner. */
   benched: boolean
+  observer: boolean
   value: number
   cash: number
 }
@@ -635,7 +631,7 @@ export async function loadFantasyLeague(userId: string, leagueId: string, { refr
   }
 
   const members = await db
-    .select({ id: fantasyMembers.id, cash: fantasyMembers.cash, joinedAt: fantasyMembers.joinedAt, inactive: fantasyMembers.inactive, userId: users.id, name: users.name, handle: users.handle, image: users.image })
+    .select({ id: fantasyMembers.id, cash: fantasyMembers.cash, joinedAt: fantasyMembers.joinedAt, inactive: fantasyMembers.inactive, observer: fantasyMembers.observer, userId: users.id, name: users.name, handle: users.handle, image: users.image })
     .from(fantasyMembers)
     .innerJoin(users, eq(fantasyMembers.userId, users.id))
     .where(eq(fantasyMembers.leagueId, leagueId))
@@ -703,15 +699,17 @@ export async function loadFantasyLeague(userId: string, leagueId: string, { refr
         reactions: reactionsByMember.get(m.id) ?? {},
         isYou: m.userId === userId,
         inactive: isInactiveMember(m, buyers.has(m.id)),
+        ranked: isRankedMember(m, buyers.has(m.id)),
         benched: m.inactive,
+        observer: m.observer,
         value,
         cash,
       }
     })
   // Anyone sitting out goes below the table, unranked, whatever the market did to the rest.
   const standings: FantasyStanding[] = [
-    ...rankReturns(rows.filter((r) => !r.inactive)),
-    ...rows.filter((r) => r.inactive).sort((a, b) => (a.name ?? a.handle ?? "").localeCompare(b.name ?? b.handle ?? "")),
+    ...rankReturns(rows.filter((r) => r.ranked)),
+    ...rows.filter((r) => !r.ranked && !r.observer).sort((a, b) => Number(a.inactive) - Number(b.inactive) || (a.name ?? a.handle ?? "").localeCompare(b.name ?? b.handle ?? "")),
   ]
 
   const mine = (positionsBy.get(me.id) ?? []).map((p) => ({
@@ -723,7 +721,9 @@ export async function loadFantasyLeague(userId: string, leagueId: string, { refr
     ...positionStats(p, p.price),
   }))
 
-  const you = standings.find((s) => s.isYou)!
+  const you = rows.find((s) => s.isYou)!
+  // Ranking copies the rows; observers have no ranked copy.
+  you.rank = standings.find((s) => s.isYou)?.rank ?? 0
   // Cash set aside for queued buys shows as the pending pick, not as spendable cash. Value is unchanged.
   const reserved = reservedCash(orders.filter((o) => o.status === "pending"))
 
@@ -739,10 +739,11 @@ export async function loadFantasyLeague(userId: string, leagueId: string, { refr
       endsAt: league.endsAt,
       isClosed: isClosed(league.endsAt),
       isOwner: league.ownerId === userId,
-      activeCount: standings.filter((s) => !s.inactive).length,
+      activeCount: standings.filter((s) => s.rank > 0).length,
     },
     standings,
-    you: { cash: you.cash - reserved, value: you.value, percent: you.percent, rank: you.rank, positions: mine.sort((a, b) => b.value - a.value), orders },
+    members: league.ownerId === userId ? rows : [],
+    you: { cash: you.cash - reserved, value: you.value, percent: you.percent, rank: you.rank, observer: me.observer, positions: mine.sort((a, b) => b.value - a.value), orders },
     feed,
   }
 }
@@ -830,7 +831,7 @@ async function loadFeed(leagueId: string, limit = 30): Promise<FeedItem[]> {
     .innerJoin(fantasyMembers, eq(fantasyTrades.memberId, fantasyMembers.id))
     .innerJoin(users, eq(fantasyMembers.userId, users.id))
     .innerJoin(securities, eq(fantasyTrades.securityId, securities.id))
-    .where(eq(fantasyTrades.leagueId, leagueId))
+    .where(and(eq(fantasyTrades.leagueId, leagueId), eq(fantasyMembers.observer, false)))
     .orderBy(desc(fantasyTrades.createdAt))
     .limit(limit)
   return rows.map((r) => ({ ...r, ticker: r.ticker ?? "?", shares: n(r.shares), price: n(r.price), at: r.at.toISOString() }))

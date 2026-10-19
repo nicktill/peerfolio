@@ -510,3 +510,12 @@ export function cleanNote(text: unknown): string | null {
   if (!tidy) return null
   return tidy.slice(0, NOTE_MAX)
 }
+
+/** Rebuild competitive ranks and points without observer accounts. Stored history is retained. */
+export function competitiveRoundResults<T extends { roundNumber: number; userId: string; percent: number; floor?: number }>(
+  results: T[],
+): (T & { rank: number; points: number })[] {
+  const rounds = new Map<number, T[]>()
+  for (const row of results) rounds.set(row.roundNumber, [...(rounds.get(row.roundNumber) ?? []), row])
+  return [...rounds.values()].flatMap((rows) => rankRound(rows.map((row) => ({ ...row, key: row.userId }))))
+}

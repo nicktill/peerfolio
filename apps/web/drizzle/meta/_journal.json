@@ -302,6 +302,13 @@
       "when": 1792427293214,
       "tag": "0042_fantasy_member_inactive",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1792428955019,
+      "tag": "0043_fantasy_member_observer",
+      "breakpoints": true
     }
   ]
 }
