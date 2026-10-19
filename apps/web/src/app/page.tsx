@@ -3,7 +3,7 @@ import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 import { ArrowDown, EyeOff } from "lucide-react"
 import { TickerLogo } from "@web/components/ui/ticker-logo"
-import { TeamBadge } from "@web/components/sports/team-badge"
+import { teamLook } from "@web/lib/sports/teams"
 import { SiteFooter } from "@web/components/site-footer"
 import { ChatBubble } from "@web/components/landing/chat-bubble"
 import { HeroBackdrop } from "@web/components/landing/hero-backdrop"
@@ -106,8 +106,12 @@ export default async function HomePage() {
               <li data-mode="sports">
                 <button type="button" aria-describedby="pf-tip-sports">
                   <span className="pf-mode-logos" aria-hidden>
-                    <span><TeamBadge sport="nfl" name="Kansas City Chiefs" size={18} /></span>
-                    <span><TeamBadge sport="nba" name="Los Angeles Lakers" size={18} /></span>
+                    {([["nfl", "Kansas City Chiefs"], ["nba", "Los Angeles Lakers"]] as const).map(([sport, team]) => (
+                      <span key={team}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={teamLook(sport, team).logo ?? ""} alt="" width={18} height={18} loading="lazy" decoding="async" referrerPolicy="no-referrer" />
+                      </span>
+                    ))}
                   </span>
                   Sports picks
                 </button>
