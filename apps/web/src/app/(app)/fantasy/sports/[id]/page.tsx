@@ -212,6 +212,8 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
     // From the floating ticket, stay put and offer a link instead of jumping the page.
     if (floatOpen) setPlaced(true)
     await refetch()
+    // Let the ticket animation finish before the page scrolls away from it.
+    if (!floatOpen && !reduceMotion()) await new Promise((resolve) => window.setTimeout(resolve, 1300))
     if (!floatOpen) setRevealPicks(true)
   }
   function startManage(target: ManageTarget) {
@@ -416,7 +418,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
             {managedTarget ? <ManageSlip leagueId={league.id} target={managedTarget} balance={you.credits} limits={data.limits} onClear={() => setManaging(null)} onMinimize={() => setSheetMin(true)} onChanged={() => void refetch()} /> : null}
           </div>
           <div className="sp-slip-mode" hidden={parlay.mode !== "single" || !liveSelected}>
-            {liveSelected ? <LivePickSlip key={`${liveSelected.eventId}:${liveSelected.side}`} selection={liveSelected} leagueId={league.id} credits={you.credits} startingCredits={league.startingCredits} maxStakePct={league.maxStakePct ?? 10} demo={id === "sample"} busy={livePending} onBusyChange={setLivePending} onMinimize={() => setSheetMin(true)} onClear={() => { if (!livePending) setLiveSelected(null) }} onAcceptPrice={(price) => setLiveSelected((previous) => previous ? { ...previous, price } : null)} onPlaced={() => { setLiveSelected(null); void onPickPlaced() }} onDraft={onDraft} /> : null}
+            {liveSelected ? <LivePickSlip key={`${liveSelected.eventId}:${liveSelected.side}`} selection={liveSelected} leagueId={league.id} credits={you.credits} startingCredits={league.startingCredits} maxStakePct={league.maxStakePct ?? 10} demo={id === "sample"} busy={livePending} onBusyChange={setLivePending} onMinimize={() => setSheetMin(true)} onClear={() => { if (!livePending) setLiveSelected(null) }} onAcceptPrice={(price) => setLiveSelected((previous) => previous ? { ...previous, price } : null)} onLock={setLockFx} onPlaced={() => { setLiveSelected(null); void onPickPlaced() }} onDraft={onDraft} /> : null}
           </div>
           </div>
           </div>

@@ -43,6 +43,9 @@ export function PickLockEffect({ fx, onDone }: { fx: PickLockFx | null; onDone: 
   // Where "Your picks" is, so the ticket can land there (falls back to straight up).
   const target = useMemo(() => {
     if (!fx || typeof document === "undefined") return { x: 0, y: -160 }
+    // On a phone the slip is a bottom sheet that closes and the page re-flows as the pick lands, so "Your picks" is a moving target:
+    // the ticket rises toward the top of the screen instead, and the page scrolls to the picks once it has gone.
+    if (window.innerWidth <= 700) return { x: 0, y: -window.innerHeight * 0.34 }
     const dest = document.getElementById("sp-yours-title")?.getBoundingClientRect()
     if (!dest) return { x: 0, y: -160 }
     const cx = window.innerWidth / 2

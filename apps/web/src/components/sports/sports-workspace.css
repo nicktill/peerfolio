@@ -1211,3 +1211,8 @@
   .sp-live-card .sp-gchart-pill { height: 13px; min-width: 34px; padding: 0 5px; font-size: 10px; }
   .sp-live-card:has(.sp-gchart) .sp-last-play { min-height: 34px; display: flex; align-items: center; gap: 5px; padding-right: 270px; margin-top: 4px; }
 }
+/* Live pick check: a progress fill instead of a countdown. It races to about 70% over the minimum hold, then creeps toward the end of the window. */
+.sp-live-pick-go { position: relative; overflow: hidden; }
+.sp-hold-bar { position: absolute; inset: 0 auto 0 0; width: 0; background: color-mix(in srgb, currentColor 22%, transparent); animation: sp-hold var(--hold, 9s) cubic-bezier(.3, .6, .4, 1) forwards; pointer-events: none; }
+@keyframes sp-hold { 0% { width: 0; } 44% { width: 72%; } 100% { width: 96%; } }
+@media (prefers-reduced-motion: reduce) { .sp-hold-bar { animation: none; width: 55%; } }
