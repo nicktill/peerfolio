@@ -110,7 +110,7 @@ export function LivePickPanel({ leagueId, eventId, home, away, sport, credits, s
 
   const busy = phase === 'checking'
   const elapsedHold = LIVE_TEST.holdMaxMs / 1000 - left
-  const hold = repricing || needsReview
+  const hold = repricing
   const cap = max
   const quick = [10, Math.round(cap / 4), Math.round(cap / 2), cap]
   const problem = amount === 0 ? null : amount < 10 ? 'Minimum is $10' : amount > max ? (amount > credits ? 'Not enough cash' : `Maximum per live pick is ${formatCredits(max)}`) : null
@@ -142,10 +142,10 @@ export function LivePickPanel({ leagueId, eventId, home, away, sport, credits, s
       {amount > 0 && !problem && shownPrice != null ? <b key={shownPrice}>{formatCredits(toWin)}</b> : <span className="sp-slip-hint">Enter a stake</span>}
     </div>
     {message ? <p className="sp-slip-moved" role="alert">{message}</p> : null}
-    <button type="submit" className="fw-submit sp-live-pick-go" disabled={busy || hold || !side || !valid} aria-busy={busy || hold || undefined} data-updating={hold || undefined}>
+    <button type="submit" className="fw-submit sp-live-pick-go" disabled={busy || hold || needsReview || !side || !valid} aria-busy={busy || hold || undefined} data-updating={hold || undefined}>
       {busy ? <span className="sp-hold-bar" style={{ '--hold': `${LIVE_TEST.holdMaxMs}ms` } as React.CSSProperties} aria-hidden /> : null}
       {busy || hold ? <span className="spin" aria-hidden /> : null}
-      {busy ? (elapsedHold < 4 ? 'Checking the live score…' : 'Confirming the price…') : repricing ? 'Repricing…' : moved ? 'Odds updating…' : 'Lock in live pick'}
+      {busy ? (elapsedHold < 4 ? 'Checking the live score…' : 'Confirming the price…') : repricing ? 'Repricing…' : needsReview ? 'Review updated odds above' : 'Lock in live pick'}
     </button>
     <p className="sp-fine" role="status" aria-live="polite">{busy ? 'We re-check the score and price for a few seconds. Small odds changes are accepted automatically, up to 5% less total payout. Score changes or larger moves stop the pick without taking cash.' : repricing ? 'Waiting for a fresh score and price. Lock turns back on as soon as the market is steady.' : demo ? 'Sample game · play cash only. Prices move like a real game.' : 'Play money only, nothing real is at stake. Small odds changes may update your payout when the pick locks; larger changes need review.'}</p>
   </form>

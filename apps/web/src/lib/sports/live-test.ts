@@ -101,6 +101,6 @@ export async function acceptTest(input: { offer: TestOffer; selection: LiveSelec
   compareTestOffers(input.offer, after, input.selection)
   const acceptedPrice = after.prices[input.selection]!
   if (!acceptsLivePrice(input.expectedPrice, acceptedPrice)) return reject('The price moved too far. Review the updated odds and try again')
-  return { acceptedPrice, mode: 'ADMIN_PAPER_TEST'  as const, selection: input.selection, stake: input.stake, offeredPrice: input.expectedPrice, hypotheticalTotalReturn: totalReturn(input.stake, acceptedPrice), requestedAt: new Date(input.requestedAt).toISOString(), acceptedAt: new Date(acceptedAt).toISOString(), delayMs: acceptedAt - input.requestedAt, quoteAgeMs: acceptedAt - Date.parse(after.quoteAsOf), stateAgeMs: acceptedAt - Date.parse(after.stateAsOf), offered: input.offer, accepted: after }
+  return { acceptedPrice, mode: 'ADMIN_PAPER_TEST' as const, selection: input.selection, stake: input.stake, offeredPrice: input.expectedPrice, hypotheticalTotalReturn: totalReturn(input.stake, acceptedPrice), requestedAt: new Date(input.requestedAt).toISOString(), acceptedAt: new Date(acceptedAt).toISOString(), delayMs: acceptedAt - input.requestedAt, quoteAgeMs: acceptedAt - Date.parse(after.quoteAsOf), stateAgeMs: acceptedAt - Date.parse(after.stateAsOf), offered: input.offer, accepted: after }
 }
 export type TestReceipt = Awaited<ReturnType<typeof acceptTest>>
