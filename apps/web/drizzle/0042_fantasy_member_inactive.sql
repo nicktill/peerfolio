@@ -1,0 +1,1 @@
+ALTER TABLE "fantasy_members" ADD COLUMN "inactive" boolean DEFAULT false NOT NULL;

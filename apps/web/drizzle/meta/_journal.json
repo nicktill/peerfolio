@@ -295,6 +295,13 @@
       "when": 1792382141663,
       "tag": "0041_sports_parlay_limit",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1792427293214,
+      "tag": "0042_fantasy_member_inactive",
+      "breakpoints": true
     }
   ]
 }

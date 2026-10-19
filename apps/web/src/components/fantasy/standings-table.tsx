@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { Fragment, useState } from "react"
 import { ChevronDown, EyeOff } from "lucide-react"
 import { Avatar } from "@web/components/ui/avatar"
 import { Delta } from "@web/components/ui/delta"
@@ -27,8 +27,15 @@ export function StandingsTable({ standings, onReact }: { standings: Standing[]; 
         <span>Return</span>
       </div>
       <ul className="fw-rows">
-        {view.rows.map((s) => (
-          <Row key={s.userId} standing={s} onReact={onReact} />
+        {view.rows.map((s, i) => (
+          <Fragment key={s.userId}>
+            {s.inactive && !view.rows[i - 1]?.inactive ? (
+              <li className="fw-inactive-divider" aria-hidden>
+                Inactive · not ranked until they buy something
+              </li>
+            ) : null}
+            <Row standing={s} onReact={onReact} />
+          </Fragment>
         ))}
       </ul>
       {view.hidden > 0 || expanded ? (
@@ -46,8 +53,12 @@ function Row({ standing, onReact }: { standing: Standing; onReact: (toUserId: st
   const name = standing.isYou ? "You" : (standing.name ?? standing.handle ?? "Member")
 
   return (
-    <li className={`fw-standing ${standing.isYou ? "fw-you" : ""}`} data-medal={standing.rank <= 3 ? standing.rank : undefined}>
-      <span className="fw-avatar-slot" data-rank={standing.rank} aria-label={`Rank ${standing.rank}`}>
+    <li
+      className={`fw-standing ${standing.isYou ? "fw-you" : ""}`}
+      data-medal={!standing.inactive && standing.rank <= 3 ? standing.rank : undefined}
+      data-inactive={standing.inactive || undefined}
+    >
+      <span className="fw-avatar-slot" data-rank={standing.inactive ? undefined : standing.rank} aria-label={standing.inactive ? "Inactive" : `Rank ${standing.rank}`}>
         <Avatar src={standing.image} name={standing.name} handle={standing.handle} size="md" />
       </span>
       <div className="fw-standing-who">
@@ -57,11 +68,9 @@ function Row({ standing, onReact }: { standing: Standing; onReact: (toUserId: st
         </strong>
         <span className="fw-handle">{standing.handle ? `@${standing.handle}` : plural(standing.days, "day")}</span>
       </div>
-      <div className="fw-spark">
-        <Sparkline points={standing.spark} className="hidden shrink-0 sm:block" />
-      </div>
+      <div className="fw-spark">{standing.inactive ? null : <Sparkline points={standing.spark} className="hidden shrink-0 sm:block" />}</div>
       <div className="fw-return">
-        <Delta value={standing.percent} size="md" variant="plain" />
+        {standing.inactive ? <span className="fw-inactive-tag">Inactive</span> : <Delta value={standing.percent} size="md" variant="plain" />}
       </div>
 
       <div className="fw-standing-extras">

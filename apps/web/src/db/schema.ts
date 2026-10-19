@@ -583,6 +583,8 @@ export const fantasyMembers = pgTable(
     /** Uninvested play cash. Changed only inside a locked trade transaction. */
     cash: numeric("cash", { precision: 20, scale: 6 }).notNull(),
     joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
+    /** Set by the owner: sits below the table, greyed out, and isn't ranked. A member who never trades also becomes inactive by themselves, see `isInactiveMember`. */
+    inactive: boolean("inactive").notNull().default(false),
   },
   (t) => [
     uniqueIndex("fantasy_members_unique_idx").on(t.leagueId, t.userId),
