@@ -12,7 +12,7 @@ import { timeLeft } from "@web/components/fantasy/time-left"
 import { LivePickSlip, type LivePickSelection } from "@web/components/sports/live-pick-panel"
 import { SheetHandle } from "@web/components/sports/sheet-handle"
 import { ManageSlip, type ManageTarget } from "@web/components/sports/manage-slip"
-import { SlipPickCard } from "@web/components/sports/slip-pick-card"
+import { DRAW_COLOR, SlipPickCard } from "@web/components/sports/slip-pick-card"
 import { SlipEmpty } from "@web/components/sports/slip-empty"
 import { ScoreboardGames } from "@web/components/sports/scoreboard-games"
 import { mergeLiveScores, scoreboardMatch, type ScoreGame } from "@web/lib/sports/scoreboard"
@@ -610,7 +610,8 @@ function Slip({
   useEffect(() => { onDraft?.({ stake: selected ? amount : 0, toWin: selected && amount > 0 ? winnings : null }) }, [onDraft, selected, amount, winnings])
   const slipSide = selected ? sideTeam(selected.market.event, selected.market.kind, selected.line.selection) : null
   // Match the selected card, including alternate accents used to distinguish similar teams.
-  const slipColor = selected ? marketSelectionColor(selected.market.event, selected.market.kind, selected.line.selection) : null
+  const slipIsDraw = !!selected && selected.market.kind === "moneyline" && selected.line.selection === "draw"
+  const slipColor = selected ? (slipIsDraw ? DRAW_COLOR : marketSelectionColor(selected.market.event, selected.market.kind, selected.line.selection)) : null
   const problem =
     amount === 0 ? null : amount < limits.minStake ? `Minimum is ${credits(limits.minStake)}` : amount > limits.maxStake ? `Maximum per pick is ${credits(limits.maxStake)}` : amount > balance ? "Not enough cash" : null
 
@@ -654,7 +655,7 @@ function Slip({
         <SlipEmpty />
       ) : (
         <form onSubmit={submit}>
-          <SlipPickCard sport={selected.market.event.sport} side={slipSide} player={selected.market.kind === "player_prop" ? selected.market.player : null} kicker={marketTitle(selected.market)} title={pickSentence(selected.market, selected.line)} price={selected.line.price} game={`${eventTitle(selected.market.event)} · ${lockLabel(selected.market.lockAt)}`} color={slipColor} />
+          <SlipPickCard sport={selected.market.event.sport} side={slipSide} draw={slipIsDraw ? { away: selected.market.event.away, home: selected.market.event.home } : undefined} player={selected.market.kind === "player_prop" ? selected.market.player : null} kicker={marketTitle(selected.market)} title={pickSentence(selected.market, selected.line)} price={selected.line.price} game={`${eventTitle(selected.market.event)} · ${lockLabel(selected.market.lockAt)}`} color={slipColor} />
           <div>
             <label className="fw-label" htmlFor="sp-stake">
               Stake (play cash)
