@@ -23,7 +23,7 @@ export const board = unstable_cache(
       console.error("[news] market board failed:", error instanceof Error ? error.message : error)
       return null
     }),
-  ["news-market-board-v2"],
+  ["news-market-board-v3"],
   { revalidate: 300 },
 )
 
