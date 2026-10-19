@@ -140,20 +140,33 @@ async function alpacaBars(symbols: string[], timeframe: "1Day" | "15Min" | "5Min
   return out
 }
 
-type Snapshot = { dailyBar?: { t?: unknown; c?: unknown }; prevDailyBar?: { c?: unknown } }
+type Snapshot = {
+  latestTrade?: { t?: unknown; p?: unknown }
+  minuteBar?: { t?: unknown; c?: unknown }
+  dailyBar?: { t?: unknown; c?: unknown }
+  prevDailyBar?: { c?: unknown }
+}
 
-/**
- * A quote built from Alpaca's snapshot: the session's bar against the one
- * before it. The board's first choice, since one request covers every fund;
- * Finnhub fills in only the funds Alpaca doesn't answer.
- */
+/** Pair each snapshot price with its real provider timestamp, never the fetch time. */
 export function quoteFromSnapshot(snapshot: Snapshot | undefined): FinnhubQuote | null {
-  const c = snapshot?.dailyBar?.c
   const pc = snapshot?.prevDailyBar?.c
-  const t = typeof snapshot?.dailyBar?.t === "string" ? Date.parse(snapshot.dailyBar.t) : Number.NaN
-  if (typeof c !== "number" || typeof pc !== "number" || !(c > 0) || !(pc > 0) || !Number.isFinite(t)) return null
-  // Bars are stamped at the session's start; the quote is that session's latest price.
-  return { c, pc, d: round(c - pc), dp: round((c / pc - 1) * 100), t: t / 1000 + 12 * 3600 }
+  if (typeof pc !== "number" || !Number.isFinite(pc) || !(pc > 0)) return null
+  const candidates = [
+    { c: snapshot?.latestTrade?.p, t: snapshot?.latestTrade?.t },
+    { c: snapshot?.minuteBar?.c, t: snapshot?.minuteBar?.t },
+    { c: snapshot?.dailyBar?.c, t: snapshot?.dailyBar?.t },
+  ]
+  let latest: { c: number; t: number } | null = null
+  for (const candidate of candidates) {
+    const t = typeof candidate.t === "string" ? Date.parse(candidate.t) : NaN
+    const c = candidate.c
+    if (typeof c !== "number" || !Number.isFinite(c) || !(c > 0) || !Number.isFinite(t) || !(t > 0)) continue
+    if (!latest || t > latest.t) latest = { c, t }
+  }
+  if (!latest) return null
+  const { c, t } = latest
+  // A daily-only fallback retains its bar-start time, so it cannot appear live.
+  return { c, pc, d: round(c - pc), dp: round((c / pc - 1) * 100), t: t / 1000 }
 }
 
 async function alpacaSnapshots(symbols: string[], auth: { keyId: string; secret: string }, fetchImpl: Fetch) {
