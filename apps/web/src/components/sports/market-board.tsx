@@ -116,6 +116,11 @@ function CardC({ g }: { g: Game }) {
 
 function CardD({ g }: { g: Game }) {
   const [a, h] = matchupColors(g.sport, g.away, g.home)
+  const geo = useMemo(() => gameChart(series(g), g.homeProb, 36 * 120_000, 240, 52), [g])
+  const pill = (y: number, c: string, p: number) => <span className="mk-pill numeric" style={{ top: `${(Math.min(43, Math.max(9, y)) / 52) * 100}%`, background: c, color: onColor(c) }}>{pct(p)}</span>
+  let ay = geo?.awayEnd[1] ?? 0
+  let hy = geo?.homeEnd[1] ?? 0
+  if (Math.abs(ay - hy) < 20) { const m = (ay + hy) / 2; const up = ay < hy ? -1 : 1; ay = m + up * 10; hy = m - up * 10 }
   return (
     <Tint g={g} className="mk-card mk-c mk-d">
       <Head g={g} />
@@ -124,15 +129,17 @@ function CardD({ g }: { g: Game }) {
         <div className="mk-mid">{g.live ? <span className="numeric">{g.awayScore}<i>–</i>{g.homeScore}</span> : <span className="mk-at">at</span>}</div>
         <div><TeamBadge sport={g.sport} name={g.home} size={46} /><b>{short(g.home)}</b><small>{g.homeRec ?? " "}</small></div>
       </div>
-      <div className="mk-wp" aria-hidden><i style={{ width: pct(1 - g.homeProb), background: "var(--a)" }} /><i style={{ width: pct(g.homeProb), background: "var(--h)" }} /></div>
-      <div className="mk-pick">
-        {([["away", g.awayOdds, 1 - g.homeProb, a], ["home", g.homeOdds, g.homeProb, h]] as const).map(([k, odds, p, c]) => (
-          <button key={k} type="button" style={{ "--c": c, "--ink": onColor(c) } as React.CSSProperties} aria-label={`${short(k === "away" ? g.away : g.home)} ${formatOdds(odds)}, ${pct(p)} win chance`}>
-            <span className="numeric">{pct(p)}</span>
-            <em className="numeric">{formatOdds(odds)}</em>
-          </button>
-        ))}
-      </div>
+      {geo ? (
+        <div className="mk-trend" role="img" aria-label={`Win chance: ${short(g.away)} ${geo.awayPct} percent, ${short(g.home)} ${geo.homePct} percent`}>
+          <svg viewBox="0 0 240 52" preserveAspectRatio="none" aria-hidden>
+            <line x1={0} x2={240} y1={geo.midY} y2={geo.midY} stroke="currentColor" strokeDasharray="2 4" opacity={0.25} vectorEffect="non-scaling-stroke" />
+            <path d={geo.away} fill="none" stroke={a} strokeWidth={1.8} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+            <path d={geo.home} fill="none" stroke={h} strokeWidth={1.8} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+          </svg>
+          {pill(ay, a, geo.awayPct / 100)}
+          {pill(hy, h, geo.homePct / 100)}
+        </div>
+      ) : null}
     </Tint>
   )
 }
@@ -150,7 +157,7 @@ export function MarketBoardPreview() {
       <header className="mk-top">
         <div><h1>Sports market</h1><p>Live games, win chances and prices in one place. Sample data.</p></div>
         <div className="mk-seg" role="group" aria-label="Card layout">
-          {(["a", "b", "c", "d"] as const).map((k) => <button key={k} type="button" aria-pressed={v === k} onClick={() => setV(k)}>{k === "a" ? "A Rows" : k === "b" ? "B Odds" : k === "c" ? "C Matchup" : "D Matchup + odds"}</button>)}
+          {(["a", "b", "c", "d"] as const).map((k) => <button key={k} type="button" aria-pressed={v === k} onClick={() => setV(k)}>{k === "a" ? "A Rows" : k === "b" ? "B Odds" : k === "c" ? "C Matchup" : "D Matchup + chart"}</button>)}
         </div>
       </header>
       <div className="mk-filters">

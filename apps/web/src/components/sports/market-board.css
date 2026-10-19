@@ -60,3 +60,7 @@
 .mk-d .mk-wp { margin-bottom: 0; }
 @media (prefers-reduced-motion: reduce) { .mk-pick button { transition: none; } .mk-pick button:hover { transform: none; } }
 .mk-top .mk-seg { max-width: 100%; overflow-x: auto; scrollbar-width: none; } .mk-top .mk-seg button { white-space: nowrap; flex: none; }
+
+.mk-trend { position: relative; height: 52px; margin-top: 8px; padding-right: 44px; color: var(--fw-fg3); }
+.mk-trend svg { display: block; width: 100%; height: 52px; overflow: visible; }
+.mk-pill { position: absolute; right: 0; transform: translateY(-50%); display: grid; place-items: center; min-width: 38px; height: 18px; padding: 0 6px; border-radius: 999px; font: 700 11px/1 var(--fw-mono); }
