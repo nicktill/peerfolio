@@ -54,11 +54,10 @@ export function LeagueTop({ leagueId, rank, total, moved, percent, value, cash, 
           <div className="lt-hero">
             <div>
               <strong className="lt-rank">
-                {rank <= 3 ? <span className="fw-medal" data-rank={rank} aria-hidden><Medal /></span> : null}#{rank}
-                <small>of {total}</small>
+                {rank === 0 ? "Unranked" : <>{rank <= 3 ? <span className="fw-medal" data-rank={rank} aria-hidden><Medal /></span> : null}#{rank}<small>of {total}</small></>}
               </strong>
               <span className="lt-sub">
-                {moved !== null ? <b data-tone={moved > 0 ? "up" : "down"}>{moved > 0 ? "▲" : "▼"} {describeMovement(moved)}</b> : rank === 1 ? "Leading the league" : `${total - rank} ${total - rank === 1 ? "player" : "players"} behind you`}
+                {rank === 0 ? "Buy something to get back in the table" : moved !== null ? <b data-tone={moved > 0 ? "up" : "down"}>{moved > 0 ? "▲" : "▼"} {describeMovement(moved)}</b> : rank === 1 ? "Leading the league" : `${total - rank} ${total - rank === 1 ? "player" : "players"} behind you`}
               </span>
             </div>
             <div className="lt-ret">

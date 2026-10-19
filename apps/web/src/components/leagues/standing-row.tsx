@@ -28,6 +28,8 @@ export type Standing = {
   holdings: { ticker: string; name: string | null; weight: number }[]
   reactions: Record<string, number>
   isYou: boolean
+  /** Sitting out of a fantasy league: unranked and greyed out below everyone who's playing. */
+  inactive?: boolean
 }
 
 
