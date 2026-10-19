@@ -1,0 +1,16 @@
+name = "peerfolio-cron"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+workers_dev = false
+
+# One trigger every minute (UTC). src/schedule.ts decides which endpoints are due at that minute.
+[triggers]
+crons = ["* * * * *"]
+
+[vars]
+APP_URL = "https://www.peerfolio.org"
+SPORTS_CRON_ENABLED = "1"
+# Log-only until you are ready: set to "0" (or delete) and redeploy to start calling the app.
+DRY_RUN = "1"
+
+# CRON_SECRET is a secret, not a var:  npx wrangler secret put CRON_SECRET
