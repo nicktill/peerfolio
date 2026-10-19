@@ -1213,3 +1213,19 @@
 [data-game][data-focus] { animation: sp-focus 2.6s ease-out; border-radius: 16px; }
 @keyframes sp-focus { 0%, 55% { box-shadow: 0 0 0 2px var(--fw-accent), 0 0 24px -4px var(--fw-accent); } 100% { box-shadow: 0 0 0 2px transparent, 0 0 24px -4px transparent; } }
 @media (prefers-reduced-motion: reduce) { [data-game][data-focus] { animation: none; box-shadow: 0 0 0 2px var(--fw-accent); } }
+
+/* Draw pick: both teams side by side with an equals sign, and both faded behind the card, in a neutral gold. */
+.sp-slip-sport { overflow: hidden; }
+.sp-slip-sport .sp-league-brand { display: grid; place-items: center; }
+.sp-slip-sport .sp-league-mark img { width: 28px; height: 28px; }
+.sp-draw-mark { position: relative; display: inline-flex; align-items: center; flex: none; padding-right: 2px; }
+.sp-draw-mark > :first-child { margin-right: -8px; }
+.sp-draw-mark > :last-child { margin-left: -8px; }
+.sp-draw-mark > span, .sp-draw-mark > img { filter: drop-shadow(0 2px 6px rgb(0 0 0 / .35)); }
+.sp-draw-mark i { position: relative; z-index: 2; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--tc, #c4a15b); color: var(--tc-ink, #101418); font: 700 14px/1 var(--fw-mono); font-style: normal; box-shadow: 0 0 0 2.5px var(--fw-bg); }
+.sp-slip-top[data-draw] .sp-draw-wm-a { left: -22px; right: auto; top: -18px; transform: rotate(10deg); }
+.sp-slip-top[data-draw] .sp-draw-wm-b { right: 64px; left: auto; top: 6px; transform: rotate(-8deg); }
+.sp-slip-top[data-draw] strong { letter-spacing: .01em; }
+.sp-slip-pick .sp-draw-mark { display: inline-flex; align-items: center; margin-top: 0; width: auto; }
+.sp-slip-pick .sp-draw-mark > * { flex: none; }
+.sp-slip-pick .sp-draw-mark i { display: grid; margin-top: 0; }

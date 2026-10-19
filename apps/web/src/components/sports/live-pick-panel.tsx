@@ -11,6 +11,7 @@ import { matchupColors } from '@web/lib/sports/matchup-colors'
 import { useLiveGame } from './live-game'
 import { useToast } from '@web/components/ui/toast'
 import type { PickLockFx } from './pick-lock-effect'
+import { DRAW_COLOR, DrawMark, DrawWatermarks } from './slip-pick-card'
 import { ageView } from '@web/lib/sports/live/view'
 import { LIVE_TEST, testOffer, type TestOffer } from '@web/lib/sports/live-test'
 import { LIVE_PICK, liveMaxStake } from '@web/lib/sports/live-pick'
@@ -152,13 +153,14 @@ export function LivePickSlip({ selection, onClear, onMinimize, onAcceptPrice, on
   const busy = props.busy ?? false
   const name = selection.side === 'draw' ? 'Draw' : selection.side === 'home' ? selection.home : selection.away
   const colors = matchupColors(selection.sport, selection.away, selection.home)
-  const color = selection.side === 'home' ? colors[1] : selection.side === 'away' ? colors[0] : '#64748b'
+  const color = selection.side === 'home' ? colors[1] : selection.side === 'away' ? colors[0] : DRAW_COLOR
   return <section className="fw-panel fw-trade sp-slip sp-sheet sp-live-slip" data-open="" data-themed="" style={{ '--tc': color, '--tc-ink': onColor(color) } as React.CSSProperties} aria-labelledby="sp-live-slip-title" aria-busy={busy || undefined}>
     {onMinimize ? <SheetHandle onMinimize={onMinimize} disabled={busy} /> : null}
     <div className="fw-section-head"><h2 id="sp-live-slip-title">Pick slip</h2><button type="button" className="sp-clear" aria-label="Clear live pick slip" disabled={busy} onClick={onClear}><X aria-hidden />Clear</button></div>
     <div className="sp-slip-pick"><div className="sp-slip-top" data-accent={color}>
       {selection.side !== 'draw' && selection.sport !== 'tennis' ? <span className="sp-slip-watermark" aria-hidden><TeamBadge sport={selection.sport} name={name} size={144} /></span> : null}
-      {selection.side !== 'draw' ? <TeamBadge sport={selection.sport} name={name} size={48} /> : <span className="sp-slip-sport">Draw</span>}
+      {selection.side === 'draw' && selection.sport !== 'tennis' ? <DrawWatermarks sport={selection.sport} away={selection.away} home={selection.home} /> : null}
+      {selection.side !== 'draw' ? <TeamBadge sport={selection.sport} name={name} size={48} /> : <DrawMark sport={selection.sport} away={selection.away} home={selection.home} />}
       <div><small>Live · Winner</small><strong>{name}</strong></div>
       <span className="sp-slip-odds"><LiveNumber value={selection.price} format={formatOdds} kind="price" chip={false} /></span>
     </div><span className="sp-slip-game">{selection.away} @ {selection.home} · live price, re-checked before it locks</span></div>
