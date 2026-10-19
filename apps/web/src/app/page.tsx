@@ -97,7 +97,7 @@ export default async function HomePage() {
               <li data-mode="fantasy">
                 <button type="button" aria-describedby="pf-tip-fantasy">
                   <span className="pf-mode-logos" aria-hidden>
-                    {["AAPL", "NVDA"].map((t) => <TickerLogo key={t} symbol={t} size="xs" className="!size-[18px] !text-[6px]" />)}
+                    {["TSLA", "MSFT"].map((t) => <TickerLogo key={t} symbol={t} size="xs" className="!size-[18px] !text-[6px]" />)}
                   </span>
                   Fantasy stocks
                 </button>
