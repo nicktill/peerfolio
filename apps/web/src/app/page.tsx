@@ -79,29 +79,39 @@ export default async function HomePage() {
                 See how it works <ArrowDown className="size-4" aria-hidden />
               </a>
             </div>
-            <ul style={revealStyle(3)} className="reveal pf-modes mx-auto mt-6" aria-label="Ways to play">
+            <ul style={revealStyle(3)} className="reveal pf-modes" aria-label="Ways to play">
               <li data-mode="real">
-                <span className="pf-mode-logos" aria-hidden>
-                  {["AAPL", "NVDA", "VTI"].map((t) => <TickerLogo key={t} symbol={t} size="xs" className="!size-[26px] !text-[8px]" />)}
-                </span>
-                <b>Real portfolios</b>
-                <small>Link a brokerage or add positions</small>
+                <button type="button" aria-describedby="pf-tip-real">
+                  <span className="pf-mode-logos" aria-hidden>
+                    {["robinhood", "fidelity"].map((b) => (
+                      <span key={b}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={`/landing/brokerages/${b}.png`} alt="" width={18} height={18} decoding="async" />
+                      </span>
+                    ))}
+                  </span>
+                  Real portfolios
+                </button>
+                <span id="pf-tip-real" role="tooltip" className="pf-mode-tip">Link a brokerage or add positions by hand</span>
               </li>
               <li data-mode="fantasy">
-                <span className="pf-mode-logos" aria-hidden>
-                  {["TSLA", "AMZN", "MSFT"].map((t) => <TickerLogo key={t} symbol={t} size="xs" className="!size-[26px] !text-[8px]" />)}
-                </span>
-                <b>Fantasy stocks</b>
-                <small>Play-money picks, real prices</small>
+                <button type="button" aria-describedby="pf-tip-fantasy">
+                  <span className="pf-mode-logos" aria-hidden>
+                    {["TSLA", "MSFT"].map((t) => <TickerLogo key={t} symbol={t} size="xs" className="!size-[18px] !text-[6px]" />)}
+                  </span>
+                  Fantasy stocks
+                </button>
+                <span id="pf-tip-fantasy" role="tooltip" className="pf-mode-tip">Play-money picks at real prices</span>
               </li>
               <li data-mode="sports">
-                <span className="pf-mode-logos" aria-hidden>
-                  <span><TeamBadge sport="nfl" name="Kansas City Chiefs" size={26} /></span>
-                  <span><TeamBadge sport="nba" name="Los Angeles Lakers" size={26} /></span>
-                  <span><TeamBadge sport="mlb" name="Los Angeles Dodgers" size={26} /></span>
-                </span>
-                <b>Sports picks</b>
-                <small>Live games, spreads and props</small>
+                <button type="button" aria-describedby="pf-tip-sports">
+                  <span className="pf-mode-logos" aria-hidden>
+                    <span><TeamBadge sport="nfl" name="Kansas City Chiefs" size={18} /></span>
+                    <span><TeamBadge sport="nba" name="Los Angeles Lakers" size={18} /></span>
+                  </span>
+                  Sports picks
+                </button>
+                <span id="pf-tip-sports" role="tooltip" className="pf-mode-tip">Live games, spreads and props</span>
               </li>
             </ul>
             <p style={revealStyle(3)} className="reveal pf-muted mt-3 text-xs">Free. Join friends in a league, or play on your own.</p>
