@@ -112,3 +112,17 @@ test('two-way odds normalise; pre-game close prices, missing, insane or non-live
  assert.equal(normalizeGames(board({ ...competition('pre'), ...two }),'nba',at)[0]?.homeWinProb, undefined)
  assert.equal(normalizeGames(board({ ...competition('in'), ...two }),'mls',at)[0]?.homeWinProb, undefined)
 })
+
+test("pregameWinProbs reads the latest pregame moneyline, removes the vig, and rejects nonsense", async () => {
+  const { pregameWinProbs } = await import("./scoreboard.ts")
+  const good = { odds: [{ moneyline: { home: { close: { odds: "-185" }, open: { odds: "-160" } }, away: { close: { odds: "+155" }, open: { odds: "+135" } } } }] }
+  const p = pregameWinProbs(good, false)!
+  assert.ok(p.home > 0.6 && p.home < 0.7, `home ${p.home}`)
+  assert.ok(Math.abs(p.home + p.away - 1) < 1e-9)
+  // current beats close when present
+  const moved = { odds: [{ moneyline: { home: { current: { odds: "+100" }, close: { odds: "-185" } }, away: { current: { odds: "-120" }, close: { odds: "+155" } } } }] }
+  assert.ok(pregameWinProbs(moved, false)!.home < 0.5)
+  assert.equal(pregameWinProbs({ odds: [{ moneyline: { home: { close: { odds: "-110" } } } }] }, false), null)
+  assert.equal(pregameWinProbs({ odds: [{ moneyline: { home: { close: { odds: "-900" } }, away: { close: { odds: "-900" } } } }] }, false), null)
+  assert.equal(pregameWinProbs({}, false), null)
+})

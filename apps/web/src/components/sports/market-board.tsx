@@ -52,7 +52,7 @@ function MarketCard({ g, tracked, split: pregame, href, now }: { g: ScoreGame; t
   const exchange = live && view?.odds.status === "ok" ? view.odds : null
   const split = exchange && exchange.drawProb == null ? splitPct(exchange.homeProb)
     : live && fresh && g.probSource === "espn" && g.homeWinProb != null && g.drawProb == null ? splitPct(g.homeWinProb)
-    : !live ? pregame : null
+    : !live ? pregame ?? (g.pregameHome != null && g.pregameDraw == null ? splitPct(g.pregameHome) : null) : null
   const status = mergeLiveState(statusInputFromGame(g), view)
   const body = (
     <>
