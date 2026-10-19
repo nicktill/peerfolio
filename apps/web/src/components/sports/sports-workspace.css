@@ -1208,3 +1208,8 @@
 .sp-slip-pick .pl-stack { display: inline-flex; margin-top: 0; }
 .sp-slip-pick .pl-stack-disc { display: grid; margin-top: 0; font-size: 11px; }
 .sp-slip-pick .pl-stack-disc:not(:first-child) { margin-left: -13px; }
+
+/* A game opened from the sports market flashes its card once. */
+[data-game][data-focus] { animation: sp-focus 2.6s ease-out; border-radius: 16px; }
+@keyframes sp-focus { 0%, 55% { box-shadow: 0 0 0 2px var(--fw-accent), 0 0 24px -4px var(--fw-accent); } 100% { box-shadow: 0 0 0 2px transparent, 0 0 24px -4px transparent; } }
+@media (prefers-reduced-motion: reduce) { [data-game][data-focus] { animation: none; box-shadow: 0 0 0 2px var(--fw-accent); } }

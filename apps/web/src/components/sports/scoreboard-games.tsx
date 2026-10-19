@@ -87,7 +87,7 @@ function LiveCard({ g, now, tracked, enableAdminTest, livePick }: { g: ScoreGame
   const reserveOdds = !!tracked && !!livePick?.liveBetting
   const selectable = reserveOdds && livePick?.mode !== 'parlay'
 
-  return <article className="sp-game sp-live-card" data-matchup style={{ '--away-color': colors[0], '--home-color': colors[1] } as React.CSSProperties}>
+  return <article className="sp-game sp-live-card" data-game={`${g.sport}:${g.id}`} data-matchup style={{ '--away-color': colors[0], '--home-color': colors[1] } as React.CSSProperties}>
     <CardHead g={g} chip={<GameStatusChip input={statusInput} now={now} />} live={g.status === 'live' ? { fresh, updated } : undefined} />
     {!split && tracked ? <div className="sp-odds-bar" data-empty aria-hidden><div className="sp-odds-track" /><div className="sp-odds-labels"><span>&nbsp;</span></div></div> : null}
     {split ? <div className="sp-odds-bar" role="img" aria-label={`Win probability: ${g.away} ${split.away} percent, ${split.draw != null ? `draw ${split.draw} percent, ` : ''}${g.home} ${split.home} percent`}>
@@ -125,7 +125,7 @@ export function ScoreboardGames({ games, tracked, now, loading, failed, enableAd
   if (!live.length && !upcoming.length) return <p className="fw-empty" role="status">{failed ? 'Live scores are temporarily unavailable. Please try again shortly.' : 'No games scheduled in the next few days for this sport.'}</p>
   const card = (g: ScoreGame, isLive: boolean) => isLive
     ? <LiveCard key={`${g.sport}:${g.id}`} g={g} now={now} tracked={tracked.find(t => scoreboardMatch(t, [g]))} enableAdminTest={enableAdminTest} livePick={livePick} />
-    : <div key={`${g.sport}:${g.id}`}>{renderUpcoming?.(g) ?? <article className="sp-game sp-live-card">
+    : <div key={`${g.sport}:${g.id}`} data-game={`${g.sport}:${g.id}`}>{renderUpcoming?.(g) ?? <article className="sp-game sp-live-card">
       <CardHead g={g} chip={<span>{when(g.startsAt)}</span>} />
       <TeamRows g={g} showScore={false} />
       <p className="sp-fine">Pregame lines are not available for this game yet.</p>
