@@ -1,5 +1,7 @@
 "use client"
 
+import "@web/components/fantasy/fantasy-workspace.css"
+import "./sports-workspace.css"
 import "./market-board.css"
 import { useMemo, useState } from "react"
 import { TeamBadge } from "@web/components/sports/team-badge"
@@ -121,7 +123,7 @@ export function MarketBoardPreview() {
   const games = G.filter((g) => (sport === "all" || g.sport === sport) && g.live === (view === "live"))
   const Card = v === "a" ? CardA : v === "b" ? CardB : CardC
   return (
-    <section className="mk" aria-label="Sports market">
+    <section className="fw mk" aria-label="Sports market">
       <header className="mk-top">
         <div><h1>Sports market</h1><p>Live games, win chances and prices in one place. Sample data.</p></div>
         <div className="mk-seg" role="group" aria-label="Card layout">
