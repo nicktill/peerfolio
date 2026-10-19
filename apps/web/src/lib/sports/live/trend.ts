@@ -176,3 +176,24 @@ export function gameChart(series: Sample[], live: number | null | undefined, now
     span,
   }
 }
+
+export type HistoryBand = { away: string; line: string; awayPct: number; homePct: number }
+
+/**
+ * The win-chance bar drawn as history: one stacked band whose top (away) and bottom (home) shares follow the market over
+ * real time and end at today's split. `away` is the closed polygon for the away share (everything above the step line);
+ * the home share is whatever lies below it. `series` is the home chance (0..1); `live` is appended as the newest point.
+ */
+export function historyBand(series: Sample[], live: number | null | undefined, nowMs: number, w = 300, h = 16): HistoryBand | null {
+  const pts = series.filter((x) => Number.isFinite(x.t) && Number.isFinite(x.v)).map((x) => ({ t: x.t, v: clamp01(x.v) }))
+  if (live != null && Number.isFinite(live)) pts.push({ t: Math.max(nowMs, pts.length ? pts[pts.length - 1]!.t : nowMs), v: clamp01(live) })
+  if (pts.length < MIN_TREND_POINTS) return null
+  const t0 = pts[0]!.t
+  const span = Math.max(1, pts[pts.length - 1]!.t - t0)
+  const x = (t: number) => ((t - t0) / span) * w
+  const y = (home: number) => (1 - home) * h
+  const line = pts.map((p, i) => (i === 0 ? `M${x(p.t).toFixed(1)} ${y(p.v).toFixed(1)}` : `H${x(p.t).toFixed(1)}V${y(p.v).toFixed(1)}`)).join("")
+  const last = pts[pts.length - 1]!
+  const homePct = Math.round(last.v * 100)
+  return { line, away: `${line}H${w}V0H0Z`, awayPct: 100 - homePct, homePct }
+}
