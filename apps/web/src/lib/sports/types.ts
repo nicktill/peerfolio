@@ -5,8 +5,19 @@
  * Credits are virtual and always whole integers. Odds are American integers.
  */
 
-export type Sport = "nfl" | "nba" | "tennis" | "nhl" | "mlb" | "cfb" | "mls"
-export const SPORTS: readonly Sport[] = ["nfl", "nba", "tennis", "nhl", "mlb", "cfb", "mls"]
+export type Sport = "nfl" | "nba" | "tennis" | "nhl" | "mlb" | "cfb" | "mls" | "epl" | "laliga" | "ucl" | "wnba" | "ncaab"
+export const SPORTS: readonly Sport[] = ["nfl", "nba", "tennis", "nhl", "mlb", "cfb", "mls", "epl", "laliga", "ucl", "wnba", "ncaab"]
+
+/** Soccer leagues: three-way moneyline (home / draw / away), 90-minute results, draws possible. */
+export const SOCCER_SPORTS: readonly Sport[] = ["mls", "epl", "laliga", "ucl"]
+export const isSoccer = (sport: string | undefined): boolean => sport !== undefined && (SOCCER_SPORTS as readonly string[]).includes(sport)
+
+/**
+ * ESPN scoreboard `groups` filter per sport. Men's college basketball lists only a handful of featured games unless it is asked
+ * for division I (group 50), so every ESPN scoreboard request for it carries `&groups=50`.
+ */
+const ESPN_GROUPS: Record<string, string> = { ncaab: "50" }
+export const espnGroupsQuery = (sport: string | undefined): string => (sport && ESPN_GROUPS[sport] ? `&groups=${ESPN_GROUPS[sport]}` : "")
 
 export type MarketKind = "moneyline" | "spread" | "total" | "player_prop"
 
@@ -14,7 +25,7 @@ export type MarketKind = "moneyline" | "spread" | "total" | "player_prop"
 export type Selection = "home" | "away" | "over" | "under" | "draw"
 
 /** Whether a market is three-way (home / draw / away). Soccer's moneyline only; spreads and totals are two-way everywhere. */
-export const hasDraw = (sport: string | undefined, kind: string): boolean => sport === "mls" && kind === "moneyline"
+export const hasDraw = (sport: string | undefined, kind: string): boolean => isSoccer(sport) && kind === "moneyline"
 
 /* ---- provider odds (what a vendor reports) ---- */
 

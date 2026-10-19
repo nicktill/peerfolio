@@ -1,4 +1,4 @@
-// Regenerates src/lib/sports/teams-data.ts (NHL, MLB, FBS college football, MLS identity tables) from ESPN's public
+// Regenerates src/lib/sports/teams-data.ts (NHL, MLB, FBS college football, MLS, Premier League, La Liga, Champions League, WNBA and men's college basketball identity tables) from ESPN's public
 // site API. One-off, run by hand when a league adds/renames a team:  node scripts/generate-team-tables.mjs
 // Each row is [displayName, abbr, color, altColor, logoKey, shortName]. logoKey is the file stem of ESPN's default
 // logo URL (lowercase abbr for NHL/MLB, numeric id for CFB/MLS); the dark variant lives under the sibling 500-dark path.
@@ -10,6 +10,12 @@ const LEAGUES = [
   { key: "mlb", path: "baseball/mlb" },
   { key: "cfb", path: "football/college-football", fbs: true },
   { key: "mls", path: "soccer/usa.1" },
+  { key: "epl", path: "soccer/eng.1" },
+  { key: "laliga", path: "soccer/esp.1" },
+  // The clubs ESPN lists for the current league phase (clubs from many countries).
+  { key: "ucl", path: "soccer/uefa.champions" },
+  { key: "wnba", path: "basketball/wnba" },
+  { key: "ncaab", path: "basketball/mens-college-basketball" },
 ]
 
 const getJson = async (url) => (await fetch(url)).json()

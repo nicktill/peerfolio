@@ -62,6 +62,24 @@ const ALIAS: Record<string, string> = {
   rsl: "real salt lake",
   "chicago ws": "chicago white sox",
   "utah hc": "utah mammoth",
+  // Premier League, La Liga and Champions League clubs: the long legal names Polymarket uses and the short or transliterated
+  // names Kalshi uses, mapped to ESPN's display name (after normalisation: accents stripped, "fc"/"de"/"la" dropped).
+  psg: "paris saint germain",
+  inter: "internazionale",
+  "inter milan": "internazionale",
+  "bayern munchen": "bayern munich",
+  "bv borussia 09 dortmund": "borussia dortmund",
+  "sk slavia praha": "slavia prague",
+  "sabah masazir": "sabah fk",
+  "fk bod glimt": "bodo glimt",
+  "bodoe glimt": "bodo glimt",
+  "athletic bilbao": "athletic club",
+  bilbao: "athletic club",
+  "rcd espanyol barcelona": "espanyol",
+  "deportivo alaves": "alaves",
+  "rc deportivo a coruna": "deportivo",
+  "deportivo coruna": "deportivo",
+  "real racing club": "racing santander",
   // College football: Polymarket writes "Miami (FL)"; matched against ESPN's school name "Miami" (see planGames).
   "miami fl": "miami",
 }

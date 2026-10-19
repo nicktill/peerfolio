@@ -66,6 +66,11 @@ export const SPORT_KINDS: Record<Sport, readonly MarketKind[]> = {
   cfb: ["moneyline", "spread", "total"],
   // Soccer moneyline is three-way (home / draw / away): see draftMarket.
   mls: ["moneyline", "spread", "total"],
+  epl: ["moneyline", "spread", "total"],
+  laliga: ["moneyline", "spread", "total"],
+  ucl: ["moneyline", "spread", "total"],
+  wnba: ["moneyline", "spread", "total"],
+  ncaab: ["moneyline", "spread", "total"],
 }
 
 export const kindsFor = (sport: Sport, cfg: PublishConfig): readonly MarketKind[] =>

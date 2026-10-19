@@ -7,6 +7,7 @@
  * only while the update is fresh. Past STALE_AFTER_MS we drop the clock and show the period only, or "Delayed".
  */
 import type { TennisSet } from './scoreboard.ts'
+import { isSoccer } from './types.ts'
 
 export const DIM_AFTER_MS = 30_000
 export const TICK_WITHIN_MS = 45_000
@@ -43,6 +44,7 @@ const ORD_WORD = ['', 'first', 'second', 'third', 'fourth', 'fifth', 'sixth', 's
 const PERIOD_SPORTS: Record<string, { regulation: number; prefix: string; noun: string }> = {
   nfl: { regulation: 4, prefix: 'Q', noun: 'quarter' }, cfb: { regulation: 4, prefix: 'Q', noun: 'quarter' },
   nba: { regulation: 4, prefix: 'Q', noun: 'quarter' }, nhl: { regulation: 3, prefix: 'P', noun: 'period' },
+  wnba: { regulation: 4, prefix: 'Q', noun: 'quarter' }, ncaab: { regulation: 2, prefix: 'H', noun: 'half' },
 }
 
 /** A clock string only if it looks like one ("7:59", "0:03", "45.2"); anything else is dropped, never shown. */
@@ -109,7 +111,7 @@ export function formatGameStatus(g: StatusInput, now: number, tz?: string): Game
   }
 
   // In progress from here.
-  const tennis = g.sport === 'tennis', soccer = g.sport === 'mls', mlb = g.sport === 'mlb'
+  const tennis = g.sport === 'tennis', soccer = isSoccer(g.sport), mlb = g.sport === 'mlb'
   const sets = tennis ? setScores(g.homeSets, g.awaySets) : undefined
   const period = PERIOD_SPORTS[g.sport] ? periodText(g.sport, g.period ?? 0) : null
   const inning = mlb ? baseball(g.detail) : null

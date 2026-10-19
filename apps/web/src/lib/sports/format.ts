@@ -31,7 +31,7 @@ const STAT_LABELS: Record<string, string> = {
 
 export const statLabel = (key: string | null): string => (key ? (STAT_LABELS[key] ?? key.replace(/^player_/, "").replace(/_/g, " ")) : "")
 
-export const SPORT_LABEL: Record<string, string> = { nfl: "NFL", nba: "NBA", tennis: "Tennis", nhl: "NHL", mlb: "MLB", cfb: "College football", mls: "MLS" }
+export const SPORT_LABEL: Record<string, string> = { nfl: "NFL", nba: "NBA", tennis: "Tennis", nhl: "NHL", mlb: "MLB", cfb: "College football", mls: "MLS", epl: "Premier League", laliga: "La Liga", ucl: "Champions League", wnba: "WNBA", ncaab: "College basketball" }
 
 export type DisplayEvent = { sport?: string; home: string; away: string }
 export type DisplayMarket = {
@@ -70,7 +70,7 @@ export function pickSentence(market: DisplayMarket, line: DisplayLine): string {
   return `${l.name} ${l.point}`.trim()
 }
 
-const TOTAL_TITLE: Record<string, string> = { tennis: "Total games", nhl: "Total goals", mls: "Total goals", mlb: "Total runs" }
+const TOTAL_TITLE: Record<string, string> = { tennis: "Total games", nhl: "Total goals", mls: "Total goals", epl: "Total goals", laliga: "Total goals", ucl: "Total goals", mlb: "Total runs" }
 
 export function marketTitle(market: DisplayMarket): string {
   switch (market.kind) {

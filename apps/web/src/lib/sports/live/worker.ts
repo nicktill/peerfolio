@@ -3,7 +3,7 @@ import { cycleFailed } from "./health.ts"
 import { clip, type Fields, type Level } from "../log.ts"
 import { explainNoMatch, matchGame } from "./match.ts"
 import { bookClock, quoteKey, shouldWrite, type BookClock, type LastWrite, type QuoteKey, type SlateEvent } from "./plan.ts"
-import { hasDraw, type Sport } from "../types.ts"
+import { espnGroupsQuery, hasDraw, type Sport } from "../types.ts"
 import { normalizeQuote, pairProbability, pairProbability3 } from "./quote.ts"
 import { chooseLiveOdds } from "./reconcile.ts"
 import {
@@ -300,7 +300,7 @@ export async function runTick(deps: WorkerDeps, st: WorkerState, now: Date): Pro
   const needEspn = slate.filter((e) => ESPN_PATH[e.sport] && (!states.has(e.id) || !(rawByEvent.get(e.id) ?? []).some((r) => r.bid != null && r.ask != null)))
   for (const sport of [...new Set(needEspn.map((e) => e.sport))]) {
     const board = await slow<EspnGame[]>(st, `espn:${sport}`, now, async () => {
-      const res = await guarded(deps, st, now, "espn", () => deps.getJson(`${ESPN}/${ESPN_PATH[sport]}/scoreboard`))
+      const res = await guarded(deps, st, now, "espn", () => deps.getJson(`${ESPN}/${ESPN_PATH[sport]}/scoreboard${espnGroupsQuery(sport) ? `?limit=300${espnGroupsQuery(sport)}` : ""}`))
       return res ? parseEspnScoreboard(res) : null
     })
     if (!board) continue

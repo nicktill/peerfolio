@@ -6,6 +6,7 @@ import { db, withSportsUser } from "@web/lib/sports/api"
 import { createSportsLeague, listSportsLeagues, takeRateLimit } from "@web/lib/sports/store"
 import { isSportEnabled, pausedMessage } from "@web/lib/sports/enabled"
 import { SPORTS } from "@web/lib/sports/types"
+import { activeSports } from "@web/lib/sports/flag"
 
 const CreateSportsLeague = z.object({
   name: z.string().trim().min(2, "Name is too short").max(40, "Name is too long"),
@@ -26,6 +27,9 @@ export const POST = withSportsUser<unknown>(async (userId, request) => {
   if (!parsed.success) throw new ApiError(parsed.error.issues[0]?.message ?? "Invalid league")
   const paused = parsed.data.sports.find((s) => !isSportEnabled(s))
   if (paused) throw new ApiError(pausedMessage(paused), 409)
+  // A sport behind a flag that is off (men's college basketball outside its season) cannot be chosen yet.
+  const offered = new Set<string>(activeSports())
+  if (parsed.data.sports.some((s) => !offered.has(s))) throw new ApiError("That sport is not available yet")
   const endsAt = parsed.data.endsAt ? new Date(parsed.data.endsAt) : null
   if (endsAt && endsAt.getTime() < Date.now() + 60 * 60 * 1000) throw new ApiError("Pick an end date at least an hour away")
   const league = await createSportsLeague(db, userId, {

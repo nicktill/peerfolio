@@ -46,7 +46,7 @@ export const parlayStatRows = (parlays: ParlayRow[] = []): PickRow[] =>
 export type Standing = { name: string; credits: number; isYou: boolean; image?: string | null; record?: { won: number; lost: number } }
 
 /** The big US leagues get a logo in the header; others stay out of it. */
-const MAIN_LEAGUES = ["nfl", "nba", "nhl", "mlb", "mls"]
+const MAIN_LEAGUES = ["nfl", "nba", "nhl", "mlb", "mls", "epl", "laliga", "ucl", "wnba", "ncaab"]
 const credits = formatCredits
 const signed = signedCredits
 const hue = (name: string) => [...name].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7)

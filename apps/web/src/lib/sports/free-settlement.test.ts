@@ -64,13 +64,13 @@ describe("per-sport quorum", () => {
   it("two free families for NHL and MLB, one (ESPN) for the rest", () => {
     assert.equal(cfgFor("nhl").minSources, 2)
     assert.equal(cfgFor("mlb").minSources, 2)
-    for (const s of ["nfl", "nba", "cfb", "mls", "tennis"] as const) assert.equal(cfgFor(s).minSources, 1, s)
+    for (const s of ["nfl", "nba", "cfb", "mls", "epl", "laliga", "ucl", "wnba", "ncaab", "tennis"] as const) assert.equal(cfgFor(s).minSources, 1, s)
     assert.deepEqual(Object.keys(FREE_RESULT_FAMILIES).sort(), [...SPORTS].sort())
     assert.equal(familiesFor(providers, "nhl"), 2)
     assert.equal(familiesFor(providers, "nfl"), 1)
   })
   it("single-source sports get at least the stricter settle delay", () => {
-    for (const s of ["nfl", "nba", "cfb", "mls", "tennis"] as const) assert.ok(cfgFor(s).settleDelayMs >= SINGLE_SOURCE_SETTLE_DELAY_MS, s)
+    for (const s of ["nfl", "nba", "cfb", "mls", "epl", "laliga", "ucl", "wnba", "ncaab", "tennis"] as const) assert.ok(cfgFor(s).settleDelayMs >= SINGLE_SOURCE_SETTLE_DELAY_MS, s)
     assert.equal(resolveConfigForSport({ ...DEFAULT_RESOLVE, settleDelayMs: 0 }, "nba", 1).settleDelayMs, SINGLE_SOURCE_SETTLE_DELAY_MS)
   })
   it("never asks for more families than are switched on: NHL with its own feed off falls back to the single-source net", () => {
@@ -82,7 +82,7 @@ describe("per-sport quorum", () => {
   it("SPORTS_MIN_RESULT_SOURCES still overrides every sport", () => {
     process.env.SPORTS_MIN_RESULT_SOURCES = "2"
     assert.equal(resolveConfigFor(providers)("nba").minSources, 2)
-    assert.deepEqual(sportsWithoutQuorum(providers, SPORTS).sort(), ["nba", "nfl", "cfb", "mls", "tennis"].sort(), "ESPN-only sports cannot meet an override of 2")
+    assert.deepEqual(sportsWithoutQuorum(providers, SPORTS).sort(), ["nba", "nfl", "cfb", "mls", "epl", "laliga", "ucl", "wnba", "ncaab", "tennis"].sort(), "ESPN-only sports cannot meet an override of 2")
     process.env.SPORTS_MIN_RESULT_SOURCES = "1"
     assert.equal(resolveConfigFor(providers)("nhl").minSources, 1)
   })
@@ -240,7 +240,7 @@ describe("fast settle path", () => {
 
   it("config: single-source 4 min, two-source 2 min, normal delay unchanged, kill switch", () => {
     delete process.env.SPORTS_FAST_SETTLE
-    for (const s of ["nfl", "nba", "cfb", "mls", "tennis"] as const) assert.equal(cfgFor(s).fastFinalStableMs, FAST_FINAL_STABLE_MS, s)
+    for (const s of ["nfl", "nba", "cfb", "mls", "epl", "laliga", "ucl", "wnba", "ncaab", "tennis"] as const) assert.equal(cfgFor(s).fastFinalStableMs, FAST_FINAL_STABLE_MS, s)
     for (const s of ["nhl", "mlb"] as const) assert.equal(cfgFor(s).fastFinalStableMs, FAST_TWO_SOURCE_STABLE_MS, s)
     assert.ok(FAST_FINAL_STABLE_MS < 5 * MIN, "shorter than the settle cadence so the next pass is the confirming one")
     assert.equal(cfgFor("nfl").settleDelayMs, SINGLE_SOURCE_SETTLE_DELAY_MS)
@@ -298,6 +298,8 @@ describe("fast settle path", () => {
 
   it("providers flag only official finals", () => {
     assert.equal(isOfficialFinal({ type: { name: "STATUS_FINAL", completed: true } }), true)
+    assert.equal(isOfficialFinal({ type: { name: "STATUS_FULL_TIME", completed: true } }), true)
+    assert.equal(isOfficialFinal({ type: { name: "STATUS_FULL_TIME", completed: false } }), false)
     assert.equal(isOfficialFinal({ type: { name: "STATUS_END_PERIOD", completed: false } }), false)
     assert.equal(isOfficialFinal({ type: { name: "STATUS_FINAL" } }), false)
   })

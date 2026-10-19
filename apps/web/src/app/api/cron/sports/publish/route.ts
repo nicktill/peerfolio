@@ -6,7 +6,7 @@ import { DEFAULT_PUBLISH, EXCHANGE_PUBLISH } from "@web/lib/sports/lines"
 import { DbUsageStore, freezeUnguardedMarkets, lockDueMarkets, makeDbCallCap, makeExchangeGate, makeFetchGate, pruneRateLimits, publishLines } from "@web/lib/sports/store"
 import { publicationHealth } from "@web/lib/sports/health"
 import { enabledSports as unpaused } from "@web/lib/sports/enabled"
-import { SPORTS } from "@web/lib/sports/types"
+import { activeSports } from "@web/lib/sports/flag"
 import { writeHeartbeat } from "@web/lib/sports/live/store"
 import { hiddenSkips } from "@web/lib/sports/health-report"
 
@@ -19,8 +19,7 @@ export const GET = withSportsCron<unknown>(async () => {
   const deadlineAt = Date.now() + 90_000
   const mode = publishMode()
   const tennisTotals = process.env.SPORTS_TENNIS_TOTALS === "1"
-  // SPORTS_DISABLED (enabled.ts) removes paused sports here, so no provider call is made for them.
-  const sports = unpaused(enabledSports(SPORTS))
+  const sports = unpaused(enabledSports(activeSports()))
   let provider
   let cfg
   let gate

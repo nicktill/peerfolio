@@ -1,4 +1,5 @@
 import type { BookQuote, EventRef, EventResult, OddsProvider, OddsSnapshot, ProviderEvent, ResultsProvider, Sport } from "../types.ts"
+import { isSoccer } from "../types.ts"
 
 /**
  * Deterministic mock provider for local dev, demos and tests. No network.
@@ -17,6 +18,11 @@ const TEAMS: Record<Sport, [string, string][]> = {
   mlb: [["New York Yankees", "Boston Red Sox"], ["Los Angeles Dodgers", "San Francisco Giants"], ["Atlanta Braves", "Houston Astros"]],
   cfb: [["Georgia Bulldogs", "Alabama Crimson Tide"], ["Ohio State Buckeyes", "Michigan Wolverines"], ["Texas Longhorns", "Oregon Ducks"]],
   mls: [["Inter Miami CF", "LA Galaxy"], ["Seattle Sounders FC", "Portland Timbers"], ["New York City FC", "Atlanta United FC"]],
+  epl: [["Arsenal", "Liverpool"], ["Manchester City", "Chelsea"], ["Tottenham Hotspur", "Newcastle United"]],
+  laliga: [["Real Madrid", "Barcelona"], ["Atlético Madrid", "Sevilla"], ["Real Sociedad", "Villarreal"]],
+  ucl: [["Bayern Munich", "Paris Saint-Germain"], ["Real Madrid", "Manchester City"], ["Internazionale", "Arsenal"]],
+  wnba: [["Las Vegas Aces", "New York Liberty"], ["Indiana Fever", "Minnesota Lynx"], ["Seattle Storm", "Phoenix Mercury"]],
+  ncaab: [["Duke Blue Devils", "North Carolina Tar Heels"], ["Kansas Jayhawks", "Kentucky Wildcats"], ["Houston Cougars", "Purdue Boilermakers"]],
 }
 const PLAYERS: Record<Sport, string[]> = {
   nfl: ["Patrick Mahomes", "Jalen Hurts", "Brock Purdy"],
@@ -26,11 +32,16 @@ const PLAYERS: Record<Sport, string[]> = {
   mlb: ["", "", ""],
   cfb: ["", "", ""],
   mls: ["", "", ""],
+  epl: ["", "", ""],
+  laliga: ["", "", ""],
+  ucl: ["", "", ""],
+  wnba: ["", "", ""],
+  ncaab: ["", "", ""],
 }
 
 /** Total line per sport. */
-const TOTAL: Record<Sport, number> = { nfl: 44.5, nba: 224.5, tennis: 22.5, nhl: 6.5, mlb: 8.5, cfb: 55.5, mls: 2.5 }
-const SPREAD: Record<Sport, number> = { nfl: -3.5, nba: -3.5, tennis: -1.5, nhl: -1.5, mlb: -1.5, cfb: -7.5, mls: -0.5 }
+const TOTAL: Record<Sport, number> = { nfl: 44.5, nba: 224.5, tennis: 22.5, nhl: 6.5, mlb: 8.5, cfb: 55.5, mls: 2.5, epl: 2.5, laliga: 2.5, ucl: 2.5, wnba: 163.5, ncaab: 141.5 }
+const SPREAD: Record<Sport, number> = { nfl: -3.5, nba: -3.5, tennis: -1.5, nhl: -1.5, mlb: -1.5, cfb: -7.5, mls: -0.5, epl: -0.5, laliga: -0.5, ucl: -0.5, wnba: -3.5, ncaab: -5.5 }
 
 export function mockEvent(sport: Sport, n: number, startsAt: Date): ProviderEvent {
   const id = `mock-${sport}-${n}`
@@ -52,7 +63,7 @@ export function mockEvent(sport: Sport, n: number, startsAt: Date): ProviderEven
       ],
     },
   ]
-  if (sport === "mls") {
+  if (isSoccer(sport)) {
     // Soccer's moneyline is three-way: home / draw / away.
     markets[0] = {
       key: "moneyline",

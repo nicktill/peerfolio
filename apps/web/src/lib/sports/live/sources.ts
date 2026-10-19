@@ -35,7 +35,7 @@ export const KALSHI = "https://api.elections.kalshi.com/trade-api/v2"
 /* ---------------- Polymarket ---------------- */
 
 /** Polymarket Gamma series ids for a game series, from the exchange proof of concept. Tennis has no game series. */
-export const POLYMARKET_SERIES: Record<string, string> = { nfl: "12185", nba: "10345", nhl: "10346", mlb: "3", cfb: "12756", mls: "10189" }
+export const POLYMARKET_SERIES: Record<string, string> = { nfl: "12185", nba: "10345", nhl: "10346", mlb: "3", cfb: "12756", mls: "10189", epl: "10188", laliga: "10193", ucl: "10204", wnba: "10105", ncaab: "10470" }
 
 /** Gamma page size. Measured responses: ~200 KB per game event (a football game lists ~200 markets), so 100 events was 8 to 20 MB; 25 keeps a page near 5 MB. Gamma page size cap. A soccer game alone is up to 8 events (result, halftime, exact score, corners, props, more markets...). */
 export const GAMMA_PAGE = 25
@@ -219,7 +219,7 @@ export function applyWsMessage(books: Map<string, WsBook>, message: unknown): st
 
 /* ---------------- Kalshi ---------------- */
 
-export const KALSHI_SERIES: Record<string, string> = { nfl: "KXNFLGAME", nba: "KXNBAGAME", nhl: "KXNHLGAME", mlb: "KXMLBGAME", cfb: "KXNCAAFGAME", mls: "KXMLSGAME" }
+export const KALSHI_SERIES: Record<string, string> = { nfl: "KXNFLGAME", nba: "KXNBAGAME", nhl: "KXNHLGAME", mlb: "KXMLBGAME", cfb: "KXNCAAFGAME", mls: "KXMLSGAME", epl: "KXEPLGAME", laliga: "KXLALIGAGAME", ucl: "KXUCLGAME", wnba: "KXWNBAGAME", ncaab: "KXNCAAMBGAME" }
 
 export type KalshiGame = Candidate & { expectedEnd: Date | null; markets: { ticker: string; team: string; bid: number | null; ask: number | null }[] }
 
@@ -235,7 +235,7 @@ export function parseKalshiEvents(payload: unknown): KalshiGame[] {
   for (const ev of events as Record<string, unknown>[]) {
     const parts = String(ev.title ?? "")
       .split(/ vs\.? /i)
-      .map((x) => x.replace(/^[A-Z]{2,4} (?=\S)/, "").trim())
+      .map((x) => x.replace(/^Game \d+:\s*/i, "").replace(/^[A-Z]{2,4} (?=\S)/, "").trim())
     if (parts.length !== 2 || !parts[0] || !parts[1]) continue
     const markets = (Array.isArray(ev.markets) ? (ev.markets as Record<string, unknown>[]) : []).map((m) => ({
       ticker: String(m.ticker ?? ""),
@@ -273,7 +273,7 @@ export function kalshiQuotes(game: KalshiGame, homeName: string, awayName: strin
 
 /* ---------------- ESPN ---------------- */
 
-export const ESPN_PATH: Record<string, string> = { nfl: "football/nfl", nba: "basketball/nba", nhl: "hockey/nhl", mlb: "baseball/mlb", cfb: "football/college-football", mls: "soccer/usa.1" }
+export const ESPN_PATH: Record<string, string> = { nfl: "football/nfl", nba: "basketball/nba", nhl: "hockey/nhl", mlb: "baseball/mlb", cfb: "football/college-football", mls: "soccer/usa.1", epl: "soccer/eng.1", laliga: "soccer/esp.1", ucl: "soccer/uefa.champions", wnba: "basketball/wnba", ncaab: "basketball/mens-college-basketball" }
 
 export type EspnGame = Candidate & {
   state: "pre" | "in" | "post"
