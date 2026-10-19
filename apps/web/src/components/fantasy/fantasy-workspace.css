@@ -333,6 +333,7 @@ button.fw-feed-row:hover p { color: var(--fw-fg); }
 @media (max-width: 1050px) {
   .fw-grid { grid-template-columns: 1fr; }
   .fw-main, .fw-rail { display: contents; }
+  .fw-grid > .fw-rail > .fw-trade { order: -1; }
   .fw-scoreboard { grid-template-columns: 1fr 1fr; gap: 22px 20px; }
 }
 @media (max-width: 700px) {
