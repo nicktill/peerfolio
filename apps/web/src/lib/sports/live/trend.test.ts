@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
-import { dominantSource, downsample, trendPath } from "./trend.ts"
+import { dominantSource, downsample, historyBand, trendPath } from "./trend.ts"
 
 test("downsample keeps short series and bounds long ones covering both ends", () => {
   assert.deepEqual(downsample([0.1, 0.2, 0.3], 60), [0.1, 0.2, 0.3])
@@ -80,4 +80,18 @@ test("downsampleByTime buckets by time and keeps spikes and endpoints", () => {
   assert.ok(d.includes(0.9))
   assert.equal(d[0], 0.5)
   assert.equal(downsampleByTime([{ t: 2, v: 0.2 }, { t: 1, v: 0.1 }], 60).join(), "0.1,0.2")
+})
+
+test("historyBand ends at the live split, uses real time on x, and needs enough history", () => {
+  const series = Array.from({ length: 10 }, (_, i) => ({ t: i * 1000, v: 0.5 + i * 0.02 }))
+  assert.equal(historyBand(series.slice(0, 3), null, 5000), null)
+  const b = historyBand(series, 0.8, 20_000, 300, 16)!
+  assert.equal(b.homePct, 80)
+  assert.equal(b.awayPct, 20)
+  assert.ok(b.line.startsWith("M0.0 8.0"), "first sample at the left edge, 50% down")
+  assert.ok(b.line.endsWith("V3.2"), "last point is the live 80% home share (20% of the height from the top)")
+  assert.ok(b.away.endsWith("H300V0H0Z"), "away polygon closes along the top edge")
+  // A longer gap between samples takes proportionally more width (x is time, not sample count).
+  const gap = historyBand([...series, { t: 100_000, v: 0.7 }], null, 100_000, 300, 16)!
+  assert.ok(gap.line.includes("H27"), "the last sample is at 9% of the span, not 9/10")
 })

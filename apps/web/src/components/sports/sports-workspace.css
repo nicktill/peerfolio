@@ -1191,28 +1191,20 @@
 .ld[data-kind="score"] .ld-chip[data-tone="bad"] { color: var(--loss-ink, #f87171); border: 0; }
 @keyframes ld-score-pop { 0% { opacity: 0; transform: translate(-50%, 6px); } 14%, 68% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; transform: translate(-50%, -5px); } }
 @media (prefers-reduced-motion: reduce) { .ld[data-kind="score"] .ld-chip { animation: ld-chip-still 2.6s ease both; transform: translateX(-50%); } }
-/* Game chart: both teams' win chance on one time axis, under the team rows on live cards (all widths). */
-.sp-gchart { grid-column: 1 / -1; position: relative; height: 64px; margin: 8px 0 2px; padding-right: 44px; color: var(--fw-fg3); animation: sp-spark-in .5s ease-out; }
-.sp-gchart-slot { animation: none; }
-.sp-gchart svg { display: block; width: 100%; height: 64px; overflow: visible; }
-.sp-gchart-pill { position: absolute; right: 0; transform: translateY(-50%); display: grid; place-items: center; min-width: 38px; height: 18px; padding: 0 6px; border-radius: 999px; font: 700 11px/1 var(--fw-mono); font-variant-numeric: tabular-nums; }
-@media (prefers-reduced-motion: reduce) { .sp-gchart { animation: none; } }
-/* Slip card: odds chip text reads on the team colour (was inheriting the grey game-line colour); a parlay's team discs keep their stack. */
-.sp-slip-pick .sp-slip-odds, .sp-slip-pick .sp-slip-odds span { color: var(--tc-ink, #fff); margin-top: 0; font-family: var(--fw-mono); }
-.sp-slip-pick .pl-stack { display: inline-flex; margin-top: 0; }
-.sp-slip-pick .pl-stack-disc { display: grid; margin-top: 0; font-size: 11px; }
-.sp-slip-pick .pl-stack-disc:not(:first-child) { margin-left: -13px; }
-
-/* Wide live cards: the game chart moves into the footer, right of the Last play line, so it adds no row of its own. */
-.sp-live-card { container-type: inline-size; position: relative; }
-@container (min-width: 560px) {
-  .sp-live-card .sp-gchart { position: absolute; right: 14px; bottom: 9px; width: 250px; height: 34px; margin: 0; padding-right: 42px; z-index: 1; }
-  .sp-live-card .sp-gchart svg { height: 34px; }
-  .sp-live-card .sp-gchart-pill { height: 13px; min-width: 34px; padding: 0 5px; font-size: 10px; }
-  .sp-live-card:has(.sp-gchart) .sp-last-play { min-height: 34px; display: flex; align-items: center; gap: 5px; padding-right: 270px; margin-top: 4px; }
-}
 /* Live pick check: a progress fill instead of a countdown. It races to about 70% over the minimum hold, then creeps toward the end of the window. */
 .sp-live-pick-go { position: relative; overflow: hidden; }
 .sp-hold-bar { position: absolute; inset: 0 auto 0 0; width: 0; background: color-mix(in srgb, currentColor 22%, transparent); animation: sp-hold var(--hold, 9s) cubic-bezier(.3, .6, .4, 1) forwards; pointer-events: none; }
 @keyframes sp-hold { 0% { width: 0; } 44% { width: 72%; } 100% { width: 96%; } }
 @media (prefers-reduced-motion: reduce) { .sp-hold-bar { animation: none; width: 55%; } }
+
+/* The win-chance bar as history: the track grows to hold the band, which draws over the plain bar once there is enough history. */
+.sp-odds-track { position: relative; }
+.sp-odds-track[data-history] { height: 14px; border-radius: 5px; overflow: hidden; }
+.sp-hist { position: absolute; inset: 0; width: 100%; height: 100%; display: block; animation: sp-spark-in .5s ease-out; }
+@media (prefers-reduced-motion: reduce) { .sp-hist { animation: none; } }
+
+/* Slip card: odds chip text reads on the team colour (was inheriting the grey game-line colour); a parlay's team discs keep their stack. */
+.sp-slip-pick .sp-slip-odds, .sp-slip-pick .sp-slip-odds span { color: var(--tc-ink, #fff); margin-top: 0; font-family: var(--fw-mono); }
+.sp-slip-pick .pl-stack { display: inline-flex; margin-top: 0; }
+.sp-slip-pick .pl-stack-disc { display: grid; margin-top: 0; font-size: 11px; }
+.sp-slip-pick .pl-stack-disc:not(:first-child) { margin-left: -13px; }
