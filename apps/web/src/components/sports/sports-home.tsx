@@ -6,7 +6,7 @@ import "@web/components/sports/sports-workspace.css"
 
 import { useState } from "react"
 import Link from "next/link"
-import { ArrowRight, Clock, Infinity as Forever, Plus, Users } from "lucide-react"
+import { ArrowRight, Clock, Infinity as Forever, Plus, Radio, Users } from "lucide-react"
 import { LeagueBrand } from "@web/components/sports/league-brand"
 import { ModePanel } from "@web/components/sports/mode-switch"
 import { revealStyle } from "@web/components/motion/reveal"
@@ -48,6 +48,9 @@ export function SportsHome() {
         </div>
         <div className="fw-actions">
           <span className="fw-pill">Play money</span>
+          <Link href="/fantasy/sports/market" className="fw-btn">
+            <Radio aria-hidden /> Browse the market
+          </Link>
           <button type="button" className="fw-btn" data-solid aria-expanded={mode === "create"} onClick={() => setMode(mode === "create" ? "none" : "create")}>
             <Plus aria-hidden /> Start sports league
           </button>

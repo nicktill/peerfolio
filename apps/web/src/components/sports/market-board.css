@@ -64,3 +64,21 @@
 .mk-trend { position: relative; height: 52px; margin-top: 8px; padding-right: 44px; color: var(--fw-fg3); }
 .mk-trend svg { display: block; width: 100%; height: 52px; overflow: visible; }
 .mk-pill { position: absolute; right: 0; transform: translateY(-50%); display: grid; place-items: center; min-width: 38px; height: 18px; padding: 0 6px; border-radius: 999px; font: 700 11px/1 var(--fw-mono); }
+
+a.mk-card { display: block; color: inherit; text-decoration: none; }
+.mk-card:focus-visible { outline: 2px solid var(--fw-accent); outline-offset: 2px; }
+.mk-when { color: var(--fw-fg2); }
+.mk-league select { height: 30px; padding: 0 10px; border: 1px solid var(--fw-hair); border-radius: 999px; background: var(--fw-bg); color: var(--fw-fg); font: 500 12px var(--fw-sans); }
+.mk-note { margin: 0; font-size: 12.5px; color: var(--fw-fg3); }
+.mk-note a { color: var(--fw-fg); text-decoration: underline; text-underline-offset: 2px; }
+.mk-seg b { margin-left: 6px; font: 600 11px var(--fw-mono); opacity: .8; }
+.mk-split { margin-top: 10px; min-height: 36px; }
+.mk-track { position: relative; display: flex; gap: 2px; height: 8px; border-radius: 4px; overflow: hidden; }
+.mk-track i { display: block; height: 100%; transition: width .5s; }
+.mk-track[data-history] { height: 14px; }
+.mk-labels { display: flex; align-items: baseline; justify-content: space-between; margin-top: 5px; font: 500 12px var(--fw-mono); }
+.mk-labels b { font-weight: 600; }
+.mk-labels small { font: 400 11px var(--fw-sans); color: var(--fw-fg3); }
+
+.mk-split-none .mk-track { background: color-mix(in srgb, var(--fw-fg3) 22%, transparent); }
+.mk-split-none .mk-labels { justify-content: center; }

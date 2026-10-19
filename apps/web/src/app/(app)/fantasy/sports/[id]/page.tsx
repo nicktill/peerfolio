@@ -230,6 +230,27 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
   }
   const sportsKey = data?.league.sports.slice().sort().join(",")
   const scores = useApi<{games: ScoreGame[]; failedSports: string[]}>(sportsKey ? `/api/sports/scoreboard?sports=${sportsKey}` : null, [], { refreshMs: 30_000 })
+  // Arriving from the sports market (?game=sport:id): show that game's side, bring its card into view and flash it once.
+  // Read from the address bar after mount: useSearchParams would force this whole page behind a Suspense boundary at build time.
+  const [focusGame, setFocusGame] = useState<string | null>(null)
+  useEffect(() => { setFocusGame(new URLSearchParams(window.location.search).get("game")) }, [])
+  const focused = useRef<string | null>(null)
+  const focusMatch = focusGame ? (scores.data?.games ?? []).find((g) => `${g.sport}:${g.id}` === focusGame) : undefined
+  useEffect(() => {
+    if (!focusGame || !focusMatch || focused.current === focusGame) return
+    focused.current = focusGame
+    setSport("all")
+    setView(focusMatch.status === "live" ? "live" : "upcoming")
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    const timer = window.setTimeout(() => {
+      const el = document.querySelector<HTMLElement>(`[data-game="${CSS.escape(focusGame)}"]`)
+      if (!el) return
+      el.scrollIntoView({ block: "center", behavior: reduce ? "instant" : "smooth" })
+      el.setAttribute("data-focus", "")
+      window.setTimeout(() => el.removeAttribute("data-focus"), 2600)
+    }, 350)
+    return () => window.clearTimeout(timer)
+  }, [focusGame, focusMatch])
   const liveSportsKey = [...new Set((scores.data?.games ?? []).filter(g => g.status === 'live').map(g => g.sport))].sort().join(',')
   const liveScores = useApi<{games: ScoreGame[]; failedSports: string[]}>(liveSportsKey ? `/api/sports/scoreboard?sports=${liveSportsKey}&live=1` : null, [], { refreshMs: 10_000 })
   const [demo, setDemo] = useState<string | null>(null)
