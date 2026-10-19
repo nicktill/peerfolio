@@ -84,7 +84,7 @@ export function EarningsWeek({ label, days, initialDay, index, className }: { la
         <span className="r">EPS est.</span>
         {showStatus ? <span className="r">Date</span> : null}
       </div>
-      <ul key={`${selected}-${scope}`}>
+      <ul key={`${selected}-${scope}`} className="nw-earn-list" tabIndex={0} aria-label={`${day.label} reports`}>
         {reports.map((r, i) => (
           <li key={r.symbol} className={cn("swap-in nw-earn", showStatus && "status")} style={{ animationDelay: `${i * 55}ms` }}>
             <span className="nw-earn-co">
