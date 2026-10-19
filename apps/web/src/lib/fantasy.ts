@@ -102,8 +102,8 @@ export async function updateFantasyLeague(
 
 /**
  * Owner only: bench a member (unranked, greyed out, below the table) or bring
- * them back. Members who simply never traded are benched on their own; this
- * is for the owner's call, and is the only way to bench someone who has.
+ * them back. Members who never traded are benched on their own; this is for
+ * the owner's call. Their next buy brings them back.
  */
 export async function setMemberInactive(userId: string, leagueId: string, targetUserId: string, inactive: boolean) {
   const target = await requireOwnerTarget(userId, leagueId, targetUserId)
@@ -370,6 +370,8 @@ async function executeTrade(
       priceAsOf: t.asOf,
     })
     .returning()
+  // Buying is playing: it lifts an owner's inactive mark too.
+  if (t.side === "buy") await tx.update(fantasyMembers).set({ inactive: false }).where(eq(fantasyMembers.id, t.memberId))
   return { trade: trade!, shares: outcome.shares }
 }
 
@@ -466,6 +468,8 @@ async function queueOrder(
         createdAt: now,
       })
       .returning()
+    // A queued buy counts as playing too.
+    if (order.side === "buy") await tx.update(fantasyMembers).set({ inactive: false }).where(eq(fantasyMembers.id, memberId))
     return row!
   })
   return { queued: true as const, why, orderId: queued.id, ticker: displaySymbol(marketTicker), side: order.side }
@@ -612,7 +616,7 @@ export type FantasyStanding = {
   isYou: boolean
   /** Sitting out: not ranked (rank is 0), listed below everyone who is. */
   inactive: boolean
-  /** The owner benched them, as opposed to never having bought. Only the owner can undo this. */
+  /** The owner benched them, as opposed to never having bought. Cleared by their next buy, or by the owner. */
   benched: boolean
   value: number
   cash: number

@@ -149,7 +149,7 @@ function Players({ leagueId, members, onChanged }: { leagueId: string; members: 
               <Avatar src={m.image} name={m.name} handle={m.handle} size="sm" />
               <div>
                 <strong>{name}</strong>
-                <small>{m.inactive ? (m.benched ? "Inactive · set by you" : "Inactive · hasn't bought anything") : "Playing"}</small>
+                <small>{m.inactive ? (m.benched ? "Inactive · set by you, until they buy" : "Inactive · hasn't bought anything") : "Playing"}</small>
               </div>
               <div className="fw-member-actions">
                 {confirming === m.userId ? (
