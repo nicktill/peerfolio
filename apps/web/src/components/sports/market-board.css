@@ -52,3 +52,11 @@
 .mk-wl { display: flex; justify-content: space-between; margin-top: 5px; font: 500 12px var(--fw-mono); }
 .mk-wl small { font: 400 11px var(--fw-sans); color: var(--fw-fg3); }
 @media (prefers-reduced-motion: reduce) { .mk-card, .mk-odds button { transition: none; } .mk-card:hover { transform: none; } .mk-live i { animation: none; } }
+
+.mk-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.mk-pick button { display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 38px; padding: 0 6px 0 12px; border: 1px solid color-mix(in srgb, var(--c) 50%, var(--fw-hair)); border-radius: 12px; background: linear-gradient(115deg, color-mix(in srgb, var(--c) 24%, var(--fw-bg)), color-mix(in srgb, var(--c) 7%, var(--fw-bg))); color: var(--fw-fg); font: 500 13px var(--fw-mono); cursor: pointer; transition: transform .2s, border-color .2s, box-shadow .2s; }
+.mk-pick button:hover { transform: translateY(-1px); border-color: var(--c); box-shadow: 0 8px 16px -10px var(--c); }
+.mk-pick em { font: 600 14px var(--fw-mono); font-style: normal; padding: 4px 9px; border-radius: 8px; background: var(--c); color: var(--ink, #fff); }
+.mk-d .mk-wp { margin-bottom: 0; }
+@media (prefers-reduced-motion: reduce) { .mk-pick button { transition: none; } .mk-pick button:hover { transform: none; } }
+.mk-top .mk-seg { max-width: 100%; overflow-x: auto; scrollbar-width: none; } .mk-top .mk-seg button { white-space: nowrap; flex: none; }

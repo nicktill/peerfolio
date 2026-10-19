@@ -114,20 +114,43 @@ function CardC({ g }: { g: Game }) {
   )
 }
 
+function CardD({ g }: { g: Game }) {
+  const [a, h] = matchupColors(g.sport, g.away, g.home)
+  return (
+    <Tint g={g} className="mk-card mk-c mk-d">
+      <Head g={g} />
+      <div className="mk-vs">
+        <div><TeamBadge sport={g.sport} name={g.away} size={46} /><b>{short(g.away)}</b><small>{g.awayRec ?? " "}</small></div>
+        <div className="mk-mid">{g.live ? <span className="numeric">{g.awayScore}<i>–</i>{g.homeScore}</span> : <span className="mk-at">at</span>}</div>
+        <div><TeamBadge sport={g.sport} name={g.home} size={46} /><b>{short(g.home)}</b><small>{g.homeRec ?? " "}</small></div>
+      </div>
+      <div className="mk-wp" aria-hidden><i style={{ width: pct(1 - g.homeProb), background: "var(--a)" }} /><i style={{ width: pct(g.homeProb), background: "var(--h)" }} /></div>
+      <div className="mk-pick">
+        {([["away", g.awayOdds, 1 - g.homeProb, a], ["home", g.homeOdds, g.homeProb, h]] as const).map(([k, odds, p, c]) => (
+          <button key={k} type="button" style={{ "--c": c, "--ink": onColor(c) } as React.CSSProperties} aria-label={`${short(k === "away" ? g.away : g.home)} ${formatOdds(odds)}, ${pct(p)} win chance`}>
+            <span className="numeric">{pct(p)}</span>
+            <em className="numeric">{formatOdds(odds)}</em>
+          </button>
+        ))}
+      </div>
+    </Tint>
+  )
+}
+
 const SPORTS = ["all", "nfl", "nba", "mlb", "nhl", "mls"] as const
 
 export function MarketBoardPreview() {
-  const [v, setV] = useState<"a" | "b" | "c">("a")
+  const [v, setV] = useState<"a" | "b" | "c" | "d">("d")
   const [sport, setSport] = useState<(typeof SPORTS)[number]>("all")
   const [view, setView] = useState<"live" | "upcoming">("live")
   const games = G.filter((g) => (sport === "all" || g.sport === sport) && g.live === (view === "live"))
-  const Card = v === "a" ? CardA : v === "b" ? CardB : CardC
+  const Card = v === "a" ? CardA : v === "b" ? CardB : v === "c" ? CardC : CardD
   return (
     <section className="fw mk" aria-label="Sports market">
       <header className="mk-top">
         <div><h1>Sports market</h1><p>Live games, win chances and prices in one place. Sample data.</p></div>
         <div className="mk-seg" role="group" aria-label="Card layout">
-          {(["a", "b", "c"] as const).map((k) => <button key={k} type="button" aria-pressed={v === k} onClick={() => setV(k)}>{k === "a" ? "A · Rows" : k === "b" ? "B · Odds" : "C · Matchup"}</button>)}
+          {(["a", "b", "c", "d"] as const).map((k) => <button key={k} type="button" aria-pressed={v === k} onClick={() => setV(k)}>{k === "a" ? "A Rows" : k === "b" ? "B Odds" : k === "c" ? "C Matchup" : "D Matchup + odds"}</button>)}
         </div>
       </header>
       <div className="mk-filters">
