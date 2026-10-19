@@ -74,7 +74,10 @@ function MarketCard({ g, tracked, split: pregame, href, now }: { g: ScoreGame; t
           </div>
           <div className="mk-labels numeric"><span><b>{pct(split.away)}</b></span><small>{live ? "Win chance" : "Pregame odds"}</small><span><b>{pct(split.home)}</b></span></div>
         </div>
-      ) : <div className="mk-split mk-split-none" aria-hidden />}
+      ) : <div className="mk-split mk-split-none">
+          <div className="mk-track" aria-hidden />
+          <div className="mk-labels"><small>{live ? "Win chance isn't available for this game yet" : "Pregame odds aren't posted yet"}</small></div>
+        </div>}
     </>
   )
   const cls = "mk-card mk-d"

@@ -79,3 +79,6 @@ a.mk-card { display: block; color: inherit; text-decoration: none; }
 .mk-labels { display: flex; align-items: baseline; justify-content: space-between; margin-top: 5px; font: 500 12px var(--fw-mono); }
 .mk-labels b { font-weight: 600; }
 .mk-labels small { font: 400 11px var(--fw-sans); color: var(--fw-fg3); }
+
+.mk-split-none .mk-track { background: color-mix(in srgb, var(--fw-fg3) 22%, transparent); }
+.mk-split-none .mk-labels { justify-content: center; }
