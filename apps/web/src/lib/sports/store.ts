@@ -15,6 +15,7 @@ import { type Decision, type RepriceResult, type RepriceTarget } from "./reprice
 import { DEFAULT_RESOLVE, gradePick, needsMeteredSource, planSettlement, observeFinal, placeKey, resolveResult, resultsForEvent, type ResolveConfig, type ResolveConfigFor, type SettlementPlan } from "./settlement.ts"
 import type { EventRef, EventResult, MarketKind, OddsProvider, Outcome, ResultsProvider, Selection, Sport } from "./types.ts"
 import { hasDraw, SPORTS } from "./types.ts"
+import { checkLeagueSettings, asSports } from "./league-settings.ts"
 
 /**
  * Database layer for sports leagues. Takes the drizzle client as a parameter so
@@ -362,6 +363,7 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
       inviteCode: league.inviteCode,
       startingCredits: league.startingCredits,
       maxStakePct: league.maxStakePct,
+      maxParlayStakePct: league.maxParlayStakePct,
       liveBetting: league.liveBetting,
       endsAt: league.endsAt?.toISOString() ?? null,
       isOwner: league.ownerId === userId,
@@ -375,7 +377,7 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
         minLegs: PARLAY_LIMITS.minLegs,
         maxLegs: PARLAY_LIMITS.maxLegs,
         minStake: PARLAY_LIMITS.minStake,
-        maxStake: me.credits,
+        maxStake: Math.min(me.credits, Math.floor((league.startingCredits * (league.maxParlayStakePct ?? league.maxStakePct)) / 100)),
       },
     },
     standings,
@@ -413,6 +415,32 @@ export async function setLeagueMaxStakePct(db: Db, userId: string, leagueId: str
   const [row] = await db.update(sportsLeagues).set({ maxStakePct: pct }).where(and(eq(sportsLeagues.id, leagueId), eq(sportsLeagues.ownerId, userId))).returning({ id: sportsLeagues.id })
   if (!row) throw new SportsError("Only the league owner can change this", 403)
   return { maxStakePct: pct }
+}
+
+/** Owner-only: rename, change the look, the end date, the parlay limit or the sports on offer. Checked by league-settings.ts; applies from now on. */
+export async function updateSportsLeague(
+  db: Db,
+  userId: string,
+  leagueId: string,
+  patch: { name?: string; emoji?: string; accent?: string; endsAt?: Date | null; maxParlayStakePct?: number | null; sports?: string[] },
+  now = new Date(),
+) {
+  const [league] = await db.select().from(sportsLeagues).where(and(eq(sportsLeagues.id, leagueId), eq(sportsLeagues.ownerId, userId))).limit(1)
+  if (!league) throw new SportsError("Only the league owner can change this", 403)
+  if (league.endsAt && league.endsAt.getTime() <= now.getTime()) throw new SportsError("This league has finished, so it can't be edited", 409)
+  const problem = checkLeagueSettings({ maxParlayStakePct: patch.maxParlayStakePct, sports: patch.sports, endsAt: patch.endsAt }, { endsAt: league.endsAt, sports: league.sports }, now)
+  if (problem) throw new SportsError(problem, 422)
+  const values = {
+    ...(patch.name !== undefined && { name: patch.name }),
+    ...(patch.emoji !== undefined && { emoji: patch.emoji }),
+    ...(patch.accent !== undefined && { accent: patch.accent }),
+    ...(patch.endsAt !== undefined && { endsAt: patch.endsAt }),
+    ...(patch.maxParlayStakePct !== undefined && { maxParlayStakePct: patch.maxParlayStakePct }),
+    ...(patch.sports !== undefined && { sports: asSports(patch.sports) }),
+  }
+  if (Object.keys(values).length === 0) return {}
+  const [updated] = await db.update(sportsLeagues).set(values).where(eq(sportsLeagues.id, leagueId)).returning()
+  return { name: updated!.name, emoji: updated!.emoji, accent: updated!.accent, endsAt: updated!.endsAt, maxParlayStakePct: updated!.maxParlayStakePct, sports: updated!.sports }
 }
 
 /** Members only: pairs of members who keep taking opposite sides of the same locked market (locked picks are already public to the league). */
@@ -747,7 +775,7 @@ async function placeParlayOnce(db: Db, userId: string, leagueId: string, req: Pa
         },
         openPickCount: risk.count,
         openStakeTotal: risk.stake,
-      }, { ...PARLAY_LIMITS, maxStakePctOfStart: league.maxStakePct })
+      }, { ...PARLAY_LIMITS, maxStakePctOfStart: league.maxParlayStakePct ?? league.maxStakePct })
     } catch (error) {
       if (error instanceof ParlayRejected) {
         emit("info", "sports.parlay_rejected", { code: error.code, leagueId, now: now.toISOString() })
