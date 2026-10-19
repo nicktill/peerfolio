@@ -55,7 +55,8 @@ function useHistory(eventId: string): Sample[] {
 
 const W = 300
 const H = 64
-const PILL = 18
+/** Minimum gap between the two end pills, in chart units (of H). */
+const PILL = 26
 
 /**
  * Both teams' win chance on one chart, as step lines in their team colours over real time, ending at the current chance
@@ -76,7 +77,7 @@ export function GameChart({ eventId, away, home, awayColor, homeColor, live }: {
     hy = mid + (up * PILL) / 2
     ay = mid - (up * PILL) / 2
   }
-  const clampY = (v: number) => Math.min(H - PILL / 2, Math.max(PILL / 2, v))
+  const clampY = (v: number) => `${(Math.min(H - 9, Math.max(9, v)) / H) * 100}%`
   const label = `Win chance: ${away} ${g.awayPct} percent, ${home} ${g.homePct} percent`
   return (
     <div className="sp-gchart" role="img" aria-label={label}>
@@ -85,8 +86,8 @@ export function GameChart({ eventId, away, home, awayColor, homeColor, live }: {
         <path d={g.away} fill="none" stroke={awayColor} strokeWidth={1.8} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
         <path d={g.home} fill="none" stroke={homeColor} strokeWidth={1.8} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
       </svg>
-      <span className="sp-gchart-pill numeric" style={{ top: clampY(ay) - PILL / 2, background: awayColor, color: onColor(awayColor) }}>{g.awayPct}%</span>
-      <span className="sp-gchart-pill numeric" style={{ top: clampY(hy) - PILL / 2, background: homeColor, color: onColor(homeColor) }}>{g.homePct}%</span>
+      <span className="sp-gchart-pill numeric" style={{ top: clampY(ay), background: awayColor, color: onColor(awayColor) }}>{g.awayPct}%</span>
+      <span className="sp-gchart-pill numeric" style={{ top: clampY(hy), background: homeColor, color: onColor(homeColor) }}>{g.homePct}%</span>
     </div>
   )
 }
