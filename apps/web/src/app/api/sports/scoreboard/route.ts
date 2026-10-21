@@ -20,7 +20,7 @@ export const GET = withSportsPublic(async (request) => {
   const failed = new Set<string>()
   const batches = await Promise.all(sports.flatMap(sport => SCOREBOARD_PATHS[sport]!.flatMap(path => (sport === 'tennis' ? days.slice(1, 2) : days).map(async (day, i) => {
     try {
-      const extra = sport === 'cfb' ? '&groups=80' : espnGroupsQuery(sport)
+      const extra = espnGroupsQuery(sport)
       const res = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${path}/scoreboard?dates=${day}&limit=300${extra}`, { next: { revalidate: liveOnly ? 10 : i <= 2 ? 30 : 900 }, signal: AbortSignal.timeout(8000) })
       if (!res.ok) throw new Error('Scoreboard unavailable')
       const at = res.headers.get('date')

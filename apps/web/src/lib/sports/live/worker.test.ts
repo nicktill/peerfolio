@@ -257,3 +257,33 @@ describe("live odds worker cycle", () => {
     assert.deepEqual(Object.keys(h.deps.store).sort(), ["insertQuotes", "loadSlate", "upsertState"])
   })
 })
+
+
+describe("college-football live score coverage", () => {
+  it("reads all FBS games when the featured scoreboard omits the tracked game", async () => {
+    const event = { ...slate[0]!, id: "ev-marshall", sport: "cfb", homeName: "Marshall Thundering Herd", awayName: "South Alabama Jaguars" }
+    const h = harness()
+    h.deps.store.loadSlate = async () => [event]
+    const requested: string[] = []
+    h.deps.getJson = async url => {
+      requested.push(url)
+      if (url.includes("scoreboard") && url.includes("groups=80")) return {
+        events: [{ id: "401", date: event.startsAt.toISOString(), status: { period: 4, displayClock: "10:21", type: { state: "in" } },
+          competitions: [{ competitors: [
+            { homeAway: "home", score: "13", team: { displayName: event.homeName } },
+            { homeAway: "away", score: "6", team: { displayName: event.awayName } },
+          ] }] }],
+      }
+      if (url.includes("gamma-api")) return []
+      return { events: [] }
+    }
+    await runTick(h.deps, newWorkerState(), NOW)
+    assert.ok(requested.some(url => url.includes("college-football/scoreboard?limit=300&groups=80")))
+    const state = h.states.get(event.id)
+    assert.ok(state, "tracked FBS game gets a score state even without a Polymarket match")
+    assert.equal(state.source, "espn")
+    assert.equal(state.status, "live")
+    assert.equal(state.homeScore, 13)
+    assert.equal(state.awayScore, 6)
+  })
+})

@@ -14,9 +14,9 @@ export const isSoccer = (sport: string | undefined): boolean => sport !== undefi
 
 /**
  * ESPN scoreboard `groups` filter per sport. Men's college basketball lists only a handful of featured games unless it is asked
- * for division I (group 50), so every ESPN scoreboard request for it carries `&groups=50`.
+ * for division I (group 50). College football also needs the full FBS list (group 80) rather than featured games.
  */
-const ESPN_GROUPS: Record<string, string> = { ncaab: "50" }
+const ESPN_GROUPS: Record<string, string> = { ncaab: "50", cfb: "80" }
 export const espnGroupsQuery = (sport: string | undefined): string => (sport && ESPN_GROUPS[sport] ? `&groups=${ESPN_GROUPS[sport]}` : "")
 
 export type MarketKind = "moneyline" | "spread" | "total" | "player_prop"
