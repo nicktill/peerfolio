@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
-import { dominantSource, downsample, historyBand, trendPath } from "./trend.ts"
+import { dominantSource, downsample, gameChart, historyBand, trendPath } from "./trend.ts"
 
 test("downsample keeps short series and bounds long ones covering both ends", () => {
   assert.deepEqual(downsample([0.1, 0.2, 0.3], 60), [0.1, 0.2, 0.3])
@@ -94,4 +94,15 @@ test("historyBand ends at the live split, uses real time on x, and needs enough 
   // A longer gap between samples takes proportionally more width (x is time, not sample count).
   const gap = historyBand([...series, { t: 100_000, v: 0.7 }], null, 100_000, 300, 16)!
   assert.ok(gap.line.includes("H27"), "the last sample is at 9% of the span, not 9/10")
+})
+
+
+test("cached or duplicate live quotes cannot overwrite a newer chart endpoint", () => {
+ const series = Array.from({ length: 10 }, (_, i) => ({ t: 1000 + i * 1000, v: 0.6 }))
+ for (const at of [9000, 10000]) {
+  assert.equal(gameChart(series, 0.1, at)!.homePct, 60)
+  assert.equal(historyBand(series, 0.1, at)!.homePct, 60)
+ }
+ assert.equal(gameChart(series, 0.9, 11000)!.homePct, 90, "a genuinely newer quote still moves the endpoint")
+ assert.equal(historyBand(series, 0.9, 11000)!.homePct, 90)
 })

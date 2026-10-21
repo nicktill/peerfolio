@@ -154,7 +154,7 @@ export type GameChartGeometry = { home: string; away: string; homeEnd: [number, 
  */
 export function gameChart(series: Sample[], live: number | null | undefined, nowMs: number, w = 300, h = 64, padX = 2, padY = 6): GameChartGeometry | null {
   const pts = series.filter((x) => Number.isFinite(x.t) && Number.isFinite(x.v)).map((x) => ({ t: x.t, v: clamp01(x.v) }))
-  if (live != null && Number.isFinite(live)) pts.push({ t: Math.max(nowMs, pts.length ? pts[pts.length - 1]!.t : nowMs), v: clamp01(live) })
+  if (live != null && Number.isFinite(live) && Number.isFinite(nowMs) && (!pts.length || nowMs > pts[pts.length - 1]!.t)) pts.push({ t: nowMs, v: clamp01(live) })
   if (pts.length < MIN_TREND_POINTS) return null
   const t0 = pts[0]!.t
   const span = Math.max(1, pts[pts.length - 1]!.t - t0)
@@ -186,7 +186,7 @@ export type HistoryBand = { away: string; line: string; awayPct: number; homePct
  */
 export function historyBand(series: Sample[], live: number | null | undefined, nowMs: number, w = 300, h = 16): HistoryBand | null {
   const pts = series.filter((x) => Number.isFinite(x.t) && Number.isFinite(x.v)).map((x) => ({ t: x.t, v: clamp01(x.v) }))
-  if (live != null && Number.isFinite(live)) pts.push({ t: Math.max(nowMs, pts.length ? pts[pts.length - 1]!.t : nowMs), v: clamp01(live) })
+  if (live != null && Number.isFinite(live) && Number.isFinite(nowMs) && (!pts.length || nowMs > pts[pts.length - 1]!.t)) pts.push({ t: nowMs, v: clamp01(live) })
   if (pts.length < MIN_TREND_POINTS) return null
   const t0 = pts[0]!.t
   const span = Math.max(1, pts[pts.length - 1]!.t - t0)

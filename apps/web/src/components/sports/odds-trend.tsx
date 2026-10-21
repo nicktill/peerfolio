@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { sampleResponse } from "@web/lib/sample/fixtures"
 import { gameChart, historyBand, type Sample } from "@web/lib/sports/live/trend"
+import type { LiveSource } from "@web/lib/sports/live/types"
 import { onColor } from "@web/lib/sports/teams"
 
 type Entry = { series: Sample[]; at: number; subs: number; timer: number | undefined; listeners: Set<() => void> }
@@ -11,10 +12,10 @@ const games = new Map<string, Entry>()
 const REFRESH_MS = 60_000
 const EMPTY: Sample[] = []
 
-async function load(id: string, e: Entry) {
+async function load(id: string, e: Entry, source?: LiveSource) {
   if (document.visibilityState === "visible") {
     try {
-      const url = `/api/sports/live/history?eventId=${encodeURIComponent(id)}`
+      const url = `/api/sports/live/history?eventId=${encodeURIComponent(id)}${source ? `&source=${source}` : ""}`
       const fixture = sampleResponse(url, window.location.pathname) as { series?: Sample[] } | null
       const res = fixture ? null : await fetch(url)
       if (fixture || res?.ok) {
@@ -27,32 +28,33 @@ async function load(id: string, e: Entry) {
       /* decorative; ignore */
     }
   }
-  if (e.subs > 0) e.timer = window.setTimeout(() => void load(id, e), REFRESH_MS)
+  if (e.subs > 0) e.timer = window.setTimeout(() => void load(id, e, source), REFRESH_MS)
 }
 
 /** The timed win-chance history for a tracked game (home chance, 0..1). Pass undefined to skip. */
-export function useGameHistory(eventId: string | undefined): Sample[] {
+export function useGameHistory(eventId: string | undefined, source?: LiveSource): Sample[] {
   const [, rerender] = useState(0)
+  const key = eventId ? `${eventId}:${source ?? "auto"}` : undefined
   useEffect(() => {
-    if (!eventId) return
-    let e = games.get(eventId)
+    if (!eventId || !key) return
+    let e = games.get(key)
     if (!e) {
       e = { series: [], at: 0, subs: 0, timer: undefined, listeners: new Set() }
-      games.set(eventId, e)
+      games.set(key, e)
     }
     const entry = e
     const l = () => rerender((n) => n + 1)
     entry.listeners.add(l)
-    if (entry.subs++ === 0) void load(eventId, entry)
+    if (entry.subs++ === 0) void load(eventId, entry, source)
     return () => {
       entry.listeners.delete(l)
       if (--entry.subs === 0) {
         window.clearTimeout(entry.timer)
-        games.delete(eventId)
+        games.delete(key)
       }
     }
-  }, [eventId])
-  return (eventId && games.get(eventId)?.series) || EMPTY
+  }, [eventId, key, source])
+  return (key && games.get(key)?.series) || EMPTY
 }
 
 const W = 300
@@ -65,9 +67,9 @@ const PILL = 18
  * nothing before the first quote. The slot has a fixed height so the card does not reflow when history arrives.
  * View only; `live` is the current home chance (0..1).
  */
-export function GameChart({ eventId, away, home, awayColor, homeColor, live }: { eventId: string; away: string; home: string; awayColor: string; homeColor: string; live?: number | null }) {
-  const series = useGameHistory(eventId)
-  const g = gameChart(series, live, Date.now(), W, H)
+export function GameChart({ eventId, away, home, awayColor, homeColor, live, source, liveAsOf }: { eventId: string; away: string; home: string; awayColor: string; homeColor: string; live?: number | null; source?: LiveSource; liveAsOf?: string }) {
+  const series = useGameHistory(eventId, source)
+  const g = gameChart(series, source && liveAsOf ? live : null, liveAsOf ? Date.parse(liveAsOf) : Date.now(), W, H)
   if (!g) return <div className="sp-gchart sp-gchart-slot" aria-hidden="true" />
   // End pills sit at each line's end; nudge them apart when the lines finish close together.
   let hy = g.homeEnd[1]
@@ -94,8 +96,8 @@ export function GameChart({ eventId, away, home, awayColor, homeColor, live }: {
 }
 
 /** Compact history band used by the market overview. */
-export function HistoryTrack({ series, live, awayColor, homeColor }: { series: Sample[]; live?: number | null; awayColor: string; homeColor: string }) {
-  const b = historyBand(series, live, Date.now(), W, 16)
+export function HistoryTrack({ series, live, liveAsOf, awayColor, homeColor }: { series: Sample[]; live?: number | null; liveAsOf?: string; awayColor: string; homeColor: string }) {
+  const b = historyBand(series, liveAsOf ? live : null, liveAsOf ? Date.parse(liveAsOf) : Date.now(), W, 16)
   if (!b) return null
   return (
     <svg className="sp-hist" viewBox={`0 0 ${W} 16`} preserveAspectRatio="none" focusable="false" aria-hidden="true">
