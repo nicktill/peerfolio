@@ -1,11 +1,24 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { readFileSync } from 'node:fs'
-import { acceptTest, compareTestOffers, LIVE_TEST, testOffer, validateTestRequest } from './live-test.ts'
+import { acceptTest, compareTestOffers, displayLiveOffer, LIVE_TEST, testOffer, validateTestRequest } from './live-test.ts'
+import { WORST_CASE_AGE_MS } from './live/freshness.ts'
 import type { LiveView } from './live/view.ts'
 
 const NOW = Date.parse('2026-10-18T00:00:00Z')
 const view = (now = NOW): LiveView => ({ eventId: 'g', status: 'live', score: { home: 2, away: 1 }, period: 'P2', clock: '10:00', stateAsOf: new Date(now - 1000).toISOString(), stateFreshness: 'live', serverTime: new Date(now).toISOString(), odds: { status: 'ok', homeProb: 0.6, awayProb: 0.4, drawProb: null, source: 'polymarket', asOf: new Date(now - 1000).toISOString(), ageMs: 1000, freshness: 'live', confidence: 'high', mismatch: null } })
+
+test('healthy display latency does not pause the preview while execution still requires a fresh quote', () => {
+  const v = view()
+  if (v.odds.status !== 'ok') throw new Error('fixture')
+  v.odds = { ...v.odds, asOf: new Date(NOW - WORST_CASE_AGE_MS).toISOString(), ageMs: WORST_CASE_AGE_MS }
+  assert.doesNotThrow(() => displayLiveOffer(v, NOW))
+  assert.throws(() => testOffer(v, NOW), /fresh, agreeing/)
+  assert.throws(() => displayLiveOffer(v, NOW + 30_000 - WORST_CASE_AGE_MS), /fresh, agreeing/)
+  assert.throws(() => displayLiveOffer({ ...v, stateAsOf: new Date(NOW - 46_000).toISOString() }, NOW), /Score feed is stale/)
+  v.odds = { ...v.odds, confidence: 'low' }
+  assert.throws(() => displayLiveOffer(v, NOW), /fresh, agreeing/)
+})
 
 test('paper offers reject stale score, stale quote, non-live games and models', () => {
   const changes: Partial<LiveView>[] = [{ status: 'pre' }, { status: 'final' }, { stateAsOf: new Date(NOW - 46_000).toISOString() }, { stateAsOf: new Date(NOW + 1).toISOString() }, { score: null }, { score: { home: -1, away: 0 } }, { period: null }]

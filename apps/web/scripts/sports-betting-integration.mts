@@ -34,6 +34,8 @@ const E = [1, 2, 3, 4, 5, 6, 7, 8].map(ev)
 const mkUser = async (n: string) => (await db.insert(schema.users).values({ email: `${n}-${randomUUID()}@example.test`, name: n }).returning())[0]!
 const U = [await mkUser("a"), await mkUser("b"), await mkUser("c"), await mkUser("d"), await mkUser("e")]
 const league = await createSportsLeague(db, U[0]!.id, { name: `Betting IT ${run}`, emoji: "x", accent: "emerald", sports: ["nfl"], startingCredits: 1000, endsAt: null })
+// The cap cases below explicitly exercise a 2% parlay limit; the product default follows the league's single-pick cap.
+await db.update(schema.sportsLeagues).set({ maxParlayStakePct: 2 }).where(eq(schema.sportsLeagues.id, league.id))
 for (const u of U.slice(1)) await db.insert(sportsMembers).values({ leagueId: league.id, userId: u.id, credits: 1000 }).then(async () => {
   const [m] = await db.select().from(sportsMembers).where(and(eq(sportsMembers.userId, u.id), eq(sportsMembers.leagueId, league.id)))
   await db.insert(sportsLedger).values({ memberId: m!.id, type: "grant", amount: 1000, idempotencyKey: `grant:${m!.id}` })
