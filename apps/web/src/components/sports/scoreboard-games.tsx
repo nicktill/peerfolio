@@ -103,7 +103,7 @@ function LiveCard({ g, now, tracked, enableAdminTest, livePick }: { g: ScoreGame
     </div> : null}
     <TeamRows g={g} showScore offer={reserveOdds ? shownOffer : null} stale={!offer} pickable={selectable} livePick={reserveOdds ? livePick : undefined} eventId={tracked?.id} />
     {selectable && hasDraw ? <button type="button" className="sp-line sp-live-draw" aria-label={drawPrice != null ? `Live pick Draw, ${formatOdds(drawPrice)}` : 'Draw, price unavailable'} aria-pressed={livePick?.selected?.eventId === tracked!.id && livePick.selected.side === 'draw'} disabled={livePick?.busy || drawPrice == null} onClick={drawPrice != null ? () => livePick!.onSelect({ eventId: tracked!.id, home: g.home, away: g.away, sport: g.sport, side: 'draw', price: drawPrice }) : undefined}><span>Draw</span><b>{drawPrice != null ? formatOdds(drawPrice) : '\u2013'}</b></button> : null}
-    {tracked && split?.draw == null ? <GameChart eventId={tracked.id} away={g.away} home={g.home} awayColor={colors[0]} homeColor={colors[1]} live={ex ? ex.homeProb : null} /> : null}
+    {tracked && split?.draw == null ? <GameChart eventId={tracked.id} away={g.away} home={g.home} awayColor={colors[0]} homeColor={colors[1]} live={ex ? ex.homeProb : null} source={ex?.source} liveAsOf={ex?.asOf} /> : null}
     {g.status === 'live' ? <p className="sp-last-play" title={fresh ? g.lastPlay : undefined}><span>Last play</span> {fresh ? g.lastPlay || 'Waiting for the next play…' : 'Score feed delayed'}</p> : null}
     {livePick?.mode === 'parlay' ? <p className="sp-fine sp-live-singles"><Lock aria-hidden />Live picks are singles</p> : null}
     {tracked && enableAdminTest && !livePick?.liveBetting ? <AdminLiveTestPanel eventId={tracked.id} home={g.home} away={g.away} /> : null}

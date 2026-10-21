@@ -46,10 +46,10 @@ function MarketCard({ g, tracked, split: pregame, href, now }: { g: ScoreGame; t
   const live = g.status === "live"
   const fresh = now - Date.parse(g.fetchedAt) < 120_000
   const { view } = useLiveGame(tracked?.id, live && fresh)
-  const history = useGameHistory(live && fresh ? tracked?.id : undefined)
   const [awayColor, homeColor] = matchupColors(g.sport, g.away, g.home)
   // Live: the exchange view wins, then ESPN's in-game odds. Upcoming: the pregame moneyline.
   const exchange = live && view?.odds.status === "ok" ? view.odds : null
+  const history = useGameHistory(live && fresh ? tracked?.id : undefined, exchange?.source)
   const split = exchange && exchange.drawProb == null ? splitPct(exchange.homeProb)
     : live && fresh && g.probSource === "espn" && g.homeWinProb != null && g.drawProb == null ? splitPct(g.homeWinProb)
     : !live ? pregame ?? (g.pregameHome != null && g.pregameDraw == null ? splitPct(g.pregameHome) : null) : null
@@ -70,7 +70,7 @@ function MarketCard({ g, tracked, split: pregame, href, now }: { g: ScoreGame; t
           <div className="mk-track" data-history={history.length ? "" : undefined}>
             <i style={{ width: pct(split.away), background: awayColor }} />
             <i style={{ flex: 1, background: homeColor }} />
-            {live ? <HistoryTrack series={history} live={split.home / 100} awayColor={awayColor} homeColor={homeColor} /> : null}
+            {live ? <HistoryTrack series={history} live={exchange?.homeProb} liveAsOf={exchange?.asOf} awayColor={awayColor} homeColor={homeColor} /> : null}
           </div>
           <div className="mk-labels numeric"><span><b>{pct(split.away)}</b></span><small>{live ? "Win chance" : "Pregame odds"}</small><span><b>{pct(split.home)}</b></span></div>
         </div>
