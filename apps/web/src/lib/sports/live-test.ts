@@ -3,6 +3,7 @@ import { DEFAULT_PRICING, priceTwoWay, totalReturn } from './odds.ts'
 import { DEFAULT_THREEWAY_PRICING, priceThreeWay } from './threeway.ts'
 import type { LiveView } from './live/view.ts'
 import type { LiveSelection } from './live/types.ts'
+import { LIVE_MAX_MS } from './live/freshness.ts'
 
 /** Shared offer/delay/freshness machinery. The admin paper test never touches a league; live picks (live-pick.ts) reuse it with their own stake bounds. */
 /**
@@ -30,11 +31,20 @@ const fresh = (iso: string | null, now: number, maxAgeMs: number = LIVE_TEST.max
 }
 
 export function testOffer(view: LiveView | null, now: number): TestOffer {
+  return offerFor(view, now, LIVE_TEST.maxAgeMs)
+}
+
+/** Display caches and browser polling can exceed the execution window. Preview only: signing and acceptance still use testOffer's stricter limit. */
+export function displayLiveOffer(view: LiveView | null, now: number): TestOffer {
+  return offerFor(view, now, LIVE_MAX_MS - 1)
+}
+
+function offerFor(view: LiveView | null, now: number, quoteMaxAgeMs: number): TestOffer {
   if (!view || view.status !== 'live') return reject('A confirmed live game is required')
   if (!fresh(view.stateAsOf, now, LIVE_TEST.stateMaxAgeMs) || view.stateFreshness === 'stale' || view.stateFreshness == null) return reject('Score feed is stale; live picks are paused')
   if (!view.score || !Number.isInteger(view.score.home) || !Number.isInteger(view.score.away) || view.score.home! < 0 || view.score.away! < 0 || !view.period) return reject('Complete score and period are required')
   const q = view.odds
-  if (q.status !== 'ok' || q.source === 'espn' || q.freshness !== 'live' || q.confidence === 'low' || q.mismatch || !fresh(q.asOf, now)) return reject('A fresh, agreeing exchange quote is required')
+  if (q.status !== 'ok' || q.source === 'espn' || q.freshness !== 'live' || q.confidence === 'low' || q.mismatch || !fresh(q.asOf, now, quoteMaxAgeMs)) return reject('A fresh, agreeing exchange quote is required')
   if (![q.homeProb, q.awayProb, ...(q.drawProb == null ? [] : [q.drawProb])].every(p => Number.isFinite(p) && p > 0 && p < 1) || Math.abs(q.homeProb + q.awayProb + (q.drawProb ?? 0) - 1) > 1e-6) return reject('Invalid exchange probabilities')
   // Live picks accept any non-zero chance. Freshness and quote quality are checked above, independently of probability.
   const priced = q.drawProb == null

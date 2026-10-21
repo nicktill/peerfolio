@@ -152,5 +152,6 @@ export function scoreboardDays(now: Date, ahead = 1): string[] {
 }
 const canonical = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
 export function scoreboardMatch(event: {sport: string; home: string; away: string; startsAt: string}, games: ScoreGame[]): ScoreGame | undefined {
-  return games.find(g => g.sport === event.sport && canonical(g.home) === canonical(event.home) && canonical(g.away) === canonical(event.away) && Math.abs(Date.parse(g.startsAt) - Date.parse(event.startsAt)) < 20 * 60_000)
+  // ESPN can move scheduled tipoff by exactly 20 minutes after the betting event is published.
+  return games.find(g => g.sport === event.sport && canonical(g.home) === canonical(event.home) && canonical(g.away) === canonical(event.away) && Math.abs(Date.parse(g.startsAt) - Date.parse(event.startsAt)) <= 20 * 60_000)
 }

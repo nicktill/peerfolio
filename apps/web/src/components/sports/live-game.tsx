@@ -112,7 +112,7 @@ export function LiveGameStrip({ eventId, sport, home, away, active, pick, onFina
   const dim = (side: string) => (mine === "home" || mine === "away" || mine === "draw") && mine !== side
   const mineProb = split && (mine === "home" || mine === "away" || mine === "draw") ? split[mine] : null
   const note = split ? (odds && odds.confidence === "low" ? (odds.mismatch ? "Sources differ, treat as rough" : "Thin market, treat as rough") : null) : view && view.odds.status === "paused" && view.status !== "final" ? (PAUSED_REASON[view.odds.reason] ?? "Odds paused") : chip.tone === "paused" ? PAUSED_REASON.stale : null
-  const fine = pick ? "Estimate from the live market, view only. No cash-out; your pick keeps its accepted price and payout." : "Market-implied chance, view only."
+  const fine = pick ? "Estimate from the live market. Use Manage to check cash-out availability; your pick keeps its accepted price and payout unless you sell." : "Market-implied chance, view only."
   return (
     <div className="sl-live" data-tone={chip.tone} role="group" aria-label="Live game status" title={note ? `${note}. ${fine}` : fine}>
       <span className="sl-live-chip" data-tone={chip.tone}>

@@ -13,7 +13,7 @@ import { useToast } from '@web/components/ui/toast'
 import type { PickLockFx } from './pick-lock-effect'
 import { DRAW_COLOR, DrawMark, DrawWatermarks } from './slip-pick-card'
 import { ageView } from '@web/lib/sports/live/view'
-import { LIVE_TEST, testOffer, type TestOffer } from '@web/lib/sports/live-test'
+import { LIVE_TEST, displayLiveOffer, type TestOffer } from '@web/lib/sports/live-test'
 import { acceptsLivePrice } from '@web/lib/sports/live-price'
 import { LIVE_PICK, liveMaxStake } from '@web/lib/sports/live-pick'
 import { formatCredits, formatOdds } from '@web/lib/sports/format'
@@ -40,7 +40,7 @@ export function LivePickPanel({ leagueId, eventId, home, away, sport, credits, s
   useEffect(() => { onBusyChange?.(phase === 'checking'); return () => onBusyChange?.(false) }, [phase, onBusyChange])
 
   let offer: TestOffer | null = null
-  try { if (view) { const aged = ageView(view, elapsedMs); offer = testOffer(aged, Date.parse(aged.serverTime)) } } catch { /* A stale or paused feed offers nothing to pick. */ }
+  try { if (view) { const aged = ageView(view, elapsedMs); offer = displayLiveOffer(aged, Date.parse(aged.serverTime)) } } catch { /* A stale or paused feed offers nothing to pick. */ }
 
   const max = Math.min(liveMaxStake(startingCredits, maxStakePct), credits)
   const amount = Math.floor(Number(stake.replace(/[^\d]/g, '')) || 0)
