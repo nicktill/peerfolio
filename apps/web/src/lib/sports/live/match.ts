@@ -82,6 +82,8 @@ const ALIAS: Record<string, string> = {
   "real racing club": "racing santander",
   // College football: Polymarket writes "Miami (FL)"; matched against ESPN's school name "Miami" (see planGames).
   "miami fl": "miami",
+  // ESPN's short name is "App State"; Polymarket writes "Appalachian State".
+  "appalachian state": "app state",
 }
 
 /**

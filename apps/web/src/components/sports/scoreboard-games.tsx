@@ -52,7 +52,7 @@ function TeamRows({ g, showScore, offer, stale, pickable, livePick, eventId }: {
         <TeamBadge sport={g.sport} name={side.name} size={40} /><span className="sp-line-name">{side.name}{side.record ? <small className="sp-team-record"> ({side.record})</small> : null}</span>
         {showScore ? <SetScores sets={side.sets} live={g.status === 'live'} /> : null}
         {showScore ? <b className="sp-live-score"><LiveNumber value={side.score == null ? null : Number.isFinite(Number(side.score)) ? Number(side.score) : null} format={scoreText} kind="score" seenKey={`score:${g.sport}:${g.id}:${side.name}`} /></b> : null}
-        {price != null && reserve ? <span className="sp-line-odds" data-stale={stale || undefined}><b>{formatOdds(price)}</b><small>{stale ? 'updating' : `$100 wins $${winOn100(price)}`}</small></span> : reserve ? <span className="sp-line-odds" data-stale><b>–</b><small>repricing</small></span> : null}
+        {price != null && reserve ? <span className="sp-line-odds" data-stale={stale || undefined}><b>{formatOdds(price)}</b><small>{stale ? 'updating' : `$100 wins $${winOn100(price)}`}</small></span> : reserve ? <span className="sp-line-odds" data-stale><b>–</b><small>{g.status === 'live' ? 'repricing' : 'opens at tip-off'}</small></span> : null}
       </Row>
     })}
   </div>
