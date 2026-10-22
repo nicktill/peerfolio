@@ -1,3 +1,4 @@
+import { isWatched } from "./activity.ts"
 import { msToNextSlot, slotElapsed } from "./slots.ts"
 import { confirmDue, decideReprice, REPRICE, type ExchangeView, type RepriceTarget } from "../reprice.ts"
 import { explainNoMatch, matchGame } from "./match.ts"
@@ -63,22 +64,29 @@ export async function runRepricePass(deps: WorkerDeps, st: WorkerState, now: Dat
   const near = targets.some((t) => t.startsAt.getTime() - now.getTime() <= REPRICE.windowMs)
   const t = now.getTime()
   const soonest = Math.min(...targets.map((x) => x.startsAt.getTime()))
-  if (near) {
+  // Nobody on the sports pages: a 30 second pass would only keep the database awake, so reprice once per shared slot. A viewer
+  // is noticed at the next due pass (their requests stamp the activity row), and picks wait for a fresh price meanwhile
+  // (priceNeedsRefresh). A store without an activity signal counts as watched, which is the old behaviour.
+  const watched = store.lastActivity ? isWatched(await store.lastActivity(), now) : true
+  const fast = near && watched
+  // Slot-aligned passes wake early for a game entering the fast window only when someone is watching.
+  const wakeMs = watched ? Math.min(msToNextSlot(t), soonest - REPRICE.windowMs - t) : msToNextSlot(t)
+  if (fast) {
     const sinceLast = t - st.reprice.lastPassAt
     if (sinceLast < REPRICE.passMs) {
       st.reprice.nextListAt = st.reprice.lastPassAt + REPRICE.passMs
       return { ...result, skipped: true, nextPassMs: REPRICE.passMs - sinceLast }
     }
   } else {
-    // Far games: one pass per shared slot, and no database read until the slot or the moment the nearest game enters the window.
-    const next = Math.min(t + msToNextSlot(t), soonest - REPRICE.windowMs)
+    // Far or unwatched: one pass per shared slot, and no database read until the slot (or, when watched, the moment the nearest game enters the window).
+    const next = t + Math.max(1_000, wakeMs)
     if (!slotElapsed(st.reprice.lastPassAt, t)) {
       st.reprice.nextListAt = next
       return { ...result, skipped: true, nextPassMs: Math.max(1_000, next - t) }
     }
   }
   st.reprice.lastPassAt = t
-  result.nextPassMs = near ? REPRICE.passMs : Math.max(1_000, Math.min(msToNextSlot(t), soonest - REPRICE.windowMs - t))
+  result.nextPassMs = fast ? REPRICE.passMs : Math.max(1_000, wakeMs)
   st.reprice.nextListAt = t + result.nextPassMs
 
   const sports = [...new Set(targets.map((t) => t.sport))]
@@ -135,8 +143,9 @@ export async function runRepricePass(deps: WorkerDeps, st: WorkerState, now: Dat
     // A locked target is a market the cron froze while the worker was down. It is judged as if open and reopens only on a healthy
     // read (update or confirm); a freeze or hold decision leaves it closed. Never reopened straight from the heartbeat.
     const wasLocked = t.state.status === "locked"
-    const farMarket = t.startsAt.getTime() - now.getTime() > REPRICE.windowMs
-    const d = decideReprice({ now, startsAt: t.startsAt, staleFreezeMs: farMarket ? REPRICE.farStaleFreezeMs : undefined, eventStatus: t.eventStatus, market: wasLocked ? { ...t.state, status: "open" } : t.state, exchange, exchange3 })
+    // Slot-cadence reads (far games, or no viewer) get the longer stale tolerance: one bad read between passes must not freeze a market.
+    const slowRead = !fast || t.startsAt.getTime() - now.getTime() > REPRICE.windowMs
+    const d = decideReprice({ now, startsAt: t.startsAt, staleFreezeMs: slowRead ? REPRICE.farStaleFreezeMs : undefined, eventStatus: t.eventStatus, market: wasLocked ? { ...t.state, status: "open" } : t.state, exchange, exchange3 })
     const label = `${t.awayName} @ ${t.homeName}`
     if (wasLocked) {
       if (!(d.action === "update" || (d.action === "none" && d.confirm)) || !store.reopen || !(await store.reopen(t.marketId, now))) {

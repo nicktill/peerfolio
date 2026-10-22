@@ -3,6 +3,7 @@ import type { PostgresJsDatabase } from "drizzle-orm/postgres-js"
 import * as schema from "../../../db/schema.ts"
 import type { HealthGame, HealthInput } from "./health.ts"
 import { trackedEventSql } from "../ingestion-scope.ts"
+import { ACTIVITY_NAME, ACTIVITY_TOUCH_MS } from "./activity.ts"
 import { liveSlate, type SlateEvent } from "./plan.ts"
 import { DEFAULT_RETENTION, retentionCutoffs, type RetentionPolicy } from "./retention.ts"
 import type { LiveGameState, NormalizedQuote } from "./types.ts"
@@ -146,6 +147,23 @@ export async function writeHeartbeat(db: Db, h: HeartbeatInput): Promise<void> {
     .insert(liveWorker)
     .values({ name: h.name, ...values, lastOkAt: h.ok ? h.at : null })
     .onConflictDoUpdate({ target: liveWorker.name, set: h.ok ? { ...values, lastOkAt: h.at } : values })
+}
+
+let lastTouchAt = 0
+
+/** Marks the sports pages as in use. Throttled per server instance, never throws: a failed stamp must not fail the viewer's request. */
+export async function touchSportsActivity(db: Db, now: Date = new Date()): Promise<void> {
+  if (now.getTime() - lastTouchAt < ACTIVITY_TOUCH_MS) return
+  lastTouchAt = now.getTime()
+  await writeHeartbeat(db, { name: ACTIVITY_NAME, at: now, ok: true, consecutiveFailures: 0, details: {} }).catch(() => {
+    lastTouchAt = 0
+  })
+}
+
+/** When the sports pages were last in use, or null if never. */
+export async function readSportsActivity(db: Db): Promise<Date | null> {
+  const [row] = await db.select({ at: liveWorker.lastCycleAt }).from(liveWorker).where(eq(liveWorker.name, ACTIVITY_NAME)).limit(1)
+  return row?.at ?? null
 }
 
 /** Everything liveHealth needs: the worker row and, for each game that should be live now, its newest quote and state. */
