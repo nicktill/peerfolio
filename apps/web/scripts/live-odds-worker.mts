@@ -37,6 +37,7 @@ import { inQuietHours, msToNextSlot, QUIET_SLOT_MS } from "../src/lib/sports/liv
 import { REPRICE } from "../src/lib/sports/reprice-config.ts"
 import { runRepricePass } from "../src/lib/sports/live/reprice-pass.ts"
 import { MarketSocket } from "../src/lib/sports/live/ws.ts"
+import { WATCH_POLL_MS, WatchSignal } from "../src/lib/sports/live/watch-signal.ts"
 import type { PassResult } from "../src/lib/sports/live/reprice-pass.ts"
 import { newWorkerState, runTick, type TickResult, type WorkerDeps } from "../src/lib/sports/live/worker.ts"
 
@@ -87,6 +88,17 @@ async function triggerSettle(eventId: string, kind: "final" | "probe"): Promise<
   return { done: !!o && ((o.ran === true && (o.settled ?? 0) + (o.voided ?? 0) + (o.review ?? 0) > 0) || o.reason === "no_open_markets" || o.reason === "budget_spent") }
 }
 
+// Wake signal: while sleeping, ask the app (data cache, never the database) whether someone just opened sports, so live odds and the
+// fast repricing pass resume within one poll instead of at the next slot. Without APP_URL and CRON_SECRET the worker keeps its slots.
+const watch = appUrl && cronSecret
+  ? new WatchSignal(async () => {
+      const res = await fetch(`${appUrl}/api/sports/watch`, { headers: { authorization: `Bearer ${cronSecret}` }, signal: AbortSignal.timeout(5_000) })
+      if (!res.ok) return null
+      const body = (await res.json()) as { mark?: unknown }
+      return typeof body.mark === "string" ? body.mark : null
+    })
+  : null
+
 const deps: WorkerDeps = {
   store: {
     loadSlate: (now) => loadLiveSlate(db, now),
@@ -119,10 +131,21 @@ for (const sig of ["SIGINT", "SIGTERM"] as const) {
   })
 }
 
-/** Sleeps in 1s slices so SIGTERM is honoured within a second even during a 15 minute idle sleep. */
-async function sleep(ms: number) {
+/**
+ * Sleeps in 1s slices so SIGTERM is honoured within a second even during a 15 minute idle sleep. A long sleep also polls the watch
+ * signal every WATCH_POLL_MS and returns early when someone opens sports. Returns true when it was woken that way.
+ */
+async function sleep(ms: number): Promise<boolean> {
   const end = Date.now() + ms
-  while (!stopping && Date.now() < end) await new Promise((r) => setTimeout(r, Math.min(1_000, end - Date.now())))
+  let nextPoll = Date.now() + WATCH_POLL_MS
+  while (!stopping && Date.now() < end) {
+    await new Promise((r) => setTimeout(r, Math.min(1_000, end - Date.now())))
+    if (watch && Date.now() >= nextPoll && end - Date.now() > 5_000) {
+      nextPoll = Date.now() + WATCH_POLL_MS
+      if (await watch.changed()) return true
+    }
+  }
+  return false
 }
 let failures = 0
 let lastPrune = 0
@@ -242,7 +265,12 @@ while (!stopping) {
     await sql.end({ timeout: 5 })
     process.exit(failed ? 1 : 0)
   }
-  await sleep(Math.max(1_000, delay - (Date.now() - started)))
+  if (await sleep(Math.max(1_000, delay - (Date.now() - started)))) {
+    // A viewer arrived: the next cycle reads their activity stamp (live slate, live/store.ts) and runs a reprice pass straight away
+    // instead of waiting for the slot it was sleeping towards.
+    state.reprice.nextListAt = 0
+    out("info", "live.woken", { reason: "viewer" })
+  }
 }
 
 socket?.close()

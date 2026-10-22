@@ -154,13 +154,20 @@ export async function writeHeartbeat(db: Db, h: HeartbeatInput): Promise<void> {
 
 let lastTouchAt = 0
 
-/** Marks the sports pages as in use. Throttled per server instance, never throws: a failed stamp must not fail the viewer's request. */
-export async function touchSportsActivity(db: Db, now: Date = new Date()): Promise<void> {
-  if (now.getTime() - lastTouchAt < ACTIVITY_TOUCH_MS) return
+/**
+ * Marks the sports pages as in use. Throttled per server instance, never throws: a failed stamp must not fail the viewer's request.
+ * True when this call wrote the stamp, so the caller can raise the worker's wake signal after it (live/watch.ts).
+ */
+export async function touchSportsActivity(db: Db, now: Date = new Date()): Promise<boolean> {
+  if (now.getTime() - lastTouchAt < ACTIVITY_TOUCH_MS) return false
   lastTouchAt = now.getTime()
-  await writeHeartbeat(db, { name: ACTIVITY_NAME, at: now, ok: true, consecutiveFailures: 0, details: {} }).catch(() => {
-    lastTouchAt = 0
-  })
+  return writeHeartbeat(db, { name: ACTIVITY_NAME, at: now, ok: true, consecutiveFailures: 0, details: {} }).then(
+    () => true,
+    () => {
+      lastTouchAt = 0
+      return false
+    },
+  )
 }
 
 /** When the sports pages were last in use, or null if never. */
