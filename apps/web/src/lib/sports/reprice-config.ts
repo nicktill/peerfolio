@@ -39,9 +39,13 @@ export const REPRICE = {
   confirmEveryMs: 2 * 60_000,
   /** Only games starting within this window are repriced at the fast cadence (keeps a serverless DB able to sleep). */
   windowMs: 3 * 3_600_000,
-  /** Pass cadence inside the window, and outside it (further-out games still get a slower pass while the worker is up). */
+  /**
+   * Pass cadence inside the window, and outside it (further-out games still get a slower pass while the worker is up). The far pass
+   * runs on the shared quarter-hour slot (live/slots.ts) so it shares an awake period with the publish and settle routes; it must stay
+   * well under `workerDeadMs`, since every worker cycle writes the heartbeat the guard checks.
+   */
   passMs: 30_000,
-  farPassMs: 5 * 60_000,
+  farPassMs: 15 * 60_000,
   /** The publish/guard cron stops trusting an exchange-managed market, and freezes it inside `windowMs` of the start, when the worker heartbeat is older than this. */
   workerDeadMs: 20 * 60_000,
 } as const

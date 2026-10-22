@@ -85,7 +85,7 @@ export type WorkerState = {
   /** Per-cycle counters, reset at the start of every tick. */
   cycle: CycleStats
   /** Pregame repricing pass bookkeeping (see reprice-pass.ts). */
-  reprice: { lastPassAt: number; holdLogAt: Map<string, number> }
+  reprice: { lastPassAt: number; holdLogAt: Map<string, number>; /** Earliest time a pass could be due (a slot or a game entering the window); before it, no database read. 0 = unknown. */ nextListAt: number; lastTargets: number }
   /** Last time the score orientation of a game was logged (raw vs interpreted), by event id. */
   orientAt: Map<string, number>
   /** Fast settle-trigger memory (final / clock-zero / exchange-decided signals) per live event. */
@@ -122,7 +122,7 @@ export const newWorkerState = (): WorkerState => ({
   cycle: freshCycle(),
   orientAt: new Map(),
   trigger: new SettleTriggerTracker(),
-  reprice: { lastPassAt: 0, holdLogAt: new Map() },
+  reprice: { lastPassAt: 0, holdLogAt: new Map(), nextListAt: 0, lastTargets: 0 },
 })
 
 export { CLOB, GAMMA, KALSHI }

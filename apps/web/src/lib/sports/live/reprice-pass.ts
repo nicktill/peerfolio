@@ -1,3 +1,4 @@
+import { msToNextSlot, slotElapsed } from "./slots.ts"
 import { confirmDue, decideReprice, REPRICE, type ExchangeView, type RepriceTarget } from "../reprice.ts"
 import { explainNoMatch, matchGame } from "./match.ts"
 import { booksFromQuotes, exchangeThreeWay, type ThreeWayExchangeResult } from "../threeway-exchange.ts"
@@ -25,7 +26,7 @@ export type PassResult = {
   unmatched: number
   /** True when the pass was not due and made no upstream call. */
   skipped: boolean
-  /** When the next pass is due: 60s while a target starts within the window, else 15 minutes. */
+  /** When the next pass is due: 30s while a target starts within the window, else the next shared slot (see slots.ts). */
   nextPassMs: number
 }
 
@@ -47,15 +48,30 @@ function bookView(raws: RawQuote[], now: Date) {
 export async function runRepricePass(deps: WorkerDeps, st: WorkerState, now: Date): Promise<PassResult | null> {
   const store = deps.reprice
   if (!store) return null
+  // Not due: answer from memory. Only the database read below can keep a serverless Postgres awake, and nothing can be due before
+  // the next slot or before the nearest known game enters the fast window.
+  if (now.getTime() < st.reprice.nextListAt) return { targets: st.reprice.lastTargets, matched: 0, updated: 0, frozen: 0, held: 0, confirmed: 0, unmatched: 0, skipped: true, nextPassMs: st.reprice.nextListAt - now.getTime() }
   const targets = await store.listTargets(now)
+  st.reprice.lastTargets = targets.length
   const result: PassResult = { targets: targets.length, matched: 0, updated: 0, frozen: 0, held: 0, confirmed: 0, unmatched: 0, skipped: false, nextPassMs: REPRICE.farPassMs }
   if (targets.length === 0) return { ...result, skipped: true }
   const near = targets.some((t) => t.startsAt.getTime() - now.getTime() <= REPRICE.windowMs)
-  const every = near ? REPRICE.passMs : REPRICE.farPassMs
-  const sinceLast = now.getTime() - st.reprice.lastPassAt
-  if (sinceLast < every) return { ...result, skipped: true, nextPassMs: every - sinceLast }
-  st.reprice.lastPassAt = now.getTime()
-  result.nextPassMs = every
+  const t = now.getTime()
+  const soonest = Math.min(...targets.map((x) => x.startsAt.getTime()))
+  if (near) {
+    const sinceLast = t - st.reprice.lastPassAt
+    if (sinceLast < REPRICE.passMs) return { ...result, skipped: true, nextPassMs: REPRICE.passMs - sinceLast }
+  } else {
+    // Far games: one pass per shared slot, and no database read until the slot or the moment the nearest game enters the window.
+    const next = Math.min(t + msToNextSlot(t), soonest - REPRICE.windowMs)
+    if (!slotElapsed(st.reprice.lastPassAt, t)) {
+      st.reprice.nextListAt = next
+      return { ...result, skipped: true, nextPassMs: Math.max(1_000, next - t) }
+    }
+  }
+  st.reprice.lastPassAt = t
+  result.nextPassMs = near ? REPRICE.passMs : Math.max(1_000, Math.min(msToNextSlot(t), soonest - REPRICE.windowMs - t))
+  st.reprice.nextListAt = near ? 0 : t + result.nextPassMs
 
   const sports = [...new Set(targets.map((t) => t.sport))]
   const pmFor = new Map<string, { game: PmGame; homeIndex: 0 | 1 }>()
