@@ -21,8 +21,10 @@ const PATH: Record<Exclude<JobName, "warm">, string> = {
 const weekdays = (dow: number) => dow >= 1 && dow <= 5
 
 function pricesDue(min: number, hour: number, dow: number): boolean {
-  if (weekdays(dow) && hour >= 13 && hour <= 21 && min % 5 === 0) return true // market hours, live quotes and the close checks
-  if (weekdays(dow) && hour === 22 && min % 10 === 0) return true // after the close, winter
+  // Match prices.yml's 15-minute UTC supersets, including the winter 19:30 ET close-capture attempt.
+  // The app route applies the New York market calendar and six official-close windows.
+  if (weekdays(dow) && hour >= 13 && hour <= 23 && min % 15 === 0) return true
+  if (dow >= 2 && dow <= 6 && hour === 0 && min % 15 === 0) return true
   if (weekdays(dow) && hour === 23 && min === 5) return true // evening fund NAVs and close retries
   if (dow >= 2 && dow <= 6 && hour >= 0 && hour <= 4 && min === 5) return true // the same evening in US time, after midnight UTC
   if ((hour === 10 || hour === 11) && min === 15) return true // 6:15am New York, every day
@@ -67,7 +69,7 @@ export function jobsFor(now: Date, { sports }: Options): Job[] {
   }
   if (newsDue(min, hour, dow)) add("news")
   if (hour === 22 && min === 30) add("snapshot")
-  if (sports && min % 5 === 2) add("sports-settle")
+  if (sports && min % 15 === 0) add("sports-settle")
   if (sports && min % 15 === 0) add("sports-publish")
   return jobs
 }
