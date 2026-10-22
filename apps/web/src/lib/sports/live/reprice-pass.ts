@@ -1,7 +1,7 @@
 import { isWatched } from "./activity.ts"
 import { inQuietHours, msToNextSlot, QUIET_SLOT_MS, slotElapsed } from "./slots.ts"
 import { confirmDue, decideReprice, REPRICE, type ExchangeView, type RepriceTarget } from "../reprice.ts"
-import { explainNoMatch, matchGame } from "./match.ts"
+import { explainNoMatch, matchExchangeGame, matchGame } from "./match.ts"
 import { booksFromQuotes, exchangeThreeWay, type ThreeWayExchangeResult } from "../threeway-exchange.ts"
 import { normalizeQuote, pairProbability } from "./quote.ts"
 import { KALSHI_SERIES, kalshiQuotes, parseGammaEvents, parseKalshiEvents, pmQuotes, POLYMARKET_SERIES, type KalshiGame, type PmGame } from "./sources.ts"
@@ -109,7 +109,7 @@ export async function runRepricePass(deps: WorkerDeps, st: WorkerState, now: Dat
     }
     const games = parseGammaEvents(list)
     for (const t of mine) {
-      const m = matchGame({ homeName: t.homeName, awayName: t.awayName, startsAt: t.startsAt }, games)
+      const m = matchExchangeGame(t.sport, { homeName: t.homeName, awayName: t.awayName, startsAt: t.startsAt }, games)
       if (m) pmFor.set(t.eventId, { game: m.candidate, homeIndex: m.homeIndex })
       else why.set(t.marketId, explainNoMatch({ homeName: t.homeName, awayName: t.awayName, startsAt: t.startsAt }, games))
     }

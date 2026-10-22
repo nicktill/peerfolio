@@ -1,7 +1,7 @@
 import type { RepriceStore } from "../reprice.ts"
 import { cycleFailed } from "./health.ts"
 import { clip, type Fields, type Level } from "../log.ts"
-import { explainNoMatch, matchGame } from "./match.ts"
+import { explainNoMatch, matchExchangeGame, matchGame } from "./match.ts"
 import { bookClock, quoteKey, shouldWrite, type BookClock, type LastWrite, type QuoteKey, type SlateEvent } from "./plan.ts"
 import { espnGroupsQuery, hasDraw, type Sport } from "../types.ts"
 import { normalizeQuote, pairProbability, pairProbability3 } from "./quote.ts"
@@ -216,7 +216,7 @@ export async function runTick(deps: WorkerDeps, st: WorkerState, now: Date): Pro
     }
     const games = parseGammaEvents(list)
     for (const ev of slate.filter((e) => e.sport === sport)) {
-      const m = matchGame(ev, games)
+      const m = matchExchangeGame(ev.sport, ev, games)
       if (!m) {
         whyNot.set(ev.id, explainNoMatch(ev, games))
         continue

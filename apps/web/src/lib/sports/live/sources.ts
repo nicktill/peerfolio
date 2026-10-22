@@ -44,7 +44,13 @@ export const GAMMA_PAGE = 25
  * the game time, not the creation date, keeps a season's old events from filling the 100-event page; `offset` pages on.
  */
 export const gammaGamesUrl = (series: string, fromMs: number, toMs: number, offset = 0): string =>
-  `${GAMMA}/events?series_id=${series}&active=true&closed=false&limit=${GAMMA_PAGE}&offset=${offset}&order=endDate&ascending=true&end_date_min=${new Date(fromMs).toISOString()}&end_date_max=${new Date(toMs).toISOString()}`
+  `${GAMMA}/events?series_id=${series}&active=true&closed=false&limit=${GAMMA_PAGE}&offset=${offset}&order=endDate&ascending=true&end_date_min=${new Date(fromMs).toISOString()}&end_date_max=${new Date(toMs + (END_DATE_TAIL_MS[series] ?? 0)).toISOString()}`
+
+/**
+ * Series whose game events carry an end date well after the game: MLB postseason games end a week after first pitch (the series'
+ * last possible day), so a window on end date alone skipped every World Series game. Matching still uses each game's start time.
+ */
+const END_DATE_TAIL_MS: Record<string, number> = { [POLYMARKET_SERIES.mlb!]: 8 * 24 * 3_600_000 }
 
 export type PmGame = Candidate & {
   slug: string
