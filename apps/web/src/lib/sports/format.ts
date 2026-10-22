@@ -1,6 +1,6 @@
 /** Display helpers for odds and markets. Pure. */
 
-import { americanToDecimal } from "./odds.ts"
+import { totalReturn } from "./odds.ts"
 
 /** Sports play-money as dollars, whole units, the one formatter for every sports balance, stake, payout and standing. Negatives use a true minus. */
 export const formatCredits = (n: number): string => {
@@ -86,7 +86,7 @@ export function marketTitle(market: DisplayMarket): string {
 }
 
 /** What 100 credits wins at these odds, profit only. */
-export const winOn100 = (american: number): number => Math.floor(100 * americanToDecimal(american)) - 100
+export const winOn100 = (american: number): number => totalReturn(100, american) - 100
 
 /** "Locks 5:20 PM", or with the day when it isn't today. */
 export function lockLabel(iso: string, now: Date = new Date()): string {

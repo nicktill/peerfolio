@@ -1198,9 +1198,11 @@
 @media (prefers-reduced-motion: reduce) { .sp-hold-bar { animation: none; width: 55%; } }
 
 /* Game chart: both teams' win chance on one time axis, under the team rows on live cards (all widths). */
-.sp-gchart { position: relative; height: 64px; margin: 8px 0 2px; padding-right: 44px; color: var(--fw-fg3); animation: sp-spark-in .5s ease-out; }
-.sp-gchart-slot { animation: none; }
-.sp-gchart svg { display: block; width: 100%; height: 64px; overflow: visible; }
+.sp-gchart-wrap { margin: 8px 0 2px; }
+.sp-gchart-caption { display: flex; justify-content: space-between; padding-right: 44px; color: var(--fw-fg3); font: 10px/1.4 var(--fw-mono); }
+.sp-gchart { position: relative; height: 56px; margin: 2px 0; padding-right: 44px; color: var(--fw-fg3); animation: sp-spark-in .5s ease-out; }
+.sp-gchart-slot { height: 88px; animation: none; }
+.sp-gchart svg { display: block; width: 100%; height: 56px; overflow: visible; }
 .sp-gchart-pill { position: absolute; right: 0; display: grid; place-items: center; min-width: 38px; height: 18px; padding: 0 6px; border-radius: 999px; font: 700 11px/1 var(--fw-mono); font-variant-numeric: tabular-nums; }
 @media (prefers-reduced-motion: reduce) { .sp-gchart { animation: none; } }
 

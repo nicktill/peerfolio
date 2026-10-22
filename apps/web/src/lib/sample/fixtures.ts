@@ -194,7 +194,12 @@ function sampleResponseRaw(url: string, pathname: string | null): unknown {
   }
   if (/^\/api\/fantasy\/sample\/season(\?|$)/.test(url)) return SEASON
   if (/^\/api\/fantasy\/sample(\?|$)/.test(url)) return fantasyView(FANTASY_LEAGUE)
-  if (/^\/api\/sports\/live\/history\?/.test(url)) { const now = Date.now(); const series = Array.from({ length: 60 }, (_, i) => ({ t: now - (59 - i) * 90_000, v: +(0.5 + 0.1 * Math.sin(i / 5) - i * 0.002 + (i > 42 ? (i - 42) * 0.012 : 0)).toFixed(3) })); return { series, points: series.map((x) => x.v) } }
+  // Real leagues must fetch recorded quotes; illustrative history belongs only to explicit sample views.
+  if (((pathname && inSampleView(pathname)) || getDemoMode() === "sample") && /^\/api\/sports\/live\/history\?/.test(url)) {
+    const now = Date.now()
+    const series = Array.from({ length: 60 }, (_, i) => ({ t: now - (59 - i) * 90_000, v: +(0.5 + 0.1 * Math.sin(i / 5) - i * 0.002 + (i > 42 ? (i - 42) * 0.012 : 0)).toFixed(3) }))
+    return { series, points: series.map((x) => x.v) }
+  }
   if (/^\/api\/sports\/leagues\/sample(\?|$)/.test(url)) return { ...sportsView(SPORTS_LEAGUE), liveEvents: [{ id: "00000000-0000-4000-8000-000000000001", sport: "nfl", home: "Minnesota Vikings", away: "Green Bay Packers", startsAt: new Date(Date.now() - 75 * 60_000).toISOString() }] }
   if (/^\/api\/leagues\/sample(\?|$)/.test(url)) return PRIVATE_LEAGUE
   const quote = url.match(/^\/api\/sports\/leagues\/sample\/picks\/([^/]+)\/cashout$/)

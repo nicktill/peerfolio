@@ -1517,3 +1517,15 @@ export const sportsLiveTests = pgTable(
   },
   (t) => [index("sports_live_tests_event_idx").on(t.eventId, t.acceptedAt), index("sports_live_tests_user_idx").on(t.userId, t.acceptedAt)],
 )
+
+/** Private recovery snapshot for an administrator's reset of one sports league member. */
+export const sportsMemberResets = pgTable("sports_member_resets", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  memberId: uuid("member_id").notNull().references(() => sportsMembers.id, { onDelete: "cascade" }),
+  actorId: uuid("actor_id").references(() => users.id, { onDelete: "set null" }),
+  requestId: uuid("request_id").notNull(),
+  creditsBefore: integer("credits_before").notNull(),
+  creditsAfter: integer("credits_after").notNull(),
+  snapshot: jsonb("snapshot").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("sports_member_resets_request_idx").on(t.requestId), index("sports_member_resets_member_idx").on(t.memberId)])

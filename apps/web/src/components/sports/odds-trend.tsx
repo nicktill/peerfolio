@@ -58,7 +58,7 @@ export function useGameHistory(eventId: string | undefined, source?: LiveSource)
 }
 
 const W = 300
-const H = 64
+const H = 56
 const PILL = 18
 
 /**
@@ -81,16 +81,22 @@ export function GameChart({ eventId, away, home, awayColor, homeColor, live, sou
     ay = mid - (up * PILL) / 2
   }
   const clampY = (v: number) => Math.min(H - PILL / 2, Math.max(PILL / 2, v))
-  const label = `Win chance: ${away} ${g.awayPct} percent, ${home} ${g.homePct} percent`
+  const start = new Date(g.startAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+  const end = new Date(g.endAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+  const label = `Win chance history from ${start} to ${end}: ${away} ${g.awayPct} percent, ${home} ${g.homePct} percent`
   return (
-    <div className="sp-gchart" role="img" aria-label={label}>
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" focusable="false" aria-hidden="true">
-        <line x1={0} x2={W} y1={g.midY} y2={g.midY} stroke="currentColor" strokeWidth={1} strokeDasharray="2 4" opacity={0.25} vectorEffect="non-scaling-stroke" />
-        <path d={g.away} fill="none" stroke={awayColor} strokeWidth={1.8} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-        <path d={g.home} fill="none" stroke={homeColor} strokeWidth={1.8} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-      </svg>
-      <span className="sp-gchart-pill numeric" style={{ top: clampY(ay) - PILL / 2, background: awayColor, color: onColor(awayColor) }}>{g.awayPct}%</span>
-      <span className="sp-gchart-pill numeric" style={{ top: clampY(hy) - PILL / 2, background: homeColor, color: onColor(homeColor) }}>{g.homePct}%</span>
+    <div className="sp-gchart-wrap">
+      <div className="sp-gchart-caption"><span>Win chance</span><span>0–100%</span></div>
+      <div className="sp-gchart" role="img" aria-label={label}>
+        <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" focusable="false" aria-hidden="true">
+          <line x1={0} x2={W} y1={g.midY} y2={g.midY} stroke="currentColor" strokeWidth={1} strokeDasharray="2 4" opacity={0.25} vectorEffect="non-scaling-stroke" />
+          <path d={g.away} fill="none" stroke={awayColor} strokeWidth={1.8} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+          <path d={g.home} fill="none" stroke={homeColor} strokeWidth={1.8} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+        </svg>
+        <span title={away} className="sp-gchart-pill numeric" style={{ top: clampY(ay) - PILL / 2, background: awayColor, color: onColor(awayColor) }}>{g.awayPct}%</span>
+        <span title={home} className="sp-gchart-pill numeric" style={{ top: clampY(hy) - PILL / 2, background: homeColor, color: onColor(homeColor) }}>{g.homePct}%</span>
+      </div>
+      <div className="sp-gchart-caption"><time>{start}</time><time>{end}</time></div>
     </div>
   )
 }
