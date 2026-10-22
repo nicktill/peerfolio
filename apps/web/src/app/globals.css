@@ -657,3 +657,10 @@
 @media (prefers-reduced-motion: reduce) {
   [data-pf-vt]::view-transition-old(root), [data-pf-vt]::view-transition-new(root) { animation: none; }
 }
+
+/* League marks ship a light and a dark image. Global because the public invite pages render them without the sports workspace stylesheets. */
+.sp-league-mark { display: inline-grid; place-items: center; width: 20px; height: 20px; flex: none; }
+.sp-league-mark img { grid-area: 1 / 1; width: 20px; height: 20px; object-fit: contain; }
+.sp-league-dark { display: none; }
+.dark .sp-league-light { display: none; }
+.dark .sp-league-dark { display: block; }

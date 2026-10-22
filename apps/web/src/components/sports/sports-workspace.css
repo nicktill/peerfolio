@@ -444,11 +444,6 @@
 /* Transparent, uncropped marks; league text remains legible if an asset fails. */
 .sp-logo-bare { display: inline-block; flex: none; object-fit: contain; border-radius: 0; padding: 0; background: transparent; }
 .sp-league-brand { display: inline-flex; align-items: center; gap: 6px; vertical-align: middle; }
-.sp-league-mark { display: inline-grid; place-items: center; width: 20px; height: 20px; flex: none; }
-.sp-league-mark img { grid-area: 1 / 1; width: 20px; height: 20px; object-fit: contain; }
-.sp-league-dark { display: none; }
-.dark .sp-league-light { display: none; }
-.dark .sp-league-dark { display: block; }
 
 /* Compact Open lines controls and cards. The ticket and rail retain their layout. */
 .sp-open-lines .fw-section-head { gap: 12px; }

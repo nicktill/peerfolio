@@ -318,8 +318,3 @@
 .sp-world-leagues { display: inline-flex; align-items: center; gap: 8px; margin-left: 8px; vertical-align: middle; }
 .sp-world-leagues img { width: 20px; height: 20px; }
 .sp-league-brand { display: inline-flex; align-items: center; }
-.sp-league-mark { display: inline-grid; place-items: center; width: 20px; height: 20px; flex: none; }
-.sp-league-mark img { grid-area: 1 / 1; width: 20px; height: 20px; object-fit: contain; }
-.sp-league-dark { display: none; }
-.dark .sp-league-light { display: none; }
-.dark .sp-league-dark { display: block; }
