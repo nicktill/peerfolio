@@ -8,6 +8,7 @@ import { publicationHealth } from "@web/lib/sports/health"
 import { enabledSports as unpaused } from "@web/lib/sports/enabled"
 import { activeSports } from "@web/lib/sports/flag"
 import { writeHeartbeat } from "@web/lib/sports/live/store"
+import { leagueSportsSql } from "@web/lib/sports/ingestion-scope"
 import { hiddenSkips } from "@web/lib/sports/health-report"
 
 export const maxDuration = 120
@@ -19,7 +20,9 @@ export const GET = withSportsCron<unknown>(async () => {
   const deadlineAt = Date.now() + 90_000
   const mode = publishMode()
   const tennisTotals = process.env.SPORTS_TENNIS_TOTALS === "1"
-  const sports = unpaused(enabledSports(activeSports()))
+  const tracked = await db.execute<{ sport: string }>(leagueSportsSql(now))
+  const wanted = new Set([...tracked].map((row) => row.sport))
+  const sports = unpaused(enabledSports(activeSports())).filter((sport) => wanted.has(sport))
   let provider
   let cfg
   let gate

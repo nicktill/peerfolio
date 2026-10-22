@@ -2,6 +2,7 @@ import { and, eq, gt, inArray, sql } from "drizzle-orm"
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js"
 import * as schema from "../../../db/schema.ts"
 import type { HealthGame, HealthInput } from "./health.ts"
+import { trackedEventSql } from "../ingestion-scope.ts"
 import { liveSlate, type SlateEvent } from "./plan.ts"
 import { DEFAULT_RETENTION, retentionCutoffs, type RetentionPolicy } from "./retention.ts"
 import type { LiveGameState, NormalizedQuote } from "./types.ts"
@@ -9,8 +10,8 @@ import { buildLiveView, READ_WINDOW_MS, type LiveView, type QuoteRow } from "./v
 
 /**
  * Database layer for the live odds tables. Takes the drizzle client as a parameter so Next routes and the
- * standalone worker share it. Touches only live_quote, live_state and READS sports_events; it never reads or
- * writes picks, lines, markets or the ledger.
+ * standalone worker share it. Reads event and league/pick eligibility; writes live quotes, state and health.
+ * Never writes picks, lines, markets or the ledger.
  */
 
 type Db = PostgresJsDatabase<typeof schema>
@@ -71,7 +72,7 @@ export async function loadLiveSlate(db: Db, now: Date): Promise<(SlateEvent & { 
       awayName: sportsEvents.awayName,
     })
     .from(sportsEvents)
-    .where(and(eq(sportsEvents.status, "scheduled"), gt(sportsEvents.startsAt, new Date(now.getTime() - 8 * 3600_000)), sql`${sportsEvents.startsAt} <= ${new Date(now.getTime() + 10 * 60_000).toISOString()}::timestamptz`))
+    .where(and(trackedEventSql(now), eq(sportsEvents.status, "scheduled"), gt(sportsEvents.startsAt, new Date(now.getTime() - 8 * 3600_000)), sql`${sportsEvents.startsAt} <= ${new Date(now.getTime() + 10 * 60_000).toISOString()}::timestamptz`))
   return liveSlate(rows, now)
 }
 
@@ -132,7 +133,7 @@ export async function nextStartAfter(db: Db, now: Date): Promise<Date | null> {
   const [row] = await db
     .select({ at: sql<Date | string | null>`min(${sportsEvents.startsAt})` })
     .from(sportsEvents)
-    .where(and(eq(sportsEvents.status, "scheduled"), gt(sportsEvents.startsAt, now)))
+    .where(and(trackedEventSql(now), eq(sportsEvents.status, "scheduled"), gt(sportsEvents.startsAt, now)))
   return row?.at ? new Date(row.at) : null
 }
 
