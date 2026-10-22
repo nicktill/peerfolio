@@ -1,29 +1,20 @@
 /**
- * Company icons from Parqet's public logo CDN, one request per ticker.
- * The logo route caches a hit for a month, so a ticker is fetched once.
- *
- * - `found`: an image, cached for a month.
- * - `none`: Parqet has no logo (404), so a miss is cached for a day.
- * - `unavailable`: the CDN could not be asked, so nothing is cached and the next view tries again.
+ * Company icons from Parqet's public logo CDN. `next.config.ts` rewrites
+ * `/api/market/logo/:symbol` to Parqet at the CDN, so the browser talks only to
+ * us and no function runs: a proxied route cost ~100 ms of CPU per image, and
+ * every deploy emptied its edge cache. Parqet's own cache headers apply (a hit
+ * for a day, a miss for 12 hours); a miss is a 404 and the client falls back to
+ * a monogram.
  */
-export type LogoLookup = { kind: "found"; image: Response } | { kind: "none" } | { kind: "unavailable" }
 
-const PARQET = "https://assets.parqet.com/logos/symbol"
-
-/** Parqet writes share classes with a hyphen (BRK-B); tickers here use a dot (BRK.B). */
-export function parqetLogoUrl(marketTicker: string): string {
-  return `${PARQET}/${encodeURIComponent(marketTicker.replaceAll(".", "-"))}`
+/** Parqet writes share classes with a hyphen (BRK-B); brokerages write BRK.B, BRK-B or BRK/B. */
+export function parqetSymbol(symbol: string): string | null {
+  const s = symbol.trim().toUpperCase().replace(/[./]/g, "-")
+  return /^[A-Z][A-Z0-9]{0,5}(-[A-Z0-9]{1,2})?$/.test(s) ? s : null
 }
 
-/** The icon for `marketTicker`, or a miss when Parqet has none. */
-export async function lookupTickerLogo(marketTicker: string, fetchImpl: typeof fetch = fetch): Promise<LogoLookup> {
-  try {
-    const image = await fetchImpl(parqetLogoUrl(marketTicker), { signal: AbortSignal.timeout(8_000) })
-    const type = image.headers.get("content-type") ?? ""
-    if (image.ok && type.startsWith("image/")) return { kind: "found", image }
-    if (image.status === 404) return { kind: "none" }
-    return { kind: "unavailable" }
-  } catch {
-    return { kind: "unavailable" }
-  }
+/** The logo URL for a ticker, or null when it can't be one (the caller shows a monogram). */
+export function tickerLogoSrc(symbol: string): string | null {
+  const s = parqetSymbol(symbol)
+  return s ? `/api/market/logo/${s}` : null
 }

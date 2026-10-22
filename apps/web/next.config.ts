@@ -22,6 +22,25 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [{ source: "/waitlist", destination: "/", permanent: true }];
   },
+  // Company icons come straight from Parqet's CDN through ours, with no function in between
+  // (see lib/ticker-logo.ts). The pattern matches what `tickerLogoSrc` builds; anything else is a 404.
+  async rewrites() {
+    return {
+      beforeFiles: [{ source: "/api/market/logo/:symbol([A-Z][A-Z0-9-]{0,8})", destination: "https://assets.parqet.com/logos/symbol/:symbol" }],
+    };
+  },
+  // Vercel caches an external rewrite only when asked (projects from before April 2026); a day, like Parqet's own header.
+  async headers() {
+    return [
+      {
+        source: "/api/market/logo/:symbol*",
+        headers: [
+          { key: "x-vercel-enable-rewrite-caching", value: "1" },
+          { key: "CDN-Cache-Control", value: "max-age=86400" },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

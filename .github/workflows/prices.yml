@@ -10,8 +10,8 @@ on:
   schedule:
     - cron: "*/15 13-23 * * 1-5" # market hours: live quotes every 15 minutes (visits refresh stale prices in between); after the close the route runs only its ladder of official-close attempts (lib/cron-window.ts)
     - cron: "*/15 0 * * 2-6" # winter evening: the 19:30 ET close-capture attempt falls at 00:30 UTC
-    - cron: "5 23 * * 1-5" # evening: hourly fund NAVs and the 2-hourly close retries (summer 19:00-23:00 ET = 23:00-03:00 UTC)
-    - cron: "5 0-4 * * 2-6" #   (the same evening in US time; winter ends at 04:00 UTC)
+    - cron: "1 23 * * 1-5" # evening: hourly fund NAVs and the 2-hourly close retries (summer 19:00-23:00 ET = 23:00-03:00 UTC)
+    - cron: "1 0-4 * * 2-6" #   (the same evening in US time; winter ends at 04:00 UTC)
     - cron: "15 10,11 * * *" # 6:15am New York, every day: 10:15 UTC in summer, 11:15 in winter
   workflow_dispatch: {}
 

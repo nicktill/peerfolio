@@ -39,7 +39,8 @@ function Brand() {
 export function AppNav() {
   const pathname = usePathname()
   const { data: session, status } = useSession()
-  const { data: brokerageAccess, error: accessError } = useApi<{ admin: boolean }>(status === "authenticated" ? "/api/plaid/access" : null, [], { refreshMs: 60_000 })
+  // Only `admin` is read here, and it doesn't change while the page is open, so load it once rather than poll.
+  const { data: brokerageAccess, error: accessError } = useApi<{ admin: boolean }>(status === "authenticated" ? "/api/plaid/access" : null)
   const activeHref = LINKS.find((link) => pathname.startsWith(link.href))?.href ?? null
   const admin = brokerageAccess?.admin && !accessError
   const assistant = useApi<{ available: boolean }>(status === "authenticated" ? "/api/assistant/status" : null)

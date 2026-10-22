@@ -21,7 +21,10 @@ export const maxDuration = 120
 export const GET = withPublic<unknown>(async (request) => {
   const now = new Date()
   const part = new URL(request.url).searchParams.get("part")
-  const headers = { "Cache-Control": "public, s-maxage=120, stale-while-revalidate=600" }
+  // The edge window matches each part's own clock: the board's quotes refresh every 5 minutes (clients poll it at 5),
+  // earnings and Fear & Greed at most hourly. A shorter window only re-ran this function to return the same cached data.
+  const slow = part === "earnings" || part === "fear-greed"
+  const headers = { "Cache-Control": slow ? "public, s-maxage=1800, stale-while-revalidate=3600" : "public, s-maxage=300, stale-while-revalidate=600" }
   // Preview deployments may omit paid provider keys. Reuse the public, cached
   // production feed with no cookies or authorization headers; never proxy accounts.
   const missingBoard = !process.env.FINNHUB_API_KEY && !alpacaAuth()

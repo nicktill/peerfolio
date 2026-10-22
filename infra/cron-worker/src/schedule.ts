@@ -25,8 +25,9 @@ function pricesDue(min: number, hour: number, dow: number): boolean {
   // The app route applies the New York market calendar and six official-close windows.
   if (weekdays(dow) && hour >= 13 && hour <= 23 && min % 15 === 0) return true
   if (dow >= 2 && dow <= 6 && hour === 0 && min % 15 === 0) return true
-  if (weekdays(dow) && hour === 23 && min === 5) return true // evening fund NAVs and close retries
-  if (dow >= 2 && dow <= 6 && hour >= 0 && hour <= 4 && min === 5) return true // the same evening in US time, after midnight UTC
+  // Evening passes run at :01, inside the awake period the quarter-hour sports slot (:00) has just opened, so they add no database wake of their own.
+  if (weekdays(dow) && hour === 23 && min === 1) return true // evening fund NAVs and close retries
+  if (dow >= 2 && dow <= 6 && hour >= 0 && hour <= 4 && min === 1) return true // the same evening in US time, after midnight UTC
   if ((hour === 10 || hour === 11) && min === 15) return true // 6:15am New York, every day
   return false
 }
@@ -36,8 +37,9 @@ const NEWS_SLOTS: [min: number, hours: number[]][] = [
   [15, [14, 15]], // 10:15am ET opening update
   [0, [16, 17]], // noon ET
   [15, [18, 19]], // 2:15pm ET afternoon update
-  [20, [20, 21]], // 4:20pm ET closing recap
-  [20, [17, 18]], // 1:20pm ET early-close backup
+  // The close recap is due at close + 20 minutes; :30 is the first quarter-hour slot after it, sharing that slot's database wake.
+  [30, [20, 21]], // 4:30pm ET closing recap
+  [30, [17, 18]], // 1:30pm ET early-close backup
   [0, [22]], // the Vercel cron's slot
 ]
 

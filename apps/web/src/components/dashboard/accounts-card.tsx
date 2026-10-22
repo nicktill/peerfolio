@@ -36,6 +36,7 @@ import { cn } from "@web/lib/utils"
 import { ReplaceAccountButton } from "@web/components/dashboard/replace-account-dialog"
 import { reconcileAccountExpansion } from "@web/lib/account-expansion"
 import { brandFor, type Brand } from "@web/lib/brokerages"
+import { tickerLogoSrc } from "@web/lib/ticker-logo"
 
 export type AccountRow = {
   id: string
@@ -562,12 +563,13 @@ function BrandTile({ brand }: { brand: Brand }) {
       </span>
     )
   }
-  if (brand.ticker && !failed) {
+  const logo = brand.ticker && !failed ? tickerLogoSrc(brand.ticker) : null
+  if (logo) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element -- proxied and cached at the edge
+      // eslint-disable-next-line @next/next/no-img-element -- rewritten to the logo CDN, cached there
       <img
         ref={image}
-        src={`/api/market/logo/${encodeURIComponent(brand.ticker)}`}
+        src={logo}
         alt=""
         className="h-full w-full bg-white object-contain p-1.5"
         loading="lazy"

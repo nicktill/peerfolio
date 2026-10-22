@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { cn } from "@web/lib/utils"
 import { isCashTicker } from "@web/lib/cash-ticker"
+import { tickerLogoSrc } from "@web/lib/ticker-logo"
 
 const SIZES = { xs: "size-[18px] text-[6px]", sm: "size-8 text-[10px]", md: "size-10 text-[11px]", lg: "size-12 text-xs" }
 
@@ -43,7 +44,8 @@ export function TickerLogo({ symbol, kind = "stock", size = "md", className }: {
       </span>
     )
   }
-  const showImage = kind === "stock" && !failed
+  const src = kind === "stock" && !failed ? tickerLogoSrc(s) : null
+  const showImage = !!src
 
   return (
     <span
@@ -57,8 +59,8 @@ export function TickerLogo({ symbol, kind = "stock", size = "md", className }: {
       aria-hidden
     >
       {showImage ? (
-        // eslint-disable-next-line @next/next/no-img-element -- proxied, already cached at the edge
-        <img ref={image} src={`/api/market/logo/${encodeURIComponent(s)}`} alt="" className="absolute inset-0 size-full object-cover" loading="lazy" onError={() => {
+        // eslint-disable-next-line @next/next/no-img-element -- rewritten to the logo CDN, cached there
+        <img ref={image} src={src} alt="" className="absolute inset-0 size-full object-cover" loading="lazy" onError={() => {
           missing.add(s)
           setFailed(true)
         }} />

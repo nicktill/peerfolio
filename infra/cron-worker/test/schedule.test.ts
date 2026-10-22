@@ -21,12 +21,14 @@ test("prices: the after-close, evening and 6:15am passes", () => {
   assert.ok(names("2026-10-19T22:15:00Z").includes("/api/cron/prices"))
   assert.ok(!names("2026-10-19T22:10:00Z").includes("/api/cron/prices"))
   assert.ok(!names("2026-10-19T22:05:00Z").includes("/api/cron/prices"))
-  assert.ok(names("2026-10-19T23:05:00Z").includes("/api/cron/prices"))
-  // 00:05 UTC Tuesday through Saturday is the same US evening; Sunday and Monday 00:05 are not
-  assert.ok(names("2026-10-20T00:05:00Z").includes("/api/cron/prices"))
-  assert.ok(names("2026-10-24T00:05:00Z").includes("/api/cron/prices"))
-  assert.ok(!names("2026-10-25T00:05:00Z").includes("/api/cron/prices"))
-  assert.ok(!names("2026-10-26T00:05:00Z").includes("/api/cron/prices"))
+  assert.ok(names("2026-10-19T23:01:00Z").includes("/api/cron/prices"))
+  assert.ok(!names("2026-10-19T23:05:00Z").includes("/api/cron/prices"))
+  // 00:01 UTC Tuesday through Saturday is the same US evening; Sunday and Monday 00:01 are not
+  assert.ok(names("2026-10-20T00:01:00Z").includes("/api/cron/prices"))
+  assert.ok(names("2026-10-24T00:01:00Z").includes("/api/cron/prices"))
+  assert.ok(names("2026-10-21T03:01:00Z").includes("/api/cron/prices"))
+  assert.ok(!names("2026-10-25T00:01:00Z").includes("/api/cron/prices"))
+  assert.ok(!names("2026-10-26T00:01:00Z").includes("/api/cron/prices"))
   // 6:15am New York: 10:15 and 11:15 UTC, every day including weekends
   assert.ok(names("2026-10-17T10:15:00Z").includes("/api/cron/prices"))
   assert.ok(names("2026-10-18T11:15:00Z").includes("/api/cron/prices"))
@@ -35,7 +37,8 @@ test("prices: the after-close, evening and 6:15am passes", () => {
 test("news: the weekday slots only", () => {
   assert.ok(names("2026-10-19T11:00:00Z").includes("/api/cron/news"))
   assert.ok(names("2026-10-19T15:15:00Z").includes("/api/cron/news"))
-  assert.ok(names("2026-10-19T21:20:00Z").includes("/api/cron/news"))
+  assert.ok(names("2026-10-19T21:30:00Z").includes("/api/cron/news"))
+  assert.ok(!names("2026-10-19T21:20:00Z").includes("/api/cron/news"))
   assert.ok(names("2026-10-19T22:00:00Z").includes("/api/cron/news"))
   assert.ok(!names("2026-10-17T11:00:00Z").includes("/api/cron/news"))
   assert.ok(!names("2026-10-19T11:30:00Z").includes("/api/cron/news"))
@@ -76,7 +79,19 @@ test("marketHoursNewYork follows daylight saving", () => {
 })
 
 test("a quiet minute has nothing to do", () => {
-  assert.deepEqual(names("2026-10-17T03:01:00Z"), [])
+  assert.deepEqual(names("2026-10-17T03:07:00Z"), [])
+})
+
+test("every database-touching job lands in the first minutes of a quarter-hour slot", () => {
+  // Neon suspends after 5 idle minutes; a job at :00-:04 of a slot shares the wake the sports slot opened.
+  const monday = Date.parse("2026-10-19T00:00:00Z")
+  for (let minute = 0; minute < 7 * 24 * 60; minute++) {
+    const now = new Date(monday + minute * 60_000)
+    for (const job of jobsFor(now, { sports: true })) {
+      if (job.name === "warm") continue
+      assert.ok(now.getUTCMinutes() % 15 <= 1, `${job.name} at ${now.toISOString()}`)
+    }
+  }
 })
 
 // Read the real workflow so a future schedule edit cannot silently leave the replacement behind.
