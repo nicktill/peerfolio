@@ -7,7 +7,9 @@ const ago = (min: number) => new Date(now.getTime() - min * 60_000)
 
 test("staleness levels follow each job's limits", () => {
   assert.equal(staleness("publish", ago(10), now).level, "ok")
-  assert.equal(staleness("publish", ago(60), now).level, "warn")
+  // Hourly in quiet hours: an hour old is still on time.
+  assert.equal(staleness("publish", ago(60), now).level, "ok")
+  assert.equal(staleness("publish", ago(80), now).level, "warn")
   assert.equal(staleness("publish", ago(200), now).level, "bad")
   assert.equal(staleness("worker", ago(5), now).level, "ok")
   assert.equal(staleness("settle", null, now).level, "bad")

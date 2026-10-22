@@ -5,7 +5,7 @@ import { describe, it } from "node:test"
 import { fileURLToPath } from "node:url"
 import { HOUSE_MARGIN, priceTwoWay, totalReturn } from "./odds.ts"
 import { acceptPick, PickRejected, type PickContext } from "./picks.ts"
-import { confirmDue, decideReprice, REPRICE, type ExchangeView, type MarketState, type RepriceInput } from "./reprice.ts"
+import { confirmDue, decideReprice, REPRICE, workerBeating, type ExchangeView, type MarketState, type RepriceInput } from "./reprice.ts"
 import { planSettlement } from "./settlement.ts"
 
 const START = new Date("2026-10-18T17:00:00Z")
@@ -250,5 +250,26 @@ describe("source-level guards: exchange data stays out of settlement, grading an
     const start = code.indexOf("async function placeOnce")
     const place = code.slice(start, code.indexOf("const [league] = await tx", start))
     assert.ok(place.indexOf('.for("share")') < place.lastIndexOf("from(sportsLines)"), "line must be read after the shared market lock")
+  })
+})
+
+describe("workerBeating (publish guard)", () => {
+  const beat = new Date("2026-10-22T06:00:45Z")
+  const later = (min: number) => new Date(beat.getTime() + min * 60_000)
+  it("alive within workerDeadMs of the last cycle, as before", () => {
+    assert.equal(workerBeating(beat, undefined, later(19)), true)
+    assert.equal(workerBeating(beat, undefined, later(21)), false)
+  })
+  it("an announced quiet-hours sleep counts as alive until shortly after the wake time", () => {
+    const until = later(60).toISOString()
+    assert.equal(workerBeating(beat, until, later(59)), true)
+    assert.equal(workerBeating(beat, until, later(69)), true)
+    assert.equal(workerBeating(beat, until, later(71)), false, "missed its wake by more than the grace: dead")
+  })
+  it("an implausible or malformed announcement is ignored", () => {
+    assert.equal(workerBeating(beat, later(180).toISOString(), later(30)), false)
+    assert.equal(workerBeating(beat, "soon", later(30)), false)
+    assert.equal(workerBeating(beat, 12345, later(30)), false)
+    assert.equal(workerBeating(beat, later(15).toISOString(), later(21)), false, "an ordinary 15 minute sleep keeps the 20 minute rule")
   })
 })

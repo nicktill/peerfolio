@@ -182,6 +182,19 @@ export function priceNeedsRefresh(m: { exchangeOkAt: Date | null }, startsAt: Da
   return startsAt.getTime() - now.getTime() <= REPRICE.windowMs && now.getTime() - m.exchangeOkAt.getTime() > REPRICE.pickFreshMs
 }
 
+/**
+ * Whether the live odds worker still guards its markets: it beat within `workerDeadMs`, or it announced a quiet-hours sleep
+ * (heartbeat `sleepUntil`, longer than `workerDeadMs` and at most an hour) and that wake time plus `wakeGraceMs` has not passed.
+ * Ordinary sleeps (15 minutes at most) are judged by `workerDeadMs` alone, as before. It sleeps that long only when no
+ * game starts within the repricing window plus an hour (see live/slots.ts), so nothing it guards goes unwatched meanwhile.
+ */
+export function workerBeating(lastCycleAt: Date, sleepUntil: unknown, now: Date): boolean {
+  if (now.getTime() - lastCycleAt.getTime() < REPRICE.workerDeadMs) return true
+  const until = typeof sleepUntil === "string" ? Date.parse(sleepUntil) : Number.NaN
+  const slept = until - lastCycleAt.getTime()
+  return Number.isFinite(until) && slept > REPRICE.workerDeadMs && slept <= REPRICE.maxAnnouncedSleepMs && now.getTime() < until + REPRICE.wakeGraceMs
+}
+
 /** What the worker needs from the database for repricing (implemented by store.ts; injected so tests need no database). */
 export type RepriceStore = {
   listTargets(now: Date): Promise<RepriceTarget[]>

@@ -38,12 +38,12 @@ export const pollDelay = (slateSize: number): number => (slateSize > 0 ? POLL_MS
 /**
  * How long to sleep when the slate is empty, so an idle worker leaves a serverless Postgres (Neon) free to suspend.
  * Sleeps until WAKE_LEAD_MS before the next scheduled start, capped at MAX_SLEEP_MS (no known game: the cap), never
- * below IDLE_POLL_MS. Within the lead window it polls at IDLE_POLL_MS.
+ * below IDLE_POLL_MS. Within the lead window it polls at IDLE_POLL_MS. `maxMs` raises the cap for a quiet-hours sleep (live/slots.ts).
  */
-export function idleSleepMs(now: Date, nextStartsAt: Date | null): number {
-  if (!nextStartsAt) return MAX_SLEEP_MS
+export function idleSleepMs(now: Date, nextStartsAt: Date | null, maxMs: number = MAX_SLEEP_MS): number {
+  if (!nextStartsAt) return maxMs
   const until = nextStartsAt.getTime() - WAKE_LEAD_MS - now.getTime()
-  return Math.min(MAX_SLEEP_MS, Math.max(IDLE_POLL_MS, until))
+  return Math.min(maxMs, Math.max(IDLE_POLL_MS, until))
 }
 
 export type QuoteKey = `${string}|${string}|${LiveSelection}|${LiveSource}`

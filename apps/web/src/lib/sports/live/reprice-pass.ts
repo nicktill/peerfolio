@@ -1,5 +1,5 @@
 import { isWatched } from "./activity.ts"
-import { msToNextSlot, slotElapsed } from "./slots.ts"
+import { inQuietHours, msToNextSlot, QUIET_SLOT_MS, slotElapsed } from "./slots.ts"
 import { confirmDue, decideReprice, REPRICE, type ExchangeView, type RepriceTarget } from "../reprice.ts"
 import { explainNoMatch, matchGame } from "./match.ts"
 import { booksFromQuotes, exchangeThreeWay, type ThreeWayExchangeResult } from "../threeway-exchange.ts"
@@ -69,8 +69,10 @@ export async function runRepricePass(deps: WorkerDeps, st: WorkerState, now: Dat
   // (priceNeedsRefresh). A store without an activity signal counts as watched, which is the old behaviour.
   const watched = store.lastActivity ? isWatched(await store.lastActivity(), now) : true
   const fast = near && watched
+  // Nothing starts within the window plus an hour: in quiet hours the slot pass may run hourly (see slots.ts).
+  const hourly = soonest - t > REPRICE.windowMs + QUIET_SLOT_MS
   // Slot-aligned passes wake early for a game entering the fast window only when someone is watching.
-  const wakeMs = watched ? Math.min(msToNextSlot(t), soonest - REPRICE.windowMs - t) : msToNextSlot(t)
+  const wakeMs = watched ? Math.min(msToNextSlot(t, hourly), soonest - REPRICE.windowMs - t) : msToNextSlot(t, hourly)
   if (fast) {
     const sinceLast = t - st.reprice.lastPassAt
     if (sinceLast < REPRICE.passMs) {
@@ -80,7 +82,7 @@ export async function runRepricePass(deps: WorkerDeps, st: WorkerState, now: Dat
   } else {
     // Far or unwatched: one pass per shared slot, and no database read until the slot (or, when watched, the moment the nearest game enters the window).
     const next = t + Math.max(1_000, wakeMs)
-    if (!slotElapsed(st.reprice.lastPassAt, t)) {
+    if (!slotElapsed(st.reprice.lastPassAt, t, hourly)) {
       st.reprice.nextListAt = next
       return { ...result, skipped: true, nextPassMs: Math.max(1_000, next - t) }
     }
@@ -145,7 +147,9 @@ export async function runRepricePass(deps: WorkerDeps, st: WorkerState, now: Dat
     const wasLocked = t.state.status === "locked"
     // Slot-cadence reads (far games, or no viewer) get the longer stale tolerance: one bad read between passes must not freeze a market.
     const slowRead = !fast || t.startsAt.getTime() - now.getTime() > REPRICE.windowMs
-    const d = decideReprice({ now, startsAt: t.startsAt, staleFreezeMs: slowRead ? REPRICE.farStaleFreezeMs : undefined, eventStatus: t.eventStatus, market: wasLocked ? { ...t.state, status: "open" } : t.state, exchange, exchange3 })
+    // Hourly reads (quiet hours, or the first passes after them) get two missed hourly passes of tolerance.
+    const hourlyRead = hourly && (inQuietHours(now.getTime()) || inQuietHours(now.getTime() - 2 * QUIET_SLOT_MS))
+    const d = decideReprice({ now, startsAt: t.startsAt, staleFreezeMs: hourlyRead ? REPRICE.quietStaleFreezeMs : slowRead ? REPRICE.farStaleFreezeMs : undefined, eventStatus: t.eventStatus, market: wasLocked ? { ...t.state, status: "open" } : t.state, exchange, exchange3 })
     const label = `${t.awayName} @ ${t.homeName}`
     if (wasLocked) {
       if (!(d.action === "update" || (d.action === "none" && d.confirm)) || !store.reopen || !(await store.reopen(t.marketId, now))) {
