@@ -65,6 +65,8 @@ export type RepriceInput = {
   exchange: ExchangeView | null
   /** Three-way markets: the outcome of `exchangeThreeWay` over the three YES books (it applies the same gates as below to every leg). Null: no usable read. */
   exchange3?: ThreeWayExchangeResult | null
+  /** How long a managed market may go without a good exchange read before it freezes. Defaults to `REPRICE.staleFreezeMs`; far-out markets are read less often, so the pass gives them `farStaleFreezeMs`. */
+  staleFreezeMs?: number
 }
 
 export type Decision =
@@ -81,9 +83,10 @@ export function decideReprice(input: RepriceInput): Decision {
   if (eventStatus !== "scheduled" || m.status !== "open" || now.getTime() >= m.lockAt.getTime()) return none("closed")
 
   const managed = m.exchangeOkAt != null
+  const freezeAfter = input.staleFreezeMs ?? REPRICE.staleFreezeMs
   const lastGood = Math.max(m.exchangeOkAt?.getTime() ?? 0, m.repricedAt?.getTime() ?? 0)
   // A market the exchange has been managing must not sit on an old price when the exchange goes quiet.
-  const hold = (reason: string): Decision => (managed && now.getTime() - lastGood > REPRICE.staleFreezeMs ? { action: "freeze", reason: `exchange ${reason} for over ${REPRICE.staleFreezeMs / 60_000} min` } : none(reason))
+  const hold = (reason: string): Decision => (managed && now.getTime() - lastGood > freezeAfter ? { action: "freeze", reason: `exchange ${reason} for over ${Math.round(freezeAfter / 60_000)} min` } : none(reason))
 
   if (m.prices.length === 3) return decideThreeWay(input, hold, managed)
 

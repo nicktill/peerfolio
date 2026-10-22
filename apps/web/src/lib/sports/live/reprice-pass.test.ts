@@ -258,3 +258,20 @@ describe("pregame pass idle gating", () => {
     assert.equal((await runRepricePass(h.deps, st, plus(REPRICE.passMs)))?.skipped, false)
   })
 })
+
+describe("far-market freeze tolerance", () => {
+  it("one bad read between far passes does not freeze a managed market; a long outage does", async () => {
+    const startsFar = new Date(NOW.getTime() + 8 * 3600_000)
+    const old = (min: number) => state({ exchangeOkAt: plus(-min * 60_000) })
+    const wide = (min: number) => harness([target({ startsAt: startsFar, state: old(min) })], { half: 0.05 })
+    const a = wide(15)
+    await runRepricePass(a.deps, newWorkerState(), NOW)
+    assert.deepEqual(a.frozen, [], "15 min since the last good read is one missed far pass")
+    const b = wide(40)
+    await runRepricePass(b.deps, newWorkerState(), NOW)
+    assert.equal(b.frozen.length, 1, "40 min without a good read freezes")
+    const near = harness([target({ state: old(15) })], { half: 0.05 })
+    await runRepricePass(near.deps, newWorkerState(), NOW)
+    assert.equal(near.frozen.length, 1, "inside the window the 10 minute rule is unchanged")
+  })
+})

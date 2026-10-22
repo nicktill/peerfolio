@@ -5,6 +5,8 @@ import { fillQueuedOrders } from "@web/lib/fantasy"
 import { cronWindow } from "@web/lib/cron-window"
 import { refreshLivePrices } from "@web/lib/live-quotes"
 import { liveRefreshBroken } from "@web/lib/stale-prices"
+import { db } from "@web/db"
+import { writeHeartbeat } from "@web/lib/sports/live/store"
 import { refreshSecurityMetadata, refreshStalePrices } from "@web/lib/positions"
 
 export const maxDuration = 60
@@ -12,7 +14,7 @@ export const maxDuration = 60
 /**
  * Keeps prices moving without anyone having to open the app. A scheduler (the
  * GitHub Actions workflow in .github/workflows/prices.yml) calls this every
- * 15 minutes; it does the same two things a page load does:
+ * 15 minutes in market hours, then only at the close-capture attempts (lib/cron-window.ts); it does the same two things a page load does:
  *
  *  - live quotes for tickers whose price is older than the refresh period
  *    (market hours only, within the per-minute call budget), and
@@ -41,6 +43,13 @@ async function refresh(window: ReturnType<typeof cronWindow>) {
     : { skipped: "market_closed" as const }
   // No per-instance throttle here: the schedule is the throttle.
   const closes = await refreshStalePrices({ minIntervalMinutes: 0, recheckMinutes: 10 })
+
+  // Record when official closes actually land (one small row per attempt that saved any), so the attempt ladder in
+  // lib/cron-window.ts can be tuned from real data. Reuses the heartbeat table; never allowed to fail the run.
+  if (closes.refreshed > 0) {
+    const at = new Date()
+    await writeHeartbeat(db, { name: `close-capture:${at.toISOString().slice(0, 16)}`, at, ok: true, consecutiveFailures: 0, details: { refreshed: closes.refreshed, awaitingClose: closes.awaitingClose ?? null } }).catch(() => undefined)
+  }
 
   // (Pruning moved to the daily snapshot cron.)
   const metadata = await refreshSecurityMetadata().catch(() => ({ checked: 0 }))

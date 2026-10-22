@@ -3,13 +3,13 @@ name: Refresh prices
 # Vercel's free plan only allows one cron run a day, so GitHub calls the app's
 # price endpoint instead. GitHub's cron is UTC and knows nothing of daylight
 # saving, so these times are a superset of the New York windows with work to do
-# (live 9:30-16:05, close capture 16:30-20:00, fund NAVs 19:00-23:00, the 6:15
+# (live 9:30-16:05, close capture 16:45-20:00 in six attempts, fund NAVs 19:00-23:00, the 6:15
 # morning pass); the route itself checks the New York clock and answers at once
 # outside them. Runs can be a few minutes late.
 on:
   schedule:
-    - cron: "*/5 13-21 * * 1-5" # market hours: live quotes every 5 minutes (between visits); also the 10-minute close checks at 16:30-17:30 ET
-    - cron: "*/10 22 * * 1-5" # after the close, winter: still within the early close checks
+    - cron: "*/15 13-23 * * 1-5" # market hours: live quotes every 15 minutes (visits refresh stale prices in between); after the close the route runs only its ladder of official-close attempts (lib/cron-window.ts)
+    - cron: "*/15 0 * * 2-6" # winter evening: the 19:30 ET close-capture attempt falls at 00:30 UTC
     - cron: "5 23 * * 1-5" # evening: hourly fund NAVs and the 2-hourly close retries (summer 19:00-23:00 ET = 23:00-03:00 UTC)
     - cron: "5 0-4 * * 2-6" #   (the same evening in US time; winter ends at 04:00 UTC)
     - cron: "15 10,11 * * *" # 6:15am New York, every day: 10:15 UTC in summer, 11:15 in winter
