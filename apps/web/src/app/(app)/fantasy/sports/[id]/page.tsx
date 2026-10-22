@@ -302,6 +302,8 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
     const meta = scoreboardMatch(m.event, scoreGames)
     return meta ? { ...m, event: { ...m.event, homeRecord: meta.homeRecord, awayRecord: meta.awayRecord, scoreGame: meta } } : m
   })
+  // Scheduled games with no open line (not posted yet, or locked) still belong in Upcoming, so a game never shows under Live's "Coming up" and then vanishes here.
+  const unpriced = scoreGames.filter(g => g.status === "upcoming" && Date.parse(g.startsAt) > now && (sport === "all" || g.sport === sport) && matchesSearch(query, [g.home, g.away], g.sport) && !shown.some(m => scoreboardMatch(m.event, [g])))
   const liveGames = scoreGames.filter(g => (sport === "all" || g.sport === sport) && matchesSearch(query, [g.home, g.away], g.sport))
   const searching = query.trim().length > 0
   // A failed refresh keeps the last good list; useApi clears `error` at the start of each poll, so only a load with nothing to show counts, or the notice would blink in and out.
@@ -371,7 +373,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
               </div>
             </div>
             {parlay.mode === "parlay" && parlay.note ? <div className="sp-parlay-guidance"><p className="pl-note" role="status">{parlay.note}</p></div> : null}
-            {view === "upcoming" ? <ParlayIdsContext.Provider value={parlay.mode === "parlay" ? parlay.ids : null}><div className="sp-scroll">{searching && shown.length === 0 ? <p className="fw-empty" role="status">No games match &ldquo;{query.trim()}&rdquo;</p> : <Markets markets={shown} selected={parlay.mode === "parlay" ? null : current} onSelect={(market, line) => { if (livePending) return; setLiveSelected(null); setManaging(null); parlay.mode === "parlay" ? parlay.toggle(market, line) : setSelected({ market, line }) }} disabled={ended || livePending} now={now} />}</div></ParlayIdsContext.Provider> : <ParlayIdsContext.Provider value={parlay.mode === "parlay" ? parlay.ids : null}><ScoreboardGames renderUpcoming={(game) => {
+            {view === "upcoming" ? <ParlayIdsContext.Provider value={parlay.mode === "parlay" ? parlay.ids : null}><div className="sp-scroll">{searching && shown.length === 0 && unpriced.length === 0 ? <p className="fw-empty" role="status">No games match &ldquo;{query.trim()}&rdquo;</p> : <Markets markets={shown} unpriced={unpriced} selected={parlay.mode === "parlay" ? null : current} onSelect={(market, line) => { if (livePending) return; setLiveSelected(null); setManaging(null); parlay.mode === "parlay" ? parlay.toggle(market, line) : setSelected({ market, line }) }} disabled={ended || livePending} now={now} />}</div></ParlayIdsContext.Provider> : <ParlayIdsContext.Provider value={parlay.mode === "parlay" ? parlay.ids : null}><ScoreboardGames renderUpcoming={(game) => {
               const matching = shown.filter((market) => scoreboardMatch(market.event, [game]))
               if (!matching.length) return null
               return <GameCard game={{ key: `${game.sport}:${game.id}`, event: matching[0]!.event, markets: matching }} selected={parlay.mode === "parlay" ? null : current} onSelect={(market, line) => { if (livePending) return; setLiveSelected(null); setManaging(null); parlay.mode === "parlay" ? parlay.toggle(market, line) : setSelected({ market, line }) }} disabled={ended || livePending} now={now} />
@@ -506,7 +508,7 @@ function InviteButton({ code }: { code: string }) {
 /** Games shown per day before the rest sit behind a "show more" button. */
 const DAY_PREVIEW = 6
 
-function Markets({ markets, selected, onSelect, disabled, now }: { markets: Market[]; selected: { line: Line } | null; onSelect: (m: Market, l: Line) => void; disabled: boolean; now: number }) {
+function Markets({ markets, unpriced, selected, onSelect, disabled, now }: { markets: Market[]; unpriced: ScoreGame[]; selected: { line: Line } | null; onSelect: (m: Market, l: Line) => void; disabled: boolean; now: number }) {
   // Group by game, then by day, in kickoff order (the API already sorts by start).
   const games = useMemo(() => {
     const byEvent = new Map<string, { key: string; event: EventInfo; markets: Market[] }>()
@@ -516,9 +518,13 @@ function Markets({ markets, selected, onSelect, disabled, now }: { markets: Mark
       g.markets.push(m)
       byEvent.set(key, g)
     }
+    for (const g of unpriced) {
+      const key = `${g.sport}:${g.id}`
+      byEvent.set(key, { key, event: { sport: g.sport, home: g.home, away: g.away, startsAt: g.startsAt, homeRecord: g.homeRecord, awayRecord: g.awayRecord, scoreGame: g }, markets: [] })
+    }
     // Games that kick off together (a whole NFL slate shares 1:00 PM) need a tiebreak, or they swap places between refreshes.
     return [...byEvent.values()].sort((a, b) => Date.parse(a.event.startsAt) - Date.parse(b.event.startsAt) || a.event.sport.localeCompare(b.event.sport) || a.event.home.localeCompare(b.event.home) || a.event.away.localeCompare(b.event.away))
-  }, [markets])
+  }, [markets, unpriced])
 
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
   if (games.length === 0) return <p className="fw-empty">No open lines right now. Games post about a day ahead.</p>
@@ -541,7 +547,7 @@ function Markets({ markets, selected, onSelect, disabled, now }: { markets: Mark
       rows.push(
         <li key={g.key}>
           {heading ? <h3 className="sp-day">{heading}</h3> : null}
-          <GameCard game={g} selected={selected} onSelect={onSelect} disabled={disabled} now={now} />
+          {g.markets.length ? <GameCard game={g} selected={selected} onSelect={onSelect} disabled={disabled} now={now} /> : <UnpricedCard event={g.event} />}
         </li>,
       )
     }
@@ -757,6 +763,20 @@ function winChances(lines: Line[]): { home: number; away: number; draw: number |
 
 /** Left to right on a winner row: away, draw, home (as the matchup reads "away @ home"); tennis lists the first player first. */
 const ORDER: Record<string, Record<string, number>> = { teams: { away: 0, draw: 1, home: 2 }, tennis: { home: 0, away: 1, draw: 2 } }
+
+/** A scheduled game with no open line: shown so it is not missing, with the reason it cannot be picked yet. */
+function UnpricedCard({ event }: { event: EventInfo }) {
+  const [firstColor, secondColor] = matchupColors(event.sport, event.sport === "tennis" ? event.home : event.away, event.sport === "tennis" ? event.away : event.home)
+  return (
+    <div className="sp-event sp-game" data-matchup style={{ '--away-color': firstColor, '--home-color': secondColor } as React.CSSProperties}>
+      <div className="sp-game-head">
+        <div className="sp-matchup"><strong>{eventTitle(event)}</strong></div>
+        <span className="sp-game-meta"><b><LeagueBrand sport={event.sport} /></b> · {timeOf(event.startsAt)}</span>
+      </div>
+      <p className="sp-fine">No line posted for this game yet. Lines go up once the price is steady, usually within a day of kickoff.</p>
+    </div>
+  )
+}
 
 function GameCard({ game, selected, onSelect, disabled, now }: { game: { key: string; event: EventInfo; markets: Market[] }; selected: { line: Line } | null; onSelect: (m: Market, l: Line) => void; disabled: boolean; now: number }) {
   const { event } = game
