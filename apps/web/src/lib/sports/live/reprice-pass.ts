@@ -127,7 +127,8 @@ export async function runRepricePass(deps: WorkerDeps, st: WorkerState, now: Dat
     // A locked target is a market the cron froze while the worker was down. It is judged as if open and reopens only on a healthy
     // read (update or confirm); a freeze or hold decision leaves it closed. Never reopened straight from the heartbeat.
     const wasLocked = t.state.status === "locked"
-    const d = decideReprice({ now, startsAt: t.startsAt, eventStatus: t.eventStatus, market: wasLocked ? { ...t.state, status: "open" } : t.state, exchange, exchange3 })
+    const farMarket = t.startsAt.getTime() - now.getTime() > REPRICE.windowMs
+    const d = decideReprice({ now, startsAt: t.startsAt, staleFreezeMs: farMarket ? REPRICE.farStaleFreezeMs : undefined, eventStatus: t.eventStatus, market: wasLocked ? { ...t.state, status: "open" } : t.state, exchange, exchange3 })
     const label = `${t.awayName} @ ${t.homeName}`
     if (wasLocked) {
       if (!(d.action === "update" || (d.action === "none" && d.confirm)) || !store.reopen || !(await store.reopen(t.marketId, now))) {
