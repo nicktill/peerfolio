@@ -32,6 +32,7 @@ import { clip, emit, type Fields, type Level } from "../src/lib/sports/log.ts"
 import { idleSleepMs, MAX_SLEEP_MS, pollDelay } from "../src/lib/sports/live/plan.ts"
 import { insertQuotes, loadLiveSlate, nextStartAfter, pruneLiveQuotes, upsertState, writeHeartbeat } from "../src/lib/sports/live/store.ts"
 import { applyReprice, confirmExchange, freezeForReason, listRepriceTargets, reopenWorkerFrozen } from "../src/lib/sports/store.ts"
+import { msToNextSlot } from "../src/lib/sports/live/slots.ts"
 import { runRepricePass } from "../src/lib/sports/live/reprice-pass.ts"
 import { MarketSocket } from "../src/lib/sports/live/ws.ts"
 import type { PassResult } from "../src/lib/sports/live/reprice-pass.ts"
@@ -144,7 +145,7 @@ while (!stopping) {
   writtenSincePrune += result?.rowsWritten ?? 0
   // (repricing writes line versions, not live_quote rows, so it does not count towards pruning)
 
-  // Pregame repricing: due every 60s while a game starts within 3 hours, every 15 minutes otherwise. A failure here never
+  // Pregame repricing: due every 30s while a game starts within 3 hours, once per shared quarter-hour slot otherwise. A failure here never
   // fails the live cycle (display) and never leaves a market half-repriced (each write is one transaction).
   let repriceNext = Number.POSITIVE_INFINITY
   let repriced: PassResult | null = null
@@ -166,6 +167,8 @@ while (!stopping) {
       out("warn", "live.next_start_failed", { error: clip(error) })
     }
     delay = Math.min(delay, Math.max(10_000, repriceNext))
+    // A long sleep wakes on the shared slot, so this worker's database reads share an awake period with the cron routes.
+    if (delay >= 5 * 60_000) delay = Math.min(delay, msToNextSlot(Date.now()))
   }
 
   // Prune only if something was written since the last prune: an idle worker must not wake the database for nothing.

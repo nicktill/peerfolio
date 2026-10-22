@@ -179,10 +179,11 @@ describe("pregame repricing pass", () => {
     assert.equal((await runRepricePass(h.deps, st, plus(REPRICE.passMs))) ?.skipped, false)
     const far = harness([target({ startsAt: new Date(NOW.getTime() + 8 * 3600_000) })])
     const st2 = newWorkerState()
-    await runRepricePass(far.deps, st2, NOW)
-    const next = await runRepricePass(far.deps, st2, plus(60_000))
+    const t0 = new Date("2026-10-20T18:02:00Z")
+    await runRepricePass(far.deps, st2, t0)
+    const next = await runRepricePass(far.deps, st2, new Date(t0.getTime() + 60_000))
     assert.equal(next?.skipped, true)
-    assert.equal(next?.nextPassMs, REPRICE.farPassMs - 60_000)
+    assert.equal(next?.nextPassMs, 13 * 60_000 + 45_000 - 60_000, "waits for the 18:15:45 slot")
   })
 
   it("no targets: no upstream call", async () => {
@@ -216,5 +217,44 @@ describe("pregame repricing pass", () => {
       await runRepricePass(jump.deps, newWorkerState(), NOW)
       assert.deepEqual([jump.reopened, jump.applied], [[], []])
     })
+  })
+})
+
+describe("pregame pass idle gating", () => {
+  it("far games: one pass per slot and no database read in between", async () => {
+    const far = target({ startsAt: new Date(NOW.getTime() + 8 * 3600_000) })
+    let lists = 0
+    const h = harness([far])
+    const base = h.deps.reprice!.listTargets
+    h.deps.reprice!.listTargets = async (n) => (lists++, base(n))
+    const st = newWorkerState()
+    const t0 = new Date("2026-10-20T18:00:50Z")
+    assert.equal((await runRepricePass(h.deps, st, t0))?.skipped, false)
+    assert.equal(lists, 1)
+    for (const s of [1, 60, 300, 600]) {
+      const r = await runRepricePass(h.deps, st, new Date(t0.getTime() + s * 1000))
+      assert.equal(r?.skipped, true)
+      assert.equal(r?.targets, 1)
+    }
+    assert.equal(lists, 1, "no database read between slots")
+    assert.equal((await runRepricePass(h.deps, st, new Date("2026-10-20T18:15:46Z")))?.skipped, false)
+  })
+
+  it("wakes when the nearest game enters the fast window even mid-slot", async () => {
+    const start = new Date("2026-10-20T21:05:00Z")
+    const h = harness([target({ startsAt: start })])
+    const st = newWorkerState()
+    await runRepricePass(h.deps, st, new Date("2026-10-20T18:00:50Z"))
+    const r = await runRepricePass(h.deps, st, new Date("2026-10-20T18:01:00Z"))
+    assert.equal(r?.skipped, true)
+    assert.ok(r!.nextPassMs <= 4 * 60_000 + 10_000, "window opens at 18:05, before the next slot")
+  })
+
+  it("near games keep the 30 second cadence", async () => {
+    const h = harness([target()])
+    const st = newWorkerState()
+    assert.equal((await runRepricePass(h.deps, st, NOW))?.skipped, false)
+    assert.equal((await runRepricePass(h.deps, st, plus(10_000)))?.skipped, true)
+    assert.equal((await runRepricePass(h.deps, st, plus(REPRICE.passMs)))?.skipped, false)
   })
 })
