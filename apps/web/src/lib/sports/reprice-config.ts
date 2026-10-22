@@ -48,8 +48,14 @@ export const REPRICE = {
    */
   passMs: 30_000,
   farPassMs: 15 * 60_000,
-  /** The publish/guard cron stops trusting an exchange-managed market, and freezes it inside `windowMs` of the start, when the worker heartbeat is older than this. */
   /** Freeze tolerance for markets read at the far cadence: two missed far passes plus slack, so one bad read between passes cannot freeze a market. */
   farStaleFreezeMs: 35 * 60_000,
+  /** The same for markets read hourly in quiet hours (live/slots.ts): two missed hourly passes plus slack. Only games starting more than `windowMs` plus an hour out are read hourly. */
+  quietStaleFreezeMs: 125 * 60_000,
+  /** The publish/guard cron stops trusting an exchange-managed market, and freezes it inside `windowMs` of the start, when the worker heartbeat is older than this. */
   workerDeadMs: 20 * 60_000,
+  /** A worker that announced a longer quiet-hours sleep (heartbeat `sleepUntil`) still counts as alive until this long after it. */
+  wakeGraceMs: 10 * 60_000,
+  /** Longest announced sleep that is trusted: the hourly quiet slot (live/slots.ts QUIET_SLOT_MS) plus a minute. */
+  maxAnnouncedSleepMs: 61 * 60_000,
 } as const

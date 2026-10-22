@@ -10,12 +10,15 @@ import { activeSports } from "@web/lib/sports/flag"
 import { writeHeartbeat } from "@web/lib/sports/live/store"
 import { leagueSportsSql } from "@web/lib/sports/ingestion-scope"
 import { hiddenSkips } from "@web/lib/sports/health-report"
+import { quietOffSlot } from "@web/lib/sports/live/slots"
 
 export const maxDuration = 120
 
 /** Fetch once (cached, rate-capped, merged), publish fixed lines for every league, close due markets. */
-export const GET = withSportsCron<unknown>(async () => {
+export const GET = withSportsCron<unknown>(async (request) => {
   const now = new Date()
+  // Quiet hours: only the top-of-hour run publishes, before any database access (see live/slots.ts). ?force=1 runs anyway.
+  if (quietOffSlot(now.getTime()) && new URL(request.url).searchParams.get("force") !== "1") return NextResponse.json({ status: "skipped", reason: "quiet_hours" })
   // Leave room under maxDuration for lock/guard/prune after the fetches: sports not reached are skipped (and their claim kept for the next run).
   const deadlineAt = Date.now() + 90_000
   const mode = publishMode()

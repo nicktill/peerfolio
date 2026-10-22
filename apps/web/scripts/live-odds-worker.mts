@@ -6,11 +6,12 @@
  * 30s) and writes `live_quote` / `live_state`. Users only ever read those tables through /api/sports/live/[gameId], so
  * upstream calls scale with the number of live games, never with viewers.
  *
- * With nothing live it SLEEPS until 10 minutes before the next scheduled start (at most 15 minutes) and touches the
- * database only once per wake-up, so a serverless Postgres (Neon) can suspend between games.
+ * With nothing live it SLEEPS until 10 minutes before the next scheduled start (at most 15 minutes, or an hour in quiet hours
+ * when nothing starts within the repricing window plus an hour; see live/slots.ts) and touches the database only once per
+ * wake-up, so a serverless Postgres (Neon) can suspend between games.
  *
- * DISPLAY ONLY. It never touches picks, lines, markets, the ledger or settlement; those keep using the independent
- * results feeds.
+ * It never touches picks, the ledger or settlement; those keep using the independent results feeds. Besides the live
+ * display it reprices and freezes pregame markets (reprice-pass.ts) and locks markets due at kickoff while a game is on.
  *
  *   DATABASE_URL=postgres://... node --experimental-strip-types scripts/live-odds-worker.mts [--ws] [--once]
  *
@@ -31,8 +32,9 @@ import { cycleFailed, EXIT_AFTER_FAILURES, shouldExit, WORKER_NAME } from "../sr
 import { clip, emit, type Fields, type Level } from "../src/lib/sports/log.ts"
 import { idleSleepMs, MAX_SLEEP_MS, pollDelay } from "../src/lib/sports/live/plan.ts"
 import { insertQuotes, loadLiveSlate, nextStartAfter, pruneLiveQuotes, readSportsActivity, upsertState, writeHeartbeat } from "../src/lib/sports/live/store.ts"
-import { applyReprice, confirmExchange, freezeForReason, listRepriceTargets, reopenWorkerFrozen } from "../src/lib/sports/store.ts"
-import { msToNextSlot } from "../src/lib/sports/live/slots.ts"
+import { applyReprice, confirmExchange, freezeForReason, listRepriceTargets, lockDueMarkets, reopenWorkerFrozen } from "../src/lib/sports/store.ts"
+import { inQuietHours, msToNextSlot, QUIET_SLOT_MS } from "../src/lib/sports/live/slots.ts"
+import { REPRICE } from "../src/lib/sports/reprice-config.ts"
 import { runRepricePass } from "../src/lib/sports/live/reprice-pass.ts"
 import { MarketSocket } from "../src/lib/sports/live/ws.ts"
 import type { PassResult } from "../src/lib/sports/live/reprice-pass.ts"
@@ -126,6 +128,7 @@ let failures = 0
 let lastPrune = 0
 let writtenSincePrune = 0
 let lastReport = 0
+let lastLock = 0
 
 out("info", "live.start", { ws: useWs, once, bookMode, maxSleepMin: MAX_SLEEP_MS / 60_000 })
 while (!stopping) {
@@ -159,17 +162,35 @@ while (!stopping) {
     }
   }
 
+  // Kickoff locks. The publish and settle routes lock due markets too, but only hourly in quiet hours (live/slots.ts), and in-play
+  // picks need a market locked at kickoff. While a game is on the slate the database is awake anyway: lock at most once a minute.
+  if (slate > 0 && Date.now() - lastLock >= 60_000) {
+    lastLock = Date.now()
+    try {
+      const locked = await lockDueMarkets(db, new Date())
+      if (locked) out("info", "live.locked", { locked })
+    } catch (error) {
+      out("warn", "live.lock_failed", { error: clip(error) })
+    }
+  }
+
   // Idle: nothing live. Decide how long to sleep from the next scheduled start (one cheap query) and the next reprice pass.
   let delay = pollDelay(slate)
   if (!threw && slate === 0) {
+    // Hourly sleeps (quiet hours only) need every tracked game to start beyond the repricing window plus an hour: the publish
+    // guard trusts the announced wake time (sleepUntil) only while nothing it guards is that close.
+    let hourly = false
     try {
-      delay = idleSleepMs(new Date(), await nextStartAfter(db, new Date()))
+      const now = new Date()
+      const next = await nextStartAfter(db, now)
+      hourly = !next || next.getTime() - now.getTime() > REPRICE.windowMs + QUIET_SLOT_MS
+      delay = idleSleepMs(now, next, hourly && inQuietHours(now.getTime()) ? QUIET_SLOT_MS : MAX_SLEEP_MS)
     } catch (error) {
       out("warn", "live.next_start_failed", { error: clip(error) })
     }
     delay = Math.min(delay, Math.max(10_000, repriceNext))
     // A long sleep wakes on the shared slot, so this worker's database reads share an awake period with the cron routes.
-    if (delay >= 5 * 60_000) delay = Math.min(delay, msToNextSlot(Date.now()))
+    if (delay >= 5 * 60_000) delay = Math.min(delay, msToNextSlot(Date.now(), hourly))
   }
 
   // Prune only if something was written since the last prune: an idle worker must not wake the database for nothing.

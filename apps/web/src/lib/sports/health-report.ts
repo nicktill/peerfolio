@@ -6,7 +6,8 @@ export type Staleness = { level: Level; ageMs: number | null; message: string }
 
 /** How old each job may get before it is flagged. GitHub's schedule is best effort, so the limits are generous. */
 export const STALE_LIMITS = {
-  publish: { warnMs: 45 * 60_000, badMs: 3 * 3600_000 },
+  // Publish runs hourly in quiet hours (live/slots.ts).
+  publish: { warnMs: 75 * 60_000, badMs: 3 * 3600_000 },
   settle: { warnMs: 90 * 60_000, badMs: 4 * 3600_000 },
   worker: { warnMs: 10 * 60_000, badMs: 60 * 60_000 },
 } as const

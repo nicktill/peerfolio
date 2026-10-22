@@ -380,6 +380,8 @@ describe("worker planning", () => {
     assert.equal(idleSleepMs(NOW, at(11)), 60_000)
     assert.equal(idleSleepMs(NOW, at(5)), 30_000)
     assert.equal(idleSleepMs(NOW, at(-5)), 30_000)
+    assert.equal(idleSleepMs(NOW, null, 60 * 60_000), 60 * 60_000, "a quiet-hours cap")
+    assert.equal(idleSleepMs(NOW, at(20), 60 * 60_000), 10 * 60_000, "the next start still wins")
   })
   it("worst-case displayed age stays comfortably under the 30s live cutoff", () => {
     assert.ok(WORST_CASE_AGE_MS <= LIVE_MAX_MS - 2_000, `worst case ${WORST_CASE_AGE_MS}ms`)

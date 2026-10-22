@@ -7,6 +7,7 @@ import { settleEventNow } from "@web/lib/sports/settle-now"
 import { eventTriggersEnabled } from "@web/lib/sports/settle-trigger"
 import { writeHeartbeat } from "@web/lib/sports/live/store"
 import { DbUsageStore, lockDueMarkets, settleDueEvents } from "@web/lib/sports/store"
+import { quietOffSlot } from "@web/lib/sports/live/slots"
 
 export const maxDuration = 120
 
@@ -26,6 +27,9 @@ export const GET = withSportsCron<unknown>(async (request) => {
     console.info(JSON.stringify({ job: "sports.settle.event", at: now.toISOString(), eventId, kind, outcome }))
     return NextResponse.json({ status: outcome.ran ? "ok" : "skipped", outcome })
   }
+  // Quiet hours: only the top-of-hour run does a full pass, before any database access (see live/slots.ts). The live worker's
+  // targeted settles at finals still run. ?force=1 runs anyway (manual dispatch).
+  if (quietOffSlot(now.getTime()) && url.searchParams.get("force") !== "1") return NextResponse.json({ status: "skipped", reason: "quiet_hours" })
   const locked = await lockDueMarkets(db, now)
   const providers = buildResultsProviders()
   const config = resolveConfigFor(providers)

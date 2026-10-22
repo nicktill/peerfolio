@@ -414,3 +414,35 @@ describe("priceNeedsRefresh", () => {
     assert.equal(priceNeedsRefresh({ exchangeOkAt: at(600) }, start, at(300)), false, "game still far away")
   })
 })
+
+describe("quiet-hours cadence (default SPORTS_QUIET_HOURS_UTC 5-15)", () => {
+  const quiet = new Date("2026-10-22T06:02:00Z")
+  const unwatched = (h: ReturnType<typeof harness>) => void (h.deps.reprice!.lastActivity = async () => null)
+  const startsIn = (min: number) => new Date(quiet.getTime() + min * 60_000)
+
+  it("games beyond the window plus an hour are read hourly", async () => {
+    const h = harness([target({ startsAt: startsIn(8 * 60) })])
+    unwatched(h)
+    const st = newWorkerState()
+    const first = await runRepricePass(h.deps, st, quiet)
+    assert.equal(first?.nextPassMs, new Date("2026-10-22T07:00:45Z").getTime() - quiet.getTime())
+    assert.equal((await runRepricePass(h.deps, st, new Date("2026-10-22T06:15:45Z")))?.skipped, true)
+  })
+
+  it("a game within the window plus an hour keeps the quarter-hour slot", async () => {
+    const h = harness([target({ startsAt: startsIn(3 * 60 + 30) })])
+    unwatched(h)
+    assert.equal((await runRepricePass(h.deps, newWorkerState(), quiet))?.nextPassMs, new Date("2026-10-22T06:15:45Z").getTime() - quiet.getTime())
+  })
+
+  it("one missed hourly read does not freeze a far market; two hours without a good read does", async () => {
+    const run = async (minutes: number) => {
+      const h = harness([target({ startsAt: startsIn(8 * 60), state: state({ lockAt: startsIn(8 * 60), exchangeOkAt: new Date(quiet.getTime() - minutes * 60_000) }) })], { half: 0.05 })
+      unwatched(h)
+      await runRepricePass(h.deps, newWorkerState(), quiet)
+      return h.frozen.length
+    }
+    assert.equal(await run(70), 0)
+    assert.equal(await run(130), 1)
+  })
+})

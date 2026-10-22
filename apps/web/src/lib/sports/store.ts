@@ -12,7 +12,7 @@ import { acceptParlay, decideParlay, decimalToAmerican, LEG_STATUS_OF, ParlayRej
 import { mirroredPairs } from "./report.ts"
 import { trackedEventSql } from "./ingestion-scope.ts"
 import { REPRICE } from "./reprice-config.ts"
-import { priceNeedsRefresh, type Decision, type RepriceResult, type RepriceTarget } from "./reprice.ts"
+import { priceNeedsRefresh, workerBeating, type Decision, type RepriceResult, type RepriceTarget } from "./reprice.ts"
 import { DEFAULT_RESOLVE, gradePick, needsMeteredSource, planSettlement, observeFinal, placeKey, resolveResult, resultsForEvent, type ResolveConfig, type ResolveConfigFor, type SettlementPlan } from "./settlement.ts"
 import type { EventRef, EventResult, MarketKind, OddsProvider, Outcome, ResultsProvider, Selection, Sport } from "./types.ts"
 import { hasDraw, SPORTS } from "./types.ts"
@@ -847,10 +847,10 @@ export class DbUsageStore implements UsageStore {
 /** Row key of the live odds worker in `live_worker` (also exported from live/health.ts for the worker side). */
 const LIVE_WORKER_NAME = "live-odds"
 
-/** True while the live odds worker has beaten within REPRICE.workerDeadMs. No row at all counts as dead. */
+/** True while the live odds worker has beaten within REPRICE.workerDeadMs, or is inside a sleep it announced (see workerBeating). No row at all counts as dead. */
 export async function workerAlive(db: Db, now: Date): Promise<boolean> {
-  const [w] = await db.select({ at: schema.liveWorker.lastCycleAt }).from(schema.liveWorker).where(eq(schema.liveWorker.name, LIVE_WORKER_NAME)).limit(1)
-  return !!w && now.getTime() - w.at.getTime() < REPRICE.workerDeadMs
+  const [w] = await db.select({ at: schema.liveWorker.lastCycleAt, details: schema.liveWorker.details }).from(schema.liveWorker).where(eq(schema.liveWorker.name, LIVE_WORKER_NAME)).limit(1)
+  return !!w && workerBeating(w.at, w.details.sleepUntil, now)
 }
 
 /**
