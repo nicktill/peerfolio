@@ -391,6 +391,9 @@ describe("college football matching (Polymarket titles carry the school only)", 
     assert.equal(planGames("cfb", [row("Florida State Seminoles", "Miami Hurricanes", "Florida State", "Miami")], [group("Florida State", "Miami (FL)")], now).games.length, 1)
     assert.equal(planGames("cfb", [row("Akron Zips", "Miami (OH) RedHawks", "Akron", "Miami (OH)")], [group("Akron", "Miami (FL)")], now).games.length, 0)
   })
+  it("matches ESPN's App State to Polymarket's Appalachian State", () => {
+    assert.equal(planGames("cfb", [row("James Madison Dukes", "App State Mountaineers", "James Madison", "App State")], [group("James Madison", "Appalachian State")], now).games.length, 1)
+  })
   it("does not use school names for other sports or accept a city-only prefix", () => {
     assert.equal(planGames("nfl", [row("TCU Horned Frogs", "Baylor Bears", "TCU", "Baylor")], [group("TCU", "Baylor")], now).games.length, 0)
     assert.equal(planGames("cfb", [row("Washington State Cougars", "Oregon State Beavers", "Washington State", "Oregon State")], [group("Washington", "Oregon")], now).games.length, 0)
