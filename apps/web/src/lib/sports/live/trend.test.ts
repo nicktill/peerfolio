@@ -106,3 +106,13 @@ test("cached or duplicate live quotes cannot overwrite a newer chart endpoint", 
  assert.equal(gameChart(series, 0.9, 11000)!.homePct, 90, "a genuinely newer quote still moves the endpoint")
  assert.equal(historyBand(series, 0.9, 11000)!.homePct, 90)
 })
+
+test("game charts use a fixed probability scale and match live bar endpoint labels", () => {
+  const series = Array.from({ length: 10 }, (_, i) => ({ t: i * 1000, v: 0.6 }))
+  const g = gameChart(series, null, 10000, 300, 64)!
+  assert.equal(g.homeEnd[1], 6 + 0.4 * 52)
+  assert.equal(g.startAt, 0)
+  assert.equal(g.endAt, 9000)
+  assert.equal(gameChart(series, 0.999, 10000)!.homePct, 99)
+  assert.equal(gameChart(series, 0.001, 10000)!.homePct, 1)
+})

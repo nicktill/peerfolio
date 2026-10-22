@@ -309,6 +309,13 @@
       "when": 1792428955019,
       "tag": "0043_fantasy_member_observer",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1792634882573,
+      "tag": "0044_sports_member_resets",
+      "breakpoints": true
     }
   ]
 }
