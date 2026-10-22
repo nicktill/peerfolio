@@ -2,7 +2,7 @@ import { and, eq, gt, inArray, sql } from "drizzle-orm"
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js"
 import * as schema from "../../../db/schema.ts"
 import type { HealthGame, HealthInput } from "./health.ts"
-import { liveWantedEventSql } from "../ingestion-scope.ts"
+import { liveWantedEventSql, trackedEventSql } from "../ingestion-scope.ts"
 import { ACTIVITY_NAME, ACTIVITY_TOUCH_MS } from "./activity.ts"
 import { liveSlate, type SlateEvent } from "./plan.ts"
 import { DEFAULT_RETENTION, retentionCutoffs, type RetentionPolicy } from "./retention.ts"
@@ -138,6 +138,19 @@ export async function nextStartAfter(db: Db, now: Date): Promise<Date | null> {
     .select({ at: sql<Date | string | null>`min(${sportsEvents.startsAt})` })
     .from(sportsEvents)
     .where(and(liveWantedEventSql(now), eq(sportsEvents.status, "scheduled"), gt(sportsEvents.startsAt, now)))
+  return row?.at ? new Date(row.at) : null
+}
+
+/**
+ * Earliest start of any tracked scheduled game, watched or not. The quiet-hours hourly sleep keys on this, not on nextStartAfter:
+ * the publish guard trusts an announced hourly sleep (see reprice.ts workerBeating), so no tracked game may start within the
+ * repricing window plus an hour of it, even one nobody is watching.
+ */
+export async function nextTrackedStartAfter(db: Db, now: Date): Promise<Date | null> {
+  const [row] = await db
+    .select({ at: sql<Date | string | null>`min(${sportsEvents.startsAt})` })
+    .from(sportsEvents)
+    .where(and(trackedEventSql(now), eq(sportsEvents.status, "scheduled"), gt(sportsEvents.startsAt, now)))
   return row?.at ? new Date(row.at) : null
 }
 

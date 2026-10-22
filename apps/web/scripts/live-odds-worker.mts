@@ -31,7 +31,7 @@ import * as schema from "../src/db/schema.ts"
 import { cycleFailed, EXIT_AFTER_FAILURES, shouldExit, WORKER_NAME } from "../src/lib/sports/live/health.ts"
 import { clip, emit, type Fields, type Level } from "../src/lib/sports/log.ts"
 import { idleSleepMs, MAX_SLEEP_MS, pollDelay } from "../src/lib/sports/live/plan.ts"
-import { insertQuotes, loadLiveSlate, nextStartAfter, pruneLiveQuotes, readSportsActivity, upsertState, writeHeartbeat } from "../src/lib/sports/live/store.ts"
+import { insertQuotes, loadLiveSlate, nextStartAfter, nextTrackedStartAfter, pruneLiveQuotes, readSportsActivity, upsertState, writeHeartbeat } from "../src/lib/sports/live/store.ts"
 import { applyReprice, confirmExchange, freezeForReason, listRepriceTargets, lockDueMarkets, reopenWorkerFrozen } from "../src/lib/sports/store.ts"
 import { inQuietHours, msToNextSlot, QUIET_SLOT_MS } from "../src/lib/sports/live/slots.ts"
 import { REPRICE } from "../src/lib/sports/reprice-config.ts"
@@ -206,7 +206,9 @@ while (!stopping) {
     try {
       const now = new Date()
       const next = await nextStartAfter(db, now)
-      hourly = !next || next.getTime() - now.getTime() > REPRICE.windowMs + QUIET_SLOT_MS
+      // Hourly only when no tracked game starts soon, watched or not (#328 narrowed nextStartAfter to watched or picked games).
+      const tracked = inQuietHours(now.getTime()) ? await nextTrackedStartAfter(db, now) : next
+      hourly = !tracked || tracked.getTime() - now.getTime() > REPRICE.windowMs + QUIET_SLOT_MS
       delay = idleSleepMs(now, next, hourly && inQuietHours(now.getTime()) ? QUIET_SLOT_MS : MAX_SLEEP_MS)
     } catch (error) {
       out("warn", "live.next_start_failed", { error: clip(error) })
