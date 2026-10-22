@@ -54,13 +54,21 @@ export async function runRepricePass(deps: WorkerDeps, st: WorkerState, now: Dat
   const targets = await store.listTargets(now)
   st.reprice.lastTargets = targets.length
   const result: PassResult = { targets: targets.length, matched: 0, updated: 0, frozen: 0, held: 0, confirmed: 0, unmatched: 0, skipped: false, nextPassMs: REPRICE.farPassMs }
-  if (targets.length === 0) return { ...result, skipped: true }
+  if (targets.length === 0) {
+    // A live game can keep the outer worker ticking every 10s even when nothing is open for repricing.
+    // Discover newly published targets on the normal fast-pass cadence, without an otherwise empty query each tick.
+    st.reprice.nextListAt = now.getTime() + REPRICE.passMs
+    return { ...result, skipped: true, nextPassMs: REPRICE.passMs }
+  }
   const near = targets.some((t) => t.startsAt.getTime() - now.getTime() <= REPRICE.windowMs)
   const t = now.getTime()
   const soonest = Math.min(...targets.map((x) => x.startsAt.getTime()))
   if (near) {
     const sinceLast = t - st.reprice.lastPassAt
-    if (sinceLast < REPRICE.passMs) return { ...result, skipped: true, nextPassMs: REPRICE.passMs - sinceLast }
+    if (sinceLast < REPRICE.passMs) {
+      st.reprice.nextListAt = st.reprice.lastPassAt + REPRICE.passMs
+      return { ...result, skipped: true, nextPassMs: REPRICE.passMs - sinceLast }
+    }
   } else {
     // Far games: one pass per shared slot, and no database read until the slot or the moment the nearest game enters the window.
     const next = Math.min(t + msToNextSlot(t), soonest - REPRICE.windowMs)
@@ -71,7 +79,7 @@ export async function runRepricePass(deps: WorkerDeps, st: WorkerState, now: Dat
   }
   st.reprice.lastPassAt = t
   result.nextPassMs = near ? REPRICE.passMs : Math.max(1_000, Math.min(msToNextSlot(t), soonest - REPRICE.windowMs - t))
-  st.reprice.nextListAt = near ? 0 : t + result.nextPassMs
+  st.reprice.nextListAt = t + result.nextPassMs
 
   const sports = [...new Set(targets.map((t) => t.sport))]
   const pmFor = new Map<string, { game: PmGame; homeIndex: 0 | 1 }>()

@@ -250,12 +250,60 @@ describe("pregame pass idle gating", () => {
     assert.ok(r!.nextPassMs <= 4 * 60_000 + 10_000, "window opens at 18:05, before the next slot")
   })
 
-  it("near games keep the 30 second cadence", async () => {
+  it("near games keep the 30 second cadence without reading targets on intervening live ticks", async () => {
     const h = harness([target()])
+    let lists = 0
+    const base = h.deps.reprice!.listTargets
+    h.deps.reprice!.listTargets = async (now) => (lists++, base(now))
     const st = newWorkerState()
     assert.equal((await runRepricePass(h.deps, st, NOW))?.skipped, false)
-    assert.equal((await runRepricePass(h.deps, st, plus(10_000)))?.skipped, true)
+    const upstreamCalls = h.calls.length
+    for (const ms of [10_000, 20_000, REPRICE.passMs - 1]) {
+      const result = await runRepricePass(h.deps, st, plus(ms))
+      assert.equal(result?.skipped, true)
+      assert.equal(result?.nextPassMs, REPRICE.passMs - ms)
+    }
+    assert.equal(lists, 1)
+    assert.equal(h.calls.length, upstreamCalls)
     assert.equal((await runRepricePass(h.deps, st, plus(REPRICE.passMs)))?.skipped, false)
+    assert.equal(lists, 2)
+    assert.equal(h.applied.length, 2, "prices are still checked on every due fast pass")
+  })
+
+  it("an empty target list is checked again at the fast cadence and discovers newly published markets", async () => {
+    const targets: RepriceTarget[] = []
+    const h = harness(targets)
+    let lists = 0
+    const base = h.deps.reprice!.listTargets
+    h.deps.reprice!.listTargets = async (now) => (lists++, base(now))
+    const st = newWorkerState()
+    const empty = await runRepricePass(h.deps, st, NOW)
+    assert.equal(empty?.skipped, true)
+    assert.equal(empty?.nextPassMs, REPRICE.passMs)
+    targets.push(target())
+    for (const ms of [10_000, 20_000, REPRICE.passMs - 1]) {
+      assert.equal((await runRepricePass(h.deps, st, plus(ms)))?.skipped, true)
+    }
+    assert.equal(lists, 1)
+    assert.equal(h.calls.length, 0)
+    const discovered = await runRepricePass(h.deps, st, plus(REPRICE.passMs))
+    assert.equal(discovered?.targets, 1)
+    assert.equal(discovered?.skipped, false)
+    assert.equal(lists, 2)
+    assert.equal(h.applied.length, 1)
+  })
+
+  it("a failed target-list query retries on the next tick rather than caching a failure", async () => {
+    const h = harness([target()])
+    let lists = 0
+    h.deps.reprice!.listTargets = async () => {
+      if (++lists === 1) throw new Error("database unavailable")
+      return [target()]
+    }
+    const st = newWorkerState()
+    await assert.rejects(runRepricePass(h.deps, st, NOW), /database unavailable/)
+    assert.equal((await runRepricePass(h.deps, st, plus(10_000)))?.skipped, false)
+    assert.equal(lists, 2)
   })
 })
 
