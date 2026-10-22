@@ -505,6 +505,14 @@ describe("served view", () => {
     }
     assert.equal(v.stateFreshness, "live")
   })
+  it("keeps source price age separate from the oldest new worker observation", () => {
+    const v = buildLiveView({ eventId: "e", eventStatus: "scheduled", quotes: [q("home", 0.6, 0.62, { fetchedTs: ago(100) }), q("away", 0.38, 0.4, { fetchedTs: ago(800) })], state: st }, NOW)
+    assert.equal(v.odds.status, "ok")
+    if (v.odds.status === "ok") {
+      assert.equal(v.odds.asOf, ago(1500).toISOString())
+      assert.equal(v.odds.observedAsOf, ago(800).toISOString())
+    }
+  })
   it("hides odds once the quote is stale but still shows the score", () => {
     const old = { sourceTs: ago(300_000), fetchedTs: ago(299_000) }
     const v = buildLiveView({ eventId: "e", eventStatus: "scheduled", quotes: [q("home", 0.6, 0.62, old), q("away", 0.38, 0.4, old)], state: st }, NOW)

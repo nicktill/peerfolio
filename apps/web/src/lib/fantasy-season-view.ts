@@ -14,7 +14,8 @@ import {
   securities,
   users,
 } from "@web/db"
-import { isClosed } from "@web/lib/fantasy-rules"
+import { loadBuyers } from "@web/lib/fantasy-members"
+import { isClosed, isRankedMember } from "@web/lib/fantasy-rules"
 import {
   dateKey,
   formatSigned,
@@ -26,6 +27,7 @@ import {
   picksOpen,
   rankRound,
   asCadence,
+  competitiveRoundResults,
   nextPeriodStart,
   CADENCES,
   type Cadence,
@@ -52,6 +54,7 @@ export type RoundRow = SeasonPerson & { rank: number; percent: number; points: n
 
 export type SeasonView = {
   league: { id: string; name: string; emoji: string; accent: string; isOwner: boolean; isClosed: boolean; inviteCode: string; endsAt: string | null }
+  members: { userId: string; name: string | null; handle: string | null; image: string | null; isYou: boolean; observer: boolean; inactive: boolean; benched: boolean }[]
   season: {
     id: string
     number: number
@@ -96,11 +99,13 @@ export async function loadSeasonView(userId: string, leagueId: string, now = new
   const leagueView = { id: league.id, name: league.name, emoji: league.emoji, accent: league.accent, isOwner: league.ownerId === userId, isClosed: closed, inviteCode: league.inviteCode, endsAt: league.endsAt?.toISOString() ?? null }
   if (!season) return { none: true, league: leagueView, nextStarts: Object.fromEntries(CADENCES.map((c) => [c, nextPeriodStart(now, c).toISOString()])) as Record<Cadence, string> }
 
-  const members = await db
-    .select({ id: fantasyMembers.id, userId: fantasyMembers.userId, joinedAt: fantasyMembers.joinedAt, name: users.name, handle: users.handle, image: users.image })
+  const allMembers = await db
+    .select({ id: fantasyMembers.id, userId: fantasyMembers.userId, joinedAt: fantasyMembers.joinedAt, observer: fantasyMembers.observer, inactive: fantasyMembers.inactive, name: users.name, handle: users.handle, image: users.image })
     .from(fantasyMembers)
     .innerJoin(users, eq(fantasyMembers.userId, users.id))
     .where(eq(fantasyMembers.leagueId, leagueId))
+  const members = allMembers.filter((m) => !m.observer)
+  const observers = new Set(allMembers.filter((m) => m.observer).map((m) => m.userId))
   const person = (id: string): SeasonPerson => {
     const m = members.find((x) => x.userId === id)
     return { userId: id, name: m?.name ?? null, handle: m?.handle ?? null, image: m?.image ?? null, isYou: id === userId }
@@ -172,7 +177,7 @@ export async function loadSeasonView(userId: string, leagueId: string, now = new
   if (open) {
     const picks = await loadPicks([open.id], userId, true)
     const byMember = picks.get(open.id) ?? new Map<string, PickView[]>()
-    const mine = members.find((m) => m.userId === userId)
+    const mine = allMembers.find((m) => m.userId === userId)
     const waitingOn = members.filter((m) => !byMember.has(m.id)).map((m) => person(m.userId))
     draft = {
       roundId: open.id,
@@ -183,7 +188,7 @@ export async function loadSeasonView(userId: string, leagueId: string, now = new
       slots: season.picksPerRound ?? DEFAULT_PICKS,
       yours: (mine && byMember.get(mine.id)) || [],
       waitingOn,
-      submitted: byMember.size,
+      submitted: members.filter((m) => byMember.has(m.id)).length,
       players: members.length,
     }
   }
@@ -192,10 +197,11 @@ export async function loadSeasonView(userId: string, leagueId: string, now = new
   const lastSettled = settledRounds.at(-1)
   const lastRecap = lastSettled ? recapByRound.get(lastSettled.id) : undefined
 
-  const champions = (num: number) => trophyRows.filter((t) => t.kind === "season_champion" && t.seasonNumber === num).map((t) => person(t.userId).name ?? "Player")
+  const champions = (num: number) => trophyRows.filter((t) => !observers.has(t.userId) && t.kind === "season_champion" && t.seasonNumber === num).map((t) => person(t.userId).name ?? "Player")
 
   return {
     league: leagueView,
+    members: league.ownerId === userId ? allMembers.map((m) => ({ ...m, isYou: m.userId === userId, benched: m.inactive })) : [],
     season: {
       id: season.id,
       number: season.number,
@@ -213,7 +219,7 @@ export async function loadSeasonView(userId: string, leagueId: string, now = new
     standings,
     rounds: roundsView,
     headToHead: headToHeadView,
-    trophies: trophyRows.map((t) => ({ userId: t.userId, name: person(t.userId).name, kind: t.kind as TrophyKind, roundNumber: t.roundNumber, seasonNumber: t.seasonNumber })),
+    trophies: trophyRows.filter((t) => !observers.has(t.userId)).map((t) => ({ userId: t.userId, name: person(t.userId).name, kind: t.kind as TrophyKind, roundNumber: t.roundNumber, seasonNumber: t.seasonNumber })),
     seasons: allSeasons.map((s) => ({ number: s.number, mode: s.mode as "trading" | "draft", status: s.status, roundCount: s.roundCount, champions: champions(s.number) })),
     recap: lastRecap ? { ...(await resolveRecapNames(lastRecap.payload as RoundRecap)), token: lastRecap.sharing ? lastRecap.token : null, sharing: lastRecap.sharing } : null,
     canStartNext: league.ownerId === userId && season.status === "complete" && !closed,
@@ -223,11 +229,12 @@ export async function loadSeasonView(userId: string, leagueId: string, now = new
 /* ------------------------------------------------------------------ */
 
 type League = Awaited<ReturnType<typeof requireFantasyMember>>["league"]
-type MemberLite = { id: string; userId: string; joinedAt: Date }
+type MemberLite = { id: string; userId: string; joinedAt: Date; inactive: boolean; observer: boolean }
 
 async function liveTradingRows(league: League, everyone: MemberLite[], start: Date, person: (id: string) => SeasonPerson): Promise<RoundRow[]> {
   // Same rule as settling: in the league when the round began.
-  const members = everyone.filter((m) => m.joinedAt.getTime() <= start.getTime())
+  const buyers = await loadBuyers(everyone.map((m) => m.id))
+  const members = everyone.filter((m) => m.joinedAt.getTime() <= start.getTime() && isRankedMember(m, buyers.has(m.id)))
   const ids = members.map((m) => m.id)
   if (ids.length === 0) return []
   const startingCash = n(league.startingCash)
@@ -419,16 +426,17 @@ export async function loadRoundChips(userId: string, leagueIds: string[], now = 
       .innerJoin(fantasyMembers, eq(fantasyDraftPicks.memberId, fantasyMembers.id))
       .where(and(inArray(fantasyRounds.seasonId, seasonIds), eq(fantasyMembers.userId, userId))),
     db
-      .select({ seasonId: fantasyRounds.seasonId, number: fantasyRounds.number, userId: fantasyRoundResults.userId, pct: fantasyRoundResults.returnPct, rank: fantasyRoundResults.rank, points: fantasyRoundResults.points })
+      .select({ seasonId: fantasyRounds.seasonId, number: fantasyRounds.number, userId: fantasyRoundResults.userId, pct: fantasyRoundResults.returnPct, floor: fantasyRoundResults.floorPct, rank: fantasyRoundResults.rank, points: fantasyRoundResults.points })
       .from(fantasyRoundResults)
       .innerJoin(fantasyRounds, eq(fantasyRoundResults.roundId, fantasyRounds.id))
-      .where(inArray(fantasyRounds.seasonId, seasonIds)),
+      .innerJoin(fantasyMembers, eq(fantasyRoundResults.memberId, fantasyMembers.id))
+      .where(and(inArray(fantasyRounds.seasonId, seasonIds), eq(fantasyMembers.observer, false))),
   ])
   const picked = new Set(mine.map((m) => `${m.seasonId}:${m.roundNumber}`))
-  const bySeason = new Map<string, { roundNumber: number; userId: string; percent: number; rank: number; points: number }[]>()
-  for (const r of resultRows) bySeason.set(r.seasonId, [...(bySeason.get(r.seasonId) ?? []), { roundNumber: r.number, userId: r.userId, percent: n(r.pct), rank: r.rank, points: n(r.points) }])
+  const bySeason = new Map<string, { roundNumber: number; userId: string; percent: number; floor?: number; rank: number; points: number }[]>()
+  for (const r of resultRows) bySeason.set(r.seasonId, [...(bySeason.get(r.seasonId) ?? []), { roundNumber: r.number, userId: r.userId, percent: n(r.pct), ...(r.floor === null ? {} : { floor: n(r.floor) }), rank: r.rank, points: n(r.points) }])
 
-  const tables = new Map([...latest.values()].map((s) => [s.id, seasonStandings(bySeason.get(s.id) ?? [])] as const))
+  const tables = new Map([...latest.values()].map((s) => [s.id, seasonStandings(competitiveRoundResults(bySeason.get(s.id) ?? []))] as const))
   const leaderIds = [...new Set([...tables.values()].flatMap((t) => (t.length > 0 && t.every((r) => r.rank === 1) ? [] : t.slice(0, 3).map((r) => r.userId))))]
   const people = leaderIds.length > 0 ? await db.select({ id: users.id, name: users.name, image: users.image }).from(users).where(inArray(users.id, leaderIds)) : []
   const person = new Map(people.map((p) => [p.id, p]))

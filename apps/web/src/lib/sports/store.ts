@@ -10,11 +10,13 @@ import { acceptPick, DEFAULT_LIMITS, kickoffGateDecided, PickRejected, type Pick
 import { isLiveMarketKey } from "./live-pick.ts"
 import { acceptParlay, decideParlay, decimalToAmerican, LEG_STATUS_OF, ParlayRejected, parlayPlaceKey, parlaySettleKey, PARLAY_LIMITS, type ParlayLegStatus, type ParlayRequest, type ParlayRow, type ParlayStatus } from "./parlay.ts"
 import { mirroredPairs } from "./report.ts"
+import { trackedEventSql } from "./ingestion-scope.ts"
 import { REPRICE } from "./reprice-config.ts"
-import { type Decision, type RepriceResult, type RepriceTarget } from "./reprice.ts"
+import { priceNeedsRefresh, type Decision, type RepriceResult, type RepriceTarget } from "./reprice.ts"
 import { DEFAULT_RESOLVE, gradePick, needsMeteredSource, planSettlement, observeFinal, placeKey, resolveResult, resultsForEvent, type ResolveConfig, type ResolveConfigFor, type SettlementPlan } from "./settlement.ts"
 import type { EventRef, EventResult, MarketKind, OddsProvider, Outcome, ResultsProvider, Selection, Sport } from "./types.ts"
 import { hasDraw, SPORTS } from "./types.ts"
+import { checkLeagueSettings, asSports } from "./league-settings.ts"
 
 /**
  * Database layer for sports leagues. Takes the drizzle client as a parameter so
@@ -36,6 +38,9 @@ export class SportsError extends Error {
     this.status = status
   }
 }
+
+/** Shown when a pick or parlay leg waits on a fresh exchange price (see priceNeedsRefresh). The page refetches by itself and clears this. */
+export const PRICE_REFRESHING = "Odds are refreshing for this game. Try again in a moment"
 
 /** Rejects a new pick on a paused sport (see enabled.ts). Open picks on it still settle and display. */
 export function assertSportsPickable(sports: Iterable<string>) {
@@ -362,6 +367,7 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
       inviteCode: league.inviteCode,
       startingCredits: league.startingCredits,
       maxStakePct: league.maxStakePct,
+      maxParlayStakePct: league.maxParlayStakePct,
       liveBetting: league.liveBetting,
       endsAt: league.endsAt?.toISOString() ?? null,
       isOwner: league.ownerId === userId,
@@ -375,7 +381,7 @@ export async function getSportsLeagueDetail(db: Db, userId: string, leagueId: st
         minLegs: PARLAY_LIMITS.minLegs,
         maxLegs: PARLAY_LIMITS.maxLegs,
         minStake: PARLAY_LIMITS.minStake,
-        maxStake: me.credits,
+        maxStake: Math.min(me.credits, Math.floor((league.startingCredits * (league.maxParlayStakePct ?? league.maxStakePct)) / 100)),
       },
     },
     standings,
@@ -413,6 +419,32 @@ export async function setLeagueMaxStakePct(db: Db, userId: string, leagueId: str
   const [row] = await db.update(sportsLeagues).set({ maxStakePct: pct }).where(and(eq(sportsLeagues.id, leagueId), eq(sportsLeagues.ownerId, userId))).returning({ id: sportsLeagues.id })
   if (!row) throw new SportsError("Only the league owner can change this", 403)
   return { maxStakePct: pct }
+}
+
+/** Owner-only: rename, change the look, the end date, the parlay limit or the sports on offer. Checked by league-settings.ts; applies from now on. */
+export async function updateSportsLeague(
+  db: Db,
+  userId: string,
+  leagueId: string,
+  patch: { name?: string; emoji?: string; accent?: string; endsAt?: Date | null; maxParlayStakePct?: number | null; sports?: string[] },
+  now = new Date(),
+) {
+  const [league] = await db.select().from(sportsLeagues).where(and(eq(sportsLeagues.id, leagueId), eq(sportsLeagues.ownerId, userId))).limit(1)
+  if (!league) throw new SportsError("Only the league owner can change this", 403)
+  if (league.endsAt && league.endsAt.getTime() <= now.getTime()) throw new SportsError("This league has finished, so it can't be edited", 409)
+  const problem = checkLeagueSettings({ maxParlayStakePct: patch.maxParlayStakePct, sports: patch.sports, endsAt: patch.endsAt }, { endsAt: league.endsAt, sports: league.sports }, now)
+  if (problem) throw new SportsError(problem, 422)
+  const values = {
+    ...(patch.name !== undefined && { name: patch.name }),
+    ...(patch.emoji !== undefined && { emoji: patch.emoji }),
+    ...(patch.accent !== undefined && { accent: patch.accent }),
+    ...(patch.endsAt !== undefined && { endsAt: patch.endsAt }),
+    ...(patch.maxParlayStakePct !== undefined && { maxParlayStakePct: patch.maxParlayStakePct }),
+    ...(patch.sports !== undefined && { sports: asSports(patch.sports) }),
+  }
+  if (Object.keys(values).length === 0) return {}
+  const [updated] = await db.update(sportsLeagues).set(values).where(eq(sportsLeagues.id, leagueId)).returning()
+  return { name: updated!.name, emoji: updated!.emoji, accent: updated!.accent, endsAt: updated!.endsAt, maxParlayStakePct: updated!.maxParlayStakePct, sports: updated!.sports }
 }
 
 /** Members only: pairs of members who keep taking opposite sides of the same locked market (locked picks are already public to the league). */
@@ -522,6 +554,7 @@ async function placeOnce(db: Db, userId: string, leagueId: string, req: PickRequ
     if (!theEvent || !league.sports.includes(theEvent.sport)) throw new SportsError("Line not found", 404)
     assertSportsPickable([theEvent.sport])
     const row = { line: theLine, market: theMarket, event: theEvent }
+    if (priceNeedsRefresh(theMarket, theEvent.startsAt, now)) throw new SportsError(PRICE_REFRESHING, 409)
 
     const [existing] = await tx
       .select({ n: sql<number>`count(*)::int` })
@@ -722,6 +755,7 @@ async function placeParlayOnce(db: Db, userId: string, leagueId: string, req: Pa
       const market = line && markets.find((m) => m.id === line.marketId)
       const event = market && events.find((e) => e.id === market.eventId)
       if (!line || !market || !event || !league.sports.includes(event.sport)) throw new SportsError("A line in your parlay is no longer available", 404)
+      if (priceNeedsRefresh(market, event.startsAt, now)) throw new SportsError(PRICE_REFRESHING, 409)
       legCtx.push({
         market: { id: market.id, status: market.status, lockAt: market.lockAt, kind: market.kind, player: market.player },
         eventId: event.id,
@@ -747,7 +781,7 @@ async function placeParlayOnce(db: Db, userId: string, leagueId: string, req: Pa
         },
         openPickCount: risk.count,
         openStakeTotal: risk.stake,
-      }, { ...PARLAY_LIMITS, maxStakePctOfStart: league.maxStakePct })
+      }, { ...PARLAY_LIMITS, maxStakePctOfStart: league.maxParlayStakePct ?? league.maxStakePct })
     } catch (error) {
       if (error instanceof ParlayRejected) {
         emit("info", "sports.parlay_rejected", { code: error.code, leagueId, now: now.toISOString() })
@@ -1094,6 +1128,7 @@ export async function listRepriceTargets(db: Db, now: Date, kinds: readonly stri
     .innerJoin(sportsEvents, eq(sportsEvents.id, sportsMarkets.eventId))
     .where(
       and(
+        trackedEventSql(now),
         // Open markets, plus those the cron froze for a dead worker: those reopen only on a healthy exchange read (see the pass).
         or(eq(sportsMarkets.status, "open"), and(eq(sportsMarkets.status, "locked"), eq(sportsMarkets.frozenReason, WORKER_FREEZE_REASON))),
         gt(sportsMarkets.lockAt, now),

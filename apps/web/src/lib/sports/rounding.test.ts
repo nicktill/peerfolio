@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 import { americanToDecimal, totalReturn } from "./odds.ts"
 import { parlayQuote } from "./parlay-math.ts"
+import { winOn100 } from "./format.ts"
 import { parlayReturn } from "./parlay.ts"
 
 const exact = (stake: number, price: number) => (price > 0 ? Math.floor((stake * (100 + price)) / 100) : Math.floor((stake * (100 - price)) / -price))
@@ -20,5 +21,12 @@ test("single, parlay and slip preview round the same way", () => {
       assert.equal(parlayReturn(stake, americanToDecimal(price)), totalReturn(stake, price))
       assert.equal(parlayQuote([price], stake)!.totalReturn, totalReturn(stake, price))
     }
+  }
+})
+
+test("card profit matches the accepted return, including positive fractional decimal odds", () => {
+  assert.equal(winOn100(105), 105)
+  for (let price = -2000; price <= 3000; price++) {
+    if (Math.abs(price) >= 100) assert.equal(winOn100(price), totalReturn(100, price) - 100, `${price}`)
   }
 })

@@ -4,7 +4,7 @@ import { useId, useState } from "react"
 import { X } from "lucide-react"
 import { useToast } from "@web/components/ui/toast"
 import { SheetHandle } from "@web/components/sports/sheet-handle"
-import { SlipPickCard } from "@web/components/sports/slip-pick-card"
+import { DRAW_COLOR, SlipPickCard } from "@web/components/sports/slip-pick-card"
 import { SlipCashOut, useCashOut, type CashoutQuoteBody } from "@web/components/sports/cashout-card"
 import { TicketFig, TicketMoney } from "@web/components/sports/ticket-figures"
 import type { PickRow } from "@web/components/sports/league-parts"
@@ -77,7 +77,8 @@ function PickManage({ leagueId, pick, balance, limits, onClear, onMinimize, onCh
   const problem = amount === 0 ? null : amount < limits.minStake ? `Minimum is ${formatCredits(limits.minStake)}` : amount > limits.maxStake ? `Maximum per pick is ${formatCredits(limits.maxStake)}` : amount > balance ? "Not enough cash" : null
 
   const market = { kind: pick.market.kind, player: pick.market.player, statKey: pick.market.statKey, event: pick.event }
-  const color = marketSelectionColor(pick.event, pick.market.kind, pick.selection) ?? NEUTRAL
+  const isDraw = pick.market.kind === "moneyline" && pick.selection === "draw"
+  const color = isDraw ? DRAW_COLOR : marketSelectionColor(pick.event, pick.market.kind, pick.selection) ?? NEUTRAL
   const live = quote && quote.available && quote.source === "live"
 
   async function addMore(event: React.FormEvent) {
@@ -101,7 +102,7 @@ function PickManage({ leagueId, pick, balance, limits, onClear, onMinimize, onCh
 
   return (
     <Shell color={color} title="Your pick" busy={selling || adding} onClear={onClear} onMinimize={onMinimize}>
-      <SlipPickCard sport={pick.event.sport} side={sideTeam(pick.event, pick.market.kind, pick.selection)} player={pick.market.player} kicker={marketTitle(market)} title={pickSentence(market, pick)} price={pick.price} game={`${eventTitle(pick.event)} · you hold this at ${formatOdds(pick.price)}`} color={color} />
+      <SlipPickCard sport={pick.event.sport} side={sideTeam(pick.event, pick.market.kind, pick.selection)} draw={isDraw ? { away: pick.event.away, home: pick.event.home } : undefined} player={pick.market.player} kicker={marketTitle(market)} title={pickSentence(market, pick)} price={pick.price} game={`${eventTitle(pick.event)} · you hold this at ${formatOdds(pick.price)}`} color={color} />
       <TicketMoney>
         <TicketFig label="Stake">{formatCredits(pick.stake)}</TicketFig>
         <TicketFig label="To win" tone="up">{formatCredits(Math.max(0, pick.totalReturn - pick.stake))}</TicketFig>

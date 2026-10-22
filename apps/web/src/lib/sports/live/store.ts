@@ -2,6 +2,8 @@ import { and, eq, gt, inArray, sql } from "drizzle-orm"
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js"
 import * as schema from "../../../db/schema.ts"
 import type { HealthGame, HealthInput } from "./health.ts"
+import { liveWantedEventSql } from "../ingestion-scope.ts"
+import { ACTIVITY_NAME, ACTIVITY_TOUCH_MS } from "./activity.ts"
 import { liveSlate, type SlateEvent } from "./plan.ts"
 import { DEFAULT_RETENTION, retentionCutoffs, type RetentionPolicy } from "./retention.ts"
 import type { LiveGameState, NormalizedQuote } from "./types.ts"
@@ -9,8 +11,8 @@ import { buildLiveView, READ_WINDOW_MS, type LiveView, type QuoteRow } from "./v
 
 /**
  * Database layer for the live odds tables. Takes the drizzle client as a parameter so Next routes and the
- * standalone worker share it. Touches only live_quote, live_state and READS sports_events; it never reads or
- * writes picks, lines, markets or the ledger.
+ * standalone worker share it. Reads event and league/pick eligibility; writes live quotes, state and health.
+ * Never writes picks, lines, markets or the ledger.
  */
 
 type Db = PostgresJsDatabase<typeof schema>
@@ -58,7 +60,10 @@ export async function upsertState(db: Db, eventId: string, s: LiveGameState): Pr
   await db.insert(liveState).values({ eventId, ...values }).onConflictDoUpdate({ target: liveState.eventId, set: values })
 }
 
-/** Games that should be polled now: scheduled (not final/void) and inside their live window. One cheap query. */
+/**
+ * Games that should be polled now: scheduled (not final/void), inside their live window, and either being watched or carrying an open pick
+ * (see liveWantedEventSql). With nobody watching and nothing riding on a game the slate is empty, so the worker sleeps to the next shared slot.
+ */
 export async function loadLiveSlate(db: Db, now: Date): Promise<(SlateEvent & { externalId: string })[]> {
   const rows = await db
     .select({
@@ -71,7 +76,7 @@ export async function loadLiveSlate(db: Db, now: Date): Promise<(SlateEvent & { 
       awayName: sportsEvents.awayName,
     })
     .from(sportsEvents)
-    .where(and(eq(sportsEvents.status, "scheduled"), gt(sportsEvents.startsAt, new Date(now.getTime() - 8 * 3600_000)), sql`${sportsEvents.startsAt} <= ${new Date(now.getTime() + 10 * 60_000).toISOString()}::timestamptz`))
+    .where(and(liveWantedEventSql(now), eq(sportsEvents.status, "scheduled"), gt(sportsEvents.startsAt, new Date(now.getTime() - 8 * 3600_000)), sql`${sportsEvents.startsAt} <= ${new Date(now.getTime() + 10 * 60_000).toISOString()}::timestamptz`))
   return liveSlate(rows, now)
 }
 
@@ -132,7 +137,7 @@ export async function nextStartAfter(db: Db, now: Date): Promise<Date | null> {
   const [row] = await db
     .select({ at: sql<Date | string | null>`min(${sportsEvents.startsAt})` })
     .from(sportsEvents)
-    .where(and(eq(sportsEvents.status, "scheduled"), gt(sportsEvents.startsAt, now)))
+    .where(and(liveWantedEventSql(now), eq(sportsEvents.status, "scheduled"), gt(sportsEvents.startsAt, now)))
   return row?.at ? new Date(row.at) : null
 }
 
@@ -145,6 +150,23 @@ export async function writeHeartbeat(db: Db, h: HeartbeatInput): Promise<void> {
     .insert(liveWorker)
     .values({ name: h.name, ...values, lastOkAt: h.ok ? h.at : null })
     .onConflictDoUpdate({ target: liveWorker.name, set: h.ok ? { ...values, lastOkAt: h.at } : values })
+}
+
+let lastTouchAt = 0
+
+/** Marks the sports pages as in use. Throttled per server instance, never throws: a failed stamp must not fail the viewer's request. */
+export async function touchSportsActivity(db: Db, now: Date = new Date()): Promise<void> {
+  if (now.getTime() - lastTouchAt < ACTIVITY_TOUCH_MS) return
+  lastTouchAt = now.getTime()
+  await writeHeartbeat(db, { name: ACTIVITY_NAME, at: now, ok: true, consecutiveFailures: 0, details: {} }).catch(() => {
+    lastTouchAt = 0
+  })
+}
+
+/** When the sports pages were last in use, or null if never. */
+export async function readSportsActivity(db: Db): Promise<Date | null> {
+  const [row] = await db.select({ at: liveWorker.lastCycleAt }).from(liveWorker).where(eq(liveWorker.name, ACTIVITY_NAME)).limit(1)
+  return row?.at ?? null
 }
 
 /** Everything liveHealth needs: the worker row and, for each game that should be live now, its newest quote and state. */

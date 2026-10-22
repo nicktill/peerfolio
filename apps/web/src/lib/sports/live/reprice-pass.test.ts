@@ -1,7 +1,8 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import { priceTwoWay } from "../odds.ts"
-import { REPRICE, type MarketState, type RepriceStore, type RepriceTarget } from "../reprice.ts"
+import { priceNeedsRefresh, REPRICE, type MarketState, type RepriceStore, type RepriceTarget } from "../reprice.ts"
+import { ACTIVITY_WINDOW_MS } from "./activity.ts"
 import { runRepricePass } from "./reprice-pass.ts"
 import { newWorkerState, type WorkerDeps } from "./worker.ts"
 
@@ -179,10 +180,11 @@ describe("pregame repricing pass", () => {
     assert.equal((await runRepricePass(h.deps, st, plus(REPRICE.passMs))) ?.skipped, false)
     const far = harness([target({ startsAt: new Date(NOW.getTime() + 8 * 3600_000) })])
     const st2 = newWorkerState()
-    await runRepricePass(far.deps, st2, NOW)
-    const next = await runRepricePass(far.deps, st2, plus(60_000))
+    const t0 = new Date("2026-10-20T18:02:00Z")
+    await runRepricePass(far.deps, st2, t0)
+    const next = await runRepricePass(far.deps, st2, new Date(t0.getTime() + 60_000))
     assert.equal(next?.skipped, true)
-    assert.equal(next?.nextPassMs, REPRICE.farPassMs - 60_000)
+    assert.equal(next?.nextPassMs, 13 * 60_000 + 45_000 - 60_000, "waits for the 18:15:45 slot")
   })
 
   it("no targets: no upstream call", async () => {
@@ -216,5 +218,199 @@ describe("pregame repricing pass", () => {
       await runRepricePass(jump.deps, newWorkerState(), NOW)
       assert.deepEqual([jump.reopened, jump.applied], [[], []])
     })
+  })
+})
+
+describe("pregame pass idle gating", () => {
+  it("far games: one pass per slot and no database read in between", async () => {
+    const far = target({ startsAt: new Date(NOW.getTime() + 8 * 3600_000) })
+    let lists = 0
+    const h = harness([far])
+    const base = h.deps.reprice!.listTargets
+    h.deps.reprice!.listTargets = async (n) => (lists++, base(n))
+    const st = newWorkerState()
+    const t0 = new Date("2026-10-20T18:00:50Z")
+    assert.equal((await runRepricePass(h.deps, st, t0))?.skipped, false)
+    assert.equal(lists, 1)
+    for (const s of [1, 60, 300, 600]) {
+      const r = await runRepricePass(h.deps, st, new Date(t0.getTime() + s * 1000))
+      assert.equal(r?.skipped, true)
+      assert.equal(r?.targets, 1)
+    }
+    assert.equal(lists, 1, "no database read between slots")
+    assert.equal((await runRepricePass(h.deps, st, new Date("2026-10-20T18:15:46Z")))?.skipped, false)
+  })
+
+  it("wakes when the nearest game enters the fast window even mid-slot", async () => {
+    const start = new Date("2026-10-20T21:05:00Z")
+    const h = harness([target({ startsAt: start })])
+    const st = newWorkerState()
+    await runRepricePass(h.deps, st, new Date("2026-10-20T18:00:50Z"))
+    const r = await runRepricePass(h.deps, st, new Date("2026-10-20T18:01:00Z"))
+    assert.equal(r?.skipped, true)
+    assert.ok(r!.nextPassMs <= 4 * 60_000 + 10_000, "window opens at 18:05, before the next slot")
+  })
+
+  it("near games keep the 30 second cadence without reading targets on intervening live ticks", async () => {
+    const h = harness([target()])
+    let lists = 0
+    const base = h.deps.reprice!.listTargets
+    h.deps.reprice!.listTargets = async (now) => (lists++, base(now))
+    const st = newWorkerState()
+    assert.equal((await runRepricePass(h.deps, st, NOW))?.skipped, false)
+    const upstreamCalls = h.calls.length
+    for (const ms of [10_000, 20_000, REPRICE.passMs - 1]) {
+      const result = await runRepricePass(h.deps, st, plus(ms))
+      assert.equal(result?.skipped, true)
+      assert.equal(result?.nextPassMs, REPRICE.passMs - ms)
+    }
+    assert.equal(lists, 1)
+    assert.equal(h.calls.length, upstreamCalls)
+    assert.equal((await runRepricePass(h.deps, st, plus(REPRICE.passMs)))?.skipped, false)
+    assert.equal(lists, 2)
+    assert.equal(h.applied.length, 2, "prices are still checked on every due fast pass")
+  })
+
+  it("an empty target list is checked again at the fast cadence and discovers newly published markets", async () => {
+    const targets: RepriceTarget[] = []
+    const h = harness(targets)
+    let lists = 0
+    const base = h.deps.reprice!.listTargets
+    h.deps.reprice!.listTargets = async (now) => (lists++, base(now))
+    const st = newWorkerState()
+    const empty = await runRepricePass(h.deps, st, NOW)
+    assert.equal(empty?.skipped, true)
+    assert.equal(empty?.nextPassMs, REPRICE.passMs)
+    targets.push(target())
+    for (const ms of [10_000, 20_000, REPRICE.passMs - 1]) {
+      assert.equal((await runRepricePass(h.deps, st, plus(ms)))?.skipped, true)
+    }
+    assert.equal(lists, 1)
+    assert.equal(h.calls.length, 0)
+    const discovered = await runRepricePass(h.deps, st, plus(REPRICE.passMs))
+    assert.equal(discovered?.targets, 1)
+    assert.equal(discovered?.skipped, false)
+    assert.equal(lists, 2)
+    assert.equal(h.applied.length, 1)
+  })
+
+  it("a failed target-list query retries on the next tick rather than caching a failure", async () => {
+    const h = harness([target()])
+    let lists = 0
+    h.deps.reprice!.listTargets = async () => {
+      if (++lists === 1) throw new Error("database unavailable")
+      return [target()]
+    }
+    const st = newWorkerState()
+    await assert.rejects(runRepricePass(h.deps, st, NOW), /database unavailable/)
+    assert.equal((await runRepricePass(h.deps, st, plus(10_000)))?.skipped, false)
+    assert.equal(lists, 2)
+  })
+})
+
+describe("far-market freeze tolerance", () => {
+  it("one bad read between far passes does not freeze a managed market; a long outage does", async () => {
+    const startsFar = new Date(NOW.getTime() + 8 * 3600_000)
+    const old = (min: number) => state({ exchangeOkAt: plus(-min * 60_000) })
+    const wide = (min: number) => harness([target({ startsAt: startsFar, state: old(min) })], { half: 0.05 })
+    const a = wide(15)
+    await runRepricePass(a.deps, newWorkerState(), NOW)
+    assert.deepEqual(a.frozen, [], "15 min since the last good read is one missed far pass")
+    const b = wide(40)
+    await runRepricePass(b.deps, newWorkerState(), NOW)
+    assert.equal(b.frozen.length, 1, "40 min without a good read freezes")
+    const near = harness([target({ state: old(15) })], { half: 0.05 })
+    await runRepricePass(near.deps, newWorkerState(), NOW)
+    assert.equal(near.frozen.length, 1, "inside the window the 10 minute rule is unchanged")
+  })
+})
+
+describe("activity-gated cadence", () => {
+  const withActivity = (h: ReturnType<typeof harness>, at: () => Date | null) => {
+    h.deps.reprice!.lastActivity = async () => at()
+    let lists = 0
+    const base = h.deps.reprice!.listTargets
+    h.deps.reprice!.listTargets = async (now) => (lists++, base(now))
+    return () => lists
+  }
+  const slotted = new Date("2026-10-20T18:02:00Z")
+  const SLOT_MS = 13 * 60_000 + 45_000
+  const near = () => target({ startsAt: new Date(slotted.getTime() + 60 * 60_000) })
+
+  it("watched near games keep the 30 second pass", async () => {
+    const h = harness([near()])
+    withActivity(h, () => new Date(slotted.getTime() - 20_000))
+    const st = newWorkerState()
+    const first = await runRepricePass(h.deps, st, slotted)
+    assert.equal(first?.skipped, false)
+    assert.equal(first?.nextPassMs, REPRICE.passMs)
+    assert.equal((await runRepricePass(h.deps, st, new Date(slotted.getTime() + REPRICE.passMs)))?.skipped, false)
+  })
+
+  it("unwatched near games are repriced once per slot with no database read in between", async () => {
+    const h = harness([near()])
+    const lists = withActivity(h, () => null)
+    const st = newWorkerState()
+    const first = await runRepricePass(h.deps, st, slotted)
+    assert.equal(first?.skipped, false, "the pass itself still runs")
+    assert.equal(first?.nextPassMs, SLOT_MS, "next pass is the 18:15:45 slot")
+    for (const ms of [30_000, 5 * 60_000, 13 * 60_000]) {
+      assert.equal((await runRepricePass(h.deps, st, new Date(slotted.getTime() + ms)))?.skipped, true)
+    }
+    assert.equal(lists(), 1)
+    assert.equal((await runRepricePass(h.deps, st, new Date(slotted.getTime() + SLOT_MS)))?.skipped, false)
+  })
+
+  it("activity older than the window counts as unwatched", async () => {
+    const h = harness([near()])
+    withActivity(h, () => new Date(slotted.getTime() - ACTIVITY_WINDOW_MS - 1))
+    assert.equal((await runRepricePass(h.deps, newWorkerState(), slotted))?.nextPassMs, SLOT_MS)
+  })
+
+  it("a viewer arriving mid-slot is picked up at the next slot and the fast pass resumes", async () => {
+    const h = harness([near()])
+    let last: Date | null = null
+    withActivity(h, () => last)
+    const st = newWorkerState()
+    await runRepricePass(h.deps, st, slotted)
+    const slot = new Date(slotted.getTime() + SLOT_MS)
+    last = new Date(slot.getTime() - 60_000)
+    const r = await runRepricePass(h.deps, st, slot)
+    assert.equal(r?.skipped, false)
+    assert.equal(r?.nextPassMs, REPRICE.passMs)
+  })
+
+  it("an unwatched near market tolerates a slot-length gap; a long outage still freezes it", async () => {
+    const run = async (minutes: number) => {
+      const h = harness([target({ state: state({ exchangeOkAt: plus(-minutes * 60_000) }) })], { half: 0.05 })
+      withActivity(h, () => null)
+      await runRepricePass(h.deps, newWorkerState(), NOW)
+      return h.frozen.length
+    }
+    assert.equal(await run(14), 0, "14 minutes without a good read is within the slow tolerance")
+    assert.equal(await run(40), 1, "40 minutes freezes")
+  })
+
+  it("watched, far games still wake when the nearest one enters the fast window", async () => {
+    const h = harness([target({ startsAt: new Date(slotted.getTime() + 3 * 3600_000 + 5 * 60_000) })])
+    withActivity(h, () => new Date(slotted.getTime() - 1_000))
+    assert.equal((await runRepricePass(h.deps, newWorkerState(), slotted))?.nextPassMs, 5 * 60_000, "wakes at window entry, before the slot")
+  })
+
+  it("unwatched, far games do not wake for window entry", async () => {
+    const h = harness([target({ startsAt: new Date(slotted.getTime() + 3 * 3600_000 + 5 * 60_000) })])
+    withActivity(h, () => null)
+    assert.equal((await runRepricePass(h.deps, newWorkerState(), slotted))?.nextPassMs, SLOT_MS)
+  })
+})
+
+describe("priceNeedsRefresh", () => {
+  const start = new Date("2026-10-20T19:00:00Z")
+  const at = (minBefore: number) => new Date(start.getTime() - minBefore * 60_000)
+  it("blocks only managed markets inside the window with an old exchange read", () => {
+    assert.equal(priceNeedsRefresh({ exchangeOkAt: at(70) }, start, at(60)), true, "10 minutes old")
+    assert.equal(priceNeedsRefresh({ exchangeOkAt: at(62) }, start, at(60)), false, "2 minutes old")
+    assert.equal(priceNeedsRefresh({ exchangeOkAt: null }, start, at(60)), false, "never exchange-managed")
+    assert.equal(priceNeedsRefresh({ exchangeOkAt: at(600) }, start, at(300)), false, "game still far away")
   })
 })

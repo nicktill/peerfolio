@@ -65,6 +65,8 @@ export type RepriceInput = {
   exchange: ExchangeView | null
   /** Three-way markets: the outcome of `exchangeThreeWay` over the three YES books (it applies the same gates as below to every leg). Null: no usable read. */
   exchange3?: ThreeWayExchangeResult | null
+  /** How long a managed market may go without a good exchange read before it freezes. Defaults to `REPRICE.staleFreezeMs`; far-out markets are read less often, so the pass gives them `farStaleFreezeMs`. */
+  staleFreezeMs?: number
 }
 
 export type Decision =
@@ -81,9 +83,10 @@ export function decideReprice(input: RepriceInput): Decision {
   if (eventStatus !== "scheduled" || m.status !== "open" || now.getTime() >= m.lockAt.getTime()) return none("closed")
 
   const managed = m.exchangeOkAt != null
+  const freezeAfter = input.staleFreezeMs ?? REPRICE.staleFreezeMs
   const lastGood = Math.max(m.exchangeOkAt?.getTime() ?? 0, m.repricedAt?.getTime() ?? 0)
   // A market the exchange has been managing must not sit on an old price when the exchange goes quiet.
-  const hold = (reason: string): Decision => (managed && now.getTime() - lastGood > REPRICE.staleFreezeMs ? { action: "freeze", reason: `exchange ${reason} for over ${REPRICE.staleFreezeMs / 60_000} min` } : none(reason))
+  const hold = (reason: string): Decision => (managed && now.getTime() - lastGood > freezeAfter ? { action: "freeze", reason: `exchange ${reason} for over ${Math.round(freezeAfter / 60_000)} min` } : none(reason))
 
   if (m.prices.length === 3) return decideThreeWay(input, hold, managed)
 
@@ -169,6 +172,16 @@ export type RepriceTarget = {
 
 export type RepriceResult = { applied: boolean; reason?: string; oldPrices?: number[]; newPrices?: number[]; version?: number }
 
+/**
+ * True when a pick on this market would rest on an exchange price older than `REPRICE.pickFreshMs` for a game close enough to
+ * kickoff that the price moves. Only the fast cadence keeps such prices young, so after a quiet spell the viewer waits for the next
+ * pass rather than taking an old line. Markets the exchange never confirmed, and far games, keep their existing guards.
+ */
+export function priceNeedsRefresh(m: { exchangeOkAt: Date | null }, startsAt: Date, now: Date): boolean {
+  if (!m.exchangeOkAt) return false
+  return startsAt.getTime() - now.getTime() <= REPRICE.windowMs && now.getTime() - m.exchangeOkAt.getTime() > REPRICE.pickFreshMs
+}
+
 /** What the worker needs from the database for repricing (implemented by store.ts; injected so tests need no database). */
 export type RepriceStore = {
   listTargets(now: Date): Promise<RepriceTarget[]>
@@ -177,4 +190,6 @@ export type RepriceStore = {
   /** Reopens a market frozen for a dead worker, after a healthy exchange read for it. Optional: stores without it never reopen. */
   reopen?(marketId: string, now: Date): Promise<boolean>
   confirm(marketIds: string[], now: Date): Promise<void>
+  /** When a member last had sports open (see live/activity.ts). Optional: a store without it treats every pass as watched. */
+  lastActivity?(): Promise<Date | null>
 }

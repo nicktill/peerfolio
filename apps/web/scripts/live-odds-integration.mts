@@ -7,7 +7,8 @@
  * that the retention SQL keeps exactly what the reference policy says. Refuses to run against a non-local host.
  */
 import assert from "node:assert/strict"
-import { eq } from "drizzle-orm"
+import { eq, sql as querySql } from "drizzle-orm"
+import { quoteHistory } from "../src/lib/sports/live/history.ts"
 import { drizzle } from "drizzle-orm/postgres-js"
 import postgres from "postgres"
 import * as schema from "../src/db/schema.ts"
@@ -69,6 +70,19 @@ if (view.odds.status === "ok") {
   assert.equal(view.odds.freshness, "live")
 }
 console.log("view ok:", JSON.stringify(view.odds).slice(0, 120))
+
+// The chart must reject an empty closing book instead of plotting its midpoint as a false 50% move.
+const end = new Date(Date.now() + 1000)
+await insertQuotes(db, (["home", "away"] as const).map(selection => ({ eventId: ev.id, market: "moneyline", selection, source: "polymarket", bid: 0, ask: 1, mid: 0.5, sourceTs: end, fetchedTs: end })))
+const historyRows = await db.execute<import("../src/lib/sports/live/view.ts").QuoteRow>(querySql`
+ SELECT market, selection, source, bid, ask, mid, source_ts AS "sourceTs", fetched_ts AS "fetchedTs"
+ FROM live_quote WHERE event_id = ${ev.id} ORDER BY fetched_ts DESC, id DESC LIMIT 12000`)
+const history = quoteHistory([...historyRows], "polymarket")
+assert.ok(history.series.length > 0)
+assert.ok(Math.abs(history.series.at(-1)!.v - 0.61) < 1e-9, "chart keeps last usable paired probability, not empty-book midpoint")
+await sql`DELETE FROM live_quote WHERE event_id = ${ev.id} AND fetched_ts = ${end.toISOString()}::timestamptz`
+console.log("chart history ignores empty closing books: PASS")
+
 
 // Time passes with no new data: the same rows read two minutes later must pause the odds, not keep showing them.
 view = await readLiveView(db, ev.id, new Date(Date.now() + 3 * 60_000))

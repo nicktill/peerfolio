@@ -6,7 +6,7 @@ import { useApi } from "@web/lib/use-api"
 import { briefingSlot, BRIEFING_TITLES } from "@web/lib/news-brief"
 import type { NewsResponse } from "@web/lib/news"
 import type { MarketBoard, EarningsWeekData } from "@web/lib/news-market"
-import { CalendarDays, LayoutDashboard, Medal, Newspaper, Sparkles, Trophy } from "lucide-react"
+import { CalendarDays, Gamepad2, LayoutDashboard, Medal, Newspaper, Trophy } from "lucide-react"
 import { LeaguePreview } from "@web/components/landing/league-preview"
 import { PortfolioView } from "@web/components/landing/product-tour"
 import { PlayPreview } from "@web/components/landing/play-preview"
@@ -22,7 +22,7 @@ import "@web/components/news/news.css"
 const PAGES = [
   { label: "Portfolio", Icon: LayoutDashboard },
   { label: "Leagues", Icon: Trophy },
-  { label: "Play", Icon: Sparkles },
+  { label: "Fantasy", Icon: Gamepad2 },
   { label: "Board", Icon: Medal },
   { label: "News", Icon: Newspaper },
 ] as const
@@ -60,7 +60,7 @@ export function HeroProductPreview() {
             ))}
           </div>
           <div id="hero-preview-page" role="tabpanel" aria-labelledby={`preview-tab-${page}`} tabIndex={0} className="pf-demo-page">
-            {page === "Leagues" ? <LeaguePreview tilt={0} /> : page === "Portfolio" ? <PortfolioView e={1} scrub={false} compact tilt={0} /> : page === "Play" ? <PlayPreview /> : page === "Board" ? <BoardPreview /> : null}
+            {page === "Leagues" ? <LeaguePreview tilt={0} /> : page === "Portfolio" ? <PortfolioView e={1} scrub={false} compact tilt={0} /> : page === "Fantasy" ? <PlayPreview /> : page === "Board" ? <BoardPreview /> : null}
             <div hidden={page !== "News"} className={page === "News" ? "swap-in" : undefined}><NewsPreview /></div>
           </div>
         </div>
@@ -138,7 +138,7 @@ function EarningsPreview({ week }: { week: EarningsWeekData }) {
           ))}
         </div>
       </div>
-      <ul className="divide-y px-4 sm:px-[18px]" aria-label={day.label}>
+      <ul className="pf-preview-earnings-list divide-y px-4 sm:px-[18px]" tabIndex={0} aria-label={`${day.label}, ${day.reports.length} reports`}>
         {day.reports.map((report) => (
           <li key={report.symbol} className="flex items-center gap-2 py-3">
             <TickerLogo symbol={report.symbol} size="xs" />

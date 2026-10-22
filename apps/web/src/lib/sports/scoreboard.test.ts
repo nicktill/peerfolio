@@ -77,6 +77,18 @@ test('scoreboard matching requires same orientation, sport and start window',()=
  assert.equal(scoreboardMatch({...g!,sport:'mlb'},[g!]),undefined)
  assert.equal(scoreboardMatch({...g!,startsAt:'2026-10-18T23:00:00Z'},[g!]),undefined)
 })
+test('live NBA game still matches when ESPN tipoff is exactly 20 minutes after the betting start', () => {
+ const [game] = normalizeGames(board({ ...competition(), date: '2026-10-21T01:50:00Z', competitors: [
+  { homeAway: 'home', team: { displayName: 'San Antonio Spurs' }, score: '26' },
+  { homeAway: 'away', team: { displayName: 'Oklahoma City Thunder' }, score: '34' },
+ ] }), 'nba', '2026-10-21T02:18:09Z')
+ const tracked = { ...game!, startsAt: '2026-10-21T01:30:00Z' }
+ assert.equal(scoreboardMatch(tracked, [game!]), game)
+ assert.equal(scoreboardMatch({ ...tracked, startsAt: '2026-10-21T02:10:00Z' }, [game!]), game)
+ assert.equal(scoreboardMatch({ ...tracked, startsAt: '2026-10-21T01:29:59Z' }, [game!]), undefined)
+ assert.equal(scoreboardMatch({ ...tracked, home: tracked.away, away: tracked.home }, [game!]), undefined)
+ assert.equal(scoreboardMatch({ ...tracked, startsAt: '2026-10-22T01:30:00Z' }, [game!]), undefined)
+})
 test('Eastern scoreboard window spans UTC midnight and DST transitions',()=>{
  assert.deepEqual(scoreboardDays(new Date('2026-10-18T01:00:00Z')),['20261016','20261017','20261018'])
  assert.ok(scoreboardDays(new Date('2026-11-01T06:30:00Z')).includes('20261101'))
@@ -111,4 +123,18 @@ test('two-way odds normalise; pre-game close prices, missing, insane or non-live
  assert.equal(normalizeGames(board({ ...competition('in'), ...insane }),'nba',at)[0]?.homeWinProb, undefined)
  assert.equal(normalizeGames(board({ ...competition('pre'), ...two }),'nba',at)[0]?.homeWinProb, undefined)
  assert.equal(normalizeGames(board({ ...competition('in'), ...two }),'mls',at)[0]?.homeWinProb, undefined)
+})
+
+test("pregameWinProbs reads the latest pregame moneyline, removes the vig, and rejects nonsense", async () => {
+  const { pregameWinProbs } = await import("./scoreboard.ts")
+  const good = { odds: [{ moneyline: { home: { close: { odds: "-185" }, open: { odds: "-160" } }, away: { close: { odds: "+155" }, open: { odds: "+135" } } } }] }
+  const p = pregameWinProbs(good, false)!
+  assert.ok(p.home > 0.6 && p.home < 0.7, `home ${p.home}`)
+  assert.ok(Math.abs(p.home + p.away - 1) < 1e-9)
+  // current beats close when present
+  const moved = { odds: [{ moneyline: { home: { current: { odds: "+100" }, close: { odds: "-185" } }, away: { current: { odds: "-120" }, close: { odds: "+155" } } } }] }
+  assert.ok(pregameWinProbs(moved, false)!.home < 0.5)
+  assert.equal(pregameWinProbs({ odds: [{ moneyline: { home: { close: { odds: "-110" } } } }] }, false), null)
+  assert.equal(pregameWinProbs({ odds: [{ moneyline: { home: { close: { odds: "-900" } }, away: { close: { odds: "-900" } } } }] }, false), null)
+  assert.equal(pregameWinProbs({}, false), null)
 })

@@ -583,6 +583,10 @@ export const fantasyMembers = pgTable(
     /** Uninvested play cash. Changed only inside a locked trade transaction. */
     cash: numeric("cash", { precision: 20, scale: 6 }).notNull(),
     joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
+    /** Set by the owner: sits below the table, greyed out, and isn't ranked. A member who never trades also becomes inactive by themselves, see `isInactiveMember`. */
+    inactive: boolean("inactive").notNull().default(false),
+    /** Keeps access and trading, but never participates in public competition. */
+    observer: boolean("observer").notNull().default(false),
   },
   (t) => [
     uniqueIndex("fantasy_members_unique_idx").on(t.leagueId, t.userId),
@@ -1129,6 +1133,8 @@ export const sportsLeagues = pgTable(
     memberLimit: integer("member_limit").notNull().default(50),
     /** Largest single pick as a percent of starting credits. The owner can change it. */
     maxStakePct: integer("max_stake_pct").notNull().default(10),
+    /** Largest parlay as a percent of starting credits. Null follows the single-pick limit. The owner can change it. */
+    maxParlayStakePct: integer("max_parlay_stake_pct"),
     /** In-play picks that count in the league (priced from the live exchange quote). The owner can switch them off. */
     liveBetting: boolean("live_betting").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -1511,3 +1517,15 @@ export const sportsLiveTests = pgTable(
   },
   (t) => [index("sports_live_tests_event_idx").on(t.eventId, t.acceptedAt), index("sports_live_tests_user_idx").on(t.userId, t.acceptedAt)],
 )
+
+/** Private recovery snapshot for an administrator's reset of one sports league member. */
+export const sportsMemberResets = pgTable("sports_member_resets", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  memberId: uuid("member_id").notNull().references(() => sportsMembers.id, { onDelete: "cascade" }),
+  actorId: uuid("actor_id").references(() => users.id, { onDelete: "set null" }),
+  requestId: uuid("request_id").notNull(),
+  creditsBefore: integer("credits_before").notNull(),
+  creditsAfter: integer("credits_after").notNull(),
+  snapshot: jsonb("snapshot").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("sports_member_resets_request_idx").on(t.requestId), index("sports_member_resets_member_idx").on(t.memberId)])

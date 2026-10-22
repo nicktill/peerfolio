@@ -25,7 +25,7 @@ import type { SeasonView } from "@web/lib/fantasy-season-view"
  * (your rank and return, with the money in one line), the weekly game on the right
  * (the round, its clock, where you stand), and the two tables folded underneath.
  */
-export function LeagueTop({ leagueId, rank, total, moved, percent, value, cash, startingCash }: { leagueId: string; rank: number; total: number; moved: number | null; percent: number; value: number; cash: number; startingCash: number }) {
+export function LeagueTop({ leagueId, rank, total, moved, percent, value, cash, startingCash, observer = false }: { observer?: boolean; leagueId: string; rank: number; total: number; moved: number | null; percent: number; value: number; cash: number; startingCash: number }) {
   const { data } = useApi<SeasonView>(`/api/fantasy/${leagueId}/season`, [], { refreshMs: 60_000 })
   const [open, setOpen] = useState(false)
   useEffect(() => {
@@ -54,11 +54,10 @@ export function LeagueTop({ leagueId, rank, total, moved, percent, value, cash, 
           <div className="lt-hero">
             <div>
               <strong className="lt-rank">
-                {rank <= 3 ? <span className="fw-medal" data-rank={rank} aria-hidden><Medal /></span> : null}#{rank}
-                <small>of {total}</small>
+                {rank === 0 ? (observer ? "Observer" : "Unranked") : <>{rank <= 3 ? <span className="fw-medal" data-rank={rank} aria-hidden><Medal /></span> : null}#{rank}<small>of {total}</small></>}
               </strong>
               <span className="lt-sub">
-                {moved !== null ? <b data-tone={moved > 0 ? "up" : "down"}>{moved > 0 ? "▲" : "▼"} {describeMovement(moved)}</b> : rank === 1 ? "Leading the league" : `${total - rank} ${total - rank === 1 ? "player" : "players"} behind you`}
+                {rank === 0 ? (observer ? "Excluded from competition" : "Make a pick to enter the table") : moved !== null ? <b data-tone={moved > 0 ? "up" : "down"}>{moved > 0 ? "▲" : "▼"} {describeMovement(moved)}</b> : rank === 1 ? "Leading the league" : `${total - rank} ${total - rank === 1 ? "player" : "players"} behind you`}
               </span>
             </div>
             <div className="lt-ret">

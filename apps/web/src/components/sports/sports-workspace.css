@@ -470,6 +470,9 @@
 .sp-feed-chip { display: inline-flex; align-items: center; gap: 5px; font: 400 10px var(--fw-sans); color: var(--fw-fg3); white-space: nowrap; }
 .sp-feed-chip i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
 .sp-feed-chip[data-live] { color: #329b68; }
+.sp-feed-chip[data-refreshing] i { animation: sp-feed-pulse 1.2s ease-in-out infinite; }
+@keyframes sp-feed-pulse { 50% { opacity: 0.25; } }
+@media (prefers-reduced-motion: reduce) { .sp-feed-chip[data-refreshing] i { animation: none; } }
 .dark .sp-feed-chip[data-live] { color: #70dba3; }
 .sp-open-lines .sp-odds-bar { margin-bottom: 10px; }
 .sp-open-lines .sp-odds-track { height: 5px; }
@@ -749,7 +752,7 @@
 .sp-review-pick > svg { width: 14px; height: 14px; }
 .sp-review-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--fw-accent); }
 .sp-review-pick:focus-visible { outline: 2px solid var(--fw-accent); outline-offset: 3px; }
-@media (max-width: 1050px) { .sp-review-pick { display: none; } }
+
 @media (prefers-reduced-motion: reduce) { .sp-slip-mode > .sp-slip { transition: none; } }
 
 /* Live outcomes use the same ticket surface and mobile sheet as pregame picks. */
@@ -779,11 +782,11 @@
   .fw-play-space[data-play-world="sports"] > .fw-head .fw-meta { margin-top: 0; }
 }
 
-.sp-review-pick { height: auto; min-height: 64px; max-width: min(440px, calc(100vw - 56px)); padding: 12px 14px; background: linear-gradient(130deg, color-mix(in srgb, var(--fw-accent) 12%, var(--fw-panel)), var(--fw-panel)); animation: sp-ticket-added .5s ease-out; }
-.sp-review-copy { display: flex; flex-direction: column; gap: 4px; text-align: left; min-width: 0; }
+.sp-review-pick { height: auto; min-height: 64px; width: min(360px, calc(100vw - 56px)); max-width: min(360px, calc(100vw - 56px)); padding: 12px 14px; background: linear-gradient(130deg, color-mix(in srgb, var(--fw-accent) 12%, var(--fw-panel)), var(--fw-panel)); animation: sp-ticket-added .5s ease-out; }
+.sp-review-copy { flex: 1; display: flex; flex-direction: column; gap: 4px; text-align: left; min-width: 0; }
 .sp-review-copy small { color: var(--fw-accent); font: 500 9px var(--fw-mono); letter-spacing: .09em; }
-.sp-review-copy strong { font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
-.sp-review-action { display: inline-flex; align-items: center; gap: 6px; margin-left: 12px; padding-left: 12px; border-left: 1px solid var(--fw-line); color: var(--fw-accent); }
+.sp-review-copy strong { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-review-action { flex: none; display: inline-flex; align-items: center; gap: 6px; margin-left: 12px; padding-left: 12px; border-left: 1px solid var(--fw-line); color: var(--fw-accent); }
 .sp-review-action svg { width: 14px; height: 14px; }
 @keyframes sp-ticket-added { from { transform: translateY(10px); box-shadow: 0 0 0 5px color-mix(in srgb, var(--fw-accent) 20%, transparent); } to { transform: translateY(0); } }
 @media (prefers-reduced-motion: reduce) { .sp-review-pick { animation: none; } }
@@ -796,11 +799,11 @@
 /* Desktop floating slip: the same dock element lifts out of the rail on request; the anchor keeps its space so the page doesn't jump. */
 .sp-review-copy em { font: 400 11px var(--fw-mono); font-style: normal; color: var(--fw-fg2); }
 .sp-float-bar, .sp-float-done { display: none; }
-@media (min-width: 1051px) {
+@media (min-width: 701px) {
   /* The rail is its own stacking layer while the ticket floats, so it rides above the leaderboard rows beside it. */
   .sp-sports-rail:has(.sp-slip-dock[data-float]) { position: relative; z-index: 45; }
   .sp-slip-dock[data-float] {
-    position: fixed; right: 28px; bottom: 24px; z-index: 45; width: min(400px, calc(100vw - 56px)); max-height: calc(100dvh - 48px);
+    display: block; position: fixed; right: 28px; bottom: 24px; z-index: 45; width: min(400px, calc(100vw - 56px)); max-height: calc(100dvh - 48px);
     overflow-y: auto; overscroll-behavior: contain; border-radius: 16px; background: var(--fw-bg, var(--fw-panel));
     box-shadow: 0 24px 60px -12px rgb(0 0 0 / .5), 0 2px 10px rgb(0 0 0 / .25); animation: sp-float-in .24s cubic-bezier(.22, 1, .36, 1);
   }
@@ -1197,11 +1200,14 @@
 @keyframes sp-hold { 0% { width: 0; } 44% { width: 72%; } 100% { width: 96%; } }
 @media (prefers-reduced-motion: reduce) { .sp-hold-bar { animation: none; width: 55%; } }
 
-/* The win-chance bar as history: the track grows to hold the band, which draws over the plain bar once there is enough history. */
-.sp-odds-track { position: relative; }
-.sp-odds-track[data-history] { height: 14px; border-radius: 5px; overflow: hidden; }
-.sp-hist { position: absolute; inset: 0; width: 100%; height: 100%; display: block; animation: sp-spark-in .5s ease-out; }
-@media (prefers-reduced-motion: reduce) { .sp-hist { animation: none; } }
+/* Game chart: both teams' win chance on one time axis, under the team rows on live cards (all widths). */
+.sp-gchart-wrap { margin: 8px 0 2px; }
+.sp-gchart-caption { display: flex; justify-content: space-between; padding-right: 44px; color: var(--fw-fg3); font: 10px/1.4 var(--fw-mono); }
+.sp-gchart { position: relative; height: 56px; margin: 2px 0; padding-right: 44px; color: var(--fw-fg3); animation: sp-spark-in .5s ease-out; }
+.sp-gchart-slot { height: 88px; animation: none; }
+.sp-gchart svg { display: block; width: 100%; height: 56px; overflow: visible; }
+.sp-gchart-pill { position: absolute; right: 0; display: grid; place-items: center; min-width: 38px; height: 18px; padding: 0 6px; border-radius: 999px; font: 700 11px/1 var(--fw-mono); font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) { .sp-gchart { animation: none; } }
 
 /* Slip card: odds chip text reads on the team colour (was inheriting the grey game-line colour); a parlay's team discs keep their stack. */
 .sp-slip-pick .sp-slip-odds, .sp-slip-pick .sp-slip-odds span { color: var(--tc-ink, #fff); margin-top: 0; font-family: var(--fw-mono); }
@@ -1213,3 +1219,26 @@
 [data-game][data-focus] { animation: sp-focus 2.6s ease-out; border-radius: 16px; }
 @keyframes sp-focus { 0%, 55% { box-shadow: 0 0 0 2px var(--fw-accent), 0 0 24px -4px var(--fw-accent); } 100% { box-shadow: 0 0 0 2px transparent, 0 0 24px -4px transparent; } }
 @media (prefers-reduced-motion: reduce) { [data-game][data-focus] { animation: none; box-shadow: 0 0 0 2px var(--fw-accent); } }
+
+/* Draw pick: both teams side by side with an equals sign, and both faded behind the card, in a neutral gold. */
+.sp-slip-sport { overflow: hidden; }
+.sp-slip-sport .sp-league-brand { display: grid; place-items: center; }
+.sp-slip-sport .sp-league-mark img { width: 28px; height: 28px; }
+.sp-draw-mark { position: relative; display: inline-flex; align-items: center; flex: none; padding-right: 2px; }
+.sp-draw-mark > :first-child { margin-right: -8px; }
+.sp-draw-mark > :last-child { margin-left: -8px; }
+.sp-draw-mark > span, .sp-draw-mark > img { filter: drop-shadow(0 2px 6px rgb(0 0 0 / .35)); }
+.sp-draw-mark i { position: relative; z-index: 2; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--tc, #c4a15b); color: var(--tc-ink, #101418); font: 700 14px/1 var(--fw-mono); font-style: normal; box-shadow: 0 0 0 2.5px var(--fw-bg); }
+.sp-slip-top[data-draw] .sp-draw-wm-a { left: -22px; right: auto; top: -18px; transform: rotate(10deg); }
+.sp-slip-top[data-draw] .sp-draw-wm-b { right: 64px; left: auto; top: 6px; transform: rotate(-8deg); }
+.sp-slip-top[data-draw] strong { letter-spacing: .01em; }
+.sp-slip-pick .sp-draw-mark { display: inline-flex; align-items: center; margin-top: 0; width: auto; }
+.sp-slip-pick .sp-draw-mark > * { flex: none; }
+.sp-slip-pick .sp-draw-mark i { display: grid; margin-top: 0; }
+
+.sl-position-fills{border-top:1px solid var(--fw-border, currentColor);padding:12px 16px}.sl-position-fills>summary{cursor:pointer;font-size:13px}.sl-position-fills>.sl-tickets{margin-top:12px}
+
+/* Compact history in the separate market overview. */
+.sp-odds-track { position: relative; }
+.sp-odds-track[data-history] { height: 14px; border-radius: 5px; overflow: hidden; }
+.sp-hist { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }

@@ -46,13 +46,13 @@ function MarketCard({ g, tracked, split: pregame, href, now }: { g: ScoreGame; t
   const live = g.status === "live"
   const fresh = now - Date.parse(g.fetchedAt) < 120_000
   const { view } = useLiveGame(tracked?.id, live && fresh)
-  const history = useGameHistory(live && fresh ? tracked?.id : undefined)
   const [awayColor, homeColor] = matchupColors(g.sport, g.away, g.home)
   // Live: the exchange view wins, then ESPN's in-game odds. Upcoming: the pregame moneyline.
   const exchange = live && view?.odds.status === "ok" ? view.odds : null
+  const history = useGameHistory(live && fresh ? tracked?.id : undefined, exchange?.source)
   const split = exchange && exchange.drawProb == null ? splitPct(exchange.homeProb)
     : live && fresh && g.probSource === "espn" && g.homeWinProb != null && g.drawProb == null ? splitPct(g.homeWinProb)
-    : !live ? pregame : null
+    : !live ? pregame ?? (g.pregameHome != null && g.pregameDraw == null ? splitPct(g.pregameHome) : null) : null
   const status = mergeLiveState(statusInputFromGame(g), view)
   const body = (
     <>
@@ -70,7 +70,7 @@ function MarketCard({ g, tracked, split: pregame, href, now }: { g: ScoreGame; t
           <div className="mk-track" data-history={history.length ? "" : undefined}>
             <i style={{ width: pct(split.away), background: awayColor }} />
             <i style={{ flex: 1, background: homeColor }} />
-            {live ? <HistoryTrack series={history} live={split.home / 100} awayColor={awayColor} homeColor={homeColor} /> : null}
+            {live ? <HistoryTrack series={history} live={exchange?.homeProb} liveAsOf={exchange?.asOf} awayColor={awayColor} homeColor={homeColor} /> : null}
           </div>
           <div className="mk-labels numeric"><span><b>{pct(split.away)}</b></span><small>{live ? "Win chance" : "Pregame odds"}</small><span><b>{pct(split.home)}</b></span></div>
         </div>
@@ -83,8 +83,8 @@ function MarketCard({ g, tracked, split: pregame, href, now }: { g: ScoreGame; t
   const cls = "mk-card mk-d"
   const style = { "--a": awayColor, "--h": homeColor } as React.CSSProperties
   return href
-    ? <Link href={href} className={cls} data-live={live || undefined} style={style} aria-label={`${g.away} at ${g.home}. Open to pick.`}>{body}</Link>
-    : <article className={cls} data-live={live || undefined} style={style}>{body}</article>
+    ? <Link href={href} className={cls} data-sport={g.sport} data-live={live || undefined} style={style} aria-label={`${g.away} at ${g.home}. Open to pick.`}>{body}</Link>
+    : <article className={cls} data-sport={g.sport} data-live={live || undefined} style={style}>{body}</article>
 }
 
 /** A browsable board of every game across your leagues' sports: live and upcoming, filtered by sport. Tapping a card opens that game in your league's pick screen. */
@@ -120,6 +120,7 @@ export function MarketBoard() {
   const [view, setView] = useState<"live" | "upcoming" | null>(null)
   const shownView = view ?? (liveCount > 0 || !games.length ? "live" : "upcoming")
   const [sport, setSport] = useState("all")
+  const [group, setGroup] = useState<"league" | "time">("league")
   const present = [...new Set([...sports, ...games.map((g) => g.sport)])].filter((s) => games.some((g) => g.sport === s) || sports.includes(s))
   const shown = games
     .filter((g) => (sport === "all" || g.sport === sport) && (shownView === "live" ? g.status === "live" : g.status === "upcoming" && Date.parse(g.startsAt) > now))
@@ -151,19 +152,42 @@ export function MarketBoard() {
           <button type="button" aria-pressed={shownView === "live"} onClick={() => setView("live")}>Live now{liveCount ? <b className="numeric">{liveCount}</b> : null}</button>
           <button type="button" aria-pressed={shownView === "upcoming"} onClick={() => setView("upcoming")}>Upcoming</button>
         </div>
+        <div className="mk-seg" role="group" aria-label="Group games">
+          <button type="button" aria-pressed={group === "league"} onClick={() => setGroup("league")}>By league</button>
+          <button type="button" aria-pressed={group === "time"} onClick={() => setGroup("time")}>By time</button>
+        </div>
       </div>
       {!league && !leagues.loading && !sample ? (
         <p className="mk-note" role="note">You can browse every game here. <Link href="/fantasy">Join or start a sports league</Link> to make picks.</p>
       ) : null}
       {failed ? <p className="mk-note" role="status">Some scores are unavailable. This list may be incomplete.</p> : null}
-      <div className="mk-grid" data-v="d">
-        {shown.map((g) => {
+      {(() => {
+        const card = (g: ScoreGame) => {
           const tracked = detail.data?.liveEvents?.find((t) => scoreboardMatch(t, [g]))
           const market = detail.data?.markets.find((m) => m.kind === "moneyline" && scoreboardMatch(m.event, [g]))
           return <MarketCard key={`${g.sport}:${g.id}`} g={g} tracked={tracked} split={market ? impliedSplit(market.lines) : null} href={base ? `${base}?game=${encodeURIComponent(`${g.sport}:${g.id}`)}` : null} now={now} />
-        })}
-        {!shown.length ? <p className="mk-empty" role="status">{scores.loading && !games.length ? "Loading games…" : shownView === "live" ? "No games live right now." : "No upcoming games here."}</p> : null}
-      </div>
+        }
+        if (!shown.length) return <p className="mk-empty" role="status">{scores.loading && !games.length ? "Loading games…" : shownView === "live" ? "No games live right now." : "No upcoming games here."}</p>
+        if (group === "time") return <div className="mk-grid" data-v="d">{shown.map(card)}</div>
+        // By league: one section per league, in the league's own order, each with its mark, a count and a rule that carries its colour.
+        return (
+          <div className="mk-sections">
+            {present.filter((s) => shown.some((g) => g.sport === s)).map((s) => {
+              const list = shown.filter((g) => g.sport === s)
+              return (
+                <section key={s} className="mk-sec" data-sport={s} aria-labelledby={`mk-sec-${s}`}>
+                  <header className="mk-sec-head">
+                    <h2 id={`mk-sec-${s}`}><LeagueBrand sport={s} /></h2>
+                    <span className="mk-sec-count numeric">{list.length} {shownView === "live" ? "live" : list.length === 1 ? "game" : "games"}</span>
+                    <i className="mk-sec-rule" aria-hidden />
+                  </header>
+                  <div className="mk-grid" data-v="d" data-grouped>{list.map(card)}</div>
+                </section>
+              )
+            })}
+          </div>
+        )
+      })()}
     </section>
   )
 }

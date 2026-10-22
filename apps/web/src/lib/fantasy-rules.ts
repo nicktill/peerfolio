@@ -330,3 +330,39 @@ export function applyTrade(state: MemberState, trade: TradeRequest, rules: { max
     position: soldAll ? null : { shares: remaining, costBasis: held.costBasis * (remaining / held.shares) },
   }
 }
+
+/** Weekdays a new member has to make a first purchase before they stop being ranked. */
+export const GRACE_MARKET_DAYS = 5
+
+/** Mon–Fri days that have fully passed since `joinedAt`, counting the day they joined. */
+export function weekdaysElapsed(joinedAt: Date, now: Date): number {
+  const day = 86_400_000
+  const start = Math.floor(joinedAt.getTime() / day)
+  const end = Math.floor(now.getTime() / day)
+  let count = 0
+  for (let d = start; d < end; d++) {
+    const weekday = new Date(d * day).getUTCDay()
+    if (weekday !== 0 && weekday !== 6) count++
+  }
+  return count
+}
+
+/**
+ * Whether a member sits out the standings. The owner can bench anyone. Otherwise
+ * someone who has never bought anything gets `GRACE_MARKET_DAYS` weekdays from
+ * joining, then drops out until their first purchase. A queued buy counts, since
+ * it is a purchase made on the member's side.
+ */
+export function isInactiveMember(
+  member: { joinedAt: Date; inactive: boolean },
+  hasBought: boolean,
+  now = new Date(),
+): boolean {
+  if (member.inactive) return true
+  return !hasBought && weekdaysElapsed(member.joinedAt, now) >= GRACE_MARKET_DAYS
+}
+
+/** A first purchase (including a pending buy) is required to enter the rankings. */
+export function isRankedMember(member: { inactive: boolean; observer?: boolean }, hasBought: boolean): boolean {
+  return hasBought && !member.inactive && !member.observer
+}

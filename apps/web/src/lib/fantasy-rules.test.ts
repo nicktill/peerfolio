@@ -6,6 +6,8 @@ import {
   checkQueuedOrder,
   fillsAtOpen,
   isClosed,
+  isInactiveMember,
+  isRankedMember,
   MAX_PENDING_ORDERS,
   ORDER_EXPIRY_DAYS,
   queuedFillDecision,
@@ -241,5 +243,47 @@ describe("applyTrade: reserved cash", () => {
   it("still measures the pick cap against the whole portfolio", () => {
     // 40% of $10,000 is $4,000, even with $5,000 set aside.
     assert.equal(applyTrade(state, buy(4_000), { maxPositionPct: 40, reservedCash: 5_000 }).shares, 40)
+  })
+})
+
+describe("inactive members", () => {
+  const at = (iso: string) => new Date(iso)
+  it("gives a new member five weekdays to buy", () => {
+    const joined = { joinedAt: at("2026-10-12T15:00:00Z"), inactive: false } // Monday
+    assert.equal(isInactiveMember(joined, false, at("2026-10-16T23:00:00Z")), false) // Friday
+    assert.equal(isInactiveMember(joined, false, at("2026-10-17T01:00:00Z")), true) // Saturday
+  })
+  it("doesn't count the weekend against someone who joins on one", () => {
+    const joined = { joinedAt: at("2026-10-17T15:00:00Z"), inactive: false } // Saturday
+    assert.equal(isInactiveMember(joined, false, at("2026-10-23T12:00:00Z")), false) // Friday
+    assert.equal(isInactiveMember(joined, false, at("2026-10-24T12:00:00Z")), true)
+  })
+  it("keeps anyone who has bought, and benches whoever the owner says", () => {
+    const old = { joinedAt: at("2026-01-05T15:00:00Z"), inactive: false }
+    assert.equal(isInactiveMember(old, true, at("2026-10-19T12:00:00Z")), false)
+    assert.equal(isInactiveMember({ ...old, inactive: true }, true, at("2026-10-19T12:00:00Z")), true)
+  })
+})
+
+describe("ranking eligibility", () => {
+  it("leaves a new member unranked but active during the grace period", () => {
+    const member = { joinedAt: new Date("2026-10-19T15:00:00Z"), inactive: false }
+    assert.equal(isRankedMember(member, false), false)
+    assert.equal(isInactiveMember(member, false, member.joinedAt), false)
+    assert.equal(isInactiveMember(member, false, new Date("2026-10-26T15:00:00Z")), true)
+  })
+  it("ranks a first pick and honors an owner's mark until a buy clears it", () => {
+    assert.equal(isRankedMember({ inactive: false }, true), true)
+    assert.equal(isRankedMember({ inactive: true }, true), false)
+    assert.equal(isRankedMember({ inactive: true }, false), false)
+  })
+})
+
+describe("observer accounts", () => {
+  it("never ranks an observer, including after a buy clears inactivity", () => {
+    assert.equal(isRankedMember({ inactive: true, observer: true }, true), false)
+    assert.equal(isRankedMember({ inactive: false, observer: true }, true), false)
+    assert.equal(isRankedMember({ inactive: false, observer: true }, false), false)
+    assert.equal(isRankedMember({ inactive: false, observer: false }, true), true)
   })
 })

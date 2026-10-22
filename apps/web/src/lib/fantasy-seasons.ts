@@ -18,9 +18,11 @@ import {
   users,
 } from "@web/db"
 import { ApiError } from "@web/lib/api"
-import { isClosed, scoredValue } from "@web/lib/fantasy-rules"
+import { loadBuyers } from "@web/lib/fantasy-members"
+import { isClosed, isRankedMember, scoredValue } from "@web/lib/fantasy-rules"
 import {
   asCadence,
+  competitiveRoundResults,
   buildRecap,
   checkSeasonStart,
   isCadence,
@@ -307,21 +309,21 @@ async function remindToPick(tx: Tx, league: League, season: Season, rounds: Roun
   if (!soon || (season.roundCount !== null && soon.number > season.roundCount)) return
   const waiting = await tx.execute<{ user_id: string }>(sql`
     SELECT m.user_id FROM fantasy_members m
-    WHERE m.league_id = ${league.id} AND m.joined_at < ${soon.startsAt.toISOString()}::timestamptz
+    WHERE m.league_id = ${league.id} AND NOT m.observer AND m.joined_at < ${soon.startsAt.toISOString()}::timestamptz
       AND NOT EXISTS (SELECT 1 FROM fantasy_draft_picks p WHERE p.round_id = ${soon.id} AND p.member_id = m.id)`)
   for (const w of waiting) {
     await emit(tx, { leagueId: league.id, userId: w.user_id, kind: "draft_closing", dedupeKey: `draft_closing:${soon.id}:${w.user_id}`, payload: { roundNumber: soon.number, seasonNumber: season.number, deadline: soon.startsAt.toISOString() } })
   }
 }
 
-type MemberRow = { id: string; userId: string; joinedAt: Date; cash: number; name: string | null; handle: string | null }
+type MemberRow = { id: string; userId: string; joinedAt: Date; inactive: boolean; observer: boolean; cash: number; name: string | null; handle: string | null }
 
 async function loadMembers(tx: Tx, leagueId: string): Promise<MemberRow[]> {
   const rows = await tx
-    .select({ id: fantasyMembers.id, userId: fantasyMembers.userId, joinedAt: fantasyMembers.joinedAt, cash: fantasyMembers.cash, name: users.name, handle: users.handle })
+    .select({ id: fantasyMembers.id, userId: fantasyMembers.userId, joinedAt: fantasyMembers.joinedAt, inactive: fantasyMembers.inactive, observer: fantasyMembers.observer, cash: fantasyMembers.cash, name: users.name, handle: users.handle })
     .from(fantasyMembers)
     .innerJoin(users, eq(fantasyMembers.userId, users.id))
-    .where(eq(fantasyMembers.leagueId, leagueId))
+    .where(and(eq(fantasyMembers.leagueId, leagueId), eq(fantasyMembers.observer, false)))
   return rows.map((r) => ({ ...r, cash: n(r.cash) }))
 }
 
@@ -333,7 +335,8 @@ type Scored = { memberId: string; userId: string; percent: number; floor?: numbe
 async function settleRound(tx: Tx, league: League, season: Season, round: Round, members: MemberRow[], now: Date): Promise<"wait" | "settled"> {
   const end = effectiveEnd(league, round)
   // In the league when the round began, so nobody joins on Thursday and takes a share of the points.
-  const playing = members.filter((m) => m.joinedAt.getTime() <= round.startsAt.getTime())
+  const buyers = season.mode === "trading" ? await loadBuyers(members.map((m) => m.id), tx) : new Set<string>()
+  const playing = members.filter((m) => m.joinedAt.getTime() <= round.startsAt.getTime() && (season.mode !== "trading" || isRankedMember(m, buyers.has(m.id))))
   const scored: Scored[] = []
   let late = false
   let decisions: Decision[] = []
@@ -505,11 +508,12 @@ async function tradeDecisions(tx: Tx, leagueId: string, members: MemberRow[], fr
 
 async function loadSeasonResults(tx: Pick<typeof db, "select">, seasonId: string, beforeRound?: number): Promise<RoundResult[]> {
   const rows = await tx
-    .select({ number: fantasyRounds.number, userId: fantasyRoundResults.userId, pct: fantasyRoundResults.returnPct, rank: fantasyRoundResults.rank, points: fantasyRoundResults.points })
+    .select({ number: fantasyRounds.number, userId: fantasyRoundResults.userId, pct: fantasyRoundResults.returnPct, floor: fantasyRoundResults.floorPct, rank: fantasyRoundResults.rank, points: fantasyRoundResults.points })
     .from(fantasyRoundResults)
     .innerJoin(fantasyRounds, eq(fantasyRoundResults.roundId, fantasyRounds.id))
-    .where(beforeRound === undefined ? eq(fantasyRounds.seasonId, seasonId) : and(eq(fantasyRounds.seasonId, seasonId), lt(fantasyRounds.number, beforeRound)))
-  return rows.map((r) => ({ roundNumber: r.number, userId: r.userId, percent: n(r.pct), rank: r.rank, points: n(r.points) }))
+    .innerJoin(fantasyMembers, eq(fantasyRoundResults.memberId, fantasyMembers.id))
+    .where(and(eq(fantasyMembers.observer, false), beforeRound === undefined ? eq(fantasyRounds.seasonId, seasonId) : and(eq(fantasyRounds.seasonId, seasonId), lt(fantasyRounds.number, beforeRound))))
+  return competitiveRoundResults(rows.map((r) => ({ roundNumber: r.number, userId: r.userId, percent: n(r.pct), ...(r.floor === null ? {} : { floor: n(r.floor) }) })))
 }
 
 export const loadResultsForSeason = (seasonId: string) => loadSeasonResults(db, seasonId)

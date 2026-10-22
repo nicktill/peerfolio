@@ -186,3 +186,45 @@ test("without Alpaca keys the board comes from Finnhub alone", async () => {
   assert.equal(urls.filter((u) => u.includes("finnhub.io")).length, 15)
   assert.equal(board.indexes.length, 4)
 })
+
+
+test("snapshot freshness follows the latest actual trade after noon, not a fabricated daily-bar time", () => {
+  const quote = quoteFromSnapshot({
+    latestTrade: { p: 102, t: "2026-10-19T18:37:00Z" },
+    minuteBar: { c: 101.5, t: "2026-10-19T18:36:00Z" },
+    dailyBar: { c: 101, t: "2026-10-19T04:00:00Z" },
+    prevDailyBar: { c: 100 },
+  })!
+  assert.equal(quote.c, 102)
+  assert.equal(quote.dp, 2)
+  assert.equal(quote.t * 1000, Date.parse("2026-10-19T18:37:00Z"))
+})
+
+test("a valid minute bar supplies price and freshness when the trade is missing or malformed", () => {
+  for (const latestTrade of [undefined, { p: 999, t: "invalid" }, { p: Infinity, t: "2026-10-19T18:38:00Z" }]) {
+    const quote = quoteFromSnapshot({ latestTrade, minuteBar: { c: 101, t: "2026-10-19T18:36:00Z" }, prevDailyBar: { c: 100 } })!
+    assert.equal(quote.c, 101)
+    assert.equal(quote.t * 1000, Date.parse("2026-10-19T18:36:00Z"))
+  }
+})
+
+test("daily-only and stale snapshots are never assigned a synthetic fresh timestamp", () => {
+  const quote = quoteFromSnapshot({ dailyBar: { c: 101, t: "2026-10-19T04:00:00Z" }, prevDailyBar: { c: 100 } })!
+  assert.equal(quote.t * 1000, Date.parse("2026-10-19T04:00:00Z"))
+  const stale = quoteFromSnapshot({ latestTrade: { p: 102, t: "2026-10-19T17:00:00Z" }, prevDailyBar: { c: 100 } })!
+  assert.equal(stale.t * 1000, Date.parse("2026-10-19T17:00:00Z"))
+  assert.equal(quoteFromSnapshot({ latestTrade: { p: 102, t: "invalid" }, prevDailyBar: { c: 100 } }), null)
+})
+
+test("market board propagates the real snapshot time into the bubble freshness field", async () => {
+  const asOf = "2026-10-19T18:37:00Z"
+  const board = await fetchMarketBoard({
+    finnhubKey: undefined, alpaca: { keyId: "a", secret: "b" }, now: at("2026-10-19T18:38:00Z"),
+    fetchImpl: async (url: string) => url.includes("/snapshots")
+      ? snapshotsFor(url, () => ({ ...snapshot(101), dailyBar: { c: 101, t: "2026-10-19T04:00:00Z" }, latestTrade: { p: 102, t: asOf } }))
+      : new Response(JSON.stringify({ bars: {} })),
+  })
+  assert.equal(board!.asOf, "2026-10-19T18:37:00.000Z")
+  assert.equal(board!.session, "2026-10-19")
+  assert.equal(board!.indexes[0]!.price, 102)
+})

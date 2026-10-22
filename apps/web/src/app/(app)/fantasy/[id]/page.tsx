@@ -5,7 +5,7 @@ import "@web/components/fantasy/fantasy-workspace.css"
 import { use, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, ArrowRight, CalendarDays, Check, Clock, Flag, Infinity as Forever, Link2, Pencil } from "lucide-react"
+import { ArrowLeft, ArrowRight, CalendarDays, Check, Clock, Flag, Infinity as Forever, Link2, Settings2 } from "lucide-react"
 import { initialsFor } from "@web/components/ui/avatar"
 import { RaceChart } from "@web/components/charts/race-chart"
 import { StandingsTable } from "@web/components/fantasy/standings-table"
@@ -60,9 +60,11 @@ type LeagueData = {
     maxPositionPct: number | null
     endsAt: string | null
     isClosed: boolean
+    activeCount: number
   }
   standings: (Standing & { value: number })[]
-  you: { cash: number; value: number; percent: number; rank: number; positions: Position[]; orders: Order[] }
+  members: (Standing & { observer: boolean })[]
+  you: { cash: number; value: number; percent: number; rank: number; observer: boolean; positions: Position[]; orders: Order[] }
   feed: FeedItem[]
   /** Null for a league that never turned weekly rounds on: it looks and works exactly as before. */
   season: { mode: "trading" | "draft" } | null
@@ -76,7 +78,7 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
   const { toast } = useToast()
   const [editing, setEditing] = useState(false)
   const { data, error, loading, refetch } = useApi<LeagueData>(`/api/fantasy/${id}`, [], { refreshMs: liveRefreshMs(CLOSED_REFRESH_MS) })
-  const rankBefore = useRankBaseline(id, data?.you.rank ?? null)
+  const rankBefore = useRankBaseline(id, data?.you.rank ? data.you.rank : null)
   const router = useRouter()
   const isDraft = data?.season?.mode === "draft"
   // A draft league has no portfolio to trade, so its home is the season page.
@@ -110,7 +112,7 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
   if (!data) return <p className="text-sm text-muted-foreground">{error ?? "Couldn't load this league."}</p>
 
   const { league, standings, you, feed } = data
-  const moved = rankMovement(rankBefore, you.rank)
+  const moved = you.rank > 0 ? rankMovement(rankBefore, you.rank) : null
   const status = league.isClosed ? "Final standings" : league.endsAt ? timeLeft(league.endsAt) : "All-time"
 
   return (
@@ -131,7 +133,7 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
         </div>
         <ul className="fw-meta" aria-label="League rules">
           <li className="fw-meta-status">{status}</li>
-          <li>{standings.length} {standings.length === 1 ? "player" : "players"}</li>
+          <li>{plural(standings.length, "player")}</li>
           <li>{formatCurrency(league.startingCash)} each</li>
           <li>{league.maxPositionPct ? `max ${league.maxPositionPct}% per pick` : "no position cap"}</li>
         </ul>
@@ -148,9 +150,8 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
             </Tip>
           ) : null}
           {league.isOwner && !league.isClosed ? (
-            <button type="button" className="fw-btn" onClick={() => setEditing(true)}>
-              <Pencil aria-hidden />
-              Edit league
+            <button type="button" className="fw-btn fw-btn-icon" onClick={() => setEditing(true)} aria-label="Edit league" title="Edit league">
+              <Settings2 aria-hidden />
             </button>
           ) : null}
           {league.isOwner && !league.isClosed && !data.season ? (
@@ -166,10 +167,10 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
       </header>
 
       {data.season ? (
-        <LeagueTop leagueId={league.id} rank={you.rank} total={standings.length} moved={moved} percent={you.percent} value={you.value} cash={you.cash} startingCash={league.startingCash} />
+        <LeagueTop observer={you.observer} leagueId={league.id} rank={you.rank} total={league.activeCount} moved={moved} percent={you.percent} value={you.value} cash={you.cash} startingCash={league.startingCash} />
       ) : (
         <dl className="fw-panel fw-scoreboard reveal" style={revealStyle(1)}>
-          <RankStat rank={you.rank} total={standings.length} moved={moved} />
+          <RankStat observer={you.observer} rank={you.rank} total={league.activeCount} moved={moved} />
           <ReturnStat percent={you.percent} value={you.value} startingCash={league.startingCash} />
           <PortfolioStat value={you.value} cash={you.cash} />
           <CashStat cash={you.cash} value={you.value} />
@@ -178,7 +179,7 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
       )}
 
       {league.isOwner && !league.isClosed ? (
-        <EditLeagueDialog league={league} open={editing} onClose={() => setEditing(false)} onSaved={refetch} />
+        <EditLeagueDialog league={league} members={data.members ?? standings} open={editing} onClose={() => setEditing(false)} onSaved={refetch} />
       ) : null}
 
       <div className="fw-grid">
@@ -193,7 +194,7 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
                 rich
                 explore
                 height={260}
-                series={standings.map((s) => ({ id: s.userId, label: s.name?.split(" ")[0] ?? s.handle ?? "", initials: initialsFor(s.name, s.handle), points: s.spark, isYou: s.isYou }))}
+                series={standings.filter((s) => s.rank > 0).map((s) => ({ id: s.userId, label: s.name?.split(" ")[0] ?? s.handle ?? "", initials: initialsFor(s.name, s.handle), points: s.spark, isYou: s.isYou }))}
               />
             </div>
           </section>
@@ -203,6 +204,7 @@ export default function FantasyLeaguePage({ params }: { params: Promise<{ id: st
               <h2 id="fw-standings-title">Standings</h2>
               <p>Matching returns to 0.01% share a rank.</p>
             </div>
+            {you.observer ? <p className="fw-sub">You are an observer. Your trades still work, but you are excluded from competition and player counts.</p> : null}
             <StandingsTable standings={standings} onReact={react} />
           </section>
         </div>

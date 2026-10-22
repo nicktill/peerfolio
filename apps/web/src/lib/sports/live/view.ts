@@ -51,6 +51,8 @@ export type LiveView = {
         drawProb: number | null
         source: LiveSource
         asOf: string
+        /** Oldest worker observation across all sides of this source; price age remains asOf. */
+        observedAsOf?: string
         ageMs: number
         freshness: "live" | "delayed"
         confidence: "high" | "medium" | "low"
@@ -95,6 +97,11 @@ export function buildLiveView(input: { eventId: string; eventStatus: string; spo
   const gameOver = input.eventStatus !== "scheduled" || input.state?.status === "final"
   const odds = chooseLiveOdds(views, { gameOver, threeWay })
 
+  const observed = odds.status === "ok"
+    ? (threeWay ? ["home", "draw", "away"] : ["home", "away"]).map(selection => raws.find(r => r.source === odds.source && r.selection === selection)?.fetchedTs.getTime())
+    : []
+  const observedAsOf = observed.length && observed.every(t => t != null && Number.isFinite(t))
+    ? new Date(Math.min(...observed as number[])).toISOString() : undefined
   const st = input.state
   const stateAge = st ? ageOf(st.fetchedTs, now) : null
   const status = st && (STATUSES as readonly string[]).includes(st.status) ? (st.status as LiveStatus) : "unknown"
@@ -108,7 +115,7 @@ export function buildLiveView(input: { eventId: string; eventStatus: string; spo
     stateFreshness: stateAge == null ? null : freshnessOf(stateAge),
     odds:
       odds.status === "ok"
-        ? { ...odds, asOf: odds.asOf.toISOString(), confidence: odds.confidence }
+        ? { ...odds, asOf: odds.asOf.toISOString(), observedAsOf, confidence: odds.confidence }
         : { status: "paused", reason: odds.reason, lastAsOf: odds.lastAsOf ? odds.lastAsOf.toISOString() : null },
     serverTime: now.toISOString(),
   }

@@ -1,3 +1,5 @@
+import { splitPct } from "./format.ts"
+
 /** Pure helpers for the faded win-probability trend lines. Display only. */
 
 /** Picks the source with the most points, so a game switching feeds does not draw two interleaved lines. */
@@ -145,20 +147,19 @@ export function sparkline(values: number[], flip = false, w = 64, h = 26, pad = 
 
 export const MIN_TREND_POINTS = 8
 
-export type GameChartGeometry = { home: string; away: string; homeEnd: [number, number]; awayEnd: [number, number]; midY: number; homePct: number; awayPct: number; span: number }
+export type GameChartGeometry = { home: string; away: string; homeEnd: [number, number]; awayEnd: [number, number]; midY: number; homePct: number; awayPct: number; span: number; startAt: number; endAt: number }
 
 /**
  * Geometry for the combined game chart: both teams' win chance as step lines on one time axis (x is real time, not sample
- * count). `series` is the home chance; away is its mirror. The vertical window is centred on 50% and only as tall as the
- * data needs (never under ±15 points), so a quiet game reads quiet. `live` (home, 0..1) is appended as the newest point.
+ * count). `series` is the home chance; away is its mirror. The vertical axis is always 0–100% so cards can be compared without exaggerating small moves. `live` (home, 0..1) is appended as the newest point.
  */
 export function gameChart(series: Sample[], live: number | null | undefined, nowMs: number, w = 300, h = 64, padX = 2, padY = 6): GameChartGeometry | null {
   const pts = series.filter((x) => Number.isFinite(x.t) && Number.isFinite(x.v)).map((x) => ({ t: x.t, v: clamp01(x.v) }))
-  if (live != null && Number.isFinite(live)) pts.push({ t: Math.max(nowMs, pts.length ? pts[pts.length - 1]!.t : nowMs), v: clamp01(live) })
+  if (live != null && Number.isFinite(live) && Number.isFinite(nowMs) && (!pts.length || nowMs > pts[pts.length - 1]!.t)) pts.push({ t: nowMs, v: clamp01(live) })
   if (pts.length < MIN_TREND_POINTS) return null
   const t0 = pts[0]!.t
   const span = Math.max(1, pts[pts.length - 1]!.t - t0)
-  const half = Math.max(0.15, Math.min(0.5, Math.max(...pts.map((p) => Math.abs(p.v - 0.5))) + 0.05))
+  const half = 0.5 // A fixed 0–100% scale keeps small changes honest across cards.
   const x = (t: number) => padX + ((t - t0) / span) * (w - 2 * padX)
   const y = (q: number) => padY + (1 - (q - (0.5 - half)) / (2 * half)) * (h - 2 * padY)
   const step = (vals: number[]) => pts.map((p, i) => (i === 0 ? `M${x(p.t).toFixed(1)} ${y(vals[i]!).toFixed(1)}` : `H${x(p.t).toFixed(1)}V${y(vals[i]!).toFixed(1)}`)).join("")
@@ -171,9 +172,11 @@ export function gameChart(series: Sample[], live: number | null | undefined, now
     homeEnd: [x(last.t), y(last.v)],
     awayEnd: [x(last.t), y(1 - last.v)],
     midY: y(0.5),
-    homePct: Math.round(last.v * 100),
-    awayPct: 100 - Math.round(last.v * 100),
+    homePct: splitPct(last.v).home,
+    awayPct: splitPct(last.v).away,
     span,
+    startAt: t0,
+    endAt: last.t,
   }
 }
 
@@ -186,7 +189,7 @@ export type HistoryBand = { away: string; line: string; awayPct: number; homePct
  */
 export function historyBand(series: Sample[], live: number | null | undefined, nowMs: number, w = 300, h = 16): HistoryBand | null {
   const pts = series.filter((x) => Number.isFinite(x.t) && Number.isFinite(x.v)).map((x) => ({ t: x.t, v: clamp01(x.v) }))
-  if (live != null && Number.isFinite(live)) pts.push({ t: Math.max(nowMs, pts.length ? pts[pts.length - 1]!.t : nowMs), v: clamp01(live) })
+  if (live != null && Number.isFinite(live) && Number.isFinite(nowMs) && (!pts.length || nowMs > pts[pts.length - 1]!.t)) pts.push({ t: nowMs, v: clamp01(live) })
   if (pts.length < MIN_TREND_POINTS) return null
   const t0 = pts[0]!.t
   const span = Math.max(1, pts[pts.length - 1]!.t - t0)

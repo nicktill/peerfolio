@@ -22,6 +22,7 @@ import {
   pickReturnPct,
   picksOpen,
   rankRound,
+  competitiveRoundResults,
   roundEndValue,
   roundNumberAt,
   roundStartValue,
@@ -576,5 +577,24 @@ describe("a league with history turning seasons on", () => {
   })
   it("a member with no snapshot at all is taken to hold their starting cash", () => {
     assert.equal(roundStartValue([], utc("2026-08-01"), 10_000, start), 10_000)
+  })
+})
+
+describe("competition without observers", () => {
+  it("rebuilds each round's ranks and points after observer results are excluded", () => {
+    const stored = [
+      { roundNumber: 1, userId: "alt", percent: 10, rank: 1, points: 3 },
+      { roundNumber: 1, userId: "a", percent: 5, rank: 2, points: 2 },
+      { roundNumber: 1, userId: "b", percent: 0, rank: 3, points: 1 },
+      { roundNumber: 2, userId: "b", percent: 3, rank: 1, points: 2 },
+    ]
+    const rows = competitiveRoundResults(stored.filter((r) => r.userId !== "alt"))
+    assert.deepEqual(rows.map((r) => [r.roundNumber, r.userId, r.rank, r.points]), [[1, "a", 1, 2], [1, "b", 2, 1], [2, "b", 1, 1]])
+    assert.equal(stored[1]!.rank, 2)
+  })
+  it("preserves draft floor tie breaks and allows an empty competition", () => {
+    const rows = competitiveRoundResults([{ roundNumber: 1, userId: "a", percent: 2, floor: -2 }, { roundNumber: 1, userId: "b", percent: 2, floor: -1 }])
+    assert.equal(rows[0]!.userId, "b")
+    assert.deepEqual(competitiveRoundResults([]), [])
   })
 })

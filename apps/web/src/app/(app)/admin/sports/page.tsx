@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { AdminMemberReset } from "@web/components/sports/admin-member-reset"
 import { Search, Trophy } from "lucide-react"
 import { Button } from "@web/components/ui/button"
 import { useToast } from "@web/components/ui/toast"
@@ -68,6 +69,7 @@ export default function SportsAdminPage() {
                   <p className="truncate text-xs text-muted-foreground">{user.email}</p>
                 </div>
                 <span className="text-xs text-muted-foreground">{user.admin ? "Admin" : user.granted ? "Has access" : "No access"}</span>
+                <AdminMemberReset userId={user.id} name={user.name ?? user.email} />
                 {user.admin ? null : (
                   <Button variant={user.granted ? "outline" : "default"} size="sm" disabled={saving !== null} loading={saving === user.id} onClick={() => void toggle(user)} aria-label={`${user.granted ? "Remove" : "Grant"} sports access for ${user.email}`}>
                     {user.granted ? "Remove" : "Grant"}

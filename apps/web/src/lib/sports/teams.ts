@@ -68,7 +68,7 @@ const NBA: Record<string, Team> = {
   "sacramento kings": { abbr: "SAC", color: "#5a2d81" },
   "san antonio spurs": { abbr: "SA", color: "#8a8d8f" },
   "toronto raptors": { abbr: "TOR", color: "#ce1141" },
-  "utah jazz": { abbr: "UTA", color: "#4e008e" },
+  "utah jazz": { abbr: "UTA", color: "#4e008e", slug: "utah" },
   "washington wizards": { abbr: "WAS", color: "#002b5c" },
 }
 
@@ -88,7 +88,7 @@ export function teamLook(sport: string | undefined, name: string): TeamLook {
   // Full name first ("boston celtics"), then the nickname alone ("celtics"), which is how the sample league and some feeds write it.
   const hit = table?.[key] ?? (table ? Object.entries(table).find(([full]) => full.endsWith(` ${key}`))?.[1] : undefined)
   if (hit && (sport === "nfl" || sport === "nba")) {
-    return { abbr: hit.abbr, color: hit.color, alternate: hit.alt, logo: `https://a.espncdn.com/i/teamlogos/${sport}/500/${hit.abbr.toLowerCase()}.png`, logoDark: `https://a.espncdn.com/i/teamlogos/${sport}/500-dark/${hit.abbr.toLowerCase()}.png` }
+    return { abbr: hit.abbr, color: hit.color, alternate: hit.alt, logo: `https://a.espncdn.com/i/teamlogos/${sport}/500/${hit.slug ?? hit.abbr.toLowerCase()}.png`, logoDark: `https://a.espncdn.com/i/teamlogos/${sport}/500-dark/${hit.slug ?? hit.abbr.toLowerCase()}.png` }
   }
   const words = name.trim().split(/\s+/)
   const abbr = (words.length > 1 ? words[0]![0]! + words[words.length - 1]![0]! : name.slice(0, 2)).toUpperCase()

@@ -288,6 +288,34 @@
       "when": 1792341356879,
       "tag": "0040_sports_cashout",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1792382141663,
+      "tag": "0041_sports_parlay_limit",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1792427293214,
+      "tag": "0042_fantasy_member_inactive",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1792428955019,
+      "tag": "0043_fantasy_member_observer",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1792634882573,
+      "tag": "0044_sports_member_resets",
+      "breakpoints": true
     }
   ]
 }

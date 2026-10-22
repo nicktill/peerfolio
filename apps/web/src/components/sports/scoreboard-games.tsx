@@ -10,11 +10,11 @@ import { AdminLiveTestPanel } from './admin-live-test'
 import { type LivePickSelection } from './live-pick-panel'
 import { type ScoreGame, type TennisSet, scoreboardMatch } from '@web/lib/sports/scoreboard'
 import { LiveNumber } from './live-delta'
-import { HistoryTrack, useGameHistory } from './odds-trend'
+import { GameChart } from './odds-trend'
 import { GameStatusChip, statusInputFromGame } from './game-status-chip'
 import { mergeLiveState } from '@web/lib/sports/game-status'
 import { matchupColors } from '@web/lib/sports/matchup-colors'
-import { testOffer, type TestOffer } from '@web/lib/sports/live-test'
+import { displayLiveOffer, type TestOffer } from '@web/lib/sports/live-test'
 import { ageView } from '@web/lib/sports/live/view'
 import type { LiveSelection } from '@web/lib/sports/live/types'
 import { formatOdds, winOn100 } from '@web/lib/sports/format'
@@ -61,7 +61,7 @@ function TeamRows({ g, showScore, offer, stale, pickable, livePick, eventId }: {
 type Split = { home: number; away: number; draw: number | null }
 function LiveCard({ g, now, tracked, enableAdminTest, livePick }: { g: ScoreGame; now: number; tracked?: Tracked; enableAdminTest: boolean; livePick?: LivePickConfig }) {
   const fresh = now - Date.parse(g.fetchedAt) < 120_000
-  const { view, elapsedMs } = useLiveGame(tracked?.id, fresh)
+  const { view, elapsedMs } = useLiveGame(tracked?.id, true)
   const chip = chipFor(view, elapsedMs)
   const colors = matchupColors(g.sport, g.away, g.home)
   const statusInput = mergeLiveState(statusInputFromGame(g), view)
@@ -73,9 +73,8 @@ function LiveCard({ g, now, tracked, enableAdminTest, livePick }: { g: ScoreGame
   const est: Split | null = !exchange && fresh && g.probSource === 'espn' && g.homeWinProb != null && g.awayWinProb != null
     ? (g.drawProb != null ? splitPct3(g.homeWinProb, g.drawProb) : { ...splitPct(g.homeWinProb), draw: null }) : null
   const split = exchange ?? est
-  const history = useGameHistory(fresh ? tracked?.id : undefined)
   let offer: TestOffer | null = null
-  try { if (view && fresh) { const aged = ageView(view, elapsedMs); offer = testOffer(aged, Date.parse(aged.serverTime)) } } catch { /* stale quotes never become selectable lines */ }
+  try { if (view) { const aged = ageView(view, elapsedMs); offer = displayLiveOffer(aged, Date.parse(aged.serverTime)) } } catch { /* stale quotes never become selectable lines */ }
   // Quotes age out between polls; keep showing the last good price (dimmed, still pickable; Lock waits for a fresh quote) for ten minutes instead of letting the odds blink away.
   const lastOffer = useRef<TestOffer | null>(null)
   if (offer) lastOffer.current = offer
@@ -91,11 +90,10 @@ function LiveCard({ g, now, tracked, enableAdminTest, livePick }: { g: ScoreGame
     <CardHead g={g} chip={<GameStatusChip input={statusInput} now={now} />} live={g.status === 'live' ? { fresh, updated } : undefined} />
     {!split && tracked ? <div className="sp-odds-bar" data-empty aria-hidden><div className="sp-odds-track" /><div className="sp-odds-labels"><span>&nbsp;</span></div></div> : null}
     {split ? <div className="sp-odds-bar" role="img" aria-label={`Win probability: ${g.away} ${split.away} percent, ${split.draw != null ? `draw ${split.draw} percent, ` : ''}${g.home} ${split.home} percent`}>
-      <div className="sp-odds-track" data-history={split.draw == null && history.length ? '' : undefined}>
+      <div className="sp-odds-track">
         <i style={{ width: `${split.away}%`, background: colors[0] }} />
         {split.draw != null ? <i style={{ width: `${split.draw}%`, background: 'var(--fw-fg3)' }} /> : null}
         <i style={{ flex: 1, background: colors[1] }} />
-        {split.draw == null ? <HistoryTrack series={history} live={ex ? ex.homeProb : split.home / 100} awayColor={colors[0]} homeColor={colors[1]} /> : null}
       </div>
       <div className="sp-odds-labels">
         <span><LiveNumber value={split.away} format={pctText} kind="pct" /> <small>{oddsLabel(g.sport, g.away)}</small></span>
@@ -105,6 +103,7 @@ function LiveCard({ g, now, tracked, enableAdminTest, livePick }: { g: ScoreGame
     </div> : null}
     <TeamRows g={g} showScore offer={reserveOdds ? shownOffer : null} stale={!offer} pickable={selectable} livePick={reserveOdds ? livePick : undefined} eventId={tracked?.id} />
     {selectable && hasDraw ? <button type="button" className="sp-line sp-live-draw" aria-label={drawPrice != null ? `Live pick Draw, ${formatOdds(drawPrice)}` : 'Draw, price unavailable'} aria-pressed={livePick?.selected?.eventId === tracked!.id && livePick.selected.side === 'draw'} disabled={livePick?.busy || drawPrice == null} onClick={drawPrice != null ? () => livePick!.onSelect({ eventId: tracked!.id, home: g.home, away: g.away, sport: g.sport, side: 'draw', price: drawPrice }) : undefined}><span>Draw</span><b>{drawPrice != null ? formatOdds(drawPrice) : '\u2013'}</b></button> : null}
+    {tracked && split?.draw == null ? <GameChart eventId={tracked.id} away={g.away} home={g.home} awayColor={colors[0]} homeColor={colors[1]} live={ex ? ex.homeProb : null} source={ex?.source} liveAsOf={ex?.asOf} /> : null}
     {g.status === 'live' ? <p className="sp-last-play" title={fresh ? g.lastPlay : undefined}><span>Last play</span> {fresh ? g.lastPlay || 'Waiting for the next play…' : 'Score feed delayed'}</p> : null}
     {livePick?.mode === 'parlay' ? <p className="sp-fine sp-live-singles"><Lock aria-hidden />Live picks are singles</p> : null}
     {tracked && enableAdminTest && !livePick?.liveBetting ? <AdminLiveTestPanel eventId={tracked.id} home={g.home} away={g.away} /> : null}

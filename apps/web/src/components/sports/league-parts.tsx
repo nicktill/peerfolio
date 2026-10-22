@@ -19,6 +19,7 @@ import { TicketFig, TicketMoney } from "@web/components/sports/ticket-figures"
 import type { ManageTarget } from "@web/components/sports/manage-slip"
 import { ParlayTicket } from "@web/components/sports/parlay-ticket"
 import { stackParlays, type ParlayRow } from "@web/components/sports/parlay-types"
+import { pickPositions } from "@web/lib/sports/pick-positions"
 import { recordResult } from "@web/lib/sports/record-result"
 
 export type EventInfo = { id?: string; sport: string; home: string; away: string; startsAt: string }
@@ -294,7 +295,8 @@ function useFirstWin(id: string, won: boolean): boolean {
   return first
 }
 
-export function PickTicket({ pick, showName, onManage, managed }: { pick: PickRow; showName?: boolean; onManage?: (pick: PickRow) => void; /** This ticket is open in the pick slip. */ managed?: boolean }) {
+export function PickTicket({ pick, fills, showName, onManage, managed, managedId }: { managedId?: string; fills?: PickRow[]; pick: PickRow; showName?: boolean; onManage?: (pick: PickRow) => void; /** This ticket is open in the pick slip. */ managed?: boolean }) {
+  const [expanded, setExpanded] = useState(false)
   const celebrate = useFirstWin(pick.id, pick.status === "won")
   const m = asMarket(pick)
   const base = RESULT[pick.status] ?? RESULT.open!
@@ -337,7 +339,7 @@ export function PickTicket({ pick, showName, onManage, managed }: { pick: PickRo
             {r.icon}
             {r.label}
           </span>
-          {onManage && isOpen ? <button type="button" className="sl-manage" aria-pressed={managed || undefined} onClick={() => onManage(pick)}>{managed ? "Managing" : "Manage"}</button> : null}
+          {onManage && isOpen && !fills ? <button type="button" className="sl-manage" aria-pressed={managed || undefined} onClick={() => onManage(pick)}>{managed ? "Managing" : "Manage"}</button> : null}
         </span>
       </div>
       <TicketMoney>
@@ -350,7 +352,7 @@ export function PickTicket({ pick, showName, onManage, managed }: { pick: PickRo
               <span className="sr-only"> (estimated value {credits(position.value)})</span>
             </TicketFig>
           ) : (
-            <TicketFig label="Odds" tone="muted" title="Odds you locked in">{odds}</TicketFig>
+            <TicketFig label={fills ? "Avg odds" : "Odds"} tone="muted" title={fills ? "Combined payout divided by total stake; each fill retains its own odds" : "Odds you locked in"}>{odds}</TicketFig>
           )
         ) : (
           <TicketFig label="Net" tone={netTone} big>
@@ -360,6 +362,10 @@ export function PickTicket({ pick, showName, onManage, managed }: { pick: PickRo
       </TicketMoney>
       {/* Only while the game is in progress. View only: the pick above keeps its accepted price and payout. */}
       <LiveGameStrip eventId={pick.event.id} sport={pick.event.sport} home={pick.event.home} away={pick.event.away} active={inGame} onFinal={() => setFinalSeen(true)} pick={isOpen ? { stake: pick.stake, totalReturn: pick.totalReturn, kind: pick.market.kind, selection: pick.selection } : undefined} />
+      {fills ? <details className="sl-position-fills" onToggle={e => setExpanded(e.currentTarget.open)}>
+        <summary>{fills.length} fills · View prices{onManage ? " & manage" : ""}</summary>
+        {expanded ? <ul className="sl-tickets">{fills.map(fill => <PickTicket key={fill.id} pick={fill} onManage={onManage} managed={managedId === fill.id} />)}</ul> : null}
+      </details> : null}
     </li>
   )
 }
@@ -373,10 +379,11 @@ export function PickFeed({ picks, parlays = [], empty, showName, history = false
   useEffect(() => { scrollRef.current?.scrollTo({ top: 0 }) }, [filter])
   // Singles and parlays share one feed, newest first (singles keep the server's order when there are no parlays).
   const items = useMemo(() => {
-    const all = [...picks.map((pick) => ({ kind: "pick" as const, pick, at: pick.acceptedAt, status: recordResult(pick) })), ...stackParlays(parlays).map((parlay) => ({ kind: "parlay" as const, parlay, at: parlay.acceptedAt, status: recordResult(parlay) }))]
+    const positions = history || showName ? picks.map(pick => ({ pick, fills: [pick] })) : pickPositions(picks)
+    const all = [...positions.map(({ pick, fills }) => ({ kind: "pick" as const, pick, fills: fills.length > 1 ? fills : undefined, at: pick.acceptedAt, status: recordResult(pick) })), ...stackParlays(parlays).map((parlay) => ({ kind: "parlay" as const, parlay, at: parlay.acceptedAt, status: recordResult(parlay) }))]
     if (history) return all.sort((a, b) => Number(b.status === "open") - Number(a.status === "open") || Date.parse(b.at) - Date.parse(a.at))
     return parlays.length ? all.sort((a, b) => Date.parse(b.at) - Date.parse(a.at)) : all
-  }, [picks, parlays, history])
+  }, [picks, parlays, history, showName])
   const won = items.filter((p) => p.status === "won").length
   const lost = items.filter((p) => p.status === "lost").length
   const open = items.filter((p) => p.status === "open").length
@@ -421,7 +428,7 @@ export function PickFeed({ picks, parlays = [], empty, showName, history = false
       </div>
       <div className="sl-picks-scroll" ref={scrollRef} id={`${feedId}-panel`} role="tabpanel" aria-labelledby={`${feedId}-${filter}`} tabIndex={0}>
         <ul className="sl-tickets">
-          {shown.length === 0 ? <li className="fw-empty">{filter === "open" ? "No open picks. Your settled picks are in Won, Lost or All." : "Nothing here yet."}</li> : shown.map((it) => (it.kind === "pick" ? <PickTicket key={it.pick.id} pick={it.pick} showName={showName} onManage={manage ? (pick) => manage.onManage({ kind: "pick", pick }) : undefined} managed={manage?.activeId === it.pick.id} /> : <ParlayTicket key={it.parlay.id} parlay={it.parlay} showName={showName} onManage={manage ? (parlay) => manage.onManage({ kind: "parlay", parlay }) : undefined} managed={manage?.activeId === (it.parlay.parts?.[0] ?? it.parlay).id} />))}
+          {shown.length === 0 ? <li className="fw-empty">{filter === "open" ? "No open picks. Your settled picks are in Won, Lost or All." : "Nothing here yet."}</li> : shown.map((it) => (it.kind === "pick" ? <PickTicket key={it.pick.id} pick={it.pick} fills={it.fills} managedId={manage?.activeId ?? undefined} showName={showName} onManage={manage ? (pick) => manage.onManage({ kind: "pick", pick }) : undefined} managed={manage?.activeId === it.pick.id} /> : <ParlayTicket key={it.parlay.id} parlay={it.parlay} showName={showName} onManage={manage ? (parlay) => manage.onManage({ kind: "parlay", parlay }) : undefined} managed={manage?.activeId === (it.parlay.parts?.[0] ?? it.parlay).id} />))}
         </ul>
       </div>
     </>

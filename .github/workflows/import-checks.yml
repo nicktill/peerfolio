@@ -29,6 +29,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --ignore-scripts
+      - run: npm test --prefix infra/cron-worker
       - run: npm test --workspace @repo/web
         env:
           PEERFOLIO_TEST_PG_URL: postgres://postgres:regression@127.0.0.1:5432/regression
