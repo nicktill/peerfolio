@@ -10,6 +10,7 @@ import { acceptPick, DEFAULT_LIMITS, kickoffGateDecided, PickRejected, type Pick
 import { isLiveMarketKey } from "./live-pick.ts"
 import { acceptParlay, decideParlay, decimalToAmerican, LEG_STATUS_OF, ParlayRejected, parlayPlaceKey, parlaySettleKey, PARLAY_LIMITS, type ParlayLegStatus, type ParlayRequest, type ParlayRow, type ParlayStatus } from "./parlay.ts"
 import { mirroredPairs } from "./report.ts"
+import { trackedEventSql } from "./ingestion-scope.ts"
 import { REPRICE } from "./reprice-config.ts"
 import { type Decision, type RepriceResult, type RepriceTarget } from "./reprice.ts"
 import { DEFAULT_RESOLVE, gradePick, needsMeteredSource, planSettlement, observeFinal, placeKey, resolveResult, resultsForEvent, type ResolveConfig, type ResolveConfigFor, type SettlementPlan } from "./settlement.ts"
@@ -1122,6 +1123,7 @@ export async function listRepriceTargets(db: Db, now: Date, kinds: readonly stri
     .innerJoin(sportsEvents, eq(sportsEvents.id, sportsMarkets.eventId))
     .where(
       and(
+        trackedEventSql(now),
         // Open markets, plus those the cron froze for a dead worker: those reopen only on a healthy exchange read (see the pass).
         or(eq(sportsMarkets.status, "open"), and(eq(sportsMarkets.status, "locked"), eq(sportsMarkets.frozenReason, WORKER_FREEZE_REASON))),
         gt(sportsMarkets.lockAt, now),
