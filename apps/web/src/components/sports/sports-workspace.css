@@ -470,6 +470,9 @@
 .sp-feed-chip { display: inline-flex; align-items: center; gap: 5px; font: 400 10px var(--fw-sans); color: var(--fw-fg3); white-space: nowrap; }
 .sp-feed-chip i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
 .sp-feed-chip[data-live] { color: #329b68; }
+.sp-feed-chip[data-refreshing] i { animation: sp-feed-pulse 1.2s ease-in-out infinite; }
+@keyframes sp-feed-pulse { 50% { opacity: 0.25; } }
+@media (prefers-reduced-motion: reduce) { .sp-feed-chip[data-refreshing] i { animation: none; } }
 .dark .sp-feed-chip[data-live] { color: #70dba3; }
 .sp-open-lines .sp-odds-bar { margin-bottom: 10px; }
 .sp-open-lines .sp-odds-track { height: 5px; }

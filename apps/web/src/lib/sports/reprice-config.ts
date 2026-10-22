@@ -33,6 +33,8 @@ export const REPRICE = {
   hourMs: 3_600_000,
   /** First exchange contact: the published (consensus) basis and the exchange may differ by this much ONLY when Polymarket and Kalshi agree; otherwise `maxStep` applies. */
   firstContactMax: 0.12,
+  /** A new pick or parlay leg on a market starting inside `windowMs` needs an exchange read this young; older, the price is refreshed first (see priceNeedsRefresh). */
+  pickFreshMs: 5 * 60_000,
   /** A market the exchange manages freezes if no good exchange read arrives for this long. */
   staleFreezeMs: 10 * 60_000,
   /** Re-stamp `exchange_ok_at` at most this often when nothing moved. */

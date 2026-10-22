@@ -172,6 +172,16 @@ export type RepriceTarget = {
 
 export type RepriceResult = { applied: boolean; reason?: string; oldPrices?: number[]; newPrices?: number[]; version?: number }
 
+/**
+ * True when a pick on this market would rest on an exchange price older than `REPRICE.pickFreshMs` for a game close enough to
+ * kickoff that the price moves. Only the fast cadence keeps such prices young, so after a quiet spell the viewer waits for the next
+ * pass rather than taking an old line. Markets the exchange never confirmed, and far games, keep their existing guards.
+ */
+export function priceNeedsRefresh(m: { exchangeOkAt: Date | null }, startsAt: Date, now: Date): boolean {
+  if (!m.exchangeOkAt) return false
+  return startsAt.getTime() - now.getTime() <= REPRICE.windowMs && now.getTime() - m.exchangeOkAt.getTime() > REPRICE.pickFreshMs
+}
+
 /** What the worker needs from the database for repricing (implemented by store.ts; injected so tests need no database). */
 export type RepriceStore = {
   listTargets(now: Date): Promise<RepriceTarget[]>
@@ -180,4 +190,6 @@ export type RepriceStore = {
   /** Reopens a market frozen for a dead worker, after a healthy exchange read for it. Optional: stores without it never reopen. */
   reopen?(marketId: string, now: Date): Promise<boolean>
   confirm(marketIds: string[], now: Date): Promise<void>
+  /** When a member last had sports open (see live/activity.ts). Optional: a store without it treats every pass as watched. */
+  lastActivity?(): Promise<Date | null>
 }

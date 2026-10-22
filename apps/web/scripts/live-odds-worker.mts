@@ -30,7 +30,7 @@ import * as schema from "../src/db/schema.ts"
 import { cycleFailed, EXIT_AFTER_FAILURES, shouldExit, WORKER_NAME } from "../src/lib/sports/live/health.ts"
 import { clip, emit, type Fields, type Level } from "../src/lib/sports/log.ts"
 import { idleSleepMs, MAX_SLEEP_MS, pollDelay } from "../src/lib/sports/live/plan.ts"
-import { insertQuotes, loadLiveSlate, nextStartAfter, pruneLiveQuotes, upsertState, writeHeartbeat } from "../src/lib/sports/live/store.ts"
+import { insertQuotes, loadLiveSlate, nextStartAfter, pruneLiveQuotes, readSportsActivity, upsertState, writeHeartbeat } from "../src/lib/sports/live/store.ts"
 import { applyReprice, confirmExchange, freezeForReason, listRepriceTargets, reopenWorkerFrozen } from "../src/lib/sports/store.ts"
 import { msToNextSlot } from "../src/lib/sports/live/slots.ts"
 import { runRepricePass } from "../src/lib/sports/live/reprice-pass.ts"
@@ -99,6 +99,7 @@ const deps: WorkerDeps = {
     freeze: (marketId, reason) => freezeForReason(db, marketId, reason),
     reopen: (marketId, now) => reopenWorkerFrozen(db, marketId, now),
     confirm: (ids, now) => confirmExchange(db, ids, now),
+    lastActivity: () => readSportsActivity(db),
   },
   ...(appUrl && cronSecret ? { triggerSettle } : {}),
   wsBooks: socket?.books,

@@ -36,6 +36,7 @@ import { ParlayIdsContext, ParlayModeBar, ParlaySlip, useParlay } from "@web/com
 import { stackParlays, type ParlayLimits, type ParlayRow } from "@web/components/sports/parlay-types"
 import { plural } from "@web/lib/plural"
 import { matchesSearch } from "@web/lib/sports/search"
+import { REPRICE } from "@web/lib/sports/reprice-config"
 import { mutate, useApi } from "@web/lib/use-api"
 
 type Line = DisplayLine & { id: string; price: number }
@@ -788,6 +789,9 @@ function GameCard({ game, selected, onSelect, disabled, now }: { game: { key: st
   const quoteAge = pricedAt ? now - Date.parse(pricedAt) : null
   // Quotes refresh continuously; only hide the chip if the feed has clearly stalled.
   const showLive = quoteAge != null && quoteAge < 30 * 60_000
+  // Odds near kickoff are only re-read quickly while someone is watching. After a quiet spell this page's own polling wakes the worker's
+  // fast pass; until the price is young again the chip says so, and picks on it wait (the server refuses them as "refreshing").
+  const refreshing = quoteAge != null && quoteAge > REPRICE.pickFreshMs && Date.parse(event.startsAt) - now <= REPRICE.windowMs
 
   return (
     <div className="sp-event sp-game" data-matchup style={{ '--away-color': firstColor, '--home-color': secondColor } as React.CSSProperties}>
@@ -797,7 +801,7 @@ function GameCard({ game, selected, onSelect, disabled, now }: { game: { key: st
         </div>
         <span className="sp-game-meta">
           <b><LeagueBrand sport={event.sport} /></b> · {timeOf(event.startsAt)}
-          {event.scoreGame && event.scoreGame.status !== "upcoming" ? <GameStatusChip input={statusInputFromGame(event.scoreGame)} now={now} /> : showLive ? <span className="sp-feed-chip" data-live><i />Live odds</span> : null}
+          {event.scoreGame && event.scoreGame.status !== "upcoming" ? <GameStatusChip input={statusInputFromGame(event.scoreGame)} now={now} /> : refreshing ? <span className="sp-feed-chip" data-refreshing role="status"><i />Refreshing odds…</span> : showLive ? <span className="sp-feed-chip" data-live><i />Live odds</span> : null}
           <select className="sp-market-select" aria-label={`Market for ${eventTitle(event)}`} value={active?.key ?? ""} onChange={e => setTab(e.target.value)}>
             {groups.map(g => <option key={g.key} value={g.key}>{g.markets.length === 0 ? `${g.label} (unavailable)` : g.label}</option>)}
           </select>

@@ -12,7 +12,7 @@ import { acceptParlay, decideParlay, decimalToAmerican, LEG_STATUS_OF, ParlayRej
 import { mirroredPairs } from "./report.ts"
 import { trackedEventSql } from "./ingestion-scope.ts"
 import { REPRICE } from "./reprice-config.ts"
-import { type Decision, type RepriceResult, type RepriceTarget } from "./reprice.ts"
+import { priceNeedsRefresh, type Decision, type RepriceResult, type RepriceTarget } from "./reprice.ts"
 import { DEFAULT_RESOLVE, gradePick, needsMeteredSource, planSettlement, observeFinal, placeKey, resolveResult, resultsForEvent, type ResolveConfig, type ResolveConfigFor, type SettlementPlan } from "./settlement.ts"
 import type { EventRef, EventResult, MarketKind, OddsProvider, Outcome, ResultsProvider, Selection, Sport } from "./types.ts"
 import { hasDraw, SPORTS } from "./types.ts"
@@ -38,6 +38,9 @@ export class SportsError extends Error {
     this.status = status
   }
 }
+
+/** Shown when a pick or parlay leg waits on a fresh exchange price (see priceNeedsRefresh). The page refetches by itself and clears this. */
+export const PRICE_REFRESHING = "Odds are refreshing for this game. Try again in a moment"
 
 /** Rejects a new pick on a paused sport (see enabled.ts). Open picks on it still settle and display. */
 export function assertSportsPickable(sports: Iterable<string>) {
@@ -551,6 +554,7 @@ async function placeOnce(db: Db, userId: string, leagueId: string, req: PickRequ
     if (!theEvent || !league.sports.includes(theEvent.sport)) throw new SportsError("Line not found", 404)
     assertSportsPickable([theEvent.sport])
     const row = { line: theLine, market: theMarket, event: theEvent }
+    if (priceNeedsRefresh(theMarket, theEvent.startsAt, now)) throw new SportsError(PRICE_REFRESHING, 409)
 
     const [existing] = await tx
       .select({ n: sql<number>`count(*)::int` })
@@ -751,6 +755,7 @@ async function placeParlayOnce(db: Db, userId: string, leagueId: string, req: Pa
       const market = line && markets.find((m) => m.id === line.marketId)
       const event = market && events.find((e) => e.id === market.eventId)
       if (!line || !market || !event || !league.sports.includes(event.sport)) throw new SportsError("A line in your parlay is no longer available", 404)
+      if (priceNeedsRefresh(market, event.startsAt, now)) throw new SportsError(PRICE_REFRESHING, 409)
       legCtx.push({
         market: { id: market.id, status: market.status, lockAt: market.lockAt, kind: market.kind, player: market.player },
         eventId: event.id,

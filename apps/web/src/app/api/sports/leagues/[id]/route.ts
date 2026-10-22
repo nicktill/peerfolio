@@ -5,13 +5,17 @@ import { ApiError, readJson } from "@web/lib/api"
 import { getSportsLeagueDetail, setLeagueMaxStakePct, updateSportsLeague } from "@web/lib/sports/store"
 import { ACCENT_KEYS, isLeagueEmoji } from "@web/lib/league-look"
 import { setLeagueLiveBetting } from "@web/lib/sports/live-store"
+import { touchSportsActivity } from "@web/lib/sports/live/store"
 
 type Ctx = { params: Promise<{ id: string }> }
 
 export const GET = withSportsUser<Ctx>(async (userId, _request, { params }) => {
   const { id } = await params
+  const now = new Date()
+  // The league page polls this route, so it doubles as the "someone is watching" signal for the odds worker (throttled, never throws).
+  await touchSportsActivity(db, now)
   // Server time only; the client's clock is never consulted.
-  return NextResponse.json(await getSportsLeagueDetail(db, userId, id, new Date()))
+  return NextResponse.json(await getSportsLeagueDetail(db, userId, id, now))
 })
 
 /** `.strict()` so a field that cannot change (starting cash, invite code) is an error, not silently ignored. */
