@@ -12,9 +12,9 @@ export function Phone({ children, android }: { children: React.ReactNode; androi
         <div className="ig-status">
           <span className="ig-time">9:41</span>
           <span className="ig-sys">
-            <svg width="16" height="10" viewBox="0 0 16 10" fill="currentColor"><rect x="0" y="6" width="3" height="4" rx="0.8" /><rect x="4.3" y="4" width="3" height="6" rx="0.8" /><rect x="8.6" y="2" width="3" height="8" rx="0.8" /><rect x="12.9" y="0" width="3" height="10" rx="0.8" /></svg>
-            <svg width="14" height="10" viewBox="0 0 14 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M1 3.6a8.5 8.5 0 0 1 12 0" /><path d="M3.2 6a5.4 5.4 0 0 1 7.6 0" /><circle cx="7" cy="8.4" r="0.9" fill="currentColor" stroke="none" /></svg>
-            <svg width="24" height="11" viewBox="0 0 24 11" fill="none"><rect x="0.5" y="0.5" width="20" height="10" rx="3" stroke="currentColor" opacity="0.45" /><rect x="2" y="2" width="15" height="7" rx="1.6" fill="currentColor" /><path d="M22 3.8v3.4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" opacity="0.5" /></svg>
+            <svg width="13" height="8" viewBox="0 0 16 10" fill="currentColor"><rect x="0" y="6" width="3" height="4" rx="0.8" /><rect x="4.3" y="4" width="3" height="6" rx="0.8" /><rect x="8.6" y="2" width="3" height="8" rx="0.8" /><rect x="12.9" y="0" width="3" height="10" rx="0.8" /></svg>
+            <svg width="12" height="9" viewBox="0 0 14 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M1 3.6a8.5 8.5 0 0 1 12 0" /><path d="M3.2 6a5.4 5.4 0 0 1 7.6 0" /><circle cx="7" cy="8.4" r="0.9" fill="currentColor" stroke="none" /></svg>
+            <svg width="20" height="9" viewBox="0 0 24 11" fill="none"><rect x="0.5" y="0.5" width="20" height="10" rx="3" stroke="currentColor" opacity="0.45" /><rect x="2" y="2" width="15" height="7" rx="1.6" fill="currentColor" /><path d="M22 3.8v3.4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" opacity="0.5" /></svg>
           </span>
         </div>
         <div className="ig-island" />
@@ -43,28 +43,17 @@ export function Step({ n, title, body, children }: { n: number; title: string; b
   )
 }
 
-const SPARK = "M0 30 L12 26 L24 28 L36 20 L48 22 L60 13 L72 16 L84 8 L96 10 L108 3"
-
-/** A miniature of the signed-in app, drawn with the real tokens so the mockups look like the product. */
-export function AppScreen({ dim }: { dim?: boolean; top?: boolean }) {
+/**
+ * A real capture of the app (390px wide, the actual mobile layout), in both themes; CSS shows the one that matches.
+ * "browser" is the page as it sits inside Safari or Chrome, "standalone" is the full-screen installed app.
+ */
+export function Shot({ kind, dim }: { kind: "browser" | "standalone"; dim?: boolean }) {
   return (
-    <div className="ig-app">
-      <div className="ig-app-head">
-        <Image src="/logo.png" alt="" width={14} height={14} className="pf-logo" />
-        <span>Peerfolio</span>
-      </div>
-      <div className="ig-app-body">
-        <span className="ig-eyebrow">This year</span>
-        <span className="ig-big">+12.4%</span>
-        <svg viewBox="0 0 108 34" className="ig-spark" preserveAspectRatio="none">
-          <path d={SPARK} fill="none" stroke="var(--pf-accent)" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
-        </svg>
-        <div className="ig-rows">
-          <div><span>Weekend League</span><b>#2</b></div>
-          <div><span>Fantasy stocks</span><b className="ig-gain">+3.1%</b></div>
-          <div><span>Sports picks</span><b>#1</b></div>
-        </div>
-      </div>
+    <div className={`ig-shot ig-shot-${kind}`}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img className="ig-img-light" src={`/install/${kind}-light.jpg`} alt="" width={780} height={kind === "browser" ? 1400 : 1692} decoding="async" />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img className="ig-img-dark" src={`/install/${kind}-dark.jpg`} alt="" width={780} height={kind === "browser" ? 1400 : 1692} decoding="async" />
       {dim && <span className="ig-dim" />}
     </div>
   )
