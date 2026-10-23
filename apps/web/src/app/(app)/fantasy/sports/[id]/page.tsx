@@ -36,6 +36,7 @@ import { ParlayIdsContext, ParlayModeBar, ParlaySlip, useParlay } from "@web/com
 import { stackParlays, type ParlayLimits, type ParlayRow } from "@web/components/sports/parlay-types"
 import { plural } from "@web/lib/plural"
 import { matchesSearch } from "@web/lib/sports/search"
+import { isUpcoming, upcomingPage, UPCOMING_PAGE_SIZE } from "@web/lib/sports/upcoming"
 import { REPRICE } from "@web/lib/sports/reprice-config"
 import { mutate, useApi } from "@web/lib/use-api"
 
@@ -300,12 +301,12 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
   const ended = !!league.endsAt && new Date(league.endsAt).getTime() < Date.now()
   const status = ended ? "Final standings" : league.endsAt ? timeLeft(league.endsAt) : "No end"
   const scoreGames = mergeLiveScores(scores.data?.games ?? [], liveScores.data?.games ?? []).map((g) => (demo === "prices" && tick > 0 && g.status === "live" ? { ...g, homeScore: String((Number(g.homeScore) || 0) + 7 * Math.floor(tick / 3)), awayScore: String((Number(g.awayScore) || 0) + 3 * Math.floor(tick / 4)) } : g))
-  const shown = markets.filter(m => (sport === "all" || m.event.sport === sport) && matchesSearch(query, [m.event.home, m.event.away, m.player], m.event.sport) && Date.parse(m.lockAt) > now && Date.parse(m.event.startsAt) > now).map(m => {
+  const shown = markets.filter(m => (sport === "all" || m.event.sport === sport) && matchesSearch(query, [m.event.home, m.event.away, m.player], m.event.sport) && Date.parse(m.lockAt) > now && isUpcoming(m.event.startsAt, now)).map(m => {
     const meta = scoreboardMatch(m.event, scoreGames)
     return meta ? { ...m, event: { ...m.event, homeRecord: meta.homeRecord, awayRecord: meta.awayRecord, scoreGame: meta } } : m
   })
-  // Scheduled games with no open line (not posted yet, or locked) still belong in Upcoming, so a game never shows under Live's "Coming up" and then vanishes here.
-  const unpriced = scoreGames.filter(g => g.status === "upcoming" && Date.parse(g.startsAt) > now && (sport === "all" || g.sport === sport) && matchesSearch(query, [g.home, g.away], g.sport) && !shown.some(m => scoreboardMatch(m.event, [g])))
+  // Keep nearby games visible while their lines are unavailable, without importing the entire multi-day schedule.
+  const unpriced = scoreGames.filter(g => g.status === "upcoming" && isUpcoming(g.startsAt, now) && (sport === "all" || g.sport === sport) && matchesSearch(query, [g.home, g.away], g.sport) && !shown.some(m => scoreboardMatch(m.event, [g])))
   const liveGames = scoreGames.filter(g => (sport === "all" || g.sport === sport) && matchesSearch(query, [g.home, g.away], g.sport))
   const searching = query.trim().length > 0
   // A failed refresh keeps the last good list; useApi clears `error` at the start of each poll, so only a load with nothing to show counts, or the notice would blink in and out.
@@ -375,7 +376,7 @@ export default function SportsLeaguePage({ params }: { params: Promise<{ id: str
               </div>
             </div>
             {parlay.mode === "parlay" && parlay.note ? <div className="sp-parlay-guidance"><p className="pl-note" role="status">{parlay.note}</p></div> : null}
-            {view === "upcoming" ? <ParlayIdsContext.Provider value={parlay.mode === "parlay" ? parlay.ids : null}><div className="sp-scroll">{searching && shown.length === 0 && unpriced.length === 0 ? <p className="fw-empty" role="status">No games match &ldquo;{query.trim()}&rdquo;</p> : <Markets markets={shown} unpriced={unpriced} selected={parlay.mode === "parlay" ? null : current} onSelect={(market, line) => { if (livePending) return; setLiveSelected(null); setManaging(null); if (parlay.mode === "parlay") parlay.toggle(market, line); else setSelected({ market, line }) }} disabled={ended || livePending} now={now} />}</div></ParlayIdsContext.Provider> : <ParlayIdsContext.Provider value={parlay.mode === "parlay" ? parlay.ids : null}><ScoreboardGames renderUpcoming={(game) => {
+            {view === "upcoming" ? <ParlayIdsContext.Provider value={parlay.mode === "parlay" ? parlay.ids : null}><div className="sp-scroll">{searching && shown.length === 0 && unpriced.length === 0 ? <p className="fw-empty" role="status">No games match &ldquo;{query.trim()}&rdquo;</p> : <Markets key={`${sport}:${query.trim()}`} focusedGame={focusGame} markets={shown} unpriced={unpriced} selected={parlay.mode === "parlay" ? null : current} onSelect={(market, line) => { if (livePending) return; setLiveSelected(null); setManaging(null); if (parlay.mode === "parlay") parlay.toggle(market, line); else setSelected({ market, line }) }} disabled={ended || livePending} now={now} />}</div></ParlayIdsContext.Provider> : <ParlayIdsContext.Provider value={parlay.mode === "parlay" ? parlay.ids : null}><ScoreboardGames renderUpcoming={(game) => {
               const matching = shown.filter((market) => scoreboardMatch(market.event, [game]))
               if (!matching.length) return null
               return <GameCard game={{ key: `${game.sport}:${game.id}`, event: matching[0]!.event, markets: matching }} selected={parlay.mode === "parlay" ? null : current} onSelect={(market, line) => { if (livePending) return; setLiveSelected(null); setManaging(null); if (parlay.mode === "parlay") parlay.toggle(market, line); else setSelected({ market, line }) }} disabled={ended || livePending} now={now} />
@@ -507,10 +508,7 @@ function InviteButton({ code }: { code: string }) {
   )
 }
 
-/** Games shown per day before the rest sit behind a "show more" button. */
-const DAY_PREVIEW = 6
-
-function Markets({ markets, unpriced, selected, onSelect, disabled, now }: { markets: Market[]; unpriced: ScoreGame[]; selected: { line: Line } | null; onSelect: (m: Market, l: Line) => void; disabled: boolean; now: number }) {
+function Markets({ markets, unpriced, selected, onSelect, disabled, now, focusedGame }: { focusedGame: string | null; markets: Market[]; unpriced: ScoreGame[]; selected: { line: Line } | null; onSelect: (m: Market, l: Line) => void; disabled: boolean; now: number }) {
   // Group by game, then by day, in kickoff order (the API already sorts by start).
   const games = useMemo(() => {
     const byEvent = new Map<string, { key: string; event: EventInfo; markets: Market[] }>()
@@ -528,42 +526,28 @@ function Markets({ markets, unpriced, selected, onSelect, disabled, now }: { mar
     return [...byEvent.values()].sort((a, b) => Date.parse(a.event.startsAt) - Date.parse(b.event.startsAt) || a.event.sport.localeCompare(b.event.sport) || a.event.home.localeCompare(b.event.home) || a.event.away.localeCompare(b.event.away))
   }, [markets, unpriced])
 
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
-  if (games.length === 0) return <p className="fw-empty">No open lines right now. Games post about a day ahead.</p>
+  const parlayIds = useContext(ParlayIdsContext)
+  const [limit, setLimit] = useState(UPCOMING_PAGE_SIZE)
+  if (games.length === 0) return <p className="fw-empty">No games in the next 24 hours. Lines post about a day ahead.</p>
 
-  const rows: React.ReactNode[] = []
+  const visible = upcomingPage(games, limit, (g) => g.markets.some((m) => m.lines.some((l) => l.id === selected?.line.id || parlayIds?.has(l.id))) || (focusedGame != null && g.event.scoreGame != null && `${g.event.scoreGame.sport}:${g.event.scoreGame.id}` === focusedGame))
+  const hidden = games.length - visible.length
   let lastDay = ""
-  let index = 0
-  const days = new Map<string, number>()
-  for (const g of games) days.set(dayOf(g.event.startsAt), (days.get(dayOf(g.event.startsAt)) ?? 0) + 1)
-  for (const g of games) {
-    const day = dayOf(g.event.startsAt)
-    if (day !== lastDay) index = 0
-    const heading = day !== lastDay ? day : null
-    lastDay = day
-    index += 1
-    const total = days.get(day) ?? 0
-    const open = expanded.has(day)
-    const holdsSelection = selected != null && g.markets.some((m) => m.lines.some((l) => l.id === selected.line.id))
-    if (index <= DAY_PREVIEW || open || holdsSelection) {
-      rows.push(
-        <li key={g.key}>
-          {heading ? <h3 className="sp-day">{heading}</h3> : null}
-          {g.markets.length ? <GameCard game={g} selected={selected} onSelect={onSelect} disabled={disabled} now={now} /> : <UnpricedCard event={g.event} />}
-        </li>,
-      )
-    }
-    if (total > DAY_PREVIEW && (index === total)) {
-      rows.push(
-        <li key={`more-${day}`} className="sp-more">
-          <button type="button" aria-expanded={open} onClick={() => setExpanded((prev) => { const next = new Set(prev); if (next.has(day)) next.delete(day); else next.add(day); return next })}>
-            {open ? "Show fewer games" : `Show ${total - DAY_PREVIEW} more game${total - DAY_PREVIEW === 1 ? "" : "s"}`}
-          </button>
-        </li>,
-      )
-    }
-  }
-  return <ul className="sp-events">{rows}</ul>
+  return <>
+    <p className="sp-fine">Next 24 hours · {games.length} {games.length === 1 ? "game" : "games"}</p>
+    <ul className="sp-events">{visible.map((g) => {
+      const day = dayOf(g.event.startsAt)
+      const heading = day !== lastDay ? day : null
+      lastDay = day
+      return <li key={g.key} data-game={g.event.scoreGame ? `${g.event.scoreGame.sport}:${g.event.scoreGame.id}` : undefined}>
+        {heading ? <h3 className="sp-day">{heading}</h3> : null}
+        {g.markets.length ? <GameCard game={g} selected={selected} onSelect={onSelect} disabled={disabled} now={now} /> : <UnpricedCard event={g.event} />}
+      </li>
+    })}
+    {hidden > 0 ? <li className="sp-more"><button type="button" onClick={() => setLimit((previous) => previous + UPCOMING_PAGE_SIZE)}>Show more games</button></li> : null}
+    {limit > UPCOMING_PAGE_SIZE ? <li className="sp-more"><button type="button" onClick={() => setLimit(UPCOMING_PAGE_SIZE)}>Show fewer games</button></li> : null}
+    </ul>
+  </>
 }
 
 function Slip({

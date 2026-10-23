@@ -1,5 +1,6 @@
 "use client"
 
+import { isComingUp } from '@web/lib/sports/upcoming'
 import { useRef } from 'react'
 import { Lock, Radio } from 'lucide-react'
 import { LeagueBrand } from './league-brand'
@@ -117,11 +118,11 @@ export function ScoreboardGames({ games, tracked, now, loading, failed, enableAd
   // Tennis is the exception: a match's listed time is only 'not before', so it stays under Coming up until the feed says it is live.
   const underWay = (g: ScoreGame) => g.status === 'upcoming' && g.sport !== 'tennis' && Date.parse(g.startsAt) <= now && now - Date.parse(g.startsAt) < 5 * 3600_000
   const live = games.filter(g => g.status === 'live' || underWay(g)).sort(byStart)
-  // Quiet right now: show what is coming up in the next few days instead of an empty panel.
-  const upcoming = games.filter(g => g.status === 'upcoming' && (Date.parse(g.startsAt) > now || g.sport === 'tennis')).sort(byStart).slice(0, UPCOMING_LIMIT)
+  // Use the pick screen’s 24-hour window so Coming up links to the same games.
+  const upcoming = games.filter(g => g.status === 'upcoming' && isComingUp(g, now)).sort(byStart).slice(0, UPCOMING_LIMIT)
   if (loading && !games.length) return <p className="fw-empty" role="status">Loading live games…</p>
   if (!live.length && !upcoming.length && query) return <p className="fw-empty" role="status">No games match &ldquo;{query}&rdquo;</p>
-  if (!live.length && !upcoming.length) return <p className="fw-empty" role="status">{failed ? 'Live scores are temporarily unavailable. Please try again shortly.' : 'No games scheduled in the next few days for this sport.'}</p>
+  if (!live.length && !upcoming.length) return <p className="fw-empty" role="status">{failed ? 'Live scores are temporarily unavailable. Please try again shortly.' : 'No games scheduled in the next 24 hours for this sport.'}</p>
   const card = (g: ScoreGame, isLive: boolean) => isLive
     ? <LiveCard key={`${g.sport}:${g.id}`} g={g} now={now} tracked={tracked.find(t => scoreboardMatch(t, [g]))} enableAdminTest={enableAdminTest} livePick={livePick} />
     : <div key={`${g.sport}:${g.id}`} data-game={`${g.sport}:${g.id}`}>{renderUpcoming?.(g) ?? <article className="sp-game sp-live-card">
