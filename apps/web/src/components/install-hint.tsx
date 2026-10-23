@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Link from "next/link"
 import { Share, X } from "lucide-react"
 
 const KEY = "pf-install-hint-dismissed"
@@ -45,7 +46,7 @@ export function InstallHint() {
       }}
     >
       <Share aria-hidden className="h-4 w-4 shrink-0" />
-      <span style={{ flex: 1 }}>Install Peerfolio: tap Share, then Add to Home Screen.</span>
+      <span style={{ flex: 1 }}>Install Peerfolio: tap Share, then Add to Home Screen. <Link href="/install" style={{ textDecoration: "underline" }}>See how</Link></span>
       <button type="button" onClick={dismiss} aria-label="Dismiss" style={{ color: "var(--fg3)", padding: 4 }}>
         <X aria-hidden className="h-4 w-4" />
       </button>
