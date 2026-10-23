@@ -13,6 +13,7 @@ export function Segmented<T extends string>({
   value,
   onChange,
   size = "default",
+  variant = "pill",
   className,
   label,
 }: {
@@ -20,9 +21,12 @@ export function Segmented<T extends string>({
   value: T
   onChange: (value: T) => void
   size?: "sm" | "default"
+  /** "underline" drops the boxed pill for plain labels with a sliding accent line; compact enough to share a row with a label on phones. */
+  variant?: "pill" | "underline"
   className?: string
   label: string
 }) {
+  const underline = variant === "underline"
   const items = options.map((o) => (typeof o === "string" ? { value: o, label: o, disabled: false, title: undefined } : { disabled: false, title: undefined, ...o }))
   const { containerRef, rect, ready } = useSlidingIndicator<HTMLDivElement>(value)
   const buttons = useRef<Record<string, HTMLButtonElement | null>>({})
@@ -40,9 +44,13 @@ export function Segmented<T extends string>({
   }
 
   return (
-    <div ref={containerRef} role="radiogroup" aria-label={label} onKeyDown={onKeyDown} className={cn("relative inline-flex rounded-[9px] border border-border bg-background p-[3px]", className)}>
-      {/* The selected pill glides between options instead of jumping. */}
-      <span aria-hidden className="absolute inset-y-[3px] left-0 rounded-[6px] bg-secondary shadow-[inset_0_0_0_1px_hsl(var(--input))]" style={slideStyle(rect, ready)} />
+    <div ref={containerRef} role="radiogroup" data-variant={variant} aria-label={label} onKeyDown={onKeyDown} className={cn(underline ? "relative inline-flex" : "relative inline-flex rounded-[9px] border border-border bg-background p-[3px]", className)}>
+      {/* The selected pill (or underline) glides between options instead of jumping. */}
+      {underline ? (
+        <span aria-hidden className="absolute bottom-0 left-0 h-[2px] after:absolute after:inset-x-[22%] after:inset-y-0 after:rounded-full after:bg-[--pf-accent]" style={slideStyle(rect, ready)} />
+      ) : (
+        <span aria-hidden className="absolute inset-y-[3px] left-0 rounded-[6px] bg-secondary shadow-[inset_0_0_0_1px_hsl(var(--input))]" style={slideStyle(rect, ready)} />
+      )}
       {items.map((item) => {
         const selected = item.value === value
         return (
@@ -64,9 +72,10 @@ export function Segmented<T extends string>({
               if (!item.disabled) onChange(item.value)
             }}
             className={cn(
-              "press relative z-10 rounded-[6px] font-medium transition-colors",
+              "press relative z-10 font-medium transition-colors",
+              underline ? "h-10 px-2 font-mono text-[11px] tracking-[0.04em] sm:h-9 sm:px-3.5 sm:tracking-[0.06em]" : "rounded-[6px]",
               // Taller on touch screens, where 24px is too small a target.
-              size === "sm" ? "h-10 px-3 font-mono text-[11px] tracking-[0.06em] sm:h-6 sm:px-2.5" : "h-10 px-4 text-[13px] sm:h-7",
+              !underline && (size === "sm" ? "h-10 px-3 font-mono text-[11px] tracking-[0.06em] sm:h-6 sm:px-2.5" : "h-10 px-4 text-[13px] sm:h-7"),
               selected ? "text-foreground" : "text-muted-foreground hover:text-foreground",
               item.disabled && "cursor-not-allowed opacity-40 hover:text-muted-foreground",
             )}

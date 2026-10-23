@@ -70,7 +70,7 @@
 .ig-popover, .ig-sheet, .ig-dialog, .ig-menu, .ig-modal { position: absolute; z-index: 3; background: var(--panel); }
 .ig-hit { background: rgba(var(--accent-a), 0.14); color: var(--fg); font-weight: 500; }
 .ig-hit .ig-pulse { inset: 1px; border-radius: 8px; }
-.ig-popover { right: 10px; bottom: 62px; width: 136px; border: 1px solid var(--hair); border-radius: 14px; overflow: hidden; }
+.ig-popover { right: 10px; bottom: 74px; width: 136px; border: 1px solid var(--hair); border-radius: 14px; overflow: hidden; }
 .ig-popover > div, .ig-menu > div, .ig-list > div { display: flex; align-items: center; justify-content: space-between; padding: 9px 11px; font-size: 10.5px; }
 .ig-popover > div + div, .ig-list > div + div { border-top: 1px solid var(--hair2); }
 
@@ -141,3 +141,115 @@
   .ig-pair { gap: 20px; overflow-x: auto; justify-content: flex-start; max-width: 100%; padding: 0 4px 6px; scrollbar-width: none; }
 }
 @media (prefers-reduced-motion: reduce) { .ig-pulse { animation: none; opacity: 0.8; } }
+
+/* ---------- browser bars, sized to the captures (the app is shot to fill exactly what is left) ---------- */
+.ig-shot-bottom, .ig-shot-top { flex: none; }
+.ig-shot-bottom { height: 364px; }
+.ig-shot-top { height: 394px; }
+.ig-shot-bottom img, .ig-shot-top img { height: 100%; object-fit: cover; object-position: top; }
+.ig-bar-b { position: relative; z-index: 1; flex: none; height: 66px; box-sizing: border-box; background: var(--bg); }
+.ig-safari { display: flex; align-items: center; gap: 8px; padding: 10px 12px 26px; }
+.ig-samsung { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px 26px; color: var(--fg2); border-top: 1px solid var(--hair); }
+.ig-menu-btn { display: inline-flex; padding: 4px; border-radius: 8px; color: var(--fg); }
+.ig-bar-t { position: relative; z-index: 1; flex: none; height: 70px; box-sizing: border-box; display: flex; align-items: center; gap: 8px; padding: 38px 8px 8px; background: var(--panel); border-bottom: 1px solid var(--hair); color: var(--fg2); }
+.ig-bar-url { position: relative; flex: 1; display: flex; align-items: center; gap: 4px; height: 26px; padding: 0 11px; border-radius: 13px; background: var(--raise); color: var(--fg); font-size: 10px; }
+.ig-inbar { margin-left: auto; display: inline-flex; padding: 2px; border-radius: 6px; }
+.ig-popover-wide { width: 156px; }
+.ig-sub-row { padding-left: 24px !important; color: var(--fg2); }
+.ig-sub-hit { background: rgba(var(--accent-a), 0.14); color: var(--fg); font-weight: 500; }
+.ig-modal-mid { top: 150px; }
+.ig-appicon-lg { width: 34px; height: 34px; border-radius: 9px; }
+.ig-menu { top: 78px; }
+.ig-done { margin-top: 72px; }
+
+/* Switcher */
+.ig-switch { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; margin-bottom: 36px; }
+.ig-seg { display: inline-flex; gap: 4px; padding: 3px; border: 1px solid var(--hair); border-radius: 12px; background: var(--panel); max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.ig-seg::-webkit-scrollbar { display: none; }
+.ig-seg button { height: 36px; padding: 0 18px; border-radius: 9px; font-size: 14px; font-weight: 500; color: var(--fg2); white-space: nowrap; transition: background-color 200ms var(--ease-out), color 200ms var(--ease-out); }
+.ig-seg button:hover { color: var(--fg); }
+.ig-seg button[aria-selected="true"] { background: var(--raise); color: var(--fg); box-shadow: inset 0 0 0 1px var(--line); }
+.ig-seg-sm { padding: 0; border: 0; background: transparent; gap: 6px; }
+.ig-seg-sm button { height: 32px; padding: 0 14px; border-radius: 999px; font-size: 13px; border: 1px solid var(--hair); }
+.ig-seg-sm button[aria-selected="true"] { background: rgba(var(--accent-a), 0.14); border-color: rgba(var(--accent-a), 0.45); color: var(--pf-accent); box-shadow: none; }
+.ig-row { animation: ig-fade 360ms var(--ease-out) backwards; }
+@keyframes ig-fade { from { opacity: 0; translate: 0 6px; } to { opacity: 1; translate: 0 0; } }
+
+/* Tap cue: a steady ring and halo, plus a fingertip that glides in, presses and lifts. Nothing blinks. */
+.ig-pulse { animation: none; opacity: 1; box-shadow: 0 0 0 4px rgba(var(--accent-a), 0.16); }
+.ig-touch { position: absolute; left: 50%; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: rgba(var(--accent-a), 0.55); box-shadow: 0 0 0 1px rgba(var(--accent-a), 0.8); opacity: 0; animation: ig-touch 4.2s var(--ease-out) infinite; }
+@keyframes ig-touch {
+  0% { opacity: 0; transform: translate(14px, 16px) scale(1); }
+  16% { opacity: 1; transform: translate(0, 0) scale(1); }
+  28% { opacity: 1; transform: translate(0, 0) scale(0.78); }
+  40% { opacity: 1; transform: translate(0, 0) scale(1); }
+  54%, 100% { opacity: 0; transform: translate(0, 0) scale(1.5); }
+}
+@media (prefers-reduced-motion: reduce) { .ig-touch { animation: none; opacity: 0; } .ig-row { animation: none; } }
+
+/* ---------- Mac window mockups (drawn at 520x372, scaled to 360 wide) ---------- */
+.mac { position: relative; flex: none; width: 360px; height: 258px; overflow: hidden; border-radius: 14px; border: 1px solid var(--hair); background: var(--raise); }
+.mac-in { position: absolute; left: 0; top: 0; width: 520px; height: 372px; transform: scale(0.6923); transform-origin: 0 0; color: var(--fg); font: 400 11px/14px var(--sans); }
+.mac-bar { position: absolute; top: 0; left: 0; right: 0; z-index: 8; display: flex; align-items: center; gap: 14px; height: 22px; padding: 0 12px; background: color-mix(in srgb, var(--panel) 82%, transparent); font-weight: 500; }
+.mac-bar b { font-weight: 600; }
+.mac-bar i { margin-left: auto; font-style: normal; color: var(--fg2); }
+.mac-open { padding: 2px 7px; margin: 0 -7px; border-radius: 4px; background: var(--pf-accent); color: var(--bg); }
+.mac-win { position: absolute; left: 14px; top: 34px; width: 492px; height: 280px; display: flex; flex-direction: column; overflow: hidden; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); box-shadow: 0 18px 40px -16px rgba(0, 0, 0, 0.55); }
+.mac-lights { display: inline-flex; gap: 5px; }
+.mac-lights i { width: 9px; height: 9px; border-radius: 50%; background: #ff5f57; }
+.mac-lights i:nth-child(2) { background: #febc2e; }
+.mac-lights i:nth-child(3) { background: #28c840; }
+.mac-tabs { display: flex; align-items: flex-end; gap: 12px; height: 30px; padding: 0 10px 0; background: var(--raise); color: var(--fg2); }
+.mac-tabs .mac-lights { align-self: center; margin-right: 6px; }
+.mac-tab { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 14px; border-radius: 8px 8px 0 0; background: var(--panel); color: var(--fg); font-weight: 500; }
+.mac-tab img { border-radius: 3px; }
+.mac-tabs > svg { align-self: center; }
+.mac-addr { display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 10px; background: var(--panel); border-bottom: 1px solid var(--hair); color: var(--fg2); }
+.mac-url { position: relative; flex: 1; display: flex; align-items: center; gap: 5px; height: 22px; padding: 0 10px; border-radius: 11px; background: var(--raise); color: var(--fg); }
+.mac-url-c { flex: none; width: 230px; justify-content: center; margin: 0 auto; }
+.mac-inst { margin-left: auto; display: flex; align-items: center; gap: 9px; color: var(--fg2); }
+.mac-t { position: relative; display: inline-flex; color: var(--pf-accent); }
+.mac-t .ig-pulse { inset: -4px; border-radius: 6px; }
+.mac-avatar { width: 16px; height: 16px; border-radius: 50%; background: var(--hair); }
+.mac-safari { display: flex; align-items: center; gap: 12px; height: 40px; padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--hair); color: var(--fg2); }
+.mac-safari .mac-lights { margin-right: 8px; }
+.mac-shot { position: relative; flex: 1; min-height: 0; overflow: hidden; background: var(--bg); }
+.mac-shot img { display: block; width: 100%; height: auto; }
+.mac-dim { position: absolute; inset: 0; z-index: 2; background: rgba(0, 0, 0, 0.38); }
+.mac-pop { position: absolute; top: 62px; right: 40px; z-index: 4; width: 210px; padding: 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); box-shadow: 0 14px 30px -10px rgba(0, 0, 0, 0.5); }
+.mac-pop b { font-size: 13px; font-weight: 600; }
+.mac-pop-row { display: flex; align-items: center; gap: 9px; margin: 10px 0 12px; }
+.mac-pop-row img { border-radius: 7px; }
+.mac-pop-row span { display: flex; flex-direction: column; }
+.mac-pop-row em { font-style: normal; font-weight: 500; font-size: 12px; }
+.mac-pop-row small, .mac-sheet small { color: var(--fg3); font-size: 10.5px; }
+.mac-pop-act { display: flex; justify-content: flex-end; align-items: center; gap: 16px; color: var(--fg2); }
+.mac-btn { position: relative; padding: 5px 12px; border-radius: 7px; background: var(--pf-accent); color: var(--bg); font-weight: 500; }
+.mac-btn .ig-pulse, .mac-hit .ig-pulse { border-radius: 8px; inset: -3px; }
+.mac-menu { position: absolute; top: 22px; left: 74px; z-index: 9; width: 210px; padding: 5px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); box-shadow: 0 14px 30px -10px rgba(0, 0, 0, 0.5); }
+.mac-menu > div { display: flex; justify-content: space-between; align-items: center; padding: 5px 9px; border-radius: 5px; }
+.mac-menu kbd { font: inherit; color: var(--fg3); }
+.mac-sep { height: 1px; margin: 4px 0; padding: 0 !important; background: var(--hair); border-radius: 0 !important; }
+.mac-hit { position: relative; background: var(--pf-accent); color: var(--bg); font-weight: 500; }
+.mac-hit kbd { color: inherit; }
+.mac-sheet { position: absolute; z-index: 4; left: 50%; top: 40px; width: 216px; margin-left: -108px; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 16px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); box-shadow: 0 14px 30px -10px rgba(0, 0, 0, 0.5); }
+.mac-sheet img { border-radius: 10px; }
+.mac-sheet b { font-size: 13px; font-weight: 600; }
+.mac-sheet .mac-pop-act { align-self: stretch; margin-top: 6px; }
+.mac-field { align-self: stretch; padding: 6px 9px; border-radius: 6px; border: 1px solid var(--hair); background: var(--raise); }
+.mac-titlebar { position: relative; display: flex; align-items: center; justify-content: center; height: 28px; background: var(--panel); border-bottom: 1px solid var(--hair); color: var(--fg2); font-weight: 500; }
+.mac-titlebar .mac-lights { position: absolute; left: 10px; }
+.mac-dock { position: absolute; z-index: 5; left: 50%; bottom: 8px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 15px; border: 1px solid var(--hair); background: color-mix(in srgb, var(--panel) 72%, transparent); }
+.mac-dock > span { width: 34px; height: 34px; border-radius: 9px; opacity: 0.85; }
+.mac-dock-quiet { opacity: 0.7; }
+.mac-dock-pf { position: relative; opacity: 1 !important; }
+.mac-dock-pf img { display: block; border-radius: 9px; border: 1px solid var(--hair); }
+.mac-dock-pf .ig-pulse { inset: -5px; border-radius: 12px; }
+.ig-row-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+@media (max-width: 1100px) {
+  .ig-row-3 .ig-step { width: 372px; }
+}
+@media (max-width: 700px) {
+  .ig-seg button { padding: 0 14px; }
+}

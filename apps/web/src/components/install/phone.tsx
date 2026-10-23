@@ -25,9 +25,16 @@ export function Phone({ children, android }: { children: React.ReactNode; androi
   )
 }
 
-/** The tap target ring. Transform and opacity only, and still under reduced motion. */
+/**
+ * Marks the thing to tap: a steady ring with a soft halo, and a translucent fingertip that glides in, presses
+ * and lifts on a slow loop. Nothing blinks; transform and opacity only, and it holds still under reduced motion.
+ */
 export function Pulse() {
-  return <span className="ig-pulse" aria-hidden />
+  return (
+    <span className="ig-pulse" aria-hidden>
+      <i className="ig-touch" />
+    </span>
+  )
 }
 
 export function Step({ n, title, body, children }: { n: number; title: string; body: string; children: React.ReactNode }) {
@@ -45,15 +52,18 @@ export function Step({ n, title, body, children }: { n: number; title: string; b
 
 /**
  * A real capture of the app (390px wide, the actual mobile layout), in both themes; CSS shows the one that matches.
- * "browser" is the page as it sits inside Safari or Chrome, "standalone" is the full-screen installed app.
+ * Each size is captured to fill its slot exactly, so the app's own tab bar always sits flush above the browser bar:
+ * "bottom" fits under a bottom-bar browser (Safari, Samsung Internet), "top" under a top-bar one (Chrome, Firefox),
+ * "standalone" is the full-screen installed app.
  */
-export function Shot({ kind, dim }: { kind: "browser" | "standalone"; dim?: boolean }) {
+export function Shot({ kind, dim }: { kind: "bottom" | "top" | "standalone"; dim?: boolean }) {
+  const h = kind === "bottom" ? 663 : kind === "top" ? 718 : 846
   return (
     <div className={`ig-shot ig-shot-${kind}`}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img className="ig-img-light" src={`/install/${kind}-light.jpg`} alt="" width={780} height={kind === "browser" ? 1400 : 1692} decoding="async" />
+      <img className="ig-img-light" src={`/install/${kind}-light.jpg`} alt="" width={780} height={h * 2} decoding="async" />
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img className="ig-img-dark" src={`/install/${kind}-dark.jpg`} alt="" width={780} height={kind === "browser" ? 1400 : 1692} decoding="async" />
+      <img className="ig-img-dark" src={`/install/${kind}-dark.jpg`} alt="" width={780} height={h * 2} decoding="async" />
       {dim && <span className="ig-dim" />}
     </div>
   )

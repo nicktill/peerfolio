@@ -217,6 +217,26 @@ export function PortfolioScreen({
   ]
   const dayView = oneDay && hasDay
   const windowCoversAll = range === "ALL" || !available[range]
+  const rangePicker =
+    rangeOptions.length > 1
+      ? (wide: boolean) => (
+          <Segmented<Range | "1D">
+            variant="underline"
+            options={rangeOptions}
+            value={dayView ? "1D" : range}
+            onChange={(r) => {
+              pickedRange.current = true
+              setHoverIndex(null)
+              setOneDay(r === "1D")
+              setReplayDate(null)
+              if (r !== "1D") setRange(r)
+            }}
+            size="sm"
+            label="Time range"
+            className={wide ? "w-full [&>button]:flex-1" : undefined}
+          />
+        )
+      : null
 
   // One chart for both questions: the line is what it's worth (dollars, moved by
   // deposits); the readout beside it is how the investments did on that date
@@ -293,21 +313,21 @@ export function PortfolioScreen({
           <h1 className="pf-h1">Portfolio</h1>
           <p className="mt-2 text-sm leading-[22px] text-muted-foreground">Your accounts and investments, in one place.</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 max-sm:ml-auto max-sm:shrink-0 max-sm:flex-nowrap">
           {data.isVerified ? (
-            <Badge variant="verified">
+            <Badge variant="verified" className="whitespace-nowrap">
               <ShieldCheck aria-hidden />
               Verified
             </Badge>
           ) : (
-            <Badge variant="outline">Self-reported</Badge>
+            <Badge variant="outline" className="whitespace-nowrap">Self-reported</Badge>
           )}
           {demo ? (
-            <Badge variant="outline" className="border-dashed">
+            <Badge variant="outline" className="whitespace-nowrap border-dashed max-sm:hidden">
               Sample data
             </Badge>
           ) : null}
-          <Button variant="ghost" size="icon" onClick={() => setHidden(!hidden)} title={hidden ? "Show amounts" : "Hide amounts (returns stay visible)"}>
+          <Button variant="ghost" size="icon" className="max-sm:ml-auto" onClick={() => setHidden(!hidden)} title={hidden ? "Show amounts" : "Hide amounts (returns stay visible)"}>
             {hidden ? <Eye className="h-4 w-4" aria-hidden /> : <EyeOff className="h-4 w-4" aria-hidden />}
             <span className="sr-only">{hidden ? "Show amounts" : "Hide amounts"}</span>
           </Button>
@@ -332,23 +352,8 @@ export function PortfolioScreen({
                   Live · market open
                 </span>
               ) : null}
-            {rangeOptions.length > 1 ? (
-              <div className="ml-auto flex justify-end">
-                <Segmented<Range | "1D">
-                  options={rangeOptions}
-                  value={dayView ? "1D" : range}
-                  onChange={(r) => {
-                    pickedRange.current = true
-                    setHoverIndex(null)
-                    setOneDay(r === "1D")
-                    setReplayDate(null)
-                    if (r !== "1D") setRange(r)
-                  }}
-                  size="sm"
-                  label="Time range"
-                />
-              </div>
-            ) : null}
+            {/* Desktop keeps the range in the panel head; on phones it sits under the chart, beside what it controls. */}
+            {rangePicker ? <div className="ml-auto hidden justify-end sm:flex">{rangePicker(false)}</div> : null}
 
             </div>
 
@@ -479,6 +484,7 @@ export function PortfolioScreen({
                     valueFormatter={(v) => (hidden ? "Hidden" : formatCurrency(v))}
                   />
                 </div>
+                {rangePicker ? <div className="mt-1 sm:hidden">{rangePicker(true)}</div> : null}
                 {!dayView ? (
                   <BenchmarkCompare choice={bench} onChoose={chooseBench} loading={cmp.loading} error={cmp.error} result={bench === "OFF" ? null : cmp.data} simulated={demo} />
                 ) : null}
