@@ -1,5 +1,5 @@
 import type React from "react"
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { Bricolage_Grotesque, Hanken_Grotesk, IBM_Plex_Mono, Newsreader } from "next/font/google"
 import "./globals.css"
 import "./peerfolio-5c.css"
@@ -52,14 +52,20 @@ export const metadata: Metadata = {
   icons: {
     icon: "/favicon.png",
     shortcut: "/favicon.png",
-    apple: "/favicon.png",
+    apple: "/icons/icon-180.png",
   },
+  appleWebApp: { capable: true, title: SITE.name, statusBarStyle: "black-translucent" },
+  formatDetection: { telephone: false },
 }
 
-export const viewport = {
+export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  viewportFit: "cover" as const,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#eceff2" },
+    { media: "(prefers-color-scheme: dark)", color: "#0d0f11" },
+  ],
 }
 
 export default function RootLayout({
