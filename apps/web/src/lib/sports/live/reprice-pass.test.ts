@@ -446,3 +446,22 @@ describe("quiet-hours cadence (default SPORTS_QUIET_HOURS_UTC 5-15)", () => {
     assert.equal(await run(130), 1)
   })
 })
+
+
+it("retains compact pregame candidates rather than raw market payloads across passes", async () => {
+  const h = harness([target()])
+  const original = h.deps.getJson
+  h.deps.getJson = async (url) => url.includes("gamma-api")
+    ? gamma().map((game) => ({ ...game, description: "x".repeat(1_000_000), markets: [...game.markets, { description: "y".repeat(1_000_000) }] }))
+    : original(url)
+  const st = newWorkerState()
+  const first = await runRepricePass(h.deps, st, NOW)
+  assert.equal(first?.matched, 1)
+  assert.equal(first?.updated, 1)
+  assert.ok(JSON.stringify(st.slow.get("pm-pre:nba")?.value).length < 2000)
+  const calls = h.calls.length
+  st.reprice.nextListAt = 0
+  st.reprice.lastPassAt = 0
+  await runRepricePass(h.deps, st, plus(10_000))
+  assert.equal(h.calls.length, calls + 1) // fresh books, cached discovery and Kalshi
+})
