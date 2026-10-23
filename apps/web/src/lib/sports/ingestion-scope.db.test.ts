@@ -60,6 +60,15 @@ describe("sports ingestion scope against Postgres", { skip: url ? false : "PEERF
     assert.deepEqual(await sports(), ["nba", "nfl"])
     assert.deepEqual(await events(), ["basketball", "football"])
   })
+  it("survives leagues whose sports value is not a jsonb array", async () => {
+    await league("good", ["nba"])
+    for (const [id, value] of [["scalar", '"nba"'], ["object", '{"a":1}'], ["null", "null"], ["number", "7"], ["garbled", '"[nba"'], ["encoded", '"[\\"nfl\\"]"']]) {
+      await db.unsafe("INSERT INTO sports_leagues VALUES ($1,$2::text::jsonb,NULL)", [id, value])
+      await db.unsafe("INSERT INTO sports_members VALUES ($1,$1)", [id])
+    }
+    assert.deepEqual(await sports(), ["nba", "nfl"])
+    assert.deepEqual(await events(), ["basketball", "football"])
+  })
   it("ignores expired and empty leagues, including the exact expiry instant", async () => {
     await league("expired", ["nba"], now.toISOString())
     await league("empty", ["nfl"], null, false)

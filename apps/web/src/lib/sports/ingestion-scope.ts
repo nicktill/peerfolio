@@ -2,9 +2,18 @@ import { sql } from "drizzle-orm"
 import { sportsEvents } from "../../db/schema.ts"
 import { ACTIVITY_NAME, ACTIVITY_WINDOW_MS } from "./live/activity.ts"
 
-/** Sports offered by an unfinished league with members. Existing pick obligations are handled separately. */
+/**
+ * Sports offered by an unfinished league with members. Existing pick obligations are handled separately.
+ * `sports` is read defensively: jsonb_array_elements_text raises on any non-array value ("cannot extract elements from a scalar"),
+ * and one such row would fail every worker and cron query. A JSON-encoded array of plain names stored as a string is unwrapped; anything else offers nothing.
+ */
 export function leagueSportsSql(now: Date) {
-  return sql`SELECT DISTINCT jsonb_array_elements_text(l.sports) AS sport
+  return sql`SELECT DISTINCT jsonb_array_elements_text(
+      CASE
+        WHEN jsonb_typeof(l.sports) = 'array' THEN l.sports
+        WHEN jsonb_typeof(l.sports) = 'string' AND (l.sports #>> '{}') ~ '^[[][[:space:]]*("[a-z0-9_]+"[[:space:]]*(,[[:space:]]*"[a-z0-9_]+"[[:space:]]*)*)?[]]$' THEN (l.sports #>> '{}')::jsonb
+        ELSE '[]'::jsonb
+      END) AS sport
     FROM sports_leagues l
     WHERE (l.ends_at IS NULL OR l.ends_at > ${now.toISOString()}::timestamptz)
       AND EXISTS (SELECT 1 FROM sports_members member WHERE member.league_id = l.id)`
