@@ -34,7 +34,7 @@ export function RequestMore({ limit, full }: { limit: number; full: boolean }) {
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className="w-fit text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground">
+      <button type="button" onClick={() => setOpen(true)} className="pf-request-more w-fit text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground">
         Request more connections
       </button>
       <Dialog

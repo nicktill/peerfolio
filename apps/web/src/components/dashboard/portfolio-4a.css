@@ -95,10 +95,13 @@
 }
 
 @media(max-width:639px) {
- .portfolio-screen .pf-account-actions { flex-wrap:nowrap; align-items:center; gap:12px; }
- .portfolio-screen .pf-account-actions > button { min-width:0; height:40px; padding-inline:12px; font-size:12px; white-space:nowrap; }
- .portfolio-screen .pf-account-actions > button:disabled { border-color:transparent; background:transparent; padding-inline:0; font-size:11px; }
+ /* Buttons share the first line; the cap note and request link wrap onto their own full-width lines below. */
+ .portfolio-screen .pf-account-actions { flex-wrap:wrap; align-items:center; gap:8px 12px; }
+ .portfolio-screen .pf-account-actions > button { flex:0 0 auto; min-width:max-content; height:40px; padding-inline:12px; font-size:12px; white-space:nowrap; }
+ .portfolio-screen .pf-account-actions > button:disabled { flex:1 1 0; min-width:0; border-color:transparent; background:transparent; padding-inline:0; font-size:11px; }
  .portfolio-screen .pf-account-actions > button svg { width:15px; height:15px; }
+ .portfolio-screen .pf-account-actions > p { flex:1 1 100%; min-width:0; }
+ .portfolio-screen .pf-account-actions > button.pf-request-more { flex:1 1 100%; min-width:0; height:auto; padding:0; text-align:left; font-size:12px; white-space:normal; }
 }
 
 /* Let the lower holdings track fit its content rather than stretch. */
