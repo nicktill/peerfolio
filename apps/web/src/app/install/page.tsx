@@ -8,10 +8,16 @@ import {
 import "../landing.css"
 import "./install.css"
 
+const TITLE = "Add Peerfolio to your home screen"
+const DESCRIPTION = "Opens full-screen like any app. Four taps, nothing to download. Step by step for iPhone and Android."
+const SHARE_IMAGE = { url: "/install/share-image", width: 1200, height: 630, alt: "Peerfolio on a phone home screen" }
+
 export const metadata: Metadata = {
   title: "Install the app",
-  description: "Add Peerfolio to your phone's home screen. It opens full-screen like any other app, in four taps.",
+  description: DESCRIPTION,
   alternates: { canonical: "/install" },
+  openGraph: { type: "website", url: "/install", title: TITLE, description: DESCRIPTION, siteName: "Peerfolio", images: [SHARE_IMAGE] },
+  twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION, images: [SHARE_IMAGE.url] },
 }
 
 const HOST = "peerfolio.org"
