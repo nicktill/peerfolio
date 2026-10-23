@@ -1,0 +1,16 @@
+# Throwaway probe: does the live-odds hot path fit a Durable Object alarm on the Workers FREE plan?
+# It only reads public Polymarket data and stores nothing. No database, no secrets. Delete it after the test:
+#   npx wrangler delete --name peerfolio-live-odds-probe
+name = "peerfolio-live-odds-probe"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+
+[[durable_objects.bindings]]
+name = "PROBE"
+class_name = "Probe"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Probe"]

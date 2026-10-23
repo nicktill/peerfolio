@@ -1,0 +1,7 @@
+{
+  "name": "peerfolio-live-odds-do-probe",
+  "private": true,
+  "type": "module",
+  "scripts": { "dev": "wrangler dev", "deploy": "wrangler deploy", "tail": "wrangler tail --format json" },
+  "devDependencies": { "wrangler": "^4.0.0" }
+}
