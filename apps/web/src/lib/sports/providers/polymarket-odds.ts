@@ -237,9 +237,10 @@ export function planGames(sport: Sport, schedule: EventResult[], groups: PmGameG
     // College football and basketball: Polymarket titles carry the school only ("Troy"), ESPN's full name adds the nickname ("Troy Trojans").
     // Retry on ESPN's school name. Same rules apply (both teams, close start, unique), so a near-miss still stays unmatched.
     if (!m && (sport === "cfb" || sport === "ncaab") && e.homeShort && e.awayShort) m = matchGame({ homeName: e.homeShort, awayName: e.awayShort, startsAt: e.startsAt }, candidates)
-    // MLS: exchanges often write the city alone ("Atlanta", "Seattle") where ESPN writes the club. Retry accepting a leading city;
-    // still both teams, close start and unique, and a city that fits both sides ("Los Angeles" vs "Los Angeles") stays unmatched.
-    if (!m && isSoccer(sport)) m = matchGame({ homeName: e.homeName, awayName: e.awayName, startsAt: e.startsAt }, candidates, { loose: true })
+    // MLS: exchanges often write the city alone ("Atlanta", "Seattle") where ESPN writes the club; NHL: "Utah" for "Utah Mammoth".
+    // Retry accepting a leading city; still both teams, close start and unique, and a city that fits both sides ("Los Angeles" vs
+    // "Los Angeles") stays unmatched.
+    if (!m && (isSoccer(sport) || sport === "nhl")) m = matchGame({ homeName: e.homeName, awayName: e.awayName, startsAt: e.startsAt }, candidates, { loose: true })
     if (!m) {
       unmatched++
       continue

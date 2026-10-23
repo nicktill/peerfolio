@@ -84,6 +84,9 @@ const ALIAS: Record<string, string> = {
   "miami fl": "miami",
   // ESPN's short name is "App State"; Polymarket writes "Appalachian State".
   "appalachian state": "app state",
+  // ESPN's short names are "Massachusetts" and "UL Monroe"; Polymarket writes "UMass" and "Louisiana-Monroe".
+  umass: "massachusetts",
+  "louisiana monroe": "ul monroe",
 }
 
 /**
@@ -161,6 +164,18 @@ export function matchGame<C extends Candidate>(
     if (a.gapMs == null || b.gapMs == null || b.gapMs - a.gapMs < AMBIGUOUS_MS) return null
   }
   return found[0]!
+}
+
+/**
+ * Sports whose exchange titles use a bare school, city or short club name where we store ESPN's full name: Polymarket writes "Duke"
+ * for "Duke Blue Devils", "Utah" for "Utah Mammoth", "Rayo Vallecano" for ESPN's longer club name. For these a strict miss is retried
+ * with the leading-name rule; both teams, a close start and a unique fit are still required.
+ */
+const LOOSE_RETRY = new Set(["cfb", "ncaab", "nhl", "mls", "epl", "laliga", "ucl"])
+
+/** matchGame for an exchange game list (Polymarket): strict first, then the loose retry for the sports above. */
+export function matchExchangeGame<C extends Candidate>(sport: string, ref: GameRef, candidates: C[]): Match<C> | null {
+  return matchGame(ref, candidates) ?? (LOOSE_RETRY.has(sport) ? matchGame(ref, candidates, { loose: true }) : null)
 }
 
 /** Orients a "first-second" score pair to our home and away. */

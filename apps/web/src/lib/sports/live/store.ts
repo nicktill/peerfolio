@@ -2,12 +2,12 @@ import { and, eq, gt, inArray, sql } from "drizzle-orm"
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js"
 import * as schema from "../../../db/schema.ts"
 import type { HealthGame, HealthInput } from "./health.ts"
-import { liveWantedEventSql } from "../ingestion-scope.ts"
+import { liveWantedEventSql, trackedEventSql } from "../ingestion-scope.ts"
 import { ACTIVITY_NAME, ACTIVITY_TOUCH_MS } from "./activity.ts"
 import { liveSlate, type SlateEvent } from "./plan.ts"
 import { DEFAULT_RETENTION, retentionCutoffs, type RetentionPolicy } from "./retention.ts"
 import type { LiveGameState, NormalizedQuote } from "./types.ts"
-import { buildLiveView, READ_WINDOW_MS, type LiveView, type QuoteRow } from "./view.ts"
+import { buildLiveView, READ_WINDOW_MS, type LiveView, type QuoteRow, type StateRow } from "./view.ts"
 
 /**
  * Database layer for the live odds tables. Takes the drizzle client as a parameter so Next routes and the
@@ -80,9 +80,23 @@ export async function loadLiveSlate(db: Db, now: Date): Promise<(SlateEvent & { 
   return liveSlate(rows, now)
 }
 
-/** The served view of one game, newest row per key. Returns null for an unknown game. */
-export async function readLiveView(db: Db, eventId: string, now: Date): Promise<LiveView | null> {
-  const [event] = await db.select({ id: sportsEvents.id, status: sportsEvents.status, sport: sportsEvents.sport }).from(sportsEvents).where(eq(sportsEvents.id, eventId)).limit(1)
+/** What buildLiveView needs for one game, plus the event fields an on-demand read needs (live/on-demand.ts). Null for an unknown game. */
+export type LiveInput = {
+  eventId: string
+  eventStatus: string
+  sport: string
+  quotes: QuoteRow[]
+  state: StateRow | null
+  event: SlateEvent & { externalId: string }
+}
+
+/** Stored rows for one game, newest row per key. Returns null for an unknown game. */
+export async function readLiveInput(db: Db, eventId: string, now: Date): Promise<LiveInput | null> {
+  const [event] = await db
+    .select({ id: sportsEvents.id, externalId: sportsEvents.externalId, status: sportsEvents.status, sport: sportsEvents.sport, startsAt: sportsEvents.startsAt, homeName: sportsEvents.homeName, awayName: sportsEvents.awayName })
+    .from(sportsEvents)
+    .where(eq(sportsEvents.id, eventId))
+    .limit(1)
   if (!event) return null
   const since = new Date(now.getTime() - READ_WINDOW_MS)
   const quotes = await db.execute<QuoteRow>(sql`
@@ -93,16 +107,20 @@ export async function readLiveView(db: Db, eventId: string, now: Date): Promise<
     ORDER BY market, selection, source, fetched_ts DESC`)
   const [state] = await db.select().from(liveState).where(eq(liveState.eventId, eventId)).limit(1)
   const toDate = (v: unknown) => (v == null ? null : v instanceof Date ? v : new Date(String(v)))
-  return buildLiveView(
-    {
-      eventId,
-      eventStatus: event.status,
-      sport: event.sport,
-      quotes: [...quotes].map((q) => ({ ...q, sourceTs: toDate(q.sourceTs), fetchedTs: toDate(q.fetchedTs)! })),
-      state: state ?? null,
-    },
-    now,
-  )
+  return {
+    eventId,
+    eventStatus: event.status,
+    sport: event.sport,
+    quotes: [...quotes].map((q) => ({ ...q, sourceTs: toDate(q.sourceTs), fetchedTs: toDate(q.fetchedTs)! })),
+    state: state ?? null,
+    event,
+  }
+}
+
+/** The served view of one game, newest row per key. Returns null for an unknown game. */
+export async function readLiveView(db: Db, eventId: string, now: Date): Promise<LiveView | null> {
+  const input = await readLiveInput(db, eventId, now)
+  return input ? buildLiveView(input, now) : null
 }
 
 /**
@@ -141,6 +159,19 @@ export async function nextStartAfter(db: Db, now: Date): Promise<Date | null> {
   return row?.at ? new Date(row.at) : null
 }
 
+/**
+ * Earliest start of any tracked scheduled game, watched or not. The quiet-hours hourly sleep keys on this, not on nextStartAfter:
+ * the publish guard trusts an announced hourly sleep (see reprice.ts workerBeating), so no tracked game may start within the
+ * repricing window plus an hour of it, even one nobody is watching.
+ */
+export async function nextTrackedStartAfter(db: Db, now: Date): Promise<Date | null> {
+  const [row] = await db
+    .select({ at: sql<Date | string | null>`min(${sportsEvents.startsAt})` })
+    .from(sportsEvents)
+    .where(and(trackedEventSql(now), eq(sportsEvents.status, "scheduled"), gt(sportsEvents.startsAt, now)))
+  return row?.at ? new Date(row.at) : null
+}
+
 export type HeartbeatInput = { name: string; at: Date; ok: boolean; consecutiveFailures: number; details: Record<string, unknown> }
 
 /** One row per worker, overwritten each cycle: lets /api/sports/live/health answer without reading logs. */
@@ -154,13 +185,20 @@ export async function writeHeartbeat(db: Db, h: HeartbeatInput): Promise<void> {
 
 let lastTouchAt = 0
 
-/** Marks the sports pages as in use. Throttled per server instance, never throws: a failed stamp must not fail the viewer's request. */
-export async function touchSportsActivity(db: Db, now: Date = new Date()): Promise<void> {
-  if (now.getTime() - lastTouchAt < ACTIVITY_TOUCH_MS) return
+/**
+ * Marks the sports pages as in use. Throttled per server instance, never throws: a failed stamp must not fail the viewer's request.
+ * True when this call wrote the stamp, so the caller can raise the worker's wake signal after it (live/watch.ts).
+ */
+export async function touchSportsActivity(db: Db, now: Date = new Date()): Promise<boolean> {
+  if (now.getTime() - lastTouchAt < ACTIVITY_TOUCH_MS) return false
   lastTouchAt = now.getTime()
-  await writeHeartbeat(db, { name: ACTIVITY_NAME, at: now, ok: true, consecutiveFailures: 0, details: {} }).catch(() => {
-    lastTouchAt = 0
-  })
+  return writeHeartbeat(db, { name: ACTIVITY_NAME, at: now, ok: true, consecutiveFailures: 0, details: {} }).then(
+    () => true,
+    () => {
+      lastTouchAt = 0
+      return false
+    },
+  )
 }
 
 /** When the sports pages were last in use, or null if never. */
