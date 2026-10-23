@@ -285,6 +285,10 @@ a.pf-row:hover, .pf-row.hov:hover { background: var(--raise); }
   .peerfolio-mobile-header .peerfolio-logo { width: 25px; height: 25px; }
   .peerfolio-mobile-control { display: grid; place-items: center; width: 40px; height: 40px; border-radius: var(--r-s); color: var(--fg2); }
   .peerfolio-mobile-header button { border: 1px solid var(--line); border-radius: var(--r-s); width: 40px; height: 40px; color: var(--fg2); }
+  .pf-mobile-admin { position: relative; }
+  .pf-mobile-admin-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 50; min-width: 210px; padding: 6px; display: grid; gap: 2px; background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-m, 12px); box-shadow: 0 12px 32px rgb(0 0 0 / .35); }
+  .pf-mobile-admin-menu a { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 12px; border-radius: var(--r-s); color: var(--fg2); font-size: 14px; }
+  .pf-mobile-admin-menu a:hover, .pf-mobile-admin-menu a[aria-current="page"] { background: var(--raise); color: var(--fg); }
   .peerfolio-mobile-control:hover { background: var(--raise); color: var(--fg); }
   .peerfolio-tabbar {
     display: grid; grid-template-columns: repeat(5, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
