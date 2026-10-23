@@ -21,8 +21,9 @@ function getKey(): Buffer {
     throw new Error("ENCRYPTION_KEY must be exactly 64 hex characters (32 bytes).")
   }
 
-  cachedKey = Buffer.from(raw, "hex")
-  return cachedKey
+  const key = Buffer.from(raw, "hex")
+  cachedKey = key
+  return key
 }
 
 /**

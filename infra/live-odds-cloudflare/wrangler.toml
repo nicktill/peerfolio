@@ -1,0 +1,17 @@
+name = "peerfolio-live-odds-prototype"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+[vars]
+DRY_RUN = "1"
+LIVE_ODDS_ENABLED = "0"
+APP_URL = "https://www.peerfolio.org"
+[[durable_objects.bindings]]
+name = "LIVE_ODDS"
+class_name = "LiveOdds"
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["LiveOdds"]
+[observability]
+enabled = true
