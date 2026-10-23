@@ -15,3 +15,15 @@ tag = "v1"
 new_sqlite_classes = ["LiveOdds"]
 [observability]
 enabled = true
+
+# Isolated, authenticated read-only preflight host. Deploy only after owner approval.
+[env.validation]
+name = "peerfolio-live-odds-validation"
+workers_dev = true
+[env.validation.vars]
+DRY_RUN = "1"
+LIVE_ODDS_ENABLED = "0"
+APP_URL = "https://www.peerfolio.org"
+[[env.validation.durable_objects.bindings]]
+name = "LIVE_ODDS"
+class_name = "LiveOdds"

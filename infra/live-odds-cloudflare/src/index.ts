@@ -9,6 +9,7 @@ import {
 } from "../../../apps/web/src/lib/sports/live/worker.ts"
 import { createAdapter, type AdapterEnv } from "./adapter.ts"
 import { nextRecovery } from "./recovery.ts"
+import { databasePreflight } from "./preflight.ts"
 type Env = AdapterEnv & {
   LIVE_ODDS: DurableObjectNamespace<LiveOdds>
   DRY_RUN?: string
@@ -204,6 +205,17 @@ export class LiveOdds extends DurableObject<Env> {
           `Bearer ${this.env.CRON_SECRET}`
       )
         return new Response("Unauthorized", { status: 401 })
+      if (request.method === "POST" && path === "/preflight") {
+        // This operator-only probe must never arm or compete with the current Node owner.
+        if (this.env.DRY_RUN !== "1" || this.env.LIVE_ODDS_ENABLED !== "0" || this.saved.armed)
+          return new Response("Preflight requires disabled, unarmed worker", { status: 409 })
+        try {
+          return Response.json(await databasePreflight(this.env.DATABASE_URL), { headers: { "cache-control": "no-store" } })
+        } catch {
+          // Driver errors may contain connection details; never return or log them.
+          return Response.json({ ok: false, error: "Database preflight failed" }, { status: 503, headers: { "cache-control": "no-store" } })
+        }
+      }
       if (request.method === "POST" && path === "/start") {
         if (!this.enabled())
           return new Response("Disabled: activation gates not satisfied", {

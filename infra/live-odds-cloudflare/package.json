@@ -4,10 +4,14 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev --local",
-    "build": "wrangler deploy --dry-run"
+    "build": "wrangler deploy --dry-run",
+    "test:resources": "node scripts/check-local-resources.mjs",
+    "test:controls": "node scripts/check-local-controls.mjs"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261023.1",
-    "wrangler": "^4.0.0"
+    "wrangler": "^4.0.0",
+    "esbuild": "0.28.2",
+    "miniflare": "5.20261019.2-beta"
   }
 }
