@@ -133,3 +133,22 @@ test("GitHub requires deliberate scheduler selection; manual recovery still work
   }
   assert.match(readFileSync(new URL("../wrangler.toml", import.meta.url), "utf8"), /DRY_RUN = "1"/)
 })
+
+test("news, snapshot and sports match current workflow and Vercel schedules for a full week", () => {
+  const vercel = JSON.parse(readFileSync(new URL("../../../apps/web/vercel.json", import.meta.url), "utf8"))
+  const githubCrons = (name: string) => [...workflow(name).matchAll(/cron: "([^"]+)"/g)].map((match) => match[1]!.split(" "))
+  const expectedCrons: Record<string, string[][]> = {
+    news: [...githubCrons("news"), ...vercel.crons.filter((cron: { path: string }) => cron.path === "/api/cron/news").map((cron: { schedule: string }) => cron.schedule.split(" "))],
+    snapshot: vercel.crons.filter((cron: { path: string }) => cron.path === "/api/cron/snapshot").map((cron: { schedule: string }) => cron.schedule.split(" ")),
+    "sports-settle": githubCrons("sports"),
+    "sports-publish": githubCrons("sports"),
+  }
+  for (const [name, crons] of Object.entries(expectedCrons)) {
+    assert.ok(crons.length > 0, `missing source schedule for ${name}`)
+    for (let minute = 0; minute < 7 * 24 * 60; minute++) {
+      const now = new Date(Date.parse("2026-10-19T00:00:00Z") + minute * 60_000)
+      const expected = crons.some(([m, h, , , dow]) => matches(m!, now.getUTCMinutes()) && matches(h!, now.getUTCHours()) && matches(dow!, now.getUTCDay()))
+      assert.equal(jobsFor(now, { sports: true }).some((job) => job.name === name), expected, `${name} ${now.toISOString()}`)
+    }
+  }
+})

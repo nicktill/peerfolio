@@ -1273,8 +1273,12 @@ export async function freezeForReason(db: Db, marketId: string, reason: string):
 export async function lockDueMarkets(db: Db, now: Date) {
   const open = await db.select().from(sportsMarkets).where(eq(sportsMarkets.status, "open"))
   const due = marketsToLock(open, now)
-  if (due.length) await db.update(sportsMarkets).set({ status: "locked" }).where(inArray(sportsMarkets.id, due.map((m) => m.id)))
-  return due.length
+  if (!due.length) return 0
+  // A settlement may finish after the read above: only the still-open rows can move forward to locked.
+  const locked = await db.update(sportsMarkets).set({ status: "locked" })
+    .where(and(inArray(sportsMarkets.id, due.map((m) => m.id)), eq(sportsMarkets.status, "open")))
+    .returning({ id: sportsMarkets.id })
+  return locked.length
 }
 
 /* ---------------- settlement ---------------- */

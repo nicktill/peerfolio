@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --experimental-strip-types --test test/schedule.test.ts",
+    "test": "node --experimental-strip-types --test test/*.test.ts",
     "deploy": "wrangler deploy",
     "tail": "wrangler tail"
   },
