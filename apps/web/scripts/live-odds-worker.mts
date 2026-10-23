@@ -141,7 +141,9 @@ while (!stopping) {
   } catch (error) {
     threw = true
     state.stats.errors++
-    out("error", "live.cycle_failed", { error: clip(error) })
+    // drizzle wraps the driver error ("Failed query: ..."); the Postgres message and code are on `cause`.
+    const cause = (error as { cause?: { message?: string; code?: string } } | null)?.cause
+    out("error", "live.cycle_failed", { error: clip(error), cause: cause ? clip(`${cause.code ?? ""} ${cause.message ?? ""}`) : undefined })
   }
   const slate = result?.slate ?? 0
   const failed = cycleFailed({ threw, slate, okCalls: result?.okCalls ?? 0, failCalls: result?.failCalls ?? 0, skippedBackoff: result?.skippedBackoff ?? 0 })
