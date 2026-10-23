@@ -4,6 +4,7 @@ import { SessionProvider } from "next-auth/react"
 import { MotionConfig } from "motion/react"
 import { ThemeProvider } from "next-themes"
 import { BootScreen } from "@web/components/boot-screen"
+import { VersionWatcher } from "@web/components/version-watcher"
 import { ConfirmProvider } from "@web/components/ui/confirm"
 import { ToastProvider } from "@web/components/ui/toast"
 
@@ -20,6 +21,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           <ToastProvider>
             <ConfirmProvider>{children}</ConfirmProvider>
             <BootScreen />
+            <VersionWatcher />
           </ToastProvider>
         </MotionConfig>
       </ThemeProvider>

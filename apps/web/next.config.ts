@@ -8,7 +8,11 @@ import type { NextConfig } from "next";
 const plaidLinking = process.env.PLAID_ENV === "production" || process.env.ENABLE_PLAID_SANDBOX === "true";
 
 const nextConfig: NextConfig = {
-  env: { NEXT_PUBLIC_PLAID_LINKING: plaidLinking ? "1" : "" },
+  env: {
+    NEXT_PUBLIC_PLAID_LINKING: plaidLinking ? "1" : "",
+    // Stamps each deploy so an open app can tell when a newer one exists (see components/version-watcher.tsx).
+    NEXT_PUBLIC_BUILD_ID: process.env.VERCEL_GIT_COMMIT_SHA ?? "dev",
+  },
   // Add this to ignore ESLint warnings during builds
   eslint: {
     ignoreDuringBuilds: true, // This will stop warnings from blocking deployment

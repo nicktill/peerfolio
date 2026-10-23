@@ -70,3 +70,19 @@ test("missing secret fails a live scheduled invocation before dispatch", async (
 test("dry run can validate schedules without a secret and never dispatches", async () => {
   await worker.scheduled({ scheduledTime: when.getTime() }, { ...env, CRON_SECRET: "", DRY_RUN: "1" }, { waitUntil: () => { assert.fail("dry run dispatched a request") } })
 })
+
+test("default fetch preserves the native global receiver", async () => {
+  const original = globalThis.fetch
+  let called = false
+  globalThis.fetch = function (this: unknown) {
+    assert.equal(this, globalThis)
+    called = true
+    return Promise.resolve(new Response(null, { status: 200 }))
+  } as typeof fetch
+  try {
+    await executeJobs(env, [prices], when)
+    assert.equal(called, true)
+  } finally {
+    globalThis.fetch = original
+  }
+})
