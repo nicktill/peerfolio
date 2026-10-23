@@ -1,8 +1,11 @@
 name: Plaid persistence regressions
 on:
-  pull_request:
-  push:
-    branches: [main]
+  # Automatic coverage lives in import-checks.yml and shares its npm installation.
+  # Keep this standalone workflow for manual diagnosis or rollback.
+  workflow_dispatch: {}
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:

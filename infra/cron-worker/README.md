@@ -30,12 +30,15 @@ npx wrangler tail                 # watch the "would call" lines for a day
 ## Cut over (in this order)
 
 1. Dry run for a day: compare the Worker's log lines with what GitHub Actions and Vercel actually ran.
-2. Set `DRY_RUN = "0"` in `wrangler.toml` and `npx wrangler deploy`. Both the old schedulers and the Worker now run.
-   Settle and publish already tolerate overlapping callers; confirm prices, news and snapshot do too before leaving this on.
-3. After 2 to 3 healthy days: remove the sports crons (and optionally snapshot and news) from `apps/web/vercel.json`, and
-   disable the schedules in `prices.yml` and `news.yml` (keep `workflow_dispatch`). Keep `SPORTS_SCHEDULER` unset so the
-   GitHub sports publish/settle jobs stay off; latency measurement is a separate opt-in. The live-odds worker is separate.
-4. Rollback: re-add the crons and schedules, set `DRY_RUN = "1"` or delete the Worker.
+2. Prepare removal of the four crons in `apps/web/vercel.json` and automatic schedules in `prices.yml`, `news.yml` and
+   `sports.yml`; keep manual dispatch for recovery. Update the schedule tests to verify the preserved Cloudflare timetable.
+   Keep `SPORTS_SCHEDULER` unset and disable the optional ESPN latency measurement. The live-odds worker is separate.
+3. Between scheduled slots, disable the old automatic owners and verify the production deployment has applied the removal.
+   Then set `DRY_RUN = "0"` and deploy before the next due slot. Do not leave both owners enabled: even idempotent jobs repeat
+   provider work, database queries and snapshot syncs. If the next slot cannot be reached safely, restore the old owner first.
+4. Capture successful authenticated publish, settle, prices, news and snapshot calls as their slots occur, and check CPU time
+   and invocation outcomes. Critical jobs reject the invocation after exhausted retries; optional page warming stays best effort.
+5. Rollback: first set `DRY_RUN = "1"` and deploy, then restore the former schedules. Verify exactly one automatic owner.
 
 ## Test
 
