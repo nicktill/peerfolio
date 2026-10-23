@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/car
 import { Skeleton } from "@web/components/ui/skeleton"
 import { useConfirm } from "@web/components/ui/confirm"
 import { useToast } from "@web/components/ui/toast"
+import { InstallButton } from "@web/components/install-link"
 import { cacheClear } from "@web/lib/api-cache"
 import { mutate, useApi } from "@web/lib/use-api"
 
@@ -213,6 +214,19 @@ export default function SettingsPage() {
             </Link>
             .
           </p>
+        </CardContent>
+      </Card>
+
+      {/* Phones only: on a desktop the browser tab is already the app. */}
+      <Card className="min-[861px]:hidden">
+        <CardHeader>
+          <CardTitle>Install the app</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Add Peerfolio to your home screen. It opens full-screen like any other app, with nothing to download.
+          </p>
+          <InstallButton />
         </CardContent>
       </Card>
 
