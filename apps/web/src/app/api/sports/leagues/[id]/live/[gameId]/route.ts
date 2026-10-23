@@ -6,8 +6,8 @@ import { db, withSportsUser } from '@web/lib/sports/api'
 import { signLiveOffer, verifyLiveOffer } from '@web/lib/sports/live-test-auth'
 import { acceptTest, LiveTestRejected, testOffer, LIVE_TEST } from '@web/lib/sports/live-test'
 import { LIVE_PICK, livePickMessage, liveStakeBounds } from '@web/lib/sports/live-pick'
-import { liveContext, logLiveAttempt, placeLivePick } from '@web/lib/sports/live-store'
-import { takeRateLimit } from '@web/lib/sports/store'
+import { liveContext, logLiveAttempt, placeLivePick, precheckLivePick } from '@web/lib/sports/live-store'
+import { SportsError, takeRateLimit } from '@web/lib/sports/store'
 import { readLiveView } from '@web/lib/sports/live/store'
 import { createMemoryLimiter } from '@web/lib/sports/live/cache'
 import type { LiveSelection } from '@web/lib/sports/live/types'
@@ -24,6 +24,15 @@ async function ids(context: Ctx) {
   if (!UUID.test(id) || !UUID.test(gameId)) throw new ApiError('Not found', 404)
   return { id, gameId }
 }
+
+/** A fresh signed offer for a member whose pick was refused because the price or game moved, so the slip can show the new price and lock it in one tap. */
+async function requote(userId: string, leagueId: string, gameId: string) {
+  try {
+    const offer = testOffer(await readLiveView(db, gameId, new Date()), Date.now())
+    return { offer, token: await signLiveOffer(userId, leagueId, offer) }
+  } catch { return undefined }
+}
+const MOVED = /price moved|changed during the delay|price changed/i
 
 /** Signed, short-lived live offer for this member, league and game. Reads existing worker data only, bypassing display caches. */
 export const GET = withSportsUser<Ctx>(async (userId, _request, context) => {
@@ -49,7 +58,7 @@ export const POST = withSportsUser<Ctx>(async (userId, request, context) => {
   const body = await readJson<{ token?: unknown; selection?: unknown; stake?: unknown; expectedPrice?: unknown }>(request)
   if (typeof body.token !== 'string' || body.token.length > 6000 || !['home', 'away', 'draw'].includes(String(body.selection)) || typeof body.stake !== 'number' || typeof body.expectedPrice !== 'number') throw new ApiError('Invalid request')
   if (inFlight.has(userId)) throw new ApiError('Your last live pick is still being checked.', 429)
-  const { league } = await liveContext(db, userId, id, gameId)
+  const { league, event, memberId } = await liveContext(db, userId, id, gameId)
   const signed = await verifyLiveOffer(body.token, userId, id, gameId)
   const requestedAt = Date.now()
   const selection = body.selection as LiveSelection
@@ -57,6 +66,11 @@ export const POST = withSportsUser<Ctx>(async (userId, request, context) => {
     id: outcome === 'accepted' ? signed.nonce : crypto.randomUUID(), userId, leagueId: id, eventId: gameId, selection, stake: Math.round(body.stake as number), offeredPrice: Math.round(body.expectedPrice as number),
     requestedAt: new Date(requestedAt), acceptedAt: extra.acceptedAt ?? null, quoteAgeMs: extra.quoteAgeMs ?? null, stateAgeMs: extra.stateAgeMs ?? null, outcome, reason, pickId: extra.pickId ?? null, receipt: extra.receipt ?? { offered: signed.offer },
   })
+  // Side, per-game and cooldown rules up front: a pick that can never be placed is refused now, not after the hold.
+  try { await precheckLivePick(db, memberId, event.sport, gameId, selection) } catch (error) {
+    if (error instanceof SportsError) await log('rejected', error.message)
+    throw error
+  }
   inFlight.add(userId)
   try {
     const receipt = await acceptTest({ offer: signed.offer, selection, stake: body.stake, expectedPrice: body.expectedPrice, requestedAt, bounds: liveStakeBounds(league.startingCredits, league.maxStakePct), allowReprice: true }, {
@@ -82,7 +96,8 @@ export const POST = withSportsUser<Ctx>(async (userId, request, context) => {
   } catch (error) {
     if (error instanceof LiveTestRejected) {
       await log('rejected', error.message)
-      throw new ApiError(livePickMessage(error.message), 409)
+      // Nothing was placed. When the price or game moved, hand back the current price (freshly signed) so the member can lock it in one tap.
+      throw new ApiError(livePickMessage(error.message), 409, MOVED.test(error.message) ? { requote: await requote(userId, id, gameId) } : undefined)
     }
     throw error
   } finally { inFlight.delete(userId) }

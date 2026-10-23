@@ -20,13 +20,17 @@ import { formatCredits, formatOdds } from '@web/lib/sports/format'
 import { totalReturn } from '@web/lib/sports/odds'
 import type { LiveSelection } from '@web/lib/sports/live/types'
 
-const SETTLE_MS = 1800
+const SETTLE_MS = 800
 type Signed = { offer: TestOffer; token: string; minStake: number; maxStake: number }
+/** A freshly signed offer the server handed back (or the slip fetched) after the price moved; locking it skips another fetch while it is valid. */
+type Quote = { token: string; price: number; expiresAt: number }
+/** One of the member's open live picks on this game. */
+export type HeldLivePick = { selection: string; stake: number; price: number }
 export type LivePickSelection = { eventId: string; home: string; away: string; sport: string; side: LiveSelection; price: number }
-type Props = { selectedSide?: LiveSelection; selectedPrice?: number; onAcceptPrice?: (price: number) => void; onBusyChange?: (busy: boolean) => void; onDraft?: (draft: { stake: number; toWin: number | null }) => void; busy?: boolean; demo?: boolean; leagueId: string; eventId: string; home: string; away: string; sport: string; credits: number; startingCredits: number; maxStakePct: number; onPlaced: () => void; onLock?: (fx: PickLockFx) => void }
+type Props = { selectedSide?: LiveSelection; selectedPrice?: number; onAcceptPrice?: (price: number) => void; onBusyChange?: (busy: boolean) => void; onDraft?: (draft: { stake: number; toWin: number | null }) => void; onRefresh?: () => void; held?: HeldLivePick[]; busy?: boolean; demo?: boolean; leagueId: string; eventId: string; home: string; away: string; sport: string; credits: number; startingCredits: number; maxStakePct: number; onPlaced: () => void; onLock?: (fx: PickLockFx) => void }
 
 /** In-play pick for a tracked game. The price shown is the live fair price; the server re-checks the game and price for a few seconds before it accepts. */
-export function LivePickPanel({ leagueId, eventId, home, away, sport, credits, startingCredits, maxStakePct, onPlaced, selectedSide, selectedPrice, onAcceptPrice, onBusyChange, onDraft, onLock, demo }: Props) {
+export function LivePickPanel({ leagueId, eventId, home, away, sport, credits, startingCredits, maxStakePct, onPlaced, selectedSide, selectedPrice, onAcceptPrice, onBusyChange, onDraft, onRefresh, onLock, held = [], demo }: Props) {
   const { toast } = useToast()
   const { view, elapsedMs } = useLiveGame(eventId, true)
   const [localSide, setSide] = useState<LiveSelection | null>(null)
@@ -35,16 +39,26 @@ export function LivePickPanel({ leagueId, eventId, home, away, sport, credits, s
   const [phase, setPhase] = useState<'idle' | 'checking'>('idle')
   const [left, setLeft] = useState(0)
   const [message, setMessage] = useState('')
+  const [quote, setQuote] = useState<Quote | null>(null)
   const timer = useRef<number | undefined>(undefined)
+  // A second tap (or Enter plus a click) before the button re-renders disabled must not send a second pick.
+  const sending = useRef(false)
   useEffect(() => () => window.clearInterval(timer.current), [])
   useEffect(() => { onBusyChange?.(phase === 'checking'); return () => onBusyChange?.(false) }, [phase, onBusyChange])
+  // A fresh quote outranks the display feed (which can lag it) until it expires.
+  useEffect(() => {
+    if (!quote) return
+    const expire = window.setTimeout(() => setQuote(null), Math.max(0, quote.expiresAt - Date.now()))
+    return () => window.clearTimeout(expire)
+  }, [quote])
 
   let offer: TestOffer | null = null
   try { if (view) { const aged = ageView(view, elapsedMs); offer = displayLiveOffer(aged, Date.parse(aged.serverTime)) } } catch { /* A stale or paused feed offers nothing to pick. */ }
 
   const max = Math.min(liveMaxStake(startingCredits, maxStakePct), credits)
   const amount = Math.floor(Number(stake.replace(/[^\d]/g, '')) || 0)
-  const currentPrice = offer && side ? offer.prices[side] ?? null : null
+  const quoted = quote != null && quote.price === selectedPrice
+  const currentPrice = quoted ? quote.price : offer && side ? offer.prices[side] ?? null : null
   const price = selectedPrice ?? currentPrice
   const moved = selectedPrice != null && currentPrice != null && selectedPrice !== currentPrice
   // While the quote is moving, show what the stake would win at the live price; the ticket re-prices to it once it settles.
@@ -52,7 +66,7 @@ export function LivePickPanel({ leagueId, eventId, home, away, sport, credits, s
   const toWin = shownPrice != null && amount > 0 ? totalReturn(amount, shownPrice) - amount : 0
   const dir = moved && selectedPrice != null && currentPrice != null ? (currentPrice > selectedPrice ? 'up' : 'down') : undefined
   const needsReview = moved && !acceptsLivePrice(selectedPrice!, currentPrice!)
-  // Follow the feed: after the price holds still for a moment the ticket adopts it (Lock stays greyed until then). Never while a pick is being checked.
+  // Follow the feed: small moves are adopted after a short pause. Never while a pick is being checked.
   useEffect(() => {
     if (!moved || needsReview || currentPrice == null || phase === 'checking') return
     const settle = window.setTimeout(() => onAcceptPrice?.(currentPrice), SETTLE_MS)
@@ -62,9 +76,11 @@ export function LivePickPanel({ leagueId, eventId, home, away, sport, credits, s
   const valid = amount >= 10 && amount <= max
   const names: Record<LiveSelection, string> = { home, away, draw: 'Draw' }
   const order: LiveSelection[] = isSoccer(sport) ? ['away', 'draw', 'home'] : ['away', 'home']
+  const heldSide = side ? held.find(h => h.selection === side) ?? null : null
+  const full = !heldSide && held.length >= LIVE_PICK.maxPerEvent
 
   // No fresh quote: the ticket stays exactly as it is and Lock greys out while the price reprices.
-  const repricing = !view || !offer
+  const repricing = !quoted && (!view || !offer)
 
   function fireLock(lockedPrice: number) {
     if (!side) return
@@ -73,37 +89,65 @@ export function LivePickPanel({ leagueId, eventId, home, away, sport, credits, s
     onLock?.({ id: Date.now(), color, ink: onColor(color), title: `${names[side]} to win`, sub: `${formatCredits(amount)} at ${formatOdds(lockedPrice)} · to win ${formatCredits(totalReturn(amount, lockedPrice) - amount)}`, odds: formatOdds(lockedPrice), from: credits, to: credits - amount, big: lockedPrice >= 200 })
   }
 
+  /** The price moved past the automatic tolerance: put the new price on the ticket and let one more tap lock it. Nothing was placed. */
+  function requoted(next: { token: string; offer: TestOffer } | undefined, note: string) {
+    const fresh = side ? next?.offer.prices[side] : undefined
+    if (!next || fresh == null) { setMessage(`${note} Nothing was placed. Try again in a moment.`); return }
+    setQuote({ token: next.token, price: fresh, expiresAt: Date.now() + LIVE_TEST.offerTtlMs - 3_000 })
+    onAcceptPrice?.(fresh)
+    setMessage(`${note} Nothing was placed. New price ${formatOdds(fresh)}: tap Lock to take it.`)
+  }
+
   async function lockIn() {
-    if (!side || price == null || !valid || needsReview || phase === 'checking') return
+    // Locking from a review takes the price on screen in the same tap.
+    const target = needsReview ? currentPrice : price
+    if (!side || target == null || !valid || heldSide || full || phase === 'checking' || sending.current) return
+    if (needsReview) onAcceptPrice?.(target)
+    sending.current = true
     setMessage('')
     setPhase('checking'); setLeft(LIVE_TEST.holdMaxMs / 1000)
     window.clearInterval(timer.current)
     timer.current = window.setInterval(() => setLeft(n => Math.max(0, n - 1)), 1000)
+    let sent = false
     try {
       if (demo) {
         await new Promise(r => window.setTimeout(r, 2500))
-        if (offer && offer.prices[side] !== price) throw new Error('The price moved while we checked. Review it and try again.')
-        fireLock(price)
-        toast(`Sample live pick locked: ${names[side]} ${formatOdds(price)} (play cash, nothing real)`, 'success')
+        if (offer && offer.prices[side] !== target) throw new Error('The price moved while we checked. Review it and try again.')
+        fireLock(target)
+        toast(`Sample live pick locked: ${names[side]} ${formatOdds(target)} (play cash, nothing real)`, 'success')
         setStake(''); setSide(null)
         onPlaced()
         return
       }
-      const got = await fetch(`/api/sports/leagues/${leagueId}/live/${eventId}`, { cache: 'no-store' })
-      const signed = (await got.json()) as Signed & { error?: string }
-      if (!got.ok) throw new Error(signed.error ?? 'Live picks are unavailable right now.')
-      const fresh = signed.offer.prices[side]
-      if (fresh == null || !acceptsLivePrice(price, fresh)) throw new Error(`The price moved to ${fresh == null ? 'n/a' : formatOdds(fresh)}. Review it and try again.`)
-      const res = await fetch(`/api/sports/leagues/${leagueId}/live/${eventId}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: signed.token, selection: side, stake: amount, expectedPrice: price }) })
+      let token = quote && quote.price === target && quote.expiresAt > Date.now() ? quote.token : null
+      setQuote(null)
+      if (!token) {
+        const got = await fetch(`/api/sports/leagues/${leagueId}/live/${eventId}`, { cache: 'no-store' })
+        const signed = (await got.json()) as Signed & { error?: string }
+        if (!got.ok) throw new Error(signed.error ?? 'Live picks are unavailable right now.')
+        const fresh = signed.offer.prices[side]
+        if (fresh == null || !acceptsLivePrice(target, fresh)) return requoted(signed, `The price moved to ${fresh == null ? 'n/a' : formatOdds(fresh)}.`)
+        token = signed.token
+      }
+      sent = true
+      const res = await fetch(`/api/sports/leagues/${leagueId}/live/${eventId}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, selection: side, stake: amount, expectedPrice: target }) })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? 'Live pick not accepted. Try again.')
+      if (!res.ok) {
+        if (data.requote) return requoted(data.requote, data.error ?? 'The price moved while we checked.')
+        // The league data shows which side is held, so the slip can say what is open instead of a bare refusal.
+        if (res.status === 409) onRefresh?.()
+        throw new Error(data.error ?? 'Live pick not accepted. Try again.')
+      }
       fireLock(data.pick.price)
       toast(`Live pick locked: ${names[side]} ${formatOdds(data.pick.price)}`, 'success')
       setStake(''); setSide(null)
       onPlaced()
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Live pick not accepted. Try again.')
+      // A dropped connection after sending may still have locked the pick: reload picks so the slip shows it if it did.
+      if (sent && error instanceof TypeError) { onRefresh?.(); setMessage('We lost the connection before hearing back. Check Your picks before trying again.') }
+      else setMessage(error instanceof Error ? error.message : 'Live pick not accepted. Try again.')
     } finally {
+      sending.current = false
       window.clearInterval(timer.current); setPhase('idle')
     }
   }
@@ -113,8 +157,11 @@ export function LivePickPanel({ leagueId, eventId, home, away, sport, credits, s
   const hold = repricing
   const cap = max
   const quick = [10, Math.round(cap / 4), Math.round(cap / 2), cap]
-  const problem = amount === 0 ? null : amount < 10 ? 'Minimum is $10' : amount > max ? (amount > credits ? 'Not enough cash' : `Maximum per live pick is ${formatCredits(max)}`) : null
+  const problem = amount === 0 ? null : amount < 10 ? 'Minimum is $10' : amount > max ? (amount > credits ? 'Not enough cash' : `Maximum per pick in this league is ${formatCredits(max)}`) : null
   const prices = offer?.prices
+  const lockPrice = needsReview ? currentPrice : price
+  const blocked = heldSide ? `You already have ${formatCredits(heldSide.stake)} on ${names[side!]} live at ${formatOdds(heldSide.price)}. One open live pick per side; cash it out to pick this side again.`
+    : full ? `You have ${LIVE_PICK.maxPerEvent} open live picks on this game. Cash one out or wait for it to settle to pick again.` : null
   return <form className="sp-live-pick" aria-busy={busy || hold || undefined} onSubmit={e => { e.preventDefault(); void lockIn() }}>
     {selectedSide == null && prices ? <div className="sp-live-pick-sides" role="radiogroup" aria-label="Live pick side">
       {order.map(s => {
@@ -122,13 +169,12 @@ export function LivePickPanel({ leagueId, eventId, home, away, sport, credits, s
         return p == null ? null : <button key={s} type="button" role="radio" aria-checked={side === s} className="sp-live-pick-side" data-on={side === s || undefined} disabled={busy} onClick={() => setSide(s)}><span>{names[s]}</span><b className="numeric">{formatOdds(p)}</b></button>
       })}
     </div> : null}
-    {moved ? <p className="sp-odds-moved" data-dir={dir} role="status" aria-live="polite"><Zap aria-hidden /> <span>Odds moved <b className="numeric">{formatOdds(selectedPrice!)}</b> → <b className="numeric">{formatOdds(currentPrice!)}</b>. {needsReview ? "Review the new odds before placing." : "Updating your ticket…"}</span></p> : null}
-    {needsReview ? <button type="button" className="fw-btn" disabled={busy} onClick={() => onAcceptPrice?.(currentPrice!)}>Accept updated odds</button> : null}
+    {moved && !busy ? <p className="sp-odds-moved" data-dir={dir} role="status" aria-live="polite"><Zap aria-hidden /> <span>Odds moved <b className="numeric">{formatOdds(selectedPrice!)}</b> → <b className="numeric">{formatOdds(currentPrice!)}</b>. {needsReview ? 'Lock takes the new price.' : 'Updating your ticket…'}</span></p> : null}
     <div>
       <label className="fw-label" htmlFor={`lp-${eventId}`}>Stake (play cash)</label>
       <input id={`lp-${eventId}`} className="fw-input numeric" inputMode="numeric" autoComplete="off" placeholder={`${formatCredits(10)} to ${formatCredits(max)}`} value={stake} disabled={busy} aria-invalid={problem ? true : undefined} aria-describedby={`lp-hint-${eventId}`} onChange={e => setStake(e.target.value)} />
       <p className="fw-hint" id={`lp-hint-${eventId}`} role={problem ? 'alert' : undefined}>
-        {problem ? <span className="fw-bad">{problem}</span> : <span>Max {formatCredits(max)} per live pick · up to {LIVE_PICK.maxPerEvent} per game</span>}
+        {problem ? <span className="fw-bad">{problem}</span> : <span>Max {formatCredits(max)} per pick · up to {LIVE_PICK.maxPerEvent} open per game</span>}
       </p>
     </div>
     <div className="fw-quick">
@@ -141,13 +187,13 @@ export function LivePickPanel({ leagueId, eventId, home, away, sport, credits, s
       </span>
       {amount > 0 && !problem && shownPrice != null ? <b key={shownPrice}>{formatCredits(toWin)}</b> : <span className="sp-slip-hint">Enter a stake</span>}
     </div>
-    {message ? <p className="sp-slip-moved" role="alert">{message}</p> : null}
-    <button type="submit" className="fw-submit sp-live-pick-go" disabled={busy || hold || needsReview || !side || !valid} aria-busy={busy || hold || undefined} data-updating={hold || undefined}>
+    {blocked ? <p className="sp-slip-moved" role="status">{blocked}</p> : message ? <p className="sp-slip-moved" role="alert">{message}</p> : null}
+    <button type="submit" className="fw-submit sp-live-pick-go" disabled={busy || hold || !!blocked || !side || !valid} aria-busy={busy || hold || undefined} data-updating={hold || undefined}>
       {busy ? <span className="sp-hold-bar" style={{ '--hold': `${LIVE_TEST.holdMaxMs}ms` } as React.CSSProperties} aria-hidden /> : null}
       {busy || hold ? <span className="spin" aria-hidden /> : null}
-      {busy ? (elapsedHold < 4 ? 'Checking the live score…' : 'Confirming the price…') : repricing ? 'Repricing…' : needsReview ? 'Review updated odds above' : 'Lock in live pick'}
+      {busy ? (elapsedHold < 4 ? 'Locking…' : 'Confirming the price…') : repricing ? 'Repricing…' : heldSide ? 'Already picked' : needsReview || quoted ? `Lock in at ${formatOdds(lockPrice!)}` : 'Lock in live pick'}
     </button>
-    <p className="sp-fine" role="status" aria-live="polite">{busy ? 'We re-check the score and price for a few seconds. Small odds changes are accepted automatically, up to 5% less total payout. Score changes or larger moves stop the pick without taking cash.' : repricing ? 'Waiting for a fresh score and price. Lock turns back on as soon as the market is steady.' : demo ? 'Sample game · play cash only. Prices move like a real game.' : 'Play money only, nothing real is at stake. Small odds changes may update your payout when the pick locks; larger changes need review.'}</p>
+    <p className="sp-fine" role="status" aria-live="polite">{busy ? 'Checking the score and price, usually under 10 seconds. Small odds changes lock automatically; bigger ones come back to you. Nothing is taken unless it locks.' : repricing ? 'Waiting for a fresh score and price. Lock turns back on as soon as the market is steady.' : demo ? 'Sample game · play cash only. Prices move like a real game.' : 'Play money only, nothing real is at stake. Small odds changes may update your payout when the pick locks; larger changes need review.'}</p>
   </form>
 }
 

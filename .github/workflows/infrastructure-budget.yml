@@ -1,0 +1,30 @@
+name: Infrastructure budget check
+on:
+  schedule:
+    - cron: '17 13 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  budget:
+    # Off until the repository variable INFRA_BUDGET_ENABLED is 1 and the Neon variables/secret below are set (the check fails on missing config on purpose).
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.INFRA_BUDGET_ENABLED == '1' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # No npm install and no SQL/app requests: this never wakes Neon compute.
+      - name: Check current usage and forecast
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+          NEON_PROJECT_COUNTER_VERIFIED: ${{ vars.NEON_PROJECT_COUNTER_VERIFIED }}
+          INFRA_NEON_LIMIT_CU_HOURS: ${{ vars.INFRA_NEON_LIMIT_CU_HOURS }}
+          INFRA_NEON_SNAPSHOT: ${{ vars.INFRA_NEON_SNAPSHOT }}
+          INFRA_VERCEL_SCOPE: ${{ vars.INFRA_VERCEL_SCOPE }}
+          INFRA_VERCEL_CPU_SNAPSHOT: ${{ vars.INFRA_VERCEL_CPU_SNAPSHOT }}
+          INFRA_VERCEL_INVOCATIONS_SNAPSHOT: ${{ vars.INFRA_VERCEL_INVOCATIONS_SNAPSHOT }}
+        run: node --experimental-strip-types apps/web/scripts/check-infrastructure-budget.mts
