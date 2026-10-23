@@ -77,6 +77,8 @@ export function InstallHint() {
       <div
         role="note"
         className="pf-tip"
+        // Tapping anywhere on the bubble (other than the link) dismisses it, so it's never in the way.
+        onClick={(e) => { if (!(e.target as HTMLElement).closest("a,button[data-act]")) dismiss() }}
         style={{
           position: "fixed", left: 0, right: 0, margin: "0 auto", width: "max-content", maxWidth: "calc(100% - 32px)",
           bottom: "calc(66px + env(safe-area-inset-bottom))", zIndex: 45,
@@ -89,12 +91,12 @@ export function InstallHint() {
           {canPrompt ? "Get the app" : iphone ? "Add to Home Screen for the app" : "Add this to your home screen"}
           {" · "}
           {canPrompt ? (
-            <button type="button" onClick={() => void ask().then(dismiss)} style={{ fontWeight: 600, textDecoration: "underline" }}>Install</button>
+            <button type="button" data-act onClick={() => void ask().then(dismiss)} style={{ fontWeight: 600, textDecoration: "underline" }}>Install</button>
           ) : (
             <Link href="/install" style={{ fontWeight: 600, textDecoration: "underline" }}>See how</Link>
           )}
         </span>
-        <button type="button" onClick={dismiss} aria-label="Dismiss" style={{ display: "grid", placeItems: "center", width: 20, height: 20, opacity: 0.7 }}>
+        <button type="button" onClick={dismiss} aria-label="Dismiss" style={{ display: "grid", placeItems: "center", width: 36, height: 36, margin: "-10px -8px -10px -4px", opacity: 0.75 }}>
           <X aria-hidden className="h-3.5 w-3.5" />
         </button>
         {iphone ? (
