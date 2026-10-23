@@ -1,0 +1,39 @@
+{
+  "description": "Approved automatic timetable before Cloudflare cutover, 2026-10-23. Changes require explicit cadence review; live routes retain market/quiet-hour gates.",
+  "prices": [
+    "*/15 13-23 * * 1-5",
+    "*/15 0 * * 2-6",
+    "5 23 * * 1-5",
+    "5 0-4 * * 2-6",
+    "15 10,11 * * *"
+  ],
+  "news": [
+    "0 11,12 * * 1-5",
+    "15 14,15 * * 1-5",
+    "0 16,17 * * 1-5",
+    "15 18,19 * * 1-5",
+    "20 20,21 * * 1-5",
+    "20 17,18 * * 1-5"
+  ],
+  "sports": [
+    "*/15 * * * *"
+  ],
+  "vercel": [
+    {
+      "path": "/api/cron/snapshot",
+      "schedule": "30 22 * * *"
+    },
+    {
+      "path": "/api/cron/news",
+      "schedule": "0 22 * * 1-5"
+    },
+    {
+      "path": "/api/cron/sports/settle",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/sports/publish",
+      "schedule": "*/15 * * * *"
+    }
+  ]
+}

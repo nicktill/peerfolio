@@ -1,7 +1,6 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 import { readFileSync } from "node:fs"
-import { runInNewContext } from "node:vm"
 import { jobsFor, marketHoursNewYork } from "../src/schedule.ts"
 
 const at = (iso: string) => new Date(iso)
@@ -79,7 +78,8 @@ test("a quiet minute has nothing to do", () => {
   assert.deepEqual(names("2026-10-17T03:01:00Z"), [])
 })
 
-// Read the real workflow so a future schedule edit cannot silently leave the replacement behind.
+// Preserve the approved timetable independently of the retired automatic owners.
+const legacy = JSON.parse(readFileSync(new URL("./fixtures/legacy-schedules.json", import.meta.url), "utf8"))
 const workflow = (name: string) => readFileSync(new URL(`../../../.github/workflows/${name}.yml`, import.meta.url), "utf8")
 function matches(field: string, value: number): boolean {
   return field.split(",").some((part) => {
@@ -91,8 +91,8 @@ function matches(field: string, value: number): boolean {
   })
 }
 
-test("replacement prices match every scheduled minute of the current GitHub week", () => {
-  const crons = [...workflow("prices").matchAll(/cron: "([^"]+)"/g)].map((m) => m[1]!.split(" "))
+test("replacement prices preserve every scheduled minute of the approved legacy week", () => {
+  const crons: string[][] = legacy.prices.map((expression: string) => expression.split(" "))
   assert.equal(crons.length, 5)
   const monday = Date.parse("2026-10-19T00:00:00Z")
   for (let minute = 0; minute < 7 * 24 * 60; minute++) {
@@ -111,32 +111,24 @@ test("all six close-capture attempts remain reachable in summer, winter and earl
   }
 })
 
-test("GitHub requires deliberate scheduler selection; manual recovery still works", () => {
-  const sports = workflow("sports")
-  for (const job of ["publish", "settle"]) {
-    const expression = sports.match(new RegExp(`  ${job}:\\n    if: \\$\\{\\{ (.+) \\}\\}`))?.[1]
-    assert.ok(expression, `missing ${job} guard`)
-    const enabled = (event: string, owner: string, flag: string, input: string) => runInNewContext(expression!, {
-      github: { event_name: event, event: { schedule: "*/15 * * * *" } },
-      vars: { SPORTS_CRON_ENABLED: flag, SPORTS_SCHEDULER: owner }, inputs: { job: input },
-    })
-    assert.equal(enabled("schedule", "", "1", ""), false)
-    assert.equal(enabled("schedule", "vercel", "1", ""), false)
-    assert.equal(enabled("schedule", "github", "0", ""), false)
-    assert.equal(enabled("schedule", "github", "1", ""), true)
-    assert.equal(enabled("workflow_dispatch", "", "", job), true)
-    assert.equal(enabled("workflow_dispatch", "", "", "latency"), false)
+test("retired automatic owners stay off while manual recovery remains available", () => {
+  for (const name of ["prices", "news", "sports"]) {
+    const source = workflow(name)
+    assert.doesNotMatch(source, /^\s*schedule:/m, name)
+    assert.match(source, /^  workflow_dispatch:/m, name)
   }
   const vercel = JSON.parse(readFileSync(new URL("../../../apps/web/vercel.json", import.meta.url), "utf8"))
-  for (const job of ["publish", "settle"]) {
-    assert.ok(vercel.crons.some((cron: { path: string; schedule: string }) => cron.path === `/api/cron/sports/${job}` && cron.schedule === "*/15 * * * *"))
+  assert.deepEqual(vercel.crons, [])
+  const sports = workflow("sports")
+  for (const job of ["publish", "settle", "latency"]) {
+    assert.ok(sports.includes(`if: \${{ github.event_name == 'workflow_dispatch' && inputs.job == '${job}' }}`))
   }
   assert.match(readFileSync(new URL("../wrangler.toml", import.meta.url), "utf8"), /DRY_RUN = "1"/)
 })
 
-test("news, snapshot and sports match current workflow and Vercel schedules for a full week", () => {
-  const vercel = JSON.parse(readFileSync(new URL("../../../apps/web/vercel.json", import.meta.url), "utf8"))
-  const githubCrons = (name: string) => [...workflow(name).matchAll(/cron: "([^"]+)"/g)].map((match) => match[1]!.split(" "))
+test("news, snapshot and sports preserve the approved legacy timetable for a full week", () => {
+  const vercel = { crons: legacy.vercel }
+  const githubCrons = (name: string): string[][] => legacy[name].map((expression: string) => expression.split(" "))
   const expectedCrons: Record<string, string[][]> = {
     news: [...githubCrons("news"), ...vercel.crons.filter((cron: { path: string }) => cron.path === "/api/cron/news").map((cron: { schedule: string }) => cron.schedule.split(" "))],
     snapshot: vercel.crons.filter((cron: { path: string }) => cron.path === "/api/cron/snapshot").map((cron: { schedule: string }) => cron.schedule.split(" ")),
