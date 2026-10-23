@@ -1,14 +1,7 @@
 name: Sports cron
 
-# Vercel is the automatic publish/settle scheduler while its quarter-hour crons remain in apps/web/vercel.json.
-# GitHub is a best-effort replacement (runs can start 10 to 30 minutes late), not a second automatic caller.
-# To deliberately replace Vercel, set BOTH repository variables SPORTS_SCHEDULER=github and SPORTS_CRON_ENABLED=1,
-# verify delivery, then remove the Vercel sports crons. Leave SPORTS_SCHEDULER unset while Vercel is authoritative.
-# Manual workflow_dispatch runs remain available regardless of those variables. The independent read-only latency
-# measurement keeps its existing SPORTS_LATENCY_ENABLED opt-in.
+# Cloudflare owns automatic publish/settle scheduling. This workflow is manual recovery/diagnostics only.
 on:
-  schedule:
-    - cron: "*/15 * * * *" # publish (free exchange source) and settle (free results sources; metered ones stay inside their credit pace), one awake database period for both
   workflow_dispatch:
     inputs:
       job:
@@ -16,12 +9,12 @@ on:
         default: publish
 
 concurrency:
-  group: sports-${{ github.event.schedule || github.event.inputs.job }}
+  group: sports-${{ inputs.job }}
   cancel-in-progress: false
 
 jobs:
   publish:
-    if: ${{ (github.event_name == 'schedule' && github.event.schedule == '*/15 * * * *' && vars.SPORTS_CRON_ENABLED == '1' && vars.SPORTS_SCHEDULER == 'github') || (github.event_name == 'workflow_dispatch' && inputs.job == 'publish') }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.job == 'publish' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -39,7 +32,7 @@ jobs:
           [ "$code" = "200" ] || { echo "Expected HTTP 200, got $code" >&2; exit 1; }
 
   settle:
-    if: ${{ (github.event_name == 'schedule' && github.event.schedule == '*/15 * * * *' && vars.SPORTS_CRON_ENABLED == '1' && vars.SPORTS_SCHEDULER == 'github') || (github.event_name == 'workflow_dispatch' && inputs.job == 'settle') }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.job == 'settle' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -60,7 +53,7 @@ jobs:
   # each run and uploads the transitions it saw; state carries over between runs through the cache so a
   # game's pre -> in -> post is timed even when runs are late. Enabled by SPORTS_LATENCY_ENABLED.
   latency:
-    if: ${{ (github.event_name == 'schedule' && github.event.schedule == '*/15 * * * *' && vars.SPORTS_LATENCY_ENABLED == '1') || (github.event_name == 'workflow_dispatch' && inputs.job == 'latency') }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.job == 'latency' }}
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:

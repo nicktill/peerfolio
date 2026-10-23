@@ -27,18 +27,25 @@ npx wrangler deploy               # deploys in DRY_RUN mode
 npx wrangler tail                 # watch the "would call" lines for a day
 ```
 
-## Cut over (in this order)
+## Controlled cutover
 
-1. Dry run for a day: compare the Worker's log lines with what GitHub Actions and Vercel actually ran.
-2. Prepare removal of the four crons in `apps/web/vercel.json` and automatic schedules in `prices.yml`, `news.yml` and
-   `sports.yml`; keep manual dispatch for recovery. Update the schedule tests to verify the preserved Cloudflare timetable.
-   Keep `SPORTS_SCHEDULER` unset and disable the optional ESPN latency measurement. The live-odds worker is separate.
-3. Between scheduled slots, disable the old automatic owners and verify the production deployment has applied the removal.
-   Then set `DRY_RUN = "0"` and deploy before the next due slot. Do not leave both owners enabled: even idempotent jobs repeat
-   provider work, database queries and snapshot syncs. If the next slot cannot be reached safely, restore the old owner first.
-4. Capture successful authenticated publish, settle, prices, news and snapshot calls as their slots occur, and check CPU time
-   and invocation outcomes. Critical jobs reject the invocation after exhausted retries; optional page warming stays best effort.
-5. Rollback: first set `DRY_RUN = "1"` and deploy, then restore the former schedules. Verify exactly one automatic owner.
+The committed app/workflow configuration retires the four Vercel crons and the automatic GitHub prices/news/sports
+schedules. Manual GitHub dispatch remains available. `DRY_RUN=1` is still the committed Worker default: merging this
+configuration alone does not activate its replacement. The operator must complete this sequence in one controlled window:
+
+1. Deploy this Worker in dry-run mode. Verify the deployed version, secret presence, schedule logs and CPU/error metrics.
+   Tests compare every minute of an approved legacy timetable and all 2026 market-window starts, including both DST changes.
+2. Merge/deploy the app configuration removing native Vercel crons; confirm the production deployment and Cron Jobs panel
+   show no old triggers. Confirm GitHub prices/news/sports have no scheduled triggers or queued runs. Do this between due minutes.
+3. Before the next due slot, explicitly deploy this same Worker with `DRY_RUN=0` as a deployment override. Do not change the
+   committed safe default. Verify the active version and that due requests return HTTP 200. A dry-run deployment is not a live scheduler.
+4. Observe a successful publish/settle cycle, the next price slot, and each next news/snapshot slot. Check stored Worker logs
+   and app heartbeats. Exhausted critical retries reject the invocation; optional page warming remains noncritical.
+5. Rollback: first restore Worker dry-run, then restore the old schedules or dispatch the affected GitHub job manually.
+   Avoid extended overlap: duplicate work consumes Neon/provider budgets even where database writes are idempotent.
+
+Cron Trigger changes may take up to 15 minutes to propagate. This cutover keeps the existing every-minute Worker trigger;
+only its code/environment is activated after the old owners are verified off. Do not delete/re-add the trigger during cutover.
 
 ## Test
 
@@ -46,18 +53,12 @@ npx wrangler tail                 # watch the "would call" lines for a day
 npm test      # node --experimental-strip-types, no dependencies
 ```
 
-## Current automatic sports owner
+## Scheduler ownership
 
-Vercel remains authoritative: `/api/cron/sports/publish` and `/api/cron/sports/settle` run every 15 minutes.
-The GitHub workflow requires **both** `SPORTS_SCHEDULER=github` and `SPORTS_CRON_ENABLED=1` for automatic publish/settle.
-Without the new scheduler selection, the old GitHub flag alone no longer duplicates those Vercel calls. Manual GitHub
-publish/settle/latency dispatches remain available. This removes up to two redundant scheduled requests per quarter-hour (192/day when
-all scheduled runs execute with the old flag enabled), plus retries; it does not change pricing, live ingestion or the authoritative settlement cadence.
-Scheduled GitHub runs may still occur for the independently enabled latency measurement.
+Cloudflare is the selected replacement for prices, news, snapshot, sports publish and sports settle. The exact legacy cadence
+is preserved in `test/fixtures/legacy-schedules.json`; route-level market/quiet-hour gates remain unchanged. GitHub sports
+publish, settle and latency are manual-only; `SPORTS_SCHEDULER`/`SPORTS_CRON_ENABLED` repository flags do not restore
+an automatic GitHub owner. The continuous odds worker and infrastructure budget/watchdog workflows are separate.
 
-For a deliberate GitHub replacement instead of Cloudflare: set both variables, verify successful runs, then remove only
-Vercel's sports crons. GitHub is best effort and may start late, so it is not a precise market-open executor. For rollback,
-restore the Vercel crons and unset `SPORTS_SCHEDULER`. Do not leave two automatic owners indefinitely.
-
-Merging this directory does not deploy the Worker. `DRY_RUN=1` remains the committed default. A deployed older Worker
-keeps its older schedule until explicitly redeployed; verify its version and log-only setting before any cutover.
+The repository expresses the intended cutover configuration, not proof of the deployed owner. Check deployed Vercel Cron
+Jobs, Cloudflare version/DRY_RUN/logs, and GitHub triggers before declaring migration complete.
