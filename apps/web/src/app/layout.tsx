@@ -1,6 +1,6 @@
 import type React from "react"
 import type { Metadata, Viewport } from "next"
-import { Bricolage_Grotesque, Hanken_Grotesk, IBM_Plex_Mono, Newsreader } from "next/font/google"
+import localFont from "next/font/local"
 import "./globals.css"
 import "./peerfolio-5c.css"
 import { Analytics } from "@vercel/analytics/next"
@@ -9,15 +9,33 @@ import { SITE } from "@web/lib/site"
 
 // Words with character (titles, league names, ranks). Swap the family here and
 // every `font-display` in the app follows; the variable name never changes.
-const display = Bricolage_Grotesque({
+// Bundle the existing Latin fonts so builds do not depend on Google Fonts responses.
+const display = localFont({
+  src: [{ path: "./fonts/bricolage-grotesque-normal-200-800.woff2", weight: "200 800", style: "normal" }],
   variable: "--font-display",
-  subsets: ["latin"],
   display: "swap",
 })
-
-const appSans = Hanken_Grotesk({ variable: "--font-hanken", subsets: ["latin"], weight: ["400", "500", "600"], display: "swap" })
-const appDisplay = Newsreader({ variable: "--font-newsreader", subsets: ["latin"], style: ["normal", "italic"], display: "swap" })
-const appMono = IBM_Plex_Mono({ variable: "--font-plex-mono", subsets: ["latin"], weight: ["400", "500"], display: "swap" })
+const appSans = localFont({
+  src: [{ path: "./fonts/hanken-grotesk-normal-100-900.woff2", weight: "100 900", style: "normal" }],
+  variable: "--font-hanken",
+  display: "swap",
+})
+const appDisplay = localFont({
+  src: [
+    { path: "./fonts/newsreader-normal-200-800.woff2", weight: "200 800", style: "normal" },
+    { path: "./fonts/newsreader-italic-200-800.woff2", weight: "200 800", style: "italic" },
+  ],
+  variable: "--font-newsreader",
+  display: "swap",
+})
+const appMono = localFont({
+  src: [
+    { path: "./fonts/ibm-plex-mono-normal-400.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/ibm-plex-mono-normal-500.woff2", weight: "500", style: "normal" },
+  ],
+  variable: "--font-plex-mono",
+  display: "swap",
+})
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE.baseUrl),
