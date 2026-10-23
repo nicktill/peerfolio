@@ -33,6 +33,7 @@ const ADMIN_LINKS = [
   { href: "/admin/sports-health", label: "Sports health", icon: Activity },
   { href: "/admin/providers", label: "Provider usage", icon: Activity },
   { href: "/admin/syncs", label: "Brokerage syncs", icon: Repeat },
+  { href: "/admin/infrastructure", label: "Infrastructure", icon: Activity },
 ]
 
 /** The admin pages behind one header button on mobile, so five icons don't crowd the top bar. */
@@ -150,6 +151,9 @@ export function AppNav() {
                     </Link>
                     <Link href="/admin/syncs" className="peerfolio-nav-link" aria-current={pathname === "/admin/syncs" ? "page" : undefined}>
                       <span>Brokerage syncs</span>
+                    </Link>
+                    <Link href="/admin/infrastructure" className="peerfolio-nav-link" aria-current={pathname === "/admin/infrastructure" ? "page" : undefined}>
+                      <span>Infrastructure</span>
                     </Link>
                   </div>
                 </div>
