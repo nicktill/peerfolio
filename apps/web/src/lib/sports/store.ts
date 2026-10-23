@@ -27,7 +27,7 @@ import { checkLeagueSettings, asSports } from "./league-settings.ts"
 
 export type Db = PostgresJsDatabase<typeof schema>
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0]
-type Conn = Db | Tx
+export type Conn = Db | Tx
 
 import { enabledSports as withoutPaused, isSportEnabled, pausedMessage } from "./enabled.ts"
 

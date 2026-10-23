@@ -2,8 +2,8 @@ import { and, eq, inArray, like, sql } from "drizzle-orm"
 import * as schema from "../../db/schema.ts"
 import { emit } from "./log.ts"
 import { acceptPick, DEFAULT_LIMITS, PickRejected, type PickContext } from "./picks.ts"
-import { chooseLiveSlot, LivePickRejected, LIVE_KEY_PREFIX, LIVE_PICK, liveMarketKey } from "./live-pick.ts"
-import { assertSportsPickable, openRisk, SportsError, withDeadlockRetry, type Db } from "./store.ts"
+import { chooseLiveSlot, LivePickRejected, LIVE_KEY_PREFIX, LIVE_PICK, liveMarketKey, type LiveHeld } from "./live-pick.ts"
+import { assertSportsPickable, openRisk, SportsError, withDeadlockRetry, type Conn, type Db } from "./store.ts"
 import { placeKey } from "./settlement.ts"
 import type { LiveSelection } from "./live/types.ts"
 
@@ -20,6 +20,31 @@ export async function liveContext(db: Db, userId: string, leagueId: string, even
   if (!event || !league.sports.includes(event.sport)) throw new SportsError("Game not found", 404)
   if (event.status !== "scheduled" || event.startsAt.getTime() > Date.now()) throw new SportsError("Live picks open once the game is in progress")
   return { league, event, memberId: member.id }
+}
+
+/** The member's live picks on one game (any status, with their slot) and their latest live pick on any game, for chooseLiveSlot. */
+async function readLiveHeld(conn: Conn, memberId: string, eventId: string): Promise<{ held: LiveHeld[]; lastLiveAt: Date | null }> {
+  const rows = await conn.select({ selection: sportsPicks.selection, status: sportsPicks.status, marketKey: sportsMarkets.marketKey }).from(sportsPicks)
+    .innerJoin(sportsMarkets, eq(sportsMarkets.id, sportsPicks.marketId))
+    .where(and(eq(sportsPicks.memberId, memberId), eq(sportsMarkets.eventId, eventId), like(sportsMarkets.marketKey, `${LIVE_KEY_PREFIX}%`)))
+  const [last] = await conn.select({ at: sql<string | null>`max(${sportsPicks.acceptedAt})` }).from(sportsPicks)
+    .innerJoin(sportsMarkets, eq(sportsMarkets.id, sportsPicks.marketId))
+    .where(and(eq(sportsPicks.memberId, memberId), like(sportsMarkets.marketKey, `${LIVE_KEY_PREFIX}%`)))
+  return { held: rows.map((h) => ({ selection: h.selection, status: h.status, slot: Number(h.marketKey.slice(LIVE_KEY_PREFIX.length)) })), lastLiveAt: last?.at ? new Date(last.at) : null }
+}
+
+/**
+ * The same slot, side and cooldown rules placeLivePick applies under the member lock, checked up front so a pick that can
+ * never be placed is refused at once instead of after the acceptance hold. Not a substitute for the locked check.
+ */
+export async function precheckLivePick(db: Db, memberId: string, sport: string, eventId: string, selection: LiveSelection) {
+  const { held, lastLiveAt } = await readLiveHeld(db, memberId, eventId)
+  try {
+    chooseLiveSlot({ sport, selection, held, lastLiveAt, now: new Date() })
+  } catch (error) {
+    if (error instanceof LivePickRejected) throw new SportsError(error.message, 409)
+    throw error
+  }
 }
 
 export type LiveSnapshot = { eventId: string; source: string; homeProb: number; awayProb: number; drawProb: number | null; homeScore: number; awayScore: number; period: string; quoteAsOf: string; stateAsOf: string }
@@ -39,7 +64,7 @@ export function placeLivePick(db: Db, userId: string, leagueId: string, req: { e
       assertSportsPickable([event.sport])
 
       // Slot markets are created locked (never open: nothing reprices, freezes or lists them) and shared by every member.
-      const keys = [1, 2].map(liveMarketKey)
+      const keys = Array.from({ length: LIVE_PICK.slots }, (_, i) => liveMarketKey(i + 1))
       for (const marketKey of keys) {
         await tx.insert(sportsMarkets).values({ eventId: event.id, marketKey, kind: "moneyline", status: "locked", lockAt: event.startsAt, booksUsed: 0 }).onConflictDoNothing()
       }
@@ -57,15 +82,10 @@ export function placeLivePick(db: Db, userId: string, leagueId: string, req: { e
       const [fresh] = await tx.select({ status: sportsEvents.status }).from(sportsEvents).where(eq(sportsEvents.id, event.id)).for("share")
       if (!fresh) throw new SportsError("Game not found", 404)
 
-      const heldRows = await tx.select({ selection: sportsPicks.selection, marketKey: sportsMarkets.marketKey }).from(sportsPicks)
-        .innerJoin(sportsMarkets, eq(sportsMarkets.id, sportsPicks.marketId))
-        .where(and(eq(sportsPicks.memberId, member.id), inArray(sportsMarkets.id, markets.map((m) => m.id))))
-      const [last] = await tx.select({ at: sql<string | null>`max(${sportsPicks.acceptedAt})` }).from(sportsPicks)
-        .innerJoin(sportsMarkets, eq(sportsMarkets.id, sportsPicks.marketId))
-        .where(and(eq(sportsPicks.memberId, member.id), like(sportsMarkets.marketKey, `${LIVE_KEY_PREFIX}%`)))
+      const { held, lastLiveAt } = await readLiveHeld(tx, member.id, event.id)
       let slot: number
       try {
-        slot = chooseLiveSlot({ sport: event.sport, selection: req.selection, held: heldRows.map((h) => ({ selection: h.selection, slot: Number(h.marketKey.slice(LIVE_KEY_PREFIX.length)) })), lastLiveAt: last?.at ? new Date(last.at) : null, now: clock })
+        slot = chooseLiveSlot({ sport: event.sport, selection: req.selection, held, lastLiveAt, now: clock })
       } catch (error) {
         if (error instanceof LivePickRejected) throw new SportsError(error.message, 409)
         throw error
@@ -92,7 +112,7 @@ export function placeLivePick(db: Db, userId: string, leagueId: string, req: { e
       }
       let accepted
       try {
-        accepted = acceptPick({ stake: req.stake, lineId: line.id, expectedPrice: req.price, expectedPoint: null }, ctx, { ...DEFAULT_LIMITS, maxStakePctOfStart: Math.min(league.maxStakePct, LIVE_PICK.maxStakePct), maxReturnPctOfStart: LIVE_PICK.maxReturnPctOfStart, live: true })
+        accepted = acceptPick({ stake: req.stake, lineId: line.id, expectedPrice: req.price, expectedPoint: null }, ctx, { ...DEFAULT_LIMITS, maxStakePctOfStart: league.maxStakePct, maxReturnPctOfStart: LIVE_PICK.maxReturnPctOfStart, live: true })
       } catch (error) {
         if (error instanceof PickRejected) throw new SportsError(error.message, error.code === "insufficient_credits" ? 402 : 409)
         throw error

@@ -9,7 +9,7 @@ import type { LiveView } from './live/view.ts'
 
 const NOW = Date.parse('2026-10-18T00:00:00Z')
 const view = (now = NOW): LiveView => ({ eventId: 'g', status: 'live', score: { home: 2, away: 1 }, period: 'P2', clock: '10:00', stateAsOf: new Date(now - 1000).toISOString(), stateFreshness: 'live', serverTime: new Date(now).toISOString(), odds: { status: 'ok', homeProb: 0.6, awayProb: 0.4, drawProb: null, source: 'polymarket', asOf: new Date(now - 1000).toISOString(), ageMs: 1000, freshness: 'live', confidence: 'high', mismatch: null } })
-const limits = { ...DEFAULT_LIMITS, maxStakePctOfStart: Math.min(10, LIVE_PICK.maxStakePct), maxReturnPctOfStart: LIVE_PICK.maxReturnPctOfStart, live: true }
+const limits = { ...DEFAULT_LIMITS, maxStakePctOfStart: 10, maxReturnPctOfStart: LIVE_PICK.maxReturnPctOfStart, live: true }
 const ctx = (over: Partial<PickContext> = {}): PickContext => ({
   now: new Date(NOW), market: { id: 'm', status: 'locked', lockAt: new Date(NOW - 3600_000) }, eventStatus: 'scheduled', eventStartsAt: new Date(NOW - 3600_000),
   line: { id: 'l', marketId: 'm', price: -150, point: null }, member: { credits: 1000 }, league: { startingCredits: 1000 }, picksOnMarket: 0, openPickCount: 0, openStakeTotal: 0, ...over,
@@ -22,9 +22,9 @@ test('a 7% live longshot can win more than the old payout cap at a valid stake',
   v.odds = { ...v.odds, homeProb: 0.07, awayProb: 0.93 }
   const price = testOffer(v, NOW).prices.home!
   const context = ctx({ line: { id: 'l', marketId: 'm', price, point: null } })
-  const accepted = acceptPick({ ...req(50), expectedPrice: price }, context, limits)
+  const accepted = acceptPick({ ...req(100), expectedPrice: price }, context, limits)
   assert.ok(accepted.totalReturn - accepted.stake > 500)
-  assert.throws(() => acceptPick({ ...req(51), expectedPrice: price }, context, limits), /stake|risk|maximum/i)
+  assert.throws(() => acceptPick({ ...req(101), expectedPrice: price }, context, limits), /stake|risk|maximum/i)
 })
 
 test('live acceptance: in-progress game on a locked live market is accepted at the offered price', () => {
@@ -41,10 +41,10 @@ test('live mode still refuses unstarted, finished and open-market contexts', () 
     assert.throws(() => acceptPick(req(50), ctx(over), limits), (e: unknown) => e instanceof PickRejected && e.code === 'market_closed')
 })
 
-test('live stake is capped at 5% of starting cash and never above the league limit', () => {
-  assert.equal(liveMaxStake(1000, 10), 50); assert.equal(liveMaxStake(1000, 3), 30); assert.equal(liveMaxStake(1000, 60), 50)
-  assert.throws(() => acceptPick(req(51), ctx(), limits), (e: unknown) => e instanceof PickRejected && e.code === 'stake_too_large')
-  assert.deepEqual(liveStakeBounds(1000, 10), { min: 10, max: 50, message: 'Live picks risk 10 to 50 cash' })
+test('live stake follows the league limit, the same as pregame', () => {
+  assert.equal(liveMaxStake(1000, 10), 100); assert.equal(liveMaxStake(1000, 3), 30); assert.equal(liveMaxStake(1000, 60), 600)
+  assert.throws(() => acceptPick(req(101), ctx(), limits), (e: unknown) => e instanceof PickRejected && e.code === 'stake_too_large')
+  assert.deepEqual(liveStakeBounds(1000, 10), { min: 10, max: 100, message: 'Live picks risk 10 to 100 cash' })
 })
 
 test('live picks count toward balance, open-pick and exposure caps', () => {
@@ -57,12 +57,16 @@ test('live picks count toward balance, open-pick and exposure caps', () => {
 test('slots: two live picks per game, never the same side twice, first free slot first', () => {
   const now = new Date(NOW)
   assert.equal(chooseLiveSlot({ sport: 'nba', selection: 'home', held: [], lastLiveAt: null, now }), 1)
-  assert.equal(chooseLiveSlot({ sport: 'nba', selection: 'away', held: [{ selection: 'home', slot: 1 }], lastLiveAt: null, now }), 2)
-  assert.equal(chooseLiveSlot({ sport: 'nba', selection: 'away', held: [{ selection: 'home', slot: 2 }], lastLiveAt: null, now }), 1)
-  assert.throws(() => chooseLiveSlot({ sport: 'nba', selection: 'home', held: [{ selection: 'home', slot: 1 }], lastLiveAt: null, now }), /same side|already hold/)
-  assert.throws(() => chooseLiveSlot({ sport: 'mls', selection: 'draw', held: [{ selection: 'home', slot: 1 }, { selection: 'away', slot: 2 }], lastLiveAt: null, now }), /2 live picks/)
+  assert.equal(chooseLiveSlot({ sport: 'nba', selection: 'away', held: [{ selection: 'home', slot: 1, status: 'open' }], lastLiveAt: null, now }), 2)
+  assert.equal(chooseLiveSlot({ sport: 'nba', selection: 'away', held: [{ selection: 'home', slot: 2, status: 'open' }], lastLiveAt: null, now }), 1)
+  assert.throws(() => chooseLiveSlot({ sport: 'nba', selection: 'home', held: [{ selection: 'home', slot: 1, status: 'open' }], lastLiveAt: null, now }), /same side|already hold/)
+  assert.throws(() => chooseLiveSlot({ sport: 'mls', selection: 'draw', held: [{ selection: 'home', slot: 1, status: 'open' }, { selection: 'away', slot: 2, status: 'open' }], lastLiveAt: null, now }), /2 live picks/)
   assert.throws(() => chooseLiveSlot({ sport: 'nba', selection: 'draw', held: [], lastLiveAt: null, now }), /no draw/)
   assert.equal(chooseLiveSlot({ sport: 'mls', selection: 'draw', held: [], lastLiveAt: null, now }), 1)
+  // A cashed-out or settled pick keeps its slot row but no longer counts: the same side can be picked again, in a later slot.
+  assert.equal(chooseLiveSlot({ sport: 'nba', selection: 'home', held: [{ selection: 'home', slot: 1, status: 'cashed_out' }], lastLiveAt: null, now }), 2)
+  assert.equal(chooseLiveSlot({ sport: 'nba', selection: 'home', held: [{ selection: 'home', slot: 1, status: 'won' }, { selection: 'away', slot: 2, status: 'open' }], lastLiveAt: null, now }), 3)
+  assert.throws(() => chooseLiveSlot({ sport: 'nba', selection: 'home', held: [{ selection: 'home', slot: 2, status: 'open' }, { selection: 'home', slot: 1, status: 'void' }], lastLiveAt: null, now }), /already hold/)
 })
 
 test('cooldown: 20 seconds between a member\'s live picks, across games', () => {
@@ -92,7 +96,7 @@ test('offer acceptance returns the offered price after the short delayed reread'
 test('live stake bounds replace the paper bounds', async () => {
   const offer = testOffer(view(), NOW)
   const deps = { now: () => NOW, claim: async () => true, wait: async () => {}, read: async () => view() }
-  await assert.rejects(acceptTest({ offer, selection: 'home', stake: 51, expectedPrice: offer.prices.home!, requestedAt: NOW, bounds: liveStakeBounds(1000, 10) }, deps), /Live picks risk/)
+  await assert.rejects(acceptTest({ offer, selection: 'home', stake: 101, expectedPrice: offer.prices.home!, requestedAt: NOW, bounds: liveStakeBounds(1000, 10) }, deps), /Live picks risk/)
 })
 
 test('rejection when the score, period, source, quote or status changes during the check', async () => {

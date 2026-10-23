@@ -9,12 +9,15 @@ import type { LiveSelection } from './live/types.ts'
  * pipeline with no special cases. The accepted price lives on the pick itself.
  */
 export const LIVE_PICK = {
-  /** Largest live stake, as a percent of starting cash (never above the league's own pick limit). */
-  maxStakePct: 5,
   /** Longshots may win more than starting cash; stake limits bound the amount at risk. */
   maxReturnPctOfStart: Infinity,
-  /** Live picks one member may hold on one game. */
+  /** Open live picks one member may hold on one game at once. */
   maxPerEvent: 2,
+  /**
+   * Slot markets per game. A member's pick keeps its slot row after it is cashed out or voided (one pick per member per
+   * market), so there are more slots than open picks: cashing out frees the side and the count, not the row.
+   */
+  slots: 6,
   /** Minimum gap between a member's live picks, across all games. */
   cooldownMs: 20_000,
 } as const
@@ -26,24 +29,30 @@ export const isLiveMarketKey = (key: string) => key.startsWith(LIVE_KEY_PREFIX)
 export class LivePickRejected extends Error {}
 const reject = (message: string): never => { throw new LivePickRejected(message) }
 
+/** The league's own per-pick limit, the same as pregame. Stale prices are guarded by the acceptance hold (live-test.ts), not by stake size. */
 export const liveMaxStake = (startingCredits: number, leagueMaxStakePct: number) =>
-  Math.floor((startingCredits * Math.min(LIVE_PICK.maxStakePct, leagueMaxStakePct)) / 100)
+  Math.floor((startingCredits * leagueMaxStakePct) / 100)
 
 export function liveStakeBounds(startingCredits: number, leagueMaxStakePct: number): StakeBounds {
   const max = liveMaxStake(startingCredits, leagueMaxStakePct)
   return { min: DEFAULT_LIMITS.minStake, max, message: `Live picks risk ${DEFAULT_LIMITS.minStake} to ${max} cash` }
 }
 
-export type LiveHeld = { selection: string; slot: number }
+/** Every live pick the member has on this game, any status: open picks count toward the limits, all of them occupy their slot. */
+export type LiveHeld = { selection: string; slot: number; status: string }
+
+/** The member's live picks on a game that are still open (not settled, voided or cashed out). */
+export const openLivePicks = <T extends { status: string }>(held: T[]) => held.filter(h => h.status === 'open')
 
 /** Which slot the next live pick takes, or why it cannot be placed. Pure; the store feeds it rows read under the member lock. */
 export function chooseLiveSlot(input: { sport: string; selection: LiveSelection; held: LiveHeld[]; lastLiveAt: Date | null; now: Date }): number {
   if (input.selection === 'draw' && !hasDraw(input.sport, 'moneyline')) return reject('This game has no draw pick')
   if (input.lastLiveAt && input.now.getTime() - input.lastLiveAt.getTime() < LIVE_PICK.cooldownMs) return reject('Wait a few seconds between live picks')
-  if (input.held.length >= LIVE_PICK.maxPerEvent) return reject(`You already have ${LIVE_PICK.maxPerEvent} live picks on this game`)
-  if (input.held.some(h => h.selection === input.selection)) return reject('You already hold that side live on this game')
+  const open = openLivePicks(input.held)
+  if (open.length >= LIVE_PICK.maxPerEvent) return reject(`You already have ${LIVE_PICK.maxPerEvent} live picks on this game`)
+  if (open.some(h => h.selection === input.selection)) return reject('You already hold that side live on this game')
   const used = new Set(input.held.map(h => h.slot))
-  for (let slot = 1; slot <= LIVE_PICK.maxPerEvent; slot++) if (!used.has(slot)) return slot
+  for (let slot = 1; slot <= LIVE_PICK.slots; slot++) if (!used.has(slot)) return slot
   return reject('Live pick limit reached for this game')
 }
 
