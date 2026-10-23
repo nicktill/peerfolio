@@ -30,8 +30,8 @@ import postgres from "postgres"
 import * as schema from "../src/db/schema.ts"
 import { cycleFailed, EXIT_AFTER_FAILURES, shouldExit, WORKER_NAME } from "../src/lib/sports/live/health.ts"
 import { clip, emit, type Fields, type Level } from "../src/lib/sports/log.ts"
-import { idleSleepMs, MAX_SLEEP_MS, pollDelay } from "../src/lib/sports/live/plan.ts"
-import { insertQuotes, loadLiveSlate, nextStartAfter, nextTrackedStartAfter, pruneLiveQuotes, readSportsActivity, upsertState, writeHeartbeat } from "../src/lib/sports/live/store.ts"
+import { idleSleepMs, isQuiet, MAX_SLEEP_MS, pollDelay, QUIET_REFRESH_MS } from "../src/lib/sports/live/plan.ts"
+import { insertQuotes, loadLiveSlate, type LiveSlate, nextStartAfter, nextTrackedStartAfter, pruneLiveQuotes, readSportsActivity, upsertState, writeHeartbeat } from "../src/lib/sports/live/store.ts"
 import { applyReprice, confirmExchange, freezeForReason, listRepriceTargets, lockDueMarkets, reopenWorkerFrozen } from "../src/lib/sports/store.ts"
 import { inQuietHours, msToNextSlot, QUIET_SLOT_MS } from "../src/lib/sports/live/slots.ts"
 import { REPRICE } from "../src/lib/sports/reprice-config.ts"
@@ -99,11 +99,32 @@ const watch = appUrl && cronSecret
     })
   : null
 
+/**
+ * Quiet mode. A game stays on the slate while only an open pick rides on it (nobody on the sports pages). Writing a quote every 10 s for
+ * nobody keeps Neon awake (it suspends only after about 5 idle minutes, and compute time is what the free plan counts). So when the slate
+ * was loaded as "not watched", the worker keeps polling upstream in memory (fast settle triggers still fire; they call the app, not the
+ * database) but stores nothing and reads nothing from the database until QUIET_REFRESH_MS passes, a viewer shows up (the watch signal),
+ * or a kickoff needs its market locked. The heartbeat announces the quiet period (details.quiet, sleepUntil), so health and the publish
+ * guard treat it as sleep, not silence.
+ */
+let cached: { rows: LiveSlate; watched: boolean; at: number } | null = null
+let quiet = false
+const kickoffLocked = new Set<string>()
+const quietNow = (now: number) => isQuiet(cached, now, !!watch, kickoffLocked)
+const modeCycles = { watched: 0, unwatchedLoaded: 0, quiet: 0 }
+let lastModeLog = Date.now()
+
 const deps: WorkerDeps = {
   store: {
-    loadSlate: (now) => loadLiveSlate(db, now),
-    insertQuotes: (rows) => insertQuotes(db, rows),
-    upsertState: (eventId, state) => upsertState(db, eventId, state),
+    // Quiet mode (see quietNow): serve the slate loaded earlier and store nothing, so the database can suspend between refreshes.
+    loadSlate: async (now) => {
+      if (quiet && cached) return cached.rows
+      const rows = await loadLiveSlate(db, now)
+      cached = { rows, watched: rows.watched, at: Date.now() }
+      return rows
+    },
+    insertQuotes: async (rows) => { if (!quiet) await insertQuotes(db, rows) },
+    upsertState: async (eventId, state) => { if (!quiet) await upsertState(db, eventId, state) },
   },
   getJson: (u) => request(u),
   postJson: (u, body) => request(u, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }),
@@ -152,11 +173,25 @@ let lastPrune = 0
 let writtenSincePrune = 0
 let lastReport = 0
 let lastLock = 0
+let nextQuietWatchPoll = 0
 
 out("info", "live.start", { ws: useWs, once, bookMode, maxSleepMin: MAX_SLEEP_MS / 60_000 })
 while (!stopping) {
   const started = Date.now()
   const now = new Date()
+  quiet = quietNow(started)
+  // A viewer arriving ends quiet mode at once (a request to the app, no database).
+  if (quiet && watch && started >= nextQuietWatchPoll) {
+    nextQuietWatchPoll = started + WATCH_POLL_MS
+    if (await watch.changed()) { quiet = false; cached = null; out("info", "live.woken", { reason: "viewer", from: "quiet" }) }
+  }
+  if (cached) modeCycles[quiet ? "quiet" : cached.watched ? "watched" : "unwatchedLoaded"]++
+  if (Date.now() - lastModeLog >= 10 * 60_000) {
+    // Why the database was (or was not) kept busy: cycles with a viewer, cycles on an open pick only, and cycles run in memory.
+    out("info", "live.mode", { ...modeCycles, sinceMin: Math.round((Date.now() - lastModeLog) / 60_000) })
+    modeCycles.watched = modeCycles.unwatchedLoaded = modeCycles.quiet = 0
+    lastModeLog = Date.now()
+  }
   let result: TickResult | null = null
   let threw = false
   try {
@@ -171,14 +206,14 @@ while (!stopping) {
   const slate = result?.slate ?? 0
   const failed = cycleFailed({ threw, slate, okCalls: result?.okCalls ?? 0, failCalls: result?.failCalls ?? 0, skippedBackoff: result?.skippedBackoff ?? 0 })
   failures = failed ? failures + 1 : 0
-  writtenSincePrune += result?.rowsWritten ?? 0
+  if (!quiet) writtenSincePrune += result?.rowsWritten ?? 0
   // (repricing writes line versions, not live_quote rows, so it does not count towards pruning)
 
   // Pregame repricing: due every 30s while a game starts within 3 hours, once per shared quarter-hour slot otherwise. A failure here never
   // fails the live cycle (display) and never leaves a market half-repriced (each write is one transaction).
   let repriceNext = Number.POSITIVE_INFINITY
   let repriced: PassResult | null = null
-  if (!threw) {
+  if (!threw && !quiet) {
     try {
       repriced = await runRepricePass(deps, state, new Date())
       if (repriced) repriceNext = repriced.targets === 0 ? Number.POSITIVE_INFINITY : repriced.nextPassMs
@@ -189,11 +224,12 @@ while (!stopping) {
 
   // Kickoff locks. The publish and settle routes lock due markets too, but only hourly in quiet hours (live/slots.ts), and in-play
   // picks need a market locked at kickoff. While a game is on the slate the database is awake anyway: lock at most once a minute.
-  if (slate > 0 && Date.now() - lastLock >= 60_000) {
+  if (slate > 0 && !quiet && Date.now() - lastLock >= 60_000) {
     lastLock = Date.now()
     try {
       const locked = await lockDueMarkets(db, new Date())
       if (locked) out("info", "live.locked", { locked })
+      for (const g of cached?.rows ?? []) if (g.startsAt.getTime() <= Date.now()) kickoffLocked.add(g.id)
     } catch (error) {
       out("warn", "live.lock_failed", { error: clip(error) })
     }
@@ -221,7 +257,7 @@ while (!stopping) {
   }
 
   // Prune only if something was written since the last prune: an idle worker must not wake the database for nothing.
-  if (writtenSincePrune > 0 && Date.now() - lastPrune > 5 * 60_000) {
+  if (!quiet && writtenSincePrune > 0 && Date.now() - lastPrune > 15 * 60_000) {
     lastPrune = Date.now()
     try {
       const pruned = await pruneLiveQuotes(db, new Date())
@@ -232,8 +268,10 @@ while (!stopping) {
     }
   }
 
-  // Heartbeat for /api/sports/live/health (one tiny upsert per cycle).
-  try {
+  // Heartbeat for /api/sports/live/health (one tiny upsert per cycle). While quiet the previous one already announced the wake time.
+  const goingQuiet = !quiet && quietNow(Date.now())
+  const quietUntil = cached ? cached.at + QUIET_REFRESH_MS : 0
+  if (!quiet) try {
     await writeHeartbeat(db, {
       name: WORKER_NAME,
       at: new Date(),
@@ -245,7 +283,8 @@ while (!stopping) {
         unmatched: (result?.unmatched ?? []).slice(0, 20),
         sources: result?.sources ?? {},
         reprice: repriced ? { targets: repriced.targets, matched: repriced.matched, updated: repriced.updated, frozen: repriced.frozen, held: repriced.held, skipped: repriced.skipped } : null,
-        sleepUntil: new Date(Date.now() + delay).toISOString(),
+        sleepUntil: new Date(goingQuiet ? quietUntil : Date.now() + delay).toISOString(),
+        ...(goingQuiet ? { quiet: true } : {}),
         bookMode,
         ...(threw ? { lastError: "cycle threw (see logs)" } : {}),
       },

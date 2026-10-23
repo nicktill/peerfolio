@@ -93,3 +93,16 @@ export function bookClock(
     quiet,
   }
 }
+
+/**
+ * Quiet mode (see scripts/live-odds-worker.mts): the slate was loaded as "nobody is watching", so every game on it is there only for an open
+ * pick. The worker then stores nothing and reads nothing from the database until the slate is this old, a viewer wakes it, or a game has
+ * started whose market it has not locked yet. Compute time is what Neon's free plan counts, and a write every 10 s keeps it awake.
+ */
+export const QUIET_REFRESH_MS = 12 * 60_000
+export type QuietCache = { watched: boolean; at: number; rows: { id: string; startsAt: Date }[] }
+export function isQuiet(cache: QuietCache | null, now: number, canBeWoken: boolean, kickoffLocked: ReadonlySet<string>): boolean {
+  if (!canBeWoken || !cache || cache.watched || cache.rows.length === 0) return false
+  if (now - cache.at >= QUIET_REFRESH_MS) return false
+  return !cache.rows.some((g) => g.startsAt.getTime() <= now && !kickoffLocked.has(g.id))
+}
