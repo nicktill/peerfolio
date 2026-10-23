@@ -4,6 +4,7 @@ import { getCurrentUserId } from "@web/lib/auth"
 import { ASSISTANT_MODEL, LIMITS, WEB_SEARCHES_PER_DAY, WEB_SEARCH_USD, assistantConfigured, cleanContext, cleanHistory, compactHistory, costOf, isSmallTalk, needsWeb, tokenBound, webSearchEnabled, worstCaseUsd } from "@web/lib/ai/limits"
 import { loadPositions } from "@web/lib/ai/portfolio-data"
 import { portfolioBrief } from "@web/lib/ai/portfolio-brief"
+import { DECLINE, offTopicReason } from "@web/lib/ai/scope"
 import { reserve, settle } from "@web/lib/ai/usage"
 import { TOOL_DEFS, runTool } from "@web/lib/ai/tools"
 import type { XRay } from "@web/lib/ai/portfolio-xray"
@@ -53,6 +54,15 @@ export async function POST(request: Request) {
   const messages = cleanHistory(body?.messages)
   if (!messages) return NextResponse.json({ error: "That message couldn't be read." }, { status: 400 })
   const claimed = cleanContext(body?.context)
+
+  // Blatant misuse is turned away before anything is reserved or any model is called, so it costs nothing and
+  // doesn't count against the person's hourly or daily allowance.
+  if (offTopicReason(messages[messages.length - 1]!.content)) {
+    const lines: AssistantEvent[] = [{ type: "text", delta: DECLINE }, { type: "done" }]
+    return new Response(lines.map((e) => `${JSON.stringify(e)}\n`).join(""), {
+      headers: { "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "no-store, no-transform" },
+    })
+  }
 
   const openai = client()
   if (!openai || !assistantConfigured(process.env)) return NextResponse.json({ error: "The assistant isn't available right now." }, { status: 503 })
