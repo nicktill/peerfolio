@@ -219,9 +219,10 @@ export function PortfolioScreen({
   const windowCoversAll = range === "ALL" || !available[range]
   const rangePicker =
     rangeOptions.length > 1
-      ? (wide: boolean) => (
+      ? (mobile: boolean) => (
+          // Underline tabs under the chart on phones; the boxed pill stays in the card header on desktop.
           <Segmented<Range | "1D">
-            variant="underline"
+            variant={mobile ? "underline" : "pill"}
             options={rangeOptions}
             value={dayView ? "1D" : range}
             onChange={(r) => {
@@ -233,7 +234,7 @@ export function PortfolioScreen({
             }}
             size="sm"
             label="Time range"
-            className={wide ? "w-full [&>button]:flex-1" : undefined}
+            className={mobile ? "w-full [&>button]:flex-1" : undefined}
           />
         )
       : null
