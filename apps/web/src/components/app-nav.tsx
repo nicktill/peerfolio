@@ -31,6 +31,7 @@ const ADMIN_LINKS = [
   { href: "/admin/brokerages", label: "Manage brokerages", icon: ShieldCheck },
   { href: "/admin/sports", label: "Sports access", icon: Trophy },
   { href: "/admin/sports-health", label: "Sports health", icon: Activity },
+  { href: "/admin/infrastructure", label: "Infrastructure", icon: Activity },
   { href: "/admin/providers", label: "Provider usage", icon: Activity },
   { href: "/admin/syncs", label: "Brokerage syncs", icon: Repeat },
 ]
@@ -144,6 +145,9 @@ export function AppNav() {
                     </Link>
                     <Link href="/admin/sports-health" className="peerfolio-nav-link" aria-current={pathname.startsWith("/admin/sports-health") ? "page" : undefined}>
                       <span>Sports health</span>
+                    </Link>
+                    <Link href="/admin/infrastructure" className="peerfolio-nav-link" aria-current={pathname === "/admin/infrastructure" ? "page" : undefined}>
+                      <span>Infrastructure</span>
                     </Link>
                     <Link href="/admin/providers" className="peerfolio-nav-link" aria-current={pathname === "/admin/providers" ? "page" : undefined}>
                       <span>Provider usage</span>

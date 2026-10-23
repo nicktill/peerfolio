@@ -19,7 +19,11 @@
  *   --once   run a single cycle and exit (smoke test / cron-style use); exits 1 if that cycle failed
  *
  * Env: DATABASE_URL (required); LIVE_ODDS_WS=1 (same as --ws); LIVE_ODDS_ENABLED=0 (off switch: idles without touching
- * the database); LIVE_ODDS_BOOK_TS=fetch (trust fetch time for quiet books, see bookClock in plan.ts; default strict).
+ * the database); LIVE_ODDS_BOOK_TS=fetch (trust fetch time for quiet books, see bookClock in plan.ts; default strict);
+ * HEALTHCHECK_URL (optional dead-man switch, see below).
+ *
+ * HEALTHCHECK_URL: pinged (GET) once a minute while the loop is making progress, so an outside monitor (healthchecks.io
+ * or similar) can alert when the process dies or hangs. Never touches the database, so monitoring cannot keep Neon awake.
  *
  * Output: one JSON object per line (level info/warn/error). Exits 1 after 6 consecutive total failures so a supervisor
  * restarts it. Run exactly one replica (a second would only duplicate rows).
@@ -143,6 +147,16 @@ const deps: WorkerDeps = {
   emit: (level, ev, fields) => out(level, ev, fields),
 }
 
+// Dead-man switch: ping only while the loop (cycles or sleep slices) has made progress recently, so a hang goes quiet too.
+let lastProgress = Date.now()
+const healthUrl = process.env.HEALTHCHECK_URL
+if (healthUrl) {
+  setInterval(() => {
+    if (Date.now() - lastProgress > 5 * 60_000) return
+    fetch(healthUrl, { signal: AbortSignal.timeout(5_000) }).catch((error) => out("warn", "live.healthcheck_failed", { error: clip(error) }))
+  }, 60_000).unref()
+}
+
 const state = newWorkerState()
 let stopping = false
 for (const sig of ["SIGINT", "SIGTERM"] as const) {
@@ -161,6 +175,7 @@ async function sleep(ms: number): Promise<boolean> {
   let nextPoll = Date.now() + WATCH_POLL_MS
   while (!stopping && Date.now() < end) {
     await new Promise((r) => setTimeout(r, Math.min(1_000, end - Date.now())))
+    lastProgress = Date.now()
     if (watch && Date.now() >= nextPoll && end - Date.now() > 5_000) {
       nextPoll = Date.now() + WATCH_POLL_MS
       if (await watch.changed()) return true
@@ -178,6 +193,7 @@ let nextQuietWatchPoll = 0
 out("info", "live.start", { ws: useWs, once, bookMode, maxSleepMin: MAX_SLEEP_MS / 60_000 })
 while (!stopping) {
   const started = Date.now()
+  lastProgress = started
   const now = new Date()
   quiet = quietNow(started)
   // A viewer arriving ends quiet mode at once (a request to the app, no database).

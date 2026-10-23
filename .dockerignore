@@ -1,0 +1,11 @@
+.git
+.claude
+.github
+**/node_modules
+**/.next
+**/.turbo
+**/.env*
+!**/.env.example
+apps/docs
+design
+docs

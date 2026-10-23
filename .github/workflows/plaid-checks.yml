@@ -1,8 +1,14 @@
 name: Plaid persistence regressions
 on:
   pull_request:
+    paths-ignore: ["**.md", "docs/**", "design/**"]
   push:
     branches: [main]
+    paths-ignore: ["**.md", "docs/**", "design/**"]
+# A newer push to the same branch or PR supersedes the run in flight (saves Actions minutes once the repository is private).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:

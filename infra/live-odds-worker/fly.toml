@@ -1,0 +1,23 @@
+# Always-on host for apps/web/scripts/live-odds-worker.mts (replaces .github/workflows/live-odds-worker.yml).
+# One machine only: a second replica would duplicate quote rows. Deploy with --ha=false (see README.md).
+# Secrets (never in this file): fly secrets set DATABASE_URL=... CRON_SECRET=... HEALTHCHECK_URL=...
+app = "peerfolio-live-odds"
+primary_region = "sea" # Neon is in aws-us-west-2 (Oregon)
+
+[env]
+APP_URL = "https://www.peerfolio.org"
+LIVE_ODDS_ENABLED = "1"
+
+# No [http_service]: nothing listens, so there is no public address and nothing for Fly to auto-stop.
+[[vm]]
+size = "shared-cpu-1x"
+memory = "512mb"
+
+[[restart]]
+policy = "always"
+
+kill_signal = "SIGTERM"
+kill_timeout = 30
+
+[deploy]
+strategy = "immediate"
