@@ -18,7 +18,8 @@ type Ctx = { waitUntil(promise: Promise<unknown>): void }
 const TIMEOUT_MS: Record<string, number> = { news: 280_000, warm: 75_000 }
 
 type Dependencies = { fetch: typeof fetch; sleep(ms: number): Promise<void> }
-const defaults: Dependencies = { fetch: globalThis.fetch, sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)) }
+// workerd's native fetch requires the global receiver, not the Dependencies object.
+const defaults: Dependencies = { fetch: (...args) => globalThis.fetch(...args), sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)) }
 
 async function call(env: Env, job: Job, when: Date, deps: Dependencies): Promise<void> {
   const base = env.APP_URL.replace(/\/+$/, "")
