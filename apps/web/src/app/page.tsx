@@ -1,6 +1,5 @@
 import { LandingHeader } from "@web/components/landing/landing-header"
 import type { Metadata } from "next"
-import { redirect } from "next/navigation"
 import { ArrowDown, EyeOff } from "lucide-react"
 import { TickerLogo } from "@web/components/ui/ticker-logo"
 import { teamLook } from "@web/lib/sports/teams"
@@ -14,7 +13,6 @@ import { SmoothScroll } from "@web/components/landing/smooth-scroll"
 import { SignInButton } from "@web/components/landing/sign-in-button"
 import { InView } from "@web/components/motion/in-view"
 import { revealStyle } from "@web/components/motion/reveal"
-import { getCurrentUserId } from "@web/lib/auth"
 import { SITE } from "@web/lib/site"
 import "./landing.css"
 
@@ -46,9 +44,8 @@ const STEPS = [
   { title: "See who's ahead", body: "Investing leagues rank everyone on return in percent, updated daily. Fantasy and sports leagues rank on play money." },
 ]
 
-export default async function HomePage() {
-  if (await getCurrentUserId()) redirect("/dashboard")
-
+// Static: signed-in visitors are sent to the dashboard by `middleware.ts` before this is served.
+export default function HomePage() {
   return (
     <div className="peerfolio-app pf-landing min-h-screen overflow-x-clip">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }} />
