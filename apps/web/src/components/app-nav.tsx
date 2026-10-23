@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
@@ -26,6 +26,43 @@ const LINKS = [
   { href: "/wealth", label: "Wealth", icon: LineChart, sidebarOnly: true },
 ]
 const TAB_LINKS = LINKS.filter((link) => !("sidebarOnly" in link))
+
+const ADMIN_LINKS = [
+  { href: "/admin/brokerages", label: "Manage brokerages", icon: ShieldCheck },
+  { href: "/admin/sports", label: "Sports access", icon: Trophy },
+  { href: "/admin/sports-health", label: "Sports health", icon: Activity },
+  { href: "/admin/providers", label: "Provider usage", icon: Activity },
+  { href: "/admin/syncs", label: "Brokerage syncs", icon: Repeat },
+]
+
+/** The admin pages behind one header button on mobile, so five icons don't crowd the top bar. */
+function MobileAdminMenu({ pathname }: { pathname: string }) {
+  const [open, setOpen] = useState(false)
+  const box = useRef<HTMLDivElement>(null)
+  useEffect(() => setOpen(false), [pathname])
+  useEffect(() => {
+    if (!open) return
+    const close = (e: Event) => { if (!box.current?.contains(e.target as Node)) setOpen(false) }
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false) }
+    document.addEventListener("pointerdown", close)
+    document.addEventListener("keydown", esc)
+    return () => { document.removeEventListener("pointerdown", close); document.removeEventListener("keydown", esc) }
+  }, [open])
+  return (
+    <div className="pf-mobile-admin" ref={box}>
+      <button type="button" aria-label="Admin pages" aria-expanded={open} aria-haspopup="menu" onClick={() => setOpen((v) => !v)} className="peerfolio-mobile-control">
+        <ShieldCheck size={17} aria-hidden />
+      </button>
+      {open ? (
+        <div className="pf-mobile-admin-menu" role="menu" aria-label="Admin pages">
+          {ADMIN_LINKS.map(({ href, label, icon: Icon }) => (
+            <Link key={href} href={href} role="menuitem" aria-current={pathname.startsWith(href) ? "page" : undefined}><Icon size={16} aria-hidden />{label}</Link>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
 
 function Brand() {
   return (
@@ -146,9 +183,7 @@ export function AppNav() {
         <Brand />
         <div className="flex items-center gap-1">
           <ThemeToggle />
-          {admin ? <Link href="/admin/brokerages" className="peerfolio-mobile-control" aria-label="Manage brokerage access"><ShieldCheck size={17} aria-hidden /></Link> : null}
-          {admin ? <Link href="/admin/providers" className="peerfolio-mobile-control" aria-label="Provider usage"><Activity size={17} aria-hidden /></Link> : null}
-          {admin ? <Link href="/admin/syncs" className="peerfolio-mobile-control" aria-label="Brokerage syncs"><Repeat size={17} aria-hidden /></Link> : null}
+          {admin ? <MobileAdminMenu pathname={pathname} /> : null}
           <Link href="/wealth" className="peerfolio-mobile-control" aria-label="Wealth Lab"><LineChart size={17} aria-hidden /></Link>
           <Link href="/settings" className="peerfolio-mobile-control" aria-label="Settings"><Settings size={17} aria-hidden /></Link>
           {avatar}
