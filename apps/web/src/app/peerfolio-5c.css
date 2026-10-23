@@ -590,3 +590,10 @@ a.pf-row:active, .pf-row.hov:active { background: var(--hair2); }
 /* Light theme: the Leader chip's gold text was 4.3:1 on its tint. */
 .peerfolio-app .bd-leader { color: #6b4d00; }
 .dark .peerfolio-app .bd-leader { color: var(--medal-1); }
+
+/* ---------- installed app (home-screen) ---------- */
+@media (display-mode: standalone) {
+  html { overscroll-behavior-y: none; -webkit-tap-highlight-color: transparent; }
+  body { -webkit-touch-callout: none; }
+  .peerfolio-tabbar, .peerfolio-mobile-header, .pf-header { -webkit-user-select: none; user-select: none; }
+}

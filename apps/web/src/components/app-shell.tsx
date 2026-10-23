@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { AppNav } from "@web/components/app-nav"
+import { InstallHint } from "@web/components/install-hint"
 import { DemoSwitch } from "@web/components/sample/demo-switch"
 import { SampleBanner } from "@web/components/sample/sample-banner"
 import { RouteProgress } from "@web/components/ui/route-progress"
@@ -46,6 +47,7 @@ export function AppShell({ children, previewDemo = false, demoSwitch = false }: 
       {/* Wide enough for a dashboard on a laptop; text-heavy pages set their own reading width. Bottom padding clears the mobile tab bar. */}
       {previewDemo && session?.user?.email?.endsWith("@example.com") ? <div className="pf-demo-pill" role="status">Demo data</div> : null}
       <main className="peerfolio-main"><SampleBanner />{children}</main>
+      <InstallHint />
       {demoSwitch ? <DemoSwitch /> : null}
       {ASSISTANT_ENABLED && status === "authenticated" ? (
         <AssistantProvider>
