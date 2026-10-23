@@ -1,0 +1,32 @@
+name: Live odds watchdog
+
+# Fails (so GitHub notifies you) when /api/sports/live/health says live odds are down, or the odds worker has gone silent or keeps
+# failing. Runs a minute after each quarter-hour slot, in the hours games are on (15:00-04:59 UTC), so its one database read shares the
+# awake period the sports crons already open. It does not run in the overnight quiet hours.
+#
+# OFF until the repository variable LIVE_WATCHDOG_ENABLED is "1". Needs the repository secret CRON_SECRET (the same value the app uses)
+# and, optionally, the variable APP_URL (default https://www.peerfolio.org). Manual runs always work.
+on:
+  schedule:
+    - cron: "1,16,31,46 15-23,0-4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  watchdog:
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.LIVE_WATCHDOG_ENABLED == '1' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check live odds health
+        working-directory: apps/web
+        env:
+          APP_URL: ${{ vars.APP_URL || 'https://www.peerfolio.org' }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: node --experimental-strip-types scripts/check-live-health.mts
