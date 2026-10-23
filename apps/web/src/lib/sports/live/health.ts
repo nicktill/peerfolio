@@ -58,8 +58,11 @@ export function liveHealth(input: HealthInput, now: Date): LiveHealth {
   // overdue by more than WORKER_SILENT_MS past that, not merely quiet.
   const sleepUntil = typeof w?.details.sleepUntil === "string" ? new Date(w.details.sleepUntil) : null
   const due = w ? (sleepUntil && !Number.isNaN(sleepUntil.getTime()) ? sleepUntil.getTime() : w.lastCycleAt.getTime()) : null
-  // With games on the field the worker must be beating every cycle, whatever it said about sleeping.
-  const silent = due == null || cycleAge == null || (live ? cycleAge > WORKER_SILENT_MS : now.getTime() - due > WORKER_SILENT_MS)
+  // Quiet mode: only open picks ride on the live games and nobody is watching, so the worker keeps them in memory (settle triggers
+  // still fire) and does not write quotes or heartbeats until it announced wake time (details.sleepUntil). Not a fault.
+  const quiet = w?.details.quiet === true
+  // With games on the field the worker must be beating every cycle, whatever it said about sleeping (unless it announced quiet mode).
+  const silent = due == null || cycleAge == null || (live && !quiet ? cycleAge > WORKER_SILENT_MS : now.getTime() - due > WORKER_SILENT_MS)
   if (silent) bump(live ? "down" : "degraded", w ? `worker silent for ${Math.round(cycleAge! / 1000)}s (overdue ${Math.round((now.getTime() - due!) / 1000)}s)` : "worker has never reported")
   if (w && w.consecutiveFailures >= FAIL_DOWN) bump("down", `worker failed ${w.consecutiveFailures} cycles in a row`)
   else if (w && w.consecutiveFailures >= FAIL_DEGRADED) bump("degraded", `worker failed ${w.consecutiveFailures} cycles in a row`)
@@ -80,7 +83,7 @@ export function liveHealth(input: HealthInput, now: Date): LiveHealth {
       unmatched: unmatchedIds.has(g.eventId),
     }
   })
-  if (live && !silent) {
+  if (live && !silent && !quiet) {
     const stale = games.filter((g) => !g.fresh)
     if (stale.length === games.length) bump("down", `no live game has a fresh quote (${games.length} live)`)
     else if (stale.length) bump("degraded", `${stale.length} of ${games.length} live games have no fresh quote`)

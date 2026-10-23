@@ -22,6 +22,15 @@ describe("live health classification", () => {
     assert.equal(h.status, "down")
     assert.equal(h.httpStatus, 503)
   })
+  it("quiet mode (open picks only, nobody watching) is not a fault while the announced wake time is ahead", () => {
+    const quiet = worker({ lastCycleAt: ago(6 * 60_000), details: { quiet: true, sleepUntil: new Date(NOW.getTime() + 6 * 60_000).toISOString() } })
+    const stale = game({ newestQuoteAt: ago(6 * 60_000), newestStateAt: ago(6 * 60_000) })
+    assert.equal(liveHealth({ worker: quiet, liveGames: [stale] }, NOW).status, "ok")
+    // Overdue past the announced wake time is still a fault, and without the flag the same heartbeat is silent.
+    const overdue = worker({ lastCycleAt: ago(30 * 60_000), details: { quiet: true, sleepUntil: ago(10 * 60_000).toISOString() } })
+    assert.equal(liveHealth({ worker: overdue, liveGames: [stale] }, NOW).status, "down")
+    assert.equal(liveHealth({ worker: { ...quiet, details: { sleepUntil: quiet.details.sleepUntil } }, liveGames: [stale] }, NOW).status, "down")
+  })
   it("down when no live game has a fresh quote, degraded when only some lack one", () => {
     const stale = game({ newestQuoteAt: ago(5 * 60_000) })
     assert.equal(liveHealth({ worker: worker(), liveGames: [stale] }, NOW).status, "down")

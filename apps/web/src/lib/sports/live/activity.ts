@@ -4,8 +4,8 @@
  * pass would only keep the database awake for nobody, so the worker reprices once per shared slot instead (see reprice-pass.ts).
  */
 export const ACTIVITY_NAME = "sports-activity"
-/** Viewed within this long ago counts as watched. The page polls every 20s, so an open page keeps it fresh. */
-export const ACTIVITY_WINDOW_MS = 10 * 60_000
+/** Viewed within this long ago counts as watched. The page polls every 20s (stamped at most once a minute), so an open page keeps it fresh and a closed one stops costing database time after about 3 minutes. */
+export const ACTIVITY_WINDOW_MS = 3 * 60_000
 /** At most one stamp per instance in this interval. */
 export const ACTIVITY_TOUCH_MS = 60_000
 

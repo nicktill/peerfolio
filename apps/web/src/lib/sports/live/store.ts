@@ -2,7 +2,7 @@ import { and, eq, gt, inArray, sql } from "drizzle-orm"
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js"
 import * as schema from "../../../db/schema.ts"
 import type { HealthGame, HealthInput } from "./health.ts"
-import { liveWantedEventSql, trackedEventSql } from "../ingestion-scope.ts"
+import { liveWantedEventSql, sportsWatchedSql, trackedEventSql } from "../ingestion-scope.ts"
 import { ACTIVITY_NAME, ACTIVITY_TOUCH_MS } from "./activity.ts"
 import { liveSlate, type SlateEvent } from "./plan.ts"
 import { DEFAULT_RETENTION, retentionCutoffs, type RetentionPolicy } from "./retention.ts"
@@ -64,9 +64,15 @@ export async function upsertState(db: Db, eventId: string, s: LiveGameState): Pr
  * Games that should be polled now: scheduled (not final/void), inside their live window, and either being watched or carrying an open pick
  * (see liveWantedEventSql). With nobody watching and nothing riding on a game the slate is empty, so the worker sleeps to the next shared slot.
  */
-export async function loadLiveSlate(db: Db, now: Date): Promise<(SlateEvent & { externalId: string })[]> {
+export type LiveSlate = (SlateEvent & { externalId: string })[] & {
+  /** A member had the sports pages open recently (see activity.ts). False means every game here is kept only for an open pick. */
+  watched: boolean
+}
+
+export async function loadLiveSlate(db: Db, now: Date): Promise<LiveSlate> {
   const rows = await db
     .select({
+      watched: sql<boolean>`${sportsWatchedSql(now)}`,
       id: sportsEvents.id,
       externalId: sportsEvents.externalId,
       sport: sportsEvents.sport,
@@ -77,7 +83,7 @@ export async function loadLiveSlate(db: Db, now: Date): Promise<(SlateEvent & { 
     })
     .from(sportsEvents)
     .where(and(liveWantedEventSql(now), eq(sportsEvents.status, "scheduled"), gt(sportsEvents.startsAt, new Date(now.getTime() - 8 * 3600_000)), sql`${sportsEvents.startsAt} <= ${new Date(now.getTime() + 10 * 60_000).toISOString()}::timestamptz`))
-  return liveSlate(rows, now)
+  return Object.assign(liveSlate(rows, now), { watched: rows.some((r) => r.watched) })
 }
 
 /** What buildLiveView needs for one game, plus the event fields an on-demand read needs (live/on-demand.ts). Null for an unknown game. */
