@@ -12,7 +12,7 @@ import { acceptParlay, decideParlay, decimalToAmerican, LEG_STATUS_OF, ParlayRej
 import { mirroredPairs } from "./report.ts"
 import { trackedEventSql } from "./ingestion-scope.ts"
 import { REPRICE } from "./reprice-config.ts"
-import { priceNeedsRefresh, workerBeating, type Decision, type RepriceResult, type RepriceTarget } from "./reprice.ts"
+import { RECOVERABLE_FREEZE_REASONS, canRecoverFreeze, priceNeedsRefresh, workerBeating, type Decision, type RepriceResult, type RepriceTarget } from "./reprice.ts"
 import { DEFAULT_RESOLVE, gradePick, needsMeteredSource, planSettlement, observeFinal, placeKey, resolveResult, resultsForEvent, type ResolveConfig, type ResolveConfigFor, type SettlementPlan } from "./settlement.ts"
 import type { EventRef, EventResult, MarketKind, OddsProvider, Outcome, ResultsProvider, Selection, Sport } from "./types.ts"
 import { hasDraw, SPORTS } from "./types.ts"
@@ -1129,8 +1129,8 @@ export async function listRepriceTargets(db: Db, now: Date, kinds: readonly stri
     .where(
       and(
         trackedEventSql(now),
-        // Open markets, plus those the cron froze for a dead worker: those reopen only on a healthy exchange read (see the pass).
-        or(eq(sportsMarkets.status, "open"), and(eq(sportsMarkets.status, "locked"), eq(sportsMarkets.frozenReason, WORKER_FREEZE_REASON))),
+        // Temporary pregame freezes recover only after a fresh exchange decision, in one market-locked transaction.
+        or(eq(sportsMarkets.status, "open"), and(eq(sportsMarkets.status, "locked"), inArray(sportsMarkets.frozenReason, [...RECOVERABLE_FREEZE_REASONS]))),
         gt(sportsMarkets.lockAt, now),
         eq(sportsEvents.status, "scheduled"),
         gt(sportsEvents.startsAt, now),
@@ -1161,6 +1161,7 @@ export async function listRepriceTargets(db: Db, now: Date, kinds: readonly stri
     const sideHistory = (l: (typeof mine)[number]) => history.filter((h) => h.lineId === l.id && h.fairProb != null)
     out.push({
       marketId: market.id,
+      frozenReason: market.frozenReason,
       eventId: event.id,
       sport: event.sport,
       homeName: event.homeName,
@@ -1199,23 +1200,43 @@ export async function listRepriceTargets(db: Db, now: Date, kinds: readonly stri
  * updated in place and each price is appended to the history; accepted picks hold their own copies and are never touched.
  */
 export function applyReprice(db: Db, marketId: string, expected: { basis: number | null; count: number }, d: Extract<Decision, { action: "update" }>, now: Date): Promise<RepriceResult> {
+  return writeReprice(db, marketId, expected, d, now, false)
+}
+
+/** Reopening and publishing the validated price share one exclusive lock; no old-price acceptance window. */
+export function recoverFrozenMarket(db: Db, marketId: string, expected: { basis: number | null; count: number }, d: Decision, now: Date): Promise<RepriceResult> {
+  return writeReprice(db, marketId, expected, d, now, true)
+}
+
+function writeReprice(db: Db, marketId: string, expected: { basis: number | null; count: number }, d: Decision, now: Date, recovering: boolean): Promise<RepriceResult> {
+  if (d.action !== "update" && !(recovering && d.action === "none" && d.confirm)) return Promise.resolve({ applied: false, reason: "unconfirmed" })
   // Master switch: the standalone worker may be pointed at a database before its markets are meant to be live.
   if (process.env.LIVE_ODDS_ENABLED !== "1") return Promise.resolve({ applied: false, reason: "disabled (LIVE_ODDS_ENABLED is not 1)" })
   return withDeadlockRetry(() =>
     db.transaction(async (tx): Promise<RepriceResult> => {
       const [m] = await tx.select().from(sportsMarkets).where(eq(sportsMarkets.id, marketId)).for("update")
-      if (!m || m.status !== "open") return { applied: false, reason: "closed" }
+      if (!m || (recovering ? m.status !== "locked" || !canRecoverFreeze(m.frozenReason) : m.status !== "open")) return { applied: false, reason: "closed" }
+      // A queued recovery must not reopen across kickoff or use a price check delayed over a minute behind the market lock.
+      const checkedNow = recovering ? new Date(Math.max(now.getTime(), Date.now())) : now
+      if (recovering && checkedNow.getTime() - now.getTime() + (d.action === "update" ? d.ageMs : 0) > REPRICE.maxAgeMs) return { applied: false, reason: "recovery read too old" }
       // Defense in depth: only game-winner markets are priced from the exchange, whatever the caller decided.
       if (m.kind !== "moneyline") return { applied: false, reason: "not a moneyline" }
-      if (m.repricedAt && now.getTime() - m.repricedAt.getTime() < REPRICE.minIntervalMs) return { applied: false, reason: "min interval" }
+      if (d.action === "update" && m.repricedAt && now.getTime() - m.repricedAt.getTime() < REPRICE.minIntervalMs) return { applied: false, reason: "min interval" }
       const [ev] = await tx.select().from(sportsEvents).where(eq(sportsEvents.id, m.eventId)).limit(1)
       if (!ev || ev.status !== "scheduled") return { applied: false, reason: "event not scheduled" }
-      if (now.getTime() >= ev.startsAt.getTime()) return { applied: false, reason: "kickoff" }
-      if (now.getTime() >= m.lockAt.getTime()) return { applied: false, reason: "locked" }
+      if (checkedNow.getTime() >= ev.startsAt.getTime()) return { applied: false, reason: "kickoff" }
+      if (checkedNow.getTime() >= m.lockAt.getTime()) return { applied: false, reason: "locked" }
       // Compare-and-set on BOTH the basis and the version (write count): a repeat, or another worker, changes nothing.
       const same = (m.fairProbA == null && expected.basis == null) || (m.fairProbA != null && expected.basis != null && Math.abs(m.fairProbA - expected.basis) < 1e-9)
       if (!same || m.repriceCount !== expected.count) return { applied: false, reason: "basis changed" }
       const lines = sortLines(await tx.select().from(sportsLines).where(eq(sportsLines.marketId, marketId)))
+      if (recovering && d.action === "none" && d.confirm) {
+        const three = hasDraw(ev.sport, m.kind)
+        if (lines.length !== (three ? 3 : 2) || (three && !(lines[0]!.selection === "home" && lines[1]!.selection === "draw" && lines[2]!.selection === "away"))) return { applied: false, reason: "lines missing" }
+        await tx.update(sportsMarkets).set({ status: "open", frozenReason: null, exchangeOkAt: now }).where(eq(sportsMarkets.id, marketId))
+        return { applied: true, oldPrices: lines.map(l => l.price), newPrices: lines.map(l => l.price), version: lines[0]!.version }
+      }
+      if (d.action !== "update") return { applied: false, reason: "unconfirmed" }
       // The decision's sides must be exactly the market's lines: two, or [home, draw, away] for the soccer moneyline.
       const three = hasDraw(ev.sport, m.kind)
       if (lines.length !== d.prices.length || lines.length !== (three ? 3 : 2)) return { applied: false, reason: "lines missing" }
@@ -1230,7 +1251,7 @@ export function applyReprice(db: Db, marketId: string, expected: { basis: number
         await tx.update(sportsLines).set({ price, version: line.version + 1, fairProb: fair, repricedAt: now }).where(eq(sportsLines.id, line.id))
         await tx.insert(sportsLineHistory).values({ lineId: line.id, marketId: marketId, version: line.version + 1, price, point: line.point, fairProb: fair, source: d.source, spread: d.spread, ageMs: Math.round(d.ageMs), at: now })
       }
-      await tx.update(sportsMarkets).set({ fairProbA: d.fairProbA, repricedAt: now, repriceCount: sql`${sportsMarkets.repriceCount} + 1`, exchangeOkAt: now }).where(eq(sportsMarkets.id, marketId))
+      await tx.update(sportsMarkets).set({ ...(recovering ? { status: "open", frozenReason: null } : {}), fairProbA: d.fairProbA, repricedAt: now, repriceCount: sql`${sportsMarkets.repriceCount} + 1`, exchangeOkAt: now }).where(eq(sportsMarkets.id, marketId))
       return { applied: true, oldPrices, newPrices: d.prices, version: a.version + 1 }
     }),
   )

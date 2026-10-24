@@ -32,7 +32,7 @@ import { cycleFailed, EXIT_AFTER_FAILURES, shouldExit, WORKER_NAME } from "../sr
 import { clip, emit, type Fields, type Level } from "../src/lib/sports/log.ts"
 import { idleSleepMs, isQuiet, MAX_SLEEP_MS, pollDelay, QUIET_REFRESH_MS } from "../src/lib/sports/live/plan.ts"
 import { insertQuotes, loadLiveSlate, type LiveSlate, nextStartAfter, nextTrackedStartAfter, pruneLiveQuotes, readSportsActivity, upsertState, writeHeartbeat } from "../src/lib/sports/live/store.ts"
-import { applyReprice, confirmExchange, freezeForReason, listRepriceTargets, lockDueMarkets, reopenWorkerFrozen } from "../src/lib/sports/store.ts"
+import { applyReprice, confirmExchange, freezeForReason, listRepriceTargets, lockDueMarkets, recoverFrozenMarket } from "../src/lib/sports/store.ts"
 import { inQuietHours, msToNextSlot, QUIET_SLOT_MS } from "../src/lib/sports/live/slots.ts"
 import { REPRICE } from "../src/lib/sports/reprice-config.ts"
 import { runRepricePass } from "../src/lib/sports/live/reprice-pass.ts"
@@ -132,7 +132,7 @@ const deps: WorkerDeps = {
     listTargets: (now) => listRepriceTargets(db, now),
     apply: (marketId, basis, decision, now) => applyReprice(db, marketId, basis, decision, now),
     freeze: (marketId, reason) => freezeForReason(db, marketId, reason),
-    reopen: (marketId, now) => reopenWorkerFrozen(db, marketId, now),
+    recover: (marketId, expected, decision, now) => recoverFrozenMarket(db, marketId, expected, decision, now),
     confirm: (ids, now) => confirmExchange(db, ids, now),
     lastActivity: () => readSportsActivity(db),
   },

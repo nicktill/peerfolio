@@ -14,7 +14,7 @@ import { drizzle } from "drizzle-orm/postgres-js"
 import postgres from "postgres"
 import * as schema from "../src/db/schema.ts"
 import { decideReprice, type ExchangeView } from "../src/lib/sports/reprice.ts"
-import { applyReprice, confirmExchange, createSportsLeague, freezeForReason, listRepriceTargets, placeSportsPick, SportsError } from "../src/lib/sports/store.ts"
+import { applyReprice, confirmExchange, createSportsLeague, freezeForReason, recoverFrozenMarket, listRepriceTargets, placeSportsPick, SportsError } from "../src/lib/sports/store.ts"
 import { priceTwoWay, totalReturn } from "../src/lib/sports/odds.ts"
 
 // applyReprice honours the master switch; this script is the deliberate opt-in.
@@ -145,7 +145,7 @@ const C = await newMarket({ startsAt: new Date(now.getTime() + 5 * 60_000), lock
   assert.equal(d.action, "update")
   if (d.action !== "update") throw new Error()
   const atStart = new Date(now.getTime() + 5 * 60_000)
-  const r = await applyReprice(db, C.market.id, t.state.fairProbA, d, atStart)
+  const r = await applyReprice(db, C.market.id, { basis: t.state.fairProbA, count: t.state.repriceCount }, d, atStart)
   assert.deepEqual([r.applied, r.reason], [false, "kickoff"])
   assert.match((await rejects(pick(u2.id, C.home.id, C.home.price, atStart))) ?? "", /closed/)
   console.log("6 kickoff boundary ok")
@@ -202,6 +202,64 @@ const F = await newMarket({ startsAt: new Date(Date.now() + 2_000), lockAt: new 
   assert.equal((await db.select().from(schema.sportsPicks).where(eq(schema.sportsPicks.marketId, F.market.id))).length, 0)
   console.log("9 stale clock ok: queued pick refused after kickoff")
 }
+
+// 10. Temporary freezes recover with the new price in one transaction. Accepted picks retain their copies.
+for (const reason of ["line moved", "price not confirmed while the guard feed was unavailable", "live odds worker not running"]) {
+  const M = await newMarket()
+  await pick(u1.id, M.home.id, M.home.price)
+  await freezeForReason(db, M.market.id, reason)
+  const [t] = (await listRepriceTargets(db, now)).filter(t => t.marketId === M.market.id)
+  assert.ok(t, "temporary frozen market is a recovery target")
+  const d = decideReprice({ now, startsAt, eventStatus: "scheduled", market: { ...t.state, status: "open" }, exchange: ex(0.58) })
+  assert.equal(d.action, "update")
+  const r = await recoverFrozenMarket(db, M.market.id, { basis: t.state.fairProbA, count: t.state.repriceCount }, d, now)
+  assert.equal(r.applied, true)
+  const [market] = await db.select().from(schema.sportsMarkets).where(eq(schema.sportsMarkets.id, M.market.id))
+  const [line] = await db.select().from(schema.sportsLines).where(eq(schema.sportsLines.id, M.home.id))
+  const [accepted] = await db.select().from(schema.sportsPicks).where(eq(schema.sportsPicks.marketId, M.market.id))
+  assert.equal(market!.status, "open")
+  assert.equal(market!.frozenReason, null)
+  assert.equal(line!.price, priceTwoWay(0.58)![0])
+  assert.equal(accepted!.price, M.home.price)
+  assert.equal((await recoverFrozenMarket(db, M.market.id, { basis: t.state.fairProbA, count: t.state.repriceCount }, d, now)).applied, false)
+}
+console.log("10 atomic recovery and accepted prices ok")
+// 11. Other freeze reasons and non-confirming decisions cannot reopen a market.
+const recoveryRefusal = await newMarket()
+await freezeForReason(db, recoveryRefusal.market.id, "manual review")
+assert.equal((await listRepriceTargets(db, now)).some(t => t.marketId === recoveryRefusal.market.id), false)
+const expected = { basis: 0.55, count: 0 }
+assert.equal((await recoverFrozenMarket(db, recoveryRefusal.market.id, expected, { action: "none", reason: "healthy", confirm: true }, now)).applied, false)
+await db.update(schema.sportsMarkets).set({ frozenReason: "line moved" }).where(eq(schema.sportsMarkets.id, recoveryRefusal.market.id))
+assert.equal((await recoverFrozenMarket(db, recoveryRefusal.market.id, expected, { action: "none", reason: "thin" }, now)).applied, false)
+assert.equal((await recoverFrozenMarket(db, recoveryRefusal.market.id, { basis: 0.6, count: 0 }, { action: "none", reason: "healthy", confirm: true }, now)).reason, "basis changed")
+assert.equal((await recoverFrozenMarket(db, recoveryRefusal.market.id, expected, { action: "none", reason: "healthy", confirm: true }, now)).applied, true)
+console.log("11 recovery refusal and confirmation ok")
+
+// 12. Recovery waits for the market lock and never exposes an open market with the old price.
+const R = await newMarket()
+await freezeForReason(db, R.market.id, "line moved")
+const recoveryDecision = decideReprice({ now, startsAt, eventStatus: "scheduled", market: { kind: "moneyline", status: "open", lockAt: startsAt, createdAt: now, fairProbA: 0.55, pointA: null, prices: priceTwoWay(0.55)!, repricedAt: null, repriceCount: 0, exchangeOkAt: now, history: [] }, exchange: ex(0.58) })
+let unlockRecovery!: () => void
+let recoveryLocked!: () => void
+const recoveryHeld = new Promise<void>(r => { unlockRecovery = r })
+const recoveryGotLock = new Promise<void>(r => { recoveryLocked = r })
+const recoveryHolder = db.transaction(async tx => {
+  await tx.select().from(schema.sportsMarkets).where(eq(schema.sportsMarkets.id, R.market.id)).for("share")
+  recoveryLocked()
+  await recoveryHeld
+})
+await recoveryGotLock
+let recovered = false
+const pendingRecovery = recoverFrozenMarket(db, R.market.id, { basis: 0.55, count: 0 }, recoveryDecision, new Date()).then(r => { recovered = true; return r })
+await new Promise(r => setTimeout(r, 200))
+assert.equal(recovered, false)
+assert.equal((await db.select().from(schema.sportsMarkets).where(eq(schema.sportsMarkets.id, R.market.id)))[0]!.status, "locked")
+unlockRecovery()
+await recoveryHolder
+assert.equal((await pendingRecovery).applied, true)
+assert.match((await rejects(pick(u2.id, R.home.id, R.home.price))) ?? "", /moved/)
+console.log("12 atomic recovery lock and stale-pick rejection ok")
 
 await sql.end()
 console.log("reprice integration: PASS")

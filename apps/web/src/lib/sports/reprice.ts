@@ -16,6 +16,10 @@ import type { ThreeWayExchangeResult } from "./threeway-exchange.ts"
 
 export { REPRICE }
 
+/** Temporary pregame guards only. Manual, settlement, kickoff and exchange-integrity freezes never recover automatically. */
+export const RECOVERABLE_FREEZE_REASONS = ["live odds worker not running", "line moved", "price not confirmed while the guard feed was unavailable"] as const
+export const canRecoverFreeze = (reason: string | null): boolean => reason != null && (RECOVERABLE_FREEZE_REASONS as readonly string[]).includes(reason)
+
 export type ExchangeView = {
   /** Probability of the market's FIRST side (home for moneyline/spread, over for totals). */
   probA: number
@@ -60,6 +64,8 @@ export type RepriceInput = {
   now: Date
   startsAt: Date
   eventStatus: string
+  /** Re-entering a temporarily paused market: a larger publication-sized gap still requires both exchanges to agree. */
+  recovering?: boolean
   market: MarketState
   /** Null: no usable exchange read (no match, unavailable, error). Two-way markets. */
   exchange: ExchangeView | null
@@ -110,7 +116,7 @@ export function decideReprice(input: RepriceInput): Decision {
   const step = Math.abs(x.probA - basis)
   // A single source may move a managed line only a little per step; the bigger first-contact gap needs both exchanges to agree.
   const bothAgree = x.other != null && Math.abs(x.other.probA - x.probA) <= REPRICE.disagree
-  const limit = managed || !bothAgree ? REPRICE.maxStep : REPRICE.firstContactMax
+  const limit = (managed && !input.recovering) || !bothAgree ? REPRICE.maxStep : REPRICE.firstContactMax
   if (step > limit) return { action: "freeze", reason: managed ? "exchange jump" : "exchange and published line disagree" }
   const recent = m.history.filter((h) => now.getTime() - h.at.getTime() <= REPRICE.hourMs).map((h) => h.fairProbA)
   const all = [...recent, x.probA]
@@ -140,7 +146,7 @@ function decideThreeWay(input: RepriceInput, hold: (reason: string) => Decision,
   if (!basis) return hold("no fair basis stored")
   const step = Math.max(...v.fair.map((f, i) => Math.abs(f - basis[i]!)))
   const bothAgree = v.other != null
-  const limit = managed || !bothAgree ? REPRICE.maxStep : REPRICE.firstContactMax
+  const limit = (managed && !input.recovering) || !bothAgree ? REPRICE.maxStep : REPRICE.firstContactMax
   if (step > limit) return { action: "freeze", reason: managed ? "exchange jump" : "exchange and published line disagree" }
   const recent = m.history.filter((h) => now.getTime() - h.at.getTime() <= REPRICE.hourMs && h.fairs && h.fairs.length === 3)
   for (let i = 0; i < 3; i++) {
@@ -161,6 +167,7 @@ export const confirmDue = (m: Pick<MarketState, "exchangeOkAt">, now: Date): boo
 /** An open pregame market with everything the repricer needs. Built by the store, consumed by the worker's pass. */
 export type RepriceTarget = {
   marketId: string
+  frozenReason?: string | null
   eventId: string
   sport: string
   homeName: string
@@ -200,8 +207,8 @@ export type RepriceStore = {
   listTargets(now: Date): Promise<RepriceTarget[]>
   apply(marketId: string, expected: { basis: number | null; count: number }, decision: Extract<Decision, { action: "update" }>, now: Date): Promise<RepriceResult>
   freeze(marketId: string, reason: string): Promise<boolean>
-  /** Reopens a market frozen for a dead worker, after a healthy exchange read for it. Optional: stores without it never reopen. */
-  reopen?(marketId: string, now: Date): Promise<boolean>
+  /** Atomically applies/confirms the validated price and reopens a temporary pregame freeze. */
+  recover?(marketId: string, expected: { basis: number | null; count: number }, decision: Decision, now: Date): Promise<RepriceResult>
   confirm(marketIds: string[], now: Date): Promise<void>
   /** When a member last had sports open (see live/activity.ts). Optional: a store without it treats every pass as watched. */
   lastActivity?(): Promise<Date | null>
