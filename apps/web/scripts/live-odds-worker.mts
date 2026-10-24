@@ -30,7 +30,7 @@ import postgres from "postgres"
 import * as schema from "../src/db/schema.ts"
 import { cycleFailed, EXIT_AFTER_FAILURES, shouldExit, WORKER_NAME } from "../src/lib/sports/live/health.ts"
 import { clip, emit, type Fields, type Level } from "../src/lib/sports/log.ts"
-import { idleSleepMs, isQuiet, MAX_SLEEP_MS, pollDelay, QUIET_REFRESH_MS } from "../src/lib/sports/live/plan.ts"
+import { idleSleepMs, isQuiet, MAX_SLEEP_MS, pollDelay, quietRefreshAt } from "../src/lib/sports/live/plan.ts"
 import { insertQuotes, loadLiveSlate, type LiveSlate, nextStartAfter, nextTrackedStartAfter, pruneLiveQuotes, readSportsActivity, upsertState, writeHeartbeat } from "../src/lib/sports/live/store.ts"
 import { applyReprice, confirmExchange, freezeForReason, listRepriceTargets, lockDueMarkets, recoverFrozenMarket } from "../src/lib/sports/store.ts"
 import { inQuietHours, msToNextSlot, QUIET_SLOT_MS } from "../src/lib/sports/live/slots.ts"
@@ -103,7 +103,7 @@ const watch = appUrl && cronSecret
  * Quiet mode. A game stays on the slate while only an open pick rides on it (nobody on the sports pages). Writing a quote every 10 s for
  * nobody keeps Neon awake (it suspends only after about 5 idle minutes, and compute time is what the free plan counts). So when the slate
  * was loaded as "not watched", the worker keeps polling upstream in memory (fast settle triggers still fire; they call the app, not the
- * database) but stores nothing and reads nothing from the database until QUIET_REFRESH_MS passes, a viewer shows up (the watch signal),
+ * database) but stores nothing and reads nothing from the database until the next shared quarter-hour slot, a viewer shows up (the watch signal),
  * or a kickoff needs its market locked. The heartbeat announces the quiet period (details.quiet, sleepUntil), so health and the publish
  * guard treat it as sleep, not silence.
  */
@@ -270,7 +270,7 @@ while (!stopping) {
 
   // Heartbeat for /api/sports/live/health (one tiny upsert per cycle). While quiet the previous one already announced the wake time.
   const goingQuiet = !quiet && quietNow(Date.now())
-  const quietUntil = cached ? cached.at + QUIET_REFRESH_MS : 0
+  const quietUntil = cached ? quietRefreshAt(cached.at) : 0
   if (!quiet) try {
     await writeHeartbeat(db, {
       name: WORKER_NAME,
