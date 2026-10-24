@@ -77,9 +77,9 @@ function Brand() {
 export function AppNav() {
   const pathname = usePathname()
   const { data: session, status } = useSession()
-  const { data: brokerageAccess, error: accessError } = useApi<{ admin: boolean }>(status === "authenticated" ? "/api/plaid/access" : null, [], { refreshMs: 60_000 })
   const activeHref = LINKS.find((link) => pathname.startsWith(link.href))?.href ?? null
-  const admin = brokerageAccess?.admin && !accessError
+  // From the session (the server's allowlist), so the nav needs no polled request of its own.
+  const admin = status === "authenticated" && session?.user?.admin === true
   const assistant = useApi<{ available: boolean }>(status === "authenticated" ? "/api/assistant/status" : null)
   const assistantReady = !!assistant.data?.available
   const onAdmin = pathname.startsWith("/admin")
