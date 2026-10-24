@@ -39,8 +39,58 @@ type Access = {
 
 const CAPTION = "w-full text-xs leading-snug text-muted-foreground"
 
+/** A tab coming back after at least this long re-reads access; also the retry pace while the check itself is failing. */
+const RECHECK_MS = 60_000
+
+/**
+ * Brokerage access is read when the button mounts, again when the tab comes back after a while, and once more
+ * right before Link opens, rather than on a timer: an open dashboard shouldn't keep the database awake for an
+ * answer that rarely changes. Only a failed check keeps retrying, so a blip doesn't leave the button greyed out.
+ * None of this is the authorization: the link-token and exchange routes check access again on the server.
+ */
+function useBrokerageAccess(enabled: boolean) {
+  const access = useApi<Access>(enabled ? "/api/plaid/access" : null)
+  const { data, error, loading, refetch } = access
+  const checkedAt = useRef(0)
+  useEffect(() => {
+    if (!loading && (data || error)) checkedAt.current = Date.now()
+  }, [data, error, loading])
+  useEffect(() => {
+    if (!enabled) return
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && Date.now() - checkedAt.current >= RECHECK_MS) void refetch()
+    }
+    document.addEventListener("visibilitychange", onVisible)
+    return () => document.removeEventListener("visibilitychange", onVisible)
+  }, [enabled, refetch])
+  useEffect(() => {
+    if (!enabled || !error || loading) return
+    const timer = window.setTimeout(() => {
+      if (document.visibilityState === "visible") void refetch()
+    }, RECHECK_MS)
+    return () => window.clearTimeout(timer)
+  }, [enabled, error, loading, refetch])
+  return access
+}
+
+/**
+ * The last word before Link opens. True when access still holds, or when the check itself couldn't be made
+ * (the server refuses the link token or exchange if access is really gone). False after switching the button
+ * to its unavailable state.
+ */
+async function confirmAccess(refetch: () => Promise<void>): Promise<boolean> {
+  try {
+    const fresh = await mutate<Access>("/api/plaid/access", { method: "GET" })
+    if (fresh.allowed) return true
+  } catch {
+    return true
+  }
+  await refetch()
+  return false
+}
+
 export function ConnectButton(props: Props) {
-  const { data, error, refetch } = useApi<Access>(props.itemId ? null : "/api/plaid/access", [], { refreshMs: 60_000 })
+  const { data, error, refetch } = useBrokerageAccess(!props.itemId)
   // Everyone sees the button. The server decides, live, whether it's usable for this account:
   // it's live for everyone not blocked, and greyed out (with a short pill and a muted note) otherwise.
   if (!props.itemId && (error || !data?.allowed)) {
@@ -87,6 +137,7 @@ export function ConnectButton(props: Props) {
         <PlaidConnectButton
           {...props}
           preLink={preLinkNotice({ capApplies: data?.capApplies === true, used: data?.userLimit?.used ?? 0, limit: data?.userLimit?.limit ?? 0 })}
+          confirm={() => confirmAccess(refetch)}
           onConnected={() => { props.onConnected(); refetch() }}
         />
         {data?.capApplies && data.userLimit ? <p className={CAPTION}>{userLimitNotice(data.userLimit.limit)}</p> : null}
@@ -96,8 +147,9 @@ export function ConnectButton(props: Props) {
   return <PlaidConnectButton {...props} />
 }
 
-function PlaidConnectButton({ onConnected, itemId, children, preLink = null, ...buttonProps }: Props & { preLink?: PreLinkNotice | null }) {
+function PlaidConnectButton({ onConnected, itemId, children, preLink = null, confirm, ...buttonProps }: Props & { preLink?: PreLinkNotice | null; confirm?: () => Promise<boolean> }) {
   const [confirming, setConfirming] = useState(false)
+  const [checking, setChecking] = useState(false)
   const { toast } = useToast()
   const [linkToken, setLinkToken] = useState<string | null>(null)
   const [exchanging, setExchanging] = useState(false)
@@ -184,14 +236,24 @@ function PlaidConnectButton({ onConnected, itemId, children, preLink = null, ...
     open()
   }
 
+  async function begin() {
+    if (confirm) {
+      setChecking(true)
+      const ok = await confirm().finally(() => setChecking(false))
+      if (!ok) return
+    }
+    // New connections get the heads-up every time; repairs go straight to Link.
+    if (preLink && !itemId) setConfirming(true)
+    else start()
+  }
+
   return (
     <>
       <Button
         {...buttonProps}
-        // New connections get the heads-up every time; repairs go straight to Link.
-        onClick={() => (preLink && !itemId ? setConfirming(true) : start())}
-        disabled={!ready || !linkToken || exchanging} loading={exchanging}>
-        {!exchanging ? <Building2 aria-hidden /> : null}
+        onClick={() => void begin()}
+        disabled={!ready || !linkToken || exchanging || checking} loading={exchanging || checking}>
+        {!exchanging && !checking ? <Building2 aria-hidden /> : null}
         {children ?? (itemId ? "Reconnect" : "Connect account")}
       </Button>
       <PreLinkDialog

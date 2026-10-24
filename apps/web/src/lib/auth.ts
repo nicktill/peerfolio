@@ -4,6 +4,7 @@ import GoogleProvider from "next-auth/providers/google"
 import { getServerSession } from "next-auth"
 import { eq } from "drizzle-orm"
 import { db, users } from "@web/db"
+import { isAdminEmail } from "@web/lib/plaid-access-core"
 import { ensureDemoUser, rootMessage } from "@web/lib/demo-bootstrap"
 import { devLoginMode, passcodeMatches, passcodeRequired, previewAllowlist } from "@web/lib/dev-login"
 
@@ -118,6 +119,8 @@ export const authOptions: NextAuthOptions = {
       if (session.user && token.userId) {
         session.user.id = token.userId as string
       }
+      // Only decides whether the nav shows the admin pages; every admin route still checks the allowlist itself.
+      if (session.user) session.user.admin = isAdminEmail(session.user.email ?? "", process.env.ADMIN_EMAILS)
       return session
     },
   },
