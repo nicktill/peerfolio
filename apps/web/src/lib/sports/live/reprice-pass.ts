@@ -29,6 +29,8 @@ export type PassResult = {
   skipped: boolean
   /** When the next pass is due: 30s while a target starts within the window, else the next shared slot (see slots.ts). */
   nextPassMs: number
+  /** The last pass chose the hourly quiet-hours slot (see slots.ts), so the worker may sleep to the hour as well. */
+  hourly: boolean
 }
 
 type Sides = { home?: NormalizedQuote; away?: NormalizedQuote; draw?: NormalizedQuote }
@@ -51,10 +53,11 @@ export async function runRepricePass(deps: WorkerDeps, st: WorkerState, now: Dat
   if (!store) return null
   // Not due: answer from memory. Only the database read below can keep a serverless Postgres awake, and nothing can be due before
   // the next slot or before the nearest known game enters the fast window.
-  if (now.getTime() < st.reprice.nextListAt) return { targets: st.reprice.lastTargets, matched: 0, updated: 0, frozen: 0, held: 0, confirmed: 0, unmatched: 0, skipped: true, nextPassMs: st.reprice.nextListAt - now.getTime() }
+  if (now.getTime() < st.reprice.nextListAt) return { targets: st.reprice.lastTargets, matched: 0, updated: 0, frozen: 0, held: 0, confirmed: 0, unmatched: 0, skipped: true, nextPassMs: st.reprice.nextListAt - now.getTime(), hourly: st.reprice.hourly }
   const targets = await store.listTargets(now)
   st.reprice.lastTargets = targets.length
-  const result: PassResult = { targets: targets.length, matched: 0, updated: 0, frozen: 0, held: 0, confirmed: 0, unmatched: 0, skipped: false, nextPassMs: REPRICE.farPassMs }
+  st.reprice.hourly = false
+  const result: PassResult = { targets: targets.length, matched: 0, updated: 0, frozen: 0, held: 0, confirmed: 0, unmatched: 0, skipped: false, nextPassMs: REPRICE.farPassMs, hourly: false }
   if (targets.length === 0) {
     // A live game can keep the outer worker ticking every 10s even when nothing is open for repricing.
     // Discover newly published targets on the normal fast-pass cadence, without an otherwise empty query each tick.
@@ -69,8 +72,12 @@ export async function runRepricePass(deps: WorkerDeps, st: WorkerState, now: Dat
   // (priceNeedsRefresh). A store without an activity signal counts as watched, which is the old behaviour.
   const watched = store.lastActivity ? isWatched(await store.lastActivity(), now) : true
   const fast = near && watched
-  // Nothing starts within the window plus an hour: in quiet hours the slot pass may run hourly (see slots.ts).
-  const hourly = soonest - t > REPRICE.windowMs + QUIET_SLOT_MS
+  // In quiet hours the slot pass may run hourly (see slots.ts): when nothing starts within the window plus an hour, or when nobody is
+  // watching. Unwatched, a quarter-hour pass only keeps the database awake between the hourly cron runs: picks on a game inside the
+  // window still wait for a fresh price (priceNeedsRefresh), and a viewer's watch signal brings a pass within seconds.
+  const hourly = soonest - t > REPRICE.windowMs + QUIET_SLOT_MS || (!watched && inQuietHours(t))
+  st.reprice.hourly = hourly
+  result.hourly = hourly
   // Slot-aligned passes wake early for a game entering the fast window only when someone is watching.
   const wakeMs = watched ? Math.min(msToNextSlot(t, hourly), soonest - REPRICE.windowMs - t) : msToNextSlot(t, hourly)
   if (fast) {
