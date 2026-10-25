@@ -39,6 +39,7 @@ import { matchesSearch } from "@web/lib/sports/search"
 import { isUpcoming, upcomingPage, UPCOMING_PAGE_SIZE } from "@web/lib/sports/upcoming"
 import { REPRICE } from "@web/lib/sports/reprice-config"
 import { mutate, useApi } from "@web/lib/use-api"
+import { SportsHoldGate } from "@web/components/sports/sports-on-hold"
 
 type Line = DisplayLine & { id: string; price: number }
 type EventInfo = { sport: string; home: string; away: string; startsAt: string; homeRecord?: string | null; awayRecord?: string | null; scoreGame?: ScoreGame }
@@ -89,7 +90,16 @@ const dayOf = (iso: string) => new Date(iso).toLocaleDateString("en-US", { weekd
 const timeOf = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
 const credits = formatCredits
 
+/** While sports is on hold (lib/sports/maintenance.ts) the league's pollers never mount: the page says so instead. */
 export default function SportsLeaguePage({ params }: { params: Promise<{ id: string }> }) {
+  return (
+    <SportsHoldGate>
+      <SportsLeague params={params} />
+    </SportsHoldGate>
+  )
+}
+
+function SportsLeague({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const [, , visit] = useFantasyMode()
   // Landing here means Sports is the side you're on; "Fantasy leagues" then returns to it.

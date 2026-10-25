@@ -11,6 +11,7 @@ import type { MarketBoard } from "@web/lib/news-market"
 import dynamic from "next/dynamic"
 import { LeagueBrand } from "@web/components/sports/league-brand"
 import { useSportsAccess, useSportsEnabled } from "@web/components/sports/use-sports-enabled"
+import { sportsOnHold } from "@web/lib/sports/maintenance"
 
 // Pulls in the team tables via TeamBadge, so it is split out of the Fantasy page's first load.
 const ArenaMatchups = dynamic(() => import("@web/components/sports/arena-matchups").then((m) => m.ArenaMatchups))
@@ -179,7 +180,8 @@ function ArenaArt() {
           <path d="M14 46h34v48H14M386 46h-34v48h34" />
         </g>
       </svg>
-      <ArenaMatchups />
+      {/* Its scoreboard polls a sports route, which answers nothing useful while sports is on hold. */}
+      {sportsOnHold() ? null : <ArenaMatchups />}
     </>
   )
 }
