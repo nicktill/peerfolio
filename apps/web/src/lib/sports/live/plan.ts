@@ -1,5 +1,5 @@
 import { isSportEnabled } from "../enabled.ts"
-import { msToNextSlot, SLOT_MS } from "./slots.ts"
+import { inHalfHourBand, msToNextSlot, SLOT_MS } from "./slots.ts"
 import type { LiveSelection, LiveSource } from "./types.ts"
 
 /**
@@ -101,8 +101,11 @@ export function bookClock(
  * started whose market it has not locked yet. Compute time is what Neon's free plan counts, and a write every 10 s keeps it awake.
  */
 export const QUIET_REFRESH_MS = SLOT_MS
-/** Refresh alongside the cron, rather than opening a separate five-minute Neon awake window every twelve minutes. */
-export const quietRefreshAt = (loadedAt: number): number => loadedAt + msToNextSlot(loadedAt)
+/**
+ * Refresh alongside the cron, rather than opening a separate five-minute Neon awake window every twelve minutes. In the half-hour
+ * band (live/slots.ts) the cron runs on the half hour, so the refresh does too.
+ */
+export const quietRefreshAt = (loadedAt: number): number => loadedAt + msToNextSlot(loadedAt, inHalfHourBand(loadedAt))
 export type QuietCache = { watched: boolean; at: number; rows: { id: string; startsAt: Date }[] }
 export function isQuiet(cache: QuietCache | null, now: number, canBeWoken: boolean, kickoffLocked: ReadonlySet<string>): boolean {
   if (!canBeWoken || !cache || cache.watched || cache.rows.length === 0) return false

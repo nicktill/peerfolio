@@ -8,10 +8,18 @@
  * the shared slot widens to the hour. The routes skip the other quarter-hours (quietOffSlot) and the worker sleeps to the hour,
  * but only when no game starts within the repricing window plus an hour (callers pass `hourly`). Set the variable to the same
  * value on Vercel and on the worker, or leave it unset on both.
+ *
+ * Half-hour band (inHalfHourBand): outside quiet hours, the hours when nothing but sports would wake the database on the quarter
+ * hour (no stock price slots: weekends, and weekday nights 01-05 UTC). There the routes run on the half hour and the worker's
+ * relaxed passes (nobody watching, or no game near) follow it; a viewer still gets the fast cadence. SPORTS_HALF_HOURLY=off turns
+ * it off; set it the same on Vercel and the worker.
+ *
+ * `hourly` below means "relaxed": the slot widens to the hour in quiet hours and to the half hour in the half-hour band.
  */
 export const SLOT_MS = 15 * 60_000
 export const SLOT_OFFSET_MS = 45_000
 export const QUIET_SLOT_MS = 60 * 60_000
+export const HALF_SLOT_MS = 30 * 60_000
 
 const DEFAULT_QUIET = "5-15"
 
@@ -35,20 +43,49 @@ export function inQuietHours(t: number, quiet: QuietHours = QUIET): boolean {
   return start < end ? h >= start && h < end : h >= start || h < end
 }
 
-/** A quarter-hour cron run the publish and settle routes skip: inside quiet hours and not the top of the hour. */
-export const quietOffSlot = (now: number, quiet: QuietHours = QUIET): boolean => inQuietHours(now, quiet) && new Date(now).getUTCMinutes() >= 15
+const HALF = process.env.SPORTS_HALF_HOURLY?.trim().toLowerCase() !== "off"
 
-const isSlot = (b: number, hourly: boolean, quiet: QuietHours) => !hourly || !inQuietHours(b - SLOT_OFFSET_MS, quiet) || (b - SLOT_OFFSET_MS) % QUIET_SLOT_MS === 0
+/**
+ * Outside quiet hours, the sports-only hours (UTC): Saturday and Sunday, except Saturday 00:00-01:00 (Friday evening's stock price
+ * runs still fire every quarter hour then), and weekday nights 01:00-05:00, after the price slots stop.
+ */
+export function inHalfHourBand(t: number, quiet: QuietHours = QUIET, half: boolean = HALF): boolean {
+  if (!half || inQuietHours(t, quiet)) return false
+  const d = new Date(t)
+  const dow = d.getUTCDay()
+  const h = d.getUTCHours()
+  if (dow === 6) return h >= 1
+  if (dow === 0) return true
+  return h >= 1 && h < 5
+}
 
-/** The first slot strictly after `t`. With `hourly`, quarter-hours inside quiet hours other than the top of the hour are not slots. */
-function nextSlotAfter(t: number, hourly: boolean, quiet: QuietHours): number {
+/**
+ * A quarter-hour cron run the publish and settle routes skip: in quiet hours anything but the top of the hour, and in the
+ * half-hour band the quarter past and quarter to.
+ */
+export const quietOffSlot = (now: number, quiet: QuietHours = QUIET, half: boolean = HALF): boolean => {
+  const m = new Date(now).getUTCMinutes()
+  if (inQuietHours(now, quiet)) return m >= 15
+  return inHalfHourBand(now, quiet, half) && m % 30 >= 15
+}
+
+function isSlot(b: number, hourly: boolean, quiet: QuietHours, half: boolean): boolean {
+  const at = b - SLOT_OFFSET_MS
+  if (!hourly) return true
+  if (inQuietHours(at, quiet)) return at % QUIET_SLOT_MS === 0
+  if (inHalfHourBand(at, quiet, half)) return at % HALF_SLOT_MS === 0
+  return true
+}
+
+/** The first slot strictly after `t`. With `hourly` (relaxed), quiet hours keep only the top of the hour and the half-hour band only :00 and :30. */
+function nextSlotAfter(t: number, hourly: boolean, quiet: QuietHours, half: boolean): number {
   let b = Math.floor((t - SLOT_OFFSET_MS) / SLOT_MS) * SLOT_MS + SLOT_OFFSET_MS + SLOT_MS
-  while (!isSlot(b, hourly, quiet)) b += SLOT_MS
+  while (!isSlot(b, hourly, quiet, half)) b += SLOT_MS
   return b
 }
 
 /** Milliseconds from `now` to the next slot (always positive). */
-export const msToNextSlot = (now: number, hourly = false, quiet: QuietHours = QUIET): number => nextSlotAfter(now, hourly, quiet) - now
+export const msToNextSlot = (now: number, hourly = false, quiet: QuietHours = QUIET, half: boolean = HALF): number => nextSlotAfter(now, hourly, quiet, half) - now
 
 /** True when a slot boundary lies in (last, now]. */
-export const slotElapsed = (last: number, now: number, hourly = false, quiet: QuietHours = QUIET): boolean => nextSlotAfter(last, hourly, quiet) <= now
+export const slotElapsed = (last: number, now: number, hourly = false, quiet: QuietHours = QUIET, half: boolean = HALF): boolean => nextSlotAfter(last, hourly, quiet, half) <= now
