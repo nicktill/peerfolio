@@ -62,3 +62,9 @@ an automatic GitHub owner. The continuous odds worker and infrastructure budget/
 
 The repository expresses the intended cutover configuration, not proof of the deployed owner. Check deployed Vercel Cron
 Jobs, Cloudflare version/DRY_RUN/logs, and GitHub triggers before declaring migration complete.
+
+## Retained delivery evidence
+
+The Worker configuration enables persisted Workers Logs at full sampling, including invocation outcomes and the existing per-job HTTP status/attempt records. Authentication headers, response bodies and secrets are not logged. Confirm the deployed settings after the approved deployment; this configuration does not retroactively retain older invocations or send alerts.
+
+Deploy the live scheduler with `npx wrangler deploy --var DRY_RUN:0` so the committed dry-run default does not interrupt ownership. Check the returned version, a due invocation's outcome and CPU time, and each due critical job's HTTP 200 in retained logs. Local `wrangler tail` output alone is temporary evidence.

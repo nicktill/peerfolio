@@ -1,6 +1,6 @@
 import { isWatched } from "./activity.ts"
-import { inQuietHours, msToNextSlot, QUIET_SLOT_MS, slotElapsed } from "./slots.ts"
-import { confirmDue, decideReprice, REPRICE, type ExchangeView, type RepriceTarget } from "../reprice.ts"
+import { HALF_SLOT_MS, inHalfHourBand, inQuietHours, msToNextSlot, QUIET_SLOT_MS, slotElapsed } from "./slots.ts"
+import { canRecoverFreeze, confirmDue, decideReprice, REPRICE, type ExchangeView, type RepriceTarget } from "../reprice.ts"
 import { explainNoMatch, matchExchangeGame, matchGame } from "./match.ts"
 import { booksFromQuotes, exchangeThreeWay, type ThreeWayExchangeResult } from "../threeway-exchange.ts"
 import { normalizeQuote, pairProbability } from "./quote.ts"
@@ -29,6 +29,8 @@ export type PassResult = {
   skipped: boolean
   /** When the next pass is due: 30s while a target starts within the window, else the next shared slot (see slots.ts). */
   nextPassMs: number
+  /** The last pass chose the hourly quiet-hours slot (see slots.ts), so the worker may sleep to the hour as well. */
+  hourly: boolean
 }
 
 type Sides = { home?: NormalizedQuote; away?: NormalizedQuote; draw?: NormalizedQuote }
@@ -51,10 +53,11 @@ export async function runRepricePass(deps: WorkerDeps, st: WorkerState, now: Dat
   if (!store) return null
   // Not due: answer from memory. Only the database read below can keep a serverless Postgres awake, and nothing can be due before
   // the next slot or before the nearest known game enters the fast window.
-  if (now.getTime() < st.reprice.nextListAt) return { targets: st.reprice.lastTargets, matched: 0, updated: 0, frozen: 0, held: 0, confirmed: 0, unmatched: 0, skipped: true, nextPassMs: st.reprice.nextListAt - now.getTime() }
+  if (now.getTime() < st.reprice.nextListAt) return { targets: st.reprice.lastTargets, matched: 0, updated: 0, frozen: 0, held: 0, confirmed: 0, unmatched: 0, skipped: true, nextPassMs: st.reprice.nextListAt - now.getTime(), hourly: st.reprice.hourly }
   const targets = await store.listTargets(now)
   st.reprice.lastTargets = targets.length
-  const result: PassResult = { targets: targets.length, matched: 0, updated: 0, frozen: 0, held: 0, confirmed: 0, unmatched: 0, skipped: false, nextPassMs: REPRICE.farPassMs }
+  st.reprice.hourly = false
+  const result: PassResult = { targets: targets.length, matched: 0, updated: 0, frozen: 0, held: 0, confirmed: 0, unmatched: 0, skipped: false, nextPassMs: REPRICE.farPassMs, hourly: false }
   if (targets.length === 0) {
     // A live game can keep the outer worker ticking every 10s even when nothing is open for repricing.
     // Discover newly published targets on the normal fast-pass cadence, without an otherwise empty query each tick.
@@ -69,8 +72,13 @@ export async function runRepricePass(deps: WorkerDeps, st: WorkerState, now: Dat
   // (priceNeedsRefresh). A store without an activity signal counts as watched, which is the old behaviour.
   const watched = store.lastActivity ? isWatched(await store.lastActivity(), now) : true
   const fast = near && watched
-  // Nothing starts within the window plus an hour: in quiet hours the slot pass may run hourly (see slots.ts).
-  const hourly = soonest - t > REPRICE.windowMs + QUIET_SLOT_MS
+  // A relaxed slot (see slots.ts: hourly in quiet hours, half-hourly in the half-hour band) when nothing starts within the window
+  // plus an hour, or when nobody is watching. Unwatched, a quarter-hour pass there only keeps the database awake between cron runs:
+  // picks on a game inside the window still wait for a fresh price (priceNeedsRefresh), and a viewer's watch signal brings a pass
+  // within seconds.
+  const hourly = soonest - t > REPRICE.windowMs + QUIET_SLOT_MS || (!watched && (inQuietHours(t) || inHalfHourBand(t)))
+  st.reprice.hourly = hourly
+  result.hourly = hourly
   // Slot-aligned passes wake early for a game entering the fast window only when someone is watching.
   const wakeMs = watched ? Math.min(msToNextSlot(t, hourly), soonest - REPRICE.windowMs - t) : msToNextSlot(t, hourly)
   if (fast) {
@@ -145,25 +153,36 @@ export async function runRepricePass(deps: WorkerDeps, st: WorkerState, now: Dat
     const exchange3 = three ? buildView3(t, pmFor.get(t.eventId), books, kalshi.get(t.sport), now) : undefined
     if (exchange || exchange3) result.matched++
     else result.unmatched++
-    // A locked target is a market the cron froze while the worker was down. It is judged as if open and reopens only on a healthy
+    // A temporary pregame freeze is judged as a new publication. A larger re-entry step needs both sources, like first contact.
+    // It is judged as if open and reopens only on a healthy
     // read (update or confirm); a freeze or hold decision leaves it closed. Never reopened straight from the heartbeat.
     const wasLocked = t.state.status === "locked"
     // Slot-cadence reads (far games, or no viewer) get the longer stale tolerance: one bad read between passes must not freeze a market.
     const slowRead = !fast || t.startsAt.getTime() - now.getTime() > REPRICE.windowMs
     // Hourly reads (quiet hours, or the first passes after them) get two missed hourly passes of tolerance.
     const hourlyRead = hourly && (inQuietHours(now.getTime()) || inQuietHours(now.getTime() - 2 * QUIET_SLOT_MS))
-    const d = decideReprice({ now, startsAt: t.startsAt, staleFreezeMs: hourlyRead ? REPRICE.quietStaleFreezeMs : slowRead ? REPRICE.farStaleFreezeMs : undefined, eventStatus: t.eventStatus, market: wasLocked ? { ...t.state, status: "open" } : t.state, exchange, exchange3 })
+    // Half-hourly reads (the half-hour band, or the first passes after it) get two missed half-hour passes.
+    const halfRead = hourly && (inHalfHourBand(now.getTime()) || inHalfHourBand(now.getTime() - 2 * HALF_SLOT_MS))
+    const d = decideReprice({ now, startsAt: t.startsAt, staleFreezeMs: hourlyRead ? REPRICE.quietStaleFreezeMs : halfRead ? REPRICE.halfStaleFreezeMs : slowRead ? REPRICE.farStaleFreezeMs : undefined, eventStatus: t.eventStatus, recovering: wasLocked && canRecoverFreeze(t.frozenReason ?? null), market: wasLocked ? { ...t.state, status: "open" } : t.state, exchange, exchange3 })
     const label = `${t.awayName} @ ${t.homeName}`
     if (wasLocked) {
-      if (!(d.action === "update" || (d.action === "none" && d.confirm)) || !store.reopen || !(await store.reopen(t.marketId, now))) {
+      if (!(d.action === "update" || (d.action === "none" && d.confirm)) || !store.recover) {
+        result.held++
+        if (now.getTime() - (st.reprice.holdLogAt.get(t.marketId) ?? 0) >= 60_000) {
+          st.reprice.holdLogAt.set(t.marketId, now.getTime())
+          deps.emit?.("warn", "live.reprice_hold", { marketId: t.marketId, game: label, reason: d.action === "update" ? "recovery not supported" : d.reason, recovering: true, exchange: exchange ? summary(exchange) : summary3(exchange3) })
+        }
+        continue
+      }
+      const recovered = await store.recover(t.marketId, { basis: t.state.fairProbA, count: t.state.repriceCount }, d, now)
+      if (!recovered.applied) {
         result.held++
         continue
       }
-      deps.emit?.("info", "sports.market_reopened_exchange_ok", { marketId: t.marketId, game: label })
-      if (d.action === "none") {
-        toConfirm.push(t.marketId)
-        continue
-      }
+      if (d.action === "update") result.updated++
+      else result.confirmed++
+      deps.emit?.("info", "sports.market_reopened_exchange_ok", { marketId: t.marketId, game: label, prices: recovered.newPrices })
+      continue
     }
     if (d.action === "update") {
       const r = await store.apply(t.marketId, { basis: t.state.fairProbA, count: t.state.repriceCount }, d, now)
@@ -207,7 +226,7 @@ export async function runRepricePass(deps: WorkerDeps, st: WorkerState, now: Dat
   }
   if (toConfirm.length) {
     await store.confirm(toConfirm, now)
-    result.confirmed = toConfirm.length
+    result.confirmed += toConfirm.length
   }
   deps.emit?.("info", "live.reprice_pass", { ...result })
   return result

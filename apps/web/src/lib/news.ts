@@ -7,6 +7,7 @@ import { db } from "@web/db"
 import { newsAiSpend, newsBriefs, newsItems } from "@web/db/schema"
 import { fetchFeeds } from "@web/lib/news-feeds"
 import { briefTargets, briefWindow, briefingSlot, briefingNeedsRefresh, latestDailyBrief, NEWS_MODEL, selectItems, writeBrief, type BriefPeriod, type SpendLedger } from "@web/lib/news-brief"
+import { newsDueFromStatus, type NewsStatus } from "@web/lib/news-due"
 
 /** Most the recaps may spend in a calendar month (UTC). Past it, recaps are written from headlines only. */
 const MONTHLY_BUDGET_USD = Number(process.env.NEWS_AI_MONTHLY_BUDGET_USD) || 1
@@ -18,6 +19,13 @@ const BUDGET_LOCK = 4_207_001
 const RUN_LOCK = 4_207_002
 /** Headlines older than this are refreshed by the next visit. */
 const STALE_MS = 20 * 60_000
+/**
+ * Every write the news job makes revalidates this tag, so the cached reads below are exact until the next
+ * write; their own expiry is only a safety net. Visits then answer from the cache instead of waking the database.
+ */
+const NEWS_TAG = "news-latest"
+/** Per server: after a visit tried a run, other visits wait this long (a failed or contended run writes nothing, so it still looks due). */
+const VISIT_RETRY_MS = 60_000
 
 const DAY = 86_400_000
 
@@ -90,7 +98,7 @@ async function publish(period: BriefPeriod, periodEnd: string, now: Date) {
     .insert(newsBriefs)
     .values(values)
     .onConflictDoUpdate({ target: [newsBriefs.period, newsBriefs.periodEnd], set: values })
-  revalidateTag("news-latest")
+  revalidateTag(NEWS_TAG)
   return { period, periodEnd, items: items.length, fallback: result.fallback, problems: result.problems, costUsd: result.costUsd }
 }
 
@@ -109,6 +117,8 @@ export async function runNews(now = new Date(), { force = false }: { force?: boo
       .onConflictDoUpdate({ target: newsItems.url, set: { fetchedAt: now } })
   }
   await db.delete(newsItems).where(lt(newsItems.publishedAt, new Date(now.getTime() - KEEP_DAYS * DAY)))
+  // New headlines and a later fetchedAt: both cached reads must see them.
+  revalidateTag(NEWS_TAG)
 
   const targets = briefTargets(now)
   const exists = async (period: BriefPeriod, date: string) =>
@@ -128,28 +138,30 @@ export async function runNews(now = new Date(), { force = false }: { force?: boo
   return { fetched: items.length, feedFailures: failures, targets: { ...targets, slot }, briefs }
 }
 
-/** What a run would do right now: refresh stale headlines or write a recap that's due. */
-async function newsDue(now: Date) {
-  const [latest] = await db.select({ at: max(newsItems.fetchedAt) }).from(newsItems)
-  if (!latest?.at || now.getTime() - latest.at.getTime() > STALE_MS) return true
-  const slot = briefingSlot(now)
-  if (slot?.period === "midday") {
-    const [row] = await db.select({ at: newsBriefs.createdAt }).from(newsBriefs)
-      .where(and(eq(newsBriefs.period, "midday"), eq(newsBriefs.periodEnd, slot.date))).limit(1)
-    if (briefingNeedsRefresh(row?.at ?? null, slot)) return true
+/** Recaps per period the status keeps; the due check only ever asks about the latest session and week. */
+const STATUS_RECENT = 14
+
+/** What the due check reads (see news-due.ts): the newest headline fetch and the recent recaps of each kind. */
+async function readNewsStatus(): Promise<NewsStatus> {
+  const recent = (period: BriefPeriod) =>
+    db
+      .select({ periodEnd: newsBriefs.periodEnd, createdAt: newsBriefs.createdAt })
+      .from(newsBriefs)
+      .where(eq(newsBriefs.period, period))
+      .orderBy(desc(newsBriefs.periodEnd))
+      .limit(STATUS_RECENT)
+  const [[latest], day, week, midday] = await Promise.all([db.select({ at: max(newsItems.fetchedAt) }).from(newsItems), recent("day"), recent("week"), recent("midday")])
+  return {
+    fetchedAt: latest?.at ? latest.at.toISOString() : null,
+    day: day.map((r) => r.periodEnd),
+    week: week.map((r) => r.periodEnd),
+    midday: midday.map((r) => ({ periodEnd: r.periodEnd, createdAt: r.createdAt.toISOString() })),
   }
-  const targets = briefTargets(now)
-  const wanted: [BriefPeriod, string | null][] = [
-    ["day", targets.day],
-    ["week", targets.week],
-  ]
-  for (const [period, date] of wanted) {
-    if (!date) continue
-    const [row] = await db.select({ id: newsBriefs.id }).from(newsBriefs).where(and(eq(newsBriefs.period, period), eq(newsBriefs.periodEnd, date))).limit(1)
-    if (!row) return true
-  }
-  return false
 }
+
+const readCachedNewsStatus = unstable_cache(readNewsStatus, ["news-status-v1"], { tags: [NEWS_TAG], revalidate: 3600 })
+
+let lastVisitRunAt = 0
 
 /** Runs the news job unless another server already is. Returns null when it was already running. */
 export async function runNewsOnce(now = new Date(), options: { force?: boolean } = {}) {
@@ -164,13 +176,16 @@ export async function runNewsOnce(now = new Date(), options: { force?: boolean }
  * Called on page loads: if headlines are stale or a recap is due, refresh in
  * the background after the response is sent. The cron and GitHub's scheduled
  * calls are backups; whoever comes first does the work, and the lock makes
- * sure only one does it.
+ * sure only one does it. Whether anything is due is worked out from the cached
+ * status, so a visit touches the database only when there is work to do.
  */
 export function refreshNewsIfDue(now = new Date()) {
   try {
     after(async () => {
       try {
-        if (!(await newsDue(now))) return
+        if (!newsDueFromStatus(await readCachedNewsStatus(), now, STALE_MS)) return
+        if (now.getTime() - lastVisitRunAt < VISIT_RETRY_MS) return
+        lastVisitRunAt = now.getTime()
         const run = await runNewsOnce(new Date())
         if (run) console.info(`[news] refreshed on visit: ${run.fetched} items, ${run.briefs.length} recap(s)`)
       } catch (error) {
@@ -227,5 +242,5 @@ export async function readNews() {
 export type NewsResponse = Awaited<ReturnType<typeof readNews>>
 
 
-/** One shared read cache for signed-in News and the public landing preview. */
-export const readCachedNews = unstable_cache(readNews, ["news-latest-v2"], { tags: ["news-latest"], revalidate: 60 })
+/** One shared read cache for signed-in News and the public landing preview. Exact until the next news write (NEWS_TAG). */
+export const readCachedNews = unstable_cache(readNews, ["news-latest-v2"], { tags: [NEWS_TAG], revalidate: 3600 })

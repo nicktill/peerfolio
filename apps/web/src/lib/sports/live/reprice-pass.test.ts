@@ -56,9 +56,11 @@ function harness(targets: RepriceTarget[], opts: { celticsMid?: number; half?: n
       return true
     },
     confirm: async (ids) => void confirmed.push(ids),
-    reopen: async (marketId) => {
+    recover: async (marketId, expected, d) => {
       reopened.push(marketId)
-      return true
+      if (d.action === "update") applied.push({ marketId, basis: expected.basis, prices: d.prices })
+      else confirmed.push([marketId])
+      return { applied: true, oldPrices: targets[0]!.state.prices, newPrices: d.action === "update" ? d.prices : targets[0]!.state.prices, version: 2 }
     },
   }
   const mid = opts.celticsMid ?? 0.58
@@ -210,6 +212,40 @@ describe("pregame repricing pass", () => {
       assert.deepEqual(h.confirmed, [["m1"]])
     })
 
+    it("recovers a temporary pause across an old-price gap only when both exchanges agree", async () => {
+      const t = { ...locked(), frozenReason: "line moved" }
+      const single = harness([t], { celticsMid: BASIS + 0.07 })
+      await runRepricePass(single.deps, newWorkerState(), NOW)
+      assert.deepEqual(single.reopened, [])
+      // Kalshi fixture uses the home YES market and independently agrees with Polymarket.
+      const cross = harness([t], { celticsMid: BASIS + 0.07, kalshi: { events: [{ event_ticker: "KXNBAGAME-26OCT20DETBOS", title: "Detroit vs Boston", markets: [
+        { ticker: "DET", yes_sub_title: "Detroit", yes_bid_dollars: "0.37", yes_ask_dollars: "0.39", close_time: START.toISOString() },
+        { ticker: "BOS", yes_sub_title: "Boston", yes_bid_dollars: "0.61", yes_ask_dollars: "0.63", close_time: START.toISOString() },
+      ] }] } })
+      await runRepricePass(cross.deps, newWorkerState(), NOW)
+      assert.deepEqual(cross.reopened, ["m1"])
+      const open = harness([{ ...t, state: { ...t.state, status: "open" } }], { celticsMid: BASIS + 0.07, kalshi: await cross.deps.getJson("https://kalshi.test") })
+      await runRepricePass(open.deps, newWorkerState(), NOW)
+      assert.deepEqual(open.reopened, [])
+      assert.equal(open.frozen[0]?.reason, "exchange jump", "open-market step guard is unchanged")
+      const farCross = JSON.parse(JSON.stringify(await cross.deps.getJson("https://kalshi.test")).replaceAll('"0.61"', '"0.74"').replaceAll('"0.63"', '"0.76"').replaceAll('"0.37"', '"0.24"').replaceAll('"0.39"', '"0.26"'))
+      const tooFar = harness([t], { celticsMid: BASIS + 0.2, kalshi: farCross })
+      await runRepricePass(tooFar.deps, newWorkerState(), NOW)
+      assert.deepEqual(tooFar.reopened, [])
+    })
+    it("does not use a separate reopen followed by an ordinary price write", async () => {
+      const h = harness([locked()], { celticsMid: BASIS + 0.02 })
+      h.deps.reprice!.apply = async () => { throw new Error("must use atomic recovery") }
+      await runRepricePass(h.deps, newWorkerState(), NOW)
+      assert.deepEqual(h.reopened, ["m1"])
+    })
+    it("a failed atomic recovery leaves the market held without a second write", async () => {
+      const h = harness([locked()], { celticsMid: BASIS + 0.02 })
+      h.deps.reprice!.recover = async () => ({ applied: false, reason: "basis changed" })
+      const r = await runRepricePass(h.deps, newWorkerState(), NOW)
+      assert.equal(r!.held, 1)
+      assert.deepEqual([h.reopened, h.applied, h.confirmed], [[], [], []])
+    })
     it("stays locked when the exchange read is unusable or the price jumped", async () => {
       const thin = harness([locked()], { size: "10" })
       await runRepricePass(thin.deps, newWorkerState(), NOW)
@@ -429,10 +465,47 @@ describe("quiet-hours cadence (default SPORTS_QUIET_HOURS_UTC 5-15)", () => {
     assert.equal((await runRepricePass(h.deps, st, new Date("2026-10-22T06:15:45Z")))?.skipped, true)
   })
 
-  it("a game within the window plus an hour keeps the quarter-hour slot", async () => {
+  it("a game within the window plus an hour keeps the quarter-hour slot while someone is watching", async () => {
     const h = harness([target({ startsAt: startsIn(3 * 60 + 30) })])
+    h.deps.reprice!.lastActivity = async () => quiet
+    const pass = await runRepricePass(h.deps, newWorkerState(), quiet)
+    assert.equal(pass?.nextPassMs, new Date("2026-10-22T06:15:45Z").getTime() - quiet.getTime())
+    assert.equal(pass?.hourly, false)
+  })
+
+  it("unwatched, a game within the window plus an hour (or inside the window) is read hourly too", async () => {
+    for (const min of [3 * 60 + 30, 90]) {
+      const h = harness([target({ startsAt: startsIn(min) })])
+      unwatched(h)
+      const st = newWorkerState()
+      const pass = await runRepricePass(h.deps, st, quiet)
+      assert.equal(pass?.nextPassMs, new Date("2026-10-22T07:00:45Z").getTime() - quiet.getTime(), `${min} min out`)
+      assert.equal(pass?.hourly, true)
+      // No database read at the quarter-hour slots in between, and the skipped answer still says hourly.
+      const skipped = await runRepricePass(h.deps, st, new Date("2026-10-22T06:15:45Z"))
+      assert.equal(skipped?.skipped, true)
+      assert.equal(skipped?.hourly, true)
+    }
+  })
+
+  it("outside quiet hours an unwatched game keeps the quarter-hour slot", async () => {
+    const day = new Date("2026-10-22T18:02:00Z")
+    const h = harness([target({ startsAt: new Date(day.getTime() + 90 * 60_000) })])
     unwatched(h)
-    assert.equal((await runRepricePass(h.deps, newWorkerState(), quiet))?.nextPassMs, new Date("2026-10-22T06:15:45Z").getTime() - quiet.getTime())
+    const pass = await runRepricePass(h.deps, newWorkerState(), day)
+    assert.equal(pass?.nextPassMs, new Date("2026-10-22T18:15:45Z").getTime() - day.getTime())
+    assert.equal(pass?.hourly, false)
+  })
+
+  it("an unwatched game inside the window read hourly gets the hourly stale tolerance", async () => {
+    const run = async (minutes: number) => {
+      const h = harness([target({ startsAt: startsIn(90), state: state({ lockAt: startsIn(90), exchangeOkAt: new Date(quiet.getTime() - minutes * 60_000) }) })], { half: 0.05 })
+      unwatched(h)
+      await runRepricePass(h.deps, newWorkerState(), quiet)
+      return h.frozen.length
+    }
+    assert.equal(await run(70), 0)
+    assert.equal(await run(130), 1)
   })
 
   it("one missed hourly read does not freeze a far market; two hours without a good read does", async () => {
@@ -464,4 +537,39 @@ it("retains compact pregame candidates rather than raw market payloads across pa
   st.reprice.lastPassAt = 0
   await runRepricePass(h.deps, st, plus(10_000))
   assert.equal(h.calls.length, calls + 1) // fresh books, cached discovery and Kalshi
+})
+
+describe("half-hour band cadence (weekends and weekday nights outside quiet hours)", () => {
+  const sat = new Date("2026-10-24T18:02:00Z")
+  const unwatched = (h: ReturnType<typeof harness>) => void (h.deps.reprice!.lastActivity = async () => null)
+  const startsIn = (min: number) => new Date(sat.getTime() + min * 60_000)
+
+  it("unwatched, a game inside the window is read on the half hour, with no database read at the quarter in between", async () => {
+    const h = harness([target({ startsAt: startsIn(90) })])
+    unwatched(h)
+    const st = newWorkerState()
+    const pass = await runRepricePass(h.deps, st, sat)
+    assert.equal(pass?.nextPassMs, new Date("2026-10-24T18:30:45Z").getTime() - sat.getTime())
+    assert.equal(pass?.hourly, true)
+    assert.equal((await runRepricePass(h.deps, st, new Date("2026-10-24T18:15:45Z")))?.skipped, true)
+  })
+
+  it("someone watching keeps the fast cadence near kickoff", async () => {
+    const h = harness([target({ startsAt: startsIn(90) })])
+    h.deps.reprice!.lastActivity = async () => sat
+    const pass = await runRepricePass(h.deps, newWorkerState(), sat)
+    assert.equal(pass?.nextPassMs, REPRICE.passMs)
+    assert.equal(pass?.hourly, false)
+  })
+
+  it("one missed half-hour read does not freeze an unwatched market; a long outage still does", async () => {
+    const run = async (minutes: number) => {
+      const h = harness([target({ startsAt: startsIn(90), state: state({ lockAt: startsIn(90), exchangeOkAt: new Date(sat.getTime() - minutes * 60_000) }) })], { half: 0.05 })
+      unwatched(h)
+      await runRepricePass(h.deps, newWorkerState(), sat)
+      return h.frozen.length
+    }
+    assert.equal(await run(50), 0)
+    assert.equal(await run(130), 1)
+  })
 })

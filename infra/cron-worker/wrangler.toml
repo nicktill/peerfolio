@@ -14,3 +14,12 @@ SPORTS_CRON_ENABLED = "1"
 DRY_RUN = "1"
 
 # CRON_SECRET is a secret, not a var:  npx wrangler secret put CRON_SECRET
+
+# Keep authenticated job outcomes auditable after a local tail disconnects.
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+[observability.logs]
+enabled = true
+invocation_logs = true

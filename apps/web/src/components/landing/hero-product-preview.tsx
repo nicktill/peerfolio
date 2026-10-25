@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useApi } from "@web/lib/use-api"
 import { briefingSlot, BRIEFING_TITLES } from "@web/lib/news-brief"
@@ -61,7 +61,7 @@ export function HeroProductPreview() {
           </div>
           <div id="hero-preview-page" role="tabpanel" aria-labelledby={`preview-tab-${page}`} tabIndex={0} className="pf-demo-page">
             {page === "Leagues" ? <LeaguePreview tilt={0} /> : page === "Portfolio" ? <PortfolioView e={1} scrub={false} compact tilt={0} /> : page === "Fantasy" ? <PlayPreview /> : page === "Board" ? <BoardPreview /> : null}
-            <div hidden={page !== "News"} className={page === "News" ? "swap-in" : undefined}><NewsPreview /></div>
+            <div hidden={page !== "News"} className={page === "News" ? "swap-in" : undefined}><NewsPreview active={page === "News"} /></div>
           </div>
         </div>
       </TiltCard>
@@ -90,10 +90,25 @@ function BoardPreview() {
   )
 }
 
-function NewsPreview() {
-  const news = useApi<NewsResponse>("/api/news", [], { refreshMs: 60_000 })
-  const market = useApi<{ board: MarketBoard | null }>("/api/news/market?part=board", [], { refreshMs: 5 * 60_000 })
-  const earnings = useApi<{ earnings: EarningsWeekData | null }>("/api/news/market?part=earnings", [], { refreshMs: 60 * 60_000 })
+/**
+ * Loaded once up front so the tab opens instantly, but kept fresh only while it is the tab on show: hidden behind
+ * another preview tab it would otherwise keep refilling the shared market cache for a visitor who never looks.
+ * Showing it again brings it up to date straight away.
+ */
+function NewsPreview({ active }: { active: boolean }) {
+  const news = useApi<NewsResponse>("/api/news", [], { refreshMs: active ? 60_000 : undefined })
+  const market = useApi<{ board: MarketBoard | null }>("/api/news/market?part=board", [], { refreshMs: active ? 5 * 60_000 : undefined })
+  const earnings = useApi<{ earnings: EarningsWeekData | null }>("/api/news/market?part=earnings", [], { refreshMs: active ? 60 * 60_000 : undefined })
+  const { refetch: refetchNews } = news
+  const { refetch: refetchMarket } = market
+  const wasActive = useRef(active)
+  useEffect(() => {
+    if (active && !wasActive.current) {
+      void refetchNews()
+      void refetchMarket()
+    }
+    wasActive.current = active
+  }, [active, refetchNews, refetchMarket])
   const brief = news.data?.day
   const briefingTitle = brief?.period === "midday" ? BRIEFING_TITLES[briefingSlot(new Date(brief.createdAt))?.phase ?? "midday"] : "Daily recap"
   const stamp = brief ? new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(brief.createdAt)) + " ET" : "Latest briefing"

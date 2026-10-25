@@ -1,4 +1,5 @@
 import { isSportEnabled } from "../enabled.ts"
+import { inHalfHourBand, msToNextSlot, SLOT_MS } from "./slots.ts"
 import type { LiveSelection, LiveSource } from "./types.ts"
 
 /**
@@ -96,13 +97,18 @@ export function bookClock(
 
 /**
  * Quiet mode (see scripts/live-odds-worker.mts): the slate was loaded as "nobody is watching", so every game on it is there only for an open
- * pick. The worker then stores nothing and reads nothing from the database until the slate is this old, a viewer wakes it, or a game has
+ * pick. The worker then stores nothing and reads nothing from the database until the next shared slot, a viewer wakes it, or a game has
  * started whose market it has not locked yet. Compute time is what Neon's free plan counts, and a write every 10 s keeps it awake.
  */
-export const QUIET_REFRESH_MS = 12 * 60_000
+export const QUIET_REFRESH_MS = SLOT_MS
+/**
+ * Refresh alongside the cron, rather than opening a separate five-minute Neon awake window every twelve minutes. In the half-hour
+ * band (live/slots.ts) the cron runs on the half hour, so the refresh does too.
+ */
+export const quietRefreshAt = (loadedAt: number): number => loadedAt + msToNextSlot(loadedAt, inHalfHourBand(loadedAt))
 export type QuietCache = { watched: boolean; at: number; rows: { id: string; startsAt: Date }[] }
 export function isQuiet(cache: QuietCache | null, now: number, canBeWoken: boolean, kickoffLocked: ReadonlySet<string>): boolean {
   if (!canBeWoken || !cache || cache.watched || cache.rows.length === 0) return false
-  if (now - cache.at >= QUIET_REFRESH_MS) return false
+  if (now >= quietRefreshAt(cache.at)) return false
   return !cache.rows.some((g) => g.startsAt.getTime() <= now && !kickoffLocked.has(g.id))
 }

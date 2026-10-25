@@ -18,7 +18,7 @@ import {
   freezeForReason,
   listRepriceTargets,
   lockDueMarkets,
-  reopenWorkerFrozen,
+  recoverFrozenMarket,
 } from "../../../apps/web/src/lib/sports/store.ts"
 import type { WorkerDeps } from "../../../apps/web/src/lib/sports/live/worker.ts"
 export type AdapterEnv = {
@@ -73,7 +73,7 @@ export function createAdapter(env: AdapterEnv, checkpoint?: string) {
       listTargets: (n) => listRepriceTargets(db(), n),
       apply: (id, b, d, n) => applyReprice(db(), id, b, d, n),
       freeze: (id, r) => freezeForReason(db(), id, r),
-      reopen: (id, n) => reopenWorkerFrozen(db(), id, n),
+      recover: (id, expected, decision, n) => recoverFrozenMarket(db(), id, expected, decision, n),
       confirm: (ids, n) => confirmExchange(db(), ids, n),
       lastActivity: () => readSportsActivity(db()),
     },

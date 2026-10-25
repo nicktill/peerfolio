@@ -9,7 +9,7 @@ import {
 } from "./plan.ts"
 import type { LiveSlate } from "./store.ts"
 import type { writeHeartbeat } from "./store.ts"
-import { inQuietHours, msToNextSlot, QUIET_SLOT_MS } from "./slots.ts"
+import { HALF_SLOT_MS, inHalfHourBand, inQuietHours, msToNextSlot, QUIET_SLOT_MS } from "./slots.ts"
 import { REPRICE } from "../reprice-config.ts"
 import { runRepricePass, type PassResult } from "./reprice-pass.ts"
 import { WATCH_POLL_MS } from "./watch-signal.ts"
@@ -226,26 +226,23 @@ export function createWorkerRunner(base: WorkerDeps, io: RunnerIO) {
       // Idle: nothing live. Decide how long to sleep from the next scheduled start (one cheap query) and the next reprice pass.
       let delay = pollDelay(slate)
       if (!threw && slate === 0) {
-        // Hourly sleeps (quiet hours only) need every tracked game to start beyond the repricing window plus an hour: the publish
-        // guard trusts the announced wake time (sleepUntil) only while nothing it guards is that close.
+        // Relaxed sleeps (hourly in quiet hours, half-hourly in the half-hour band, see live/slots.ts): when every tracked game starts
+        // beyond the repricing window plus an hour, or when the reprice pass found nobody watching and relaxed itself. The announced wake
+        // time (sleepUntil) is at most an hour, which the publish guard trusts (reprice.ts workerBeating); a game with an open pick still
+        // wakes it before kickoff (`next`, idleSleepMs), and a viewer wakes it through the watch signal.
         let hourly = false
         try {
           const now = new Date(clock())
+          const quietNowHours = inQuietHours(now.getTime())
+          const halfNow = inHalfHourBand(now.getTime())
           const next = await io.nextStartAfter(now)
-          // Hourly only when no tracked game starts soon, watched or not (#328 narrowed nextStartAfter to watched or picked games).
-          const tracked = inQuietHours(now.getTime())
-            ? await io.nextTrackedStartAfter(now)
-            : next
+          // #328 narrowed nextStartAfter to watched or picked games; the tracked check covers every published game.
+          const tracked = quietNowHours || halfNow ? await io.nextTrackedStartAfter(now) : next
           hourly =
             !tracked ||
-            tracked.getTime() - now.getTime() > REPRICE.windowMs + QUIET_SLOT_MS
-          delay = idleSleepMs(
-            now,
-            next,
-            hourly && inQuietHours(now.getTime())
-              ? QUIET_SLOT_MS
-              : MAX_SLEEP_MS,
-          )
+            tracked.getTime() - now.getTime() > REPRICE.windowMs + QUIET_SLOT_MS ||
+            ((quietNowHours || halfNow) && repriced?.hourly === true)
+          delay = idleSleepMs(now, next, hourly && quietNowHours ? QUIET_SLOT_MS : hourly && halfNow ? HALF_SLOT_MS : MAX_SLEEP_MS)
         } catch (error) {
           out("warn", "live.next_start_failed", { error: clip(error) })
         }
