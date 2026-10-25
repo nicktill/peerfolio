@@ -429,10 +429,47 @@ describe("quiet-hours cadence (default SPORTS_QUIET_HOURS_UTC 5-15)", () => {
     assert.equal((await runRepricePass(h.deps, st, new Date("2026-10-22T06:15:45Z")))?.skipped, true)
   })
 
-  it("a game within the window plus an hour keeps the quarter-hour slot", async () => {
+  it("a game within the window plus an hour keeps the quarter-hour slot while someone is watching", async () => {
     const h = harness([target({ startsAt: startsIn(3 * 60 + 30) })])
+    h.deps.reprice!.lastActivity = async () => quiet
+    const pass = await runRepricePass(h.deps, newWorkerState(), quiet)
+    assert.equal(pass?.nextPassMs, new Date("2026-10-22T06:15:45Z").getTime() - quiet.getTime())
+    assert.equal(pass?.hourly, false)
+  })
+
+  it("unwatched, a game within the window plus an hour (or inside the window) is read hourly too", async () => {
+    for (const min of [3 * 60 + 30, 90]) {
+      const h = harness([target({ startsAt: startsIn(min) })])
+      unwatched(h)
+      const st = newWorkerState()
+      const pass = await runRepricePass(h.deps, st, quiet)
+      assert.equal(pass?.nextPassMs, new Date("2026-10-22T07:00:45Z").getTime() - quiet.getTime(), `${min} min out`)
+      assert.equal(pass?.hourly, true)
+      // No database read at the quarter-hour slots in between, and the skipped answer still says hourly.
+      const skipped = await runRepricePass(h.deps, st, new Date("2026-10-22T06:15:45Z"))
+      assert.equal(skipped?.skipped, true)
+      assert.equal(skipped?.hourly, true)
+    }
+  })
+
+  it("outside quiet hours an unwatched game keeps the quarter-hour slot", async () => {
+    const day = new Date("2026-10-22T18:02:00Z")
+    const h = harness([target({ startsAt: new Date(day.getTime() + 90 * 60_000) })])
     unwatched(h)
-    assert.equal((await runRepricePass(h.deps, newWorkerState(), quiet))?.nextPassMs, new Date("2026-10-22T06:15:45Z").getTime() - quiet.getTime())
+    const pass = await runRepricePass(h.deps, newWorkerState(), day)
+    assert.equal(pass?.nextPassMs, new Date("2026-10-22T18:15:45Z").getTime() - day.getTime())
+    assert.equal(pass?.hourly, false)
+  })
+
+  it("an unwatched game inside the window read hourly gets the hourly stale tolerance", async () => {
+    const run = async (minutes: number) => {
+      const h = harness([target({ startsAt: startsIn(90), state: state({ lockAt: startsIn(90), exchangeOkAt: new Date(quiet.getTime() - minutes * 60_000) }) })], { half: 0.05 })
+      unwatched(h)
+      await runRepricePass(h.deps, newWorkerState(), quiet)
+      return h.frozen.length
+    }
+    assert.equal(await run(70), 0)
+    assert.equal(await run(130), 1)
   })
 
   it("one missed hourly read does not freeze a far market; two hours without a good read does", async () => {
