@@ -56,9 +56,11 @@ function harness(targets: RepriceTarget[], opts: { celticsMid?: number; half?: n
       return true
     },
     confirm: async (ids) => void confirmed.push(ids),
-    reopen: async (marketId) => {
+    recover: async (marketId, expected, d) => {
       reopened.push(marketId)
-      return true
+      if (d.action === "update") applied.push({ marketId, basis: expected.basis, prices: d.prices })
+      else confirmed.push([marketId])
+      return { applied: true, oldPrices: targets[0]!.state.prices, newPrices: d.action === "update" ? d.prices : targets[0]!.state.prices, version: 2 }
     },
   }
   const mid = opts.celticsMid ?? 0.58
@@ -210,6 +212,40 @@ describe("pregame repricing pass", () => {
       assert.deepEqual(h.confirmed, [["m1"]])
     })
 
+    it("recovers a temporary pause across an old-price gap only when both exchanges agree", async () => {
+      const t = { ...locked(), frozenReason: "line moved" }
+      const single = harness([t], { celticsMid: BASIS + 0.07 })
+      await runRepricePass(single.deps, newWorkerState(), NOW)
+      assert.deepEqual(single.reopened, [])
+      // Kalshi fixture uses the home YES market and independently agrees with Polymarket.
+      const cross = harness([t], { celticsMid: BASIS + 0.07, kalshi: { events: [{ event_ticker: "KXNBAGAME-26OCT20DETBOS", title: "Detroit vs Boston", markets: [
+        { ticker: "DET", yes_sub_title: "Detroit", yes_bid_dollars: "0.37", yes_ask_dollars: "0.39", close_time: START.toISOString() },
+        { ticker: "BOS", yes_sub_title: "Boston", yes_bid_dollars: "0.61", yes_ask_dollars: "0.63", close_time: START.toISOString() },
+      ] }] } })
+      await runRepricePass(cross.deps, newWorkerState(), NOW)
+      assert.deepEqual(cross.reopened, ["m1"])
+      const open = harness([{ ...t, state: { ...t.state, status: "open" } }], { celticsMid: BASIS + 0.07, kalshi: await cross.deps.getJson("https://kalshi.test") })
+      await runRepricePass(open.deps, newWorkerState(), NOW)
+      assert.deepEqual(open.reopened, [])
+      assert.equal(open.frozen[0]?.reason, "exchange jump", "open-market step guard is unchanged")
+      const farCross = JSON.parse(JSON.stringify(await cross.deps.getJson("https://kalshi.test")).replaceAll('"0.61"', '"0.74"').replaceAll('"0.63"', '"0.76"').replaceAll('"0.37"', '"0.24"').replaceAll('"0.39"', '"0.26"'))
+      const tooFar = harness([t], { celticsMid: BASIS + 0.2, kalshi: farCross })
+      await runRepricePass(tooFar.deps, newWorkerState(), NOW)
+      assert.deepEqual(tooFar.reopened, [])
+    })
+    it("does not use a separate reopen followed by an ordinary price write", async () => {
+      const h = harness([locked()], { celticsMid: BASIS + 0.02 })
+      h.deps.reprice!.apply = async () => { throw new Error("must use atomic recovery") }
+      await runRepricePass(h.deps, newWorkerState(), NOW)
+      assert.deepEqual(h.reopened, ["m1"])
+    })
+    it("a failed atomic recovery leaves the market held without a second write", async () => {
+      const h = harness([locked()], { celticsMid: BASIS + 0.02 })
+      h.deps.reprice!.recover = async () => ({ applied: false, reason: "basis changed" })
+      const r = await runRepricePass(h.deps, newWorkerState(), NOW)
+      assert.equal(r!.held, 1)
+      assert.deepEqual([h.reopened, h.applied, h.confirmed], [[], [], []])
+    })
     it("stays locked when the exchange read is unusable or the price jumped", async () => {
       const thin = harness([locked()], { size: "10" })
       await runRepricePass(thin.deps, newWorkerState(), NOW)

@@ -1,6 +1,6 @@
 import { isWatched } from "./activity.ts"
 import { inQuietHours, msToNextSlot, QUIET_SLOT_MS, slotElapsed } from "./slots.ts"
-import { confirmDue, decideReprice, REPRICE, type ExchangeView, type RepriceTarget } from "../reprice.ts"
+import { canRecoverFreeze, confirmDue, decideReprice, REPRICE, type ExchangeView, type RepriceTarget } from "../reprice.ts"
 import { explainNoMatch, matchExchangeGame, matchGame } from "./match.ts"
 import { booksFromQuotes, exchangeThreeWay, type ThreeWayExchangeResult } from "../threeway-exchange.ts"
 import { normalizeQuote, pairProbability } from "./quote.ts"
@@ -142,25 +142,34 @@ export async function runRepricePass(deps: WorkerDeps, st: WorkerState, now: Dat
     const exchange3 = three ? buildView3(t, pmFor.get(t.eventId), books, kalshi.get(t.sport), now) : undefined
     if (exchange || exchange3) result.matched++
     else result.unmatched++
-    // A locked target is a market the cron froze while the worker was down. It is judged as if open and reopens only on a healthy
+    // A temporary pregame freeze is judged as a new publication. A larger re-entry step needs both sources, like first contact.
+    // It is judged as if open and reopens only on a healthy
     // read (update or confirm); a freeze or hold decision leaves it closed. Never reopened straight from the heartbeat.
     const wasLocked = t.state.status === "locked"
     // Slot-cadence reads (far games, or no viewer) get the longer stale tolerance: one bad read between passes must not freeze a market.
     const slowRead = !fast || t.startsAt.getTime() - now.getTime() > REPRICE.windowMs
     // Hourly reads (quiet hours, or the first passes after them) get two missed hourly passes of tolerance.
     const hourlyRead = hourly && (inQuietHours(now.getTime()) || inQuietHours(now.getTime() - 2 * QUIET_SLOT_MS))
-    const d = decideReprice({ now, startsAt: t.startsAt, staleFreezeMs: hourlyRead ? REPRICE.quietStaleFreezeMs : slowRead ? REPRICE.farStaleFreezeMs : undefined, eventStatus: t.eventStatus, market: wasLocked ? { ...t.state, status: "open" } : t.state, exchange, exchange3 })
+    const d = decideReprice({ now, startsAt: t.startsAt, staleFreezeMs: hourlyRead ? REPRICE.quietStaleFreezeMs : slowRead ? REPRICE.farStaleFreezeMs : undefined, eventStatus: t.eventStatus, recovering: wasLocked && canRecoverFreeze(t.frozenReason ?? null), market: wasLocked ? { ...t.state, status: "open" } : t.state, exchange, exchange3 })
     const label = `${t.awayName} @ ${t.homeName}`
     if (wasLocked) {
-      if (!(d.action === "update" || (d.action === "none" && d.confirm)) || !store.reopen || !(await store.reopen(t.marketId, now))) {
+      if (!(d.action === "update" || (d.action === "none" && d.confirm)) || !store.recover) {
+        result.held++
+        if (now.getTime() - (st.reprice.holdLogAt.get(t.marketId) ?? 0) >= 60_000) {
+          st.reprice.holdLogAt.set(t.marketId, now.getTime())
+          deps.emit?.("warn", "live.reprice_hold", { marketId: t.marketId, game: label, reason: d.action === "update" ? "recovery not supported" : d.reason, recovering: true, exchange: exchange ? summary(exchange) : summary3(exchange3) })
+        }
+        continue
+      }
+      const recovered = await store.recover(t.marketId, { basis: t.state.fairProbA, count: t.state.repriceCount }, d, now)
+      if (!recovered.applied) {
         result.held++
         continue
       }
-      deps.emit?.("info", "sports.market_reopened_exchange_ok", { marketId: t.marketId, game: label })
-      if (d.action === "none") {
-        toConfirm.push(t.marketId)
-        continue
-      }
+      if (d.action === "update") result.updated++
+      else result.confirmed++
+      deps.emit?.("info", "sports.market_reopened_exchange_ok", { marketId: t.marketId, game: label, prices: recovered.newPrices })
+      continue
     }
     if (d.action === "update") {
       const r = await store.apply(t.marketId, { basis: t.state.fairProbA, count: t.state.repriceCount }, d, now)
@@ -204,7 +213,7 @@ export async function runRepricePass(deps: WorkerDeps, st: WorkerState, now: Dat
   }
   if (toConfirm.length) {
     await store.confirm(toConfirm, now)
-    result.confirmed = toConfirm.length
+    result.confirmed += toConfirm.length
   }
   deps.emit?.("info", "live.reprice_pass", { ...result })
   return result

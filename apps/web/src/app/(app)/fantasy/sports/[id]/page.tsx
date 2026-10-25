@@ -760,7 +760,7 @@ function UnpricedCard({ event }: { event: EventInfo }) {
         <div className="sp-matchup"><strong>{eventTitle(event)}</strong></div>
         <span className="sp-game-meta"><b><LeagueBrand sport={event.sport} /></b> · {timeOf(event.startsAt)}</span>
       </div>
-      <p className="sp-fine">No line posted for this game yet. Lines go up once the price is steady, usually within a day of kickoff.</p>
+      <p className="sp-fine">Odds are unavailable or paused for this game. They appear when a current price passes our checks.</p>
     </div>
   )
 }
