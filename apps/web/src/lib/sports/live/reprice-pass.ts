@@ -110,12 +110,15 @@ export async function runRepricePass(deps: WorkerDeps, st: WorkerState, now: Dat
       continue
     }
     // Games starting from now to a little past the reprice horizon (24h), by game time, paged.
-    const list = await slow<unknown>(st, `pm-pre:${sport}`, now, () => gammaEvents(deps, st, now, series, now.getTime(), now.getTime() + 26 * 3600_000))
-    if (!list) {
+    // Raw pages include every prop market and can be many MB per sport. Retain only the candidates used below.
+    const games = await slow<PmGame[]>(st, `pm-pre:${sport}`, now, async () => {
+      const list = await gammaEvents(deps, st, now, series, now.getTime(), now.getTime() + 26 * 3600_000)
+      return list ? parseGammaEvents(list) : null
+    })
+    if (!games) {
       mine.forEach((t) => why.set(t.marketId, "polymarket_unavailable"))
       continue
     }
-    const games = parseGammaEvents(list)
     for (const t of mine) {
       const m = matchExchangeGame(t.sport, { homeName: t.homeName, awayName: t.awayName, startsAt: t.startsAt }, games)
       if (m) pmFor.set(t.eventId, { game: m.candidate, homeIndex: m.homeIndex })

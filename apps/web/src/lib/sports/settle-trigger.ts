@@ -159,6 +159,20 @@ export class SettleTriggerTracker {
     for (const id of this.tracks.keys()) if (!live.has(id)) this.tracks.delete(id)
   }
 
+  /** Durable worker recovery; transient requests must be retried after an isolate restart. */
+  snapshot(): [string, Track][] {
+    return [...this.tracks].map(([id, track]) => [id, structuredClone(track)])
+  }
+
+  restore(rows: [string, Track][]): void {
+    this.tracks.clear()
+    for (const [id, track] of rows.slice(0, 1000)) {
+      const copy = structuredClone(track)
+      if (copy.active) copy.active.inFlight = false
+      this.tracks.set(id, copy)
+    }
+  }
+
   size(): number {
     return this.tracks.size
   }
