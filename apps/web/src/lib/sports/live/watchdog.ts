@@ -1,5 +1,5 @@
 /**
- * Judges a response from /api/sports/live/health for the scheduled watchdog (.github/workflows/live-odds-watchdog.yml).
+ * Judges a response from /api/sports/live/health for the watchdog (infra/cron-worker, and the manual GitHub workflow).
  * Pure so it is tested without a network. The health route answers 503 only for "down"; a worker that has stopped while no game is
  * live reports "degraded" with a "worker silent" or "worker has never reported" reason, which is the outage we most need to hear about.
  */

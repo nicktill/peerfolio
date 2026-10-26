@@ -144,3 +144,33 @@ test("news, snapshot and sports preserve the approved legacy timetable for a ful
     }
   }
 })
+
+test("live health: a minute after each half hour in game hours, only with sports and the watchdog on", () => {
+  const due = (iso: string, opts = { sports: true, watchdog: true }) => jobsFor(at(iso), opts).some((j) => j.name === "live-health")
+  for (let minute = 0; minute < 24 * 60; minute++) {
+    const now = new Date(Date.parse("2026-10-18T00:00:00Z") + minute * 60_000)
+    const h = now.getUTCHours()
+    const m = now.getUTCMinutes()
+    assert.equal(due(now.toISOString()), (m === 1 || m === 31) && (h >= 15 || h < 5), now.toISOString())
+  }
+  assert.equal(due("2026-10-18T15:01:00Z", { sports: true, watchdog: false }), false)
+  assert.equal(due("2026-10-18T15:01:00Z", { sports: false, watchdog: true }), false)
+  assert.equal(jobsFor(at("2026-10-18T15:01:00Z"), { sports: true }).length, 0) // off unless asked for
+  assert.ok(jobsFor(at("2026-10-18T15:01:00Z"), { sports: true, watchdog: true }).some((j) => j.path === "/api/sports/live/health"))
+})
+
+test("live health only runs a minute after a slot where settle and publish do database work in every band", () => {
+  // :00 and :30 are worked in quarter-hour, half-hour and hourly bands alike; :15 and :45 are skipped in the half-hour band.
+  for (const iso of ["2026-10-18T15:01:00Z", "2026-10-18T15:31:00Z", "2026-10-19T02:31:00Z"]) {
+    const slot = new Date(Date.parse(iso) - 60_000)
+    assert.ok(slot.getUTCMinutes() % 30 === 0, iso)
+    assert.ok(jobsFor(slot, { sports: true }).some((j) => j.name === "sports-settle"), iso)
+  }
+})
+
+test("the GitHub watchdog has no schedule left and still accepts the Cloudflare alert", () => {
+  const source = workflow("live-odds-watchdog")
+  assert.doesNotMatch(source, /^\s*schedule:/m)
+  assert.match(source, /^  workflow_dispatch:\n    inputs:\n      alert:/m)
+  assert.match(readFileSync(new URL("../wrangler.toml", import.meta.url), "utf8"), /^LIVE_WATCHDOG_ENABLED = "1"$/m)
+})
