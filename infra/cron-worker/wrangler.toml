@@ -10,6 +10,9 @@ crons = ["* * * * *"]
 [vars]
 APP_URL = "https://www.peerfolio.org"
 SPORTS_CRON_ENABLED = "1"
+# The live odds watchdog (replaces the GitHub schedule). Alerts need the optional secret WATCHDOG_GITHUB_TOKEN; see README.
+LIVE_WATCHDOG_ENABLED = "1"
+WATCHDOG_ALERT_REPO = "nicktill/peerfolio"
 # Log-only until you are ready: set to "0" (or delete) and redeploy to start calling the app.
 DRY_RUN = "1"
 

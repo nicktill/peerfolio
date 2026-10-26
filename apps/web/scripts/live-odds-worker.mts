@@ -33,7 +33,7 @@ import { clip, emit, type Fields, type Level } from "../src/lib/sports/log.ts"
 import { idleSleepMs, isQuiet, MAX_SLEEP_MS, pollDelay, quietRefreshAt } from "../src/lib/sports/live/plan.ts"
 import { insertQuotes, loadLiveSlate, type LiveSlate, nextStartAfter, nextTrackedStartAfter, pruneLiveQuotes, readSportsActivity, upsertState, writeHeartbeat } from "../src/lib/sports/live/store.ts"
 import { applyReprice, confirmExchange, freezeForReason, listRepriceTargets, lockDueMarkets, recoverFrozenMarket } from "../src/lib/sports/store.ts"
-import { inQuietHours, msToNextSlot, QUIET_SLOT_MS } from "../src/lib/sports/live/slots.ts"
+import { HALF_SLOT_MS, inHalfHourBand, inQuietHours, msToNextSlot, QUIET_SLOT_MS } from "../src/lib/sports/live/slots.ts"
 import { REPRICE } from "../src/lib/sports/reprice-config.ts"
 import { runRepricePass } from "../src/lib/sports/live/reprice-pass.ts"
 import { SPORTS_HOLD_UNTIL, sportsOnHold } from "../src/lib/sports/maintenance.ts"
@@ -246,18 +246,20 @@ while (!stopping) {
   // Idle: nothing live. Decide how long to sleep from the next scheduled start (one cheap query) and the next reprice pass.
   let delay = pollDelay(slate)
   if (!threw && slate === 0) {
-    // Hourly sleeps (quiet hours only): when every tracked game starts beyond the repricing window plus an hour, or when the reprice
-    // pass found nobody watching and went hourly itself. The announced wake time (sleepUntil) is at most an hour, which the publish
-    // guard trusts (reprice.ts workerBeating); a game with an open pick still wakes it before kickoff (`next`, idleSleepMs), and a
-    // viewer wakes it through the watch signal.
+    // Relaxed sleeps (hourly in quiet hours, half-hourly in the half-hour band, see live/slots.ts): when every tracked game starts
+    // beyond the repricing window plus an hour, or when the reprice pass found nobody watching and relaxed itself. The announced wake
+    // time (sleepUntil) is at most an hour, which the publish guard trusts (reprice.ts workerBeating); a game with an open pick still
+    // wakes it before kickoff (`next`, idleSleepMs), and a viewer wakes it through the watch signal.
     let hourly = false
     try {
       const now = new Date()
+      const quietNowHours = inQuietHours(now.getTime())
+      const halfNow = inHalfHourBand(now.getTime())
       const next = await nextStartAfter(db, now)
       // #328 narrowed nextStartAfter to watched or picked games; the tracked check covers every published game.
-      const tracked = inQuietHours(now.getTime()) ? await nextTrackedStartAfter(db, now) : next
-      hourly = !tracked || tracked.getTime() - now.getTime() > REPRICE.windowMs + QUIET_SLOT_MS || (inQuietHours(now.getTime()) && repriced?.hourly === true)
-      delay = idleSleepMs(now, next, hourly && inQuietHours(now.getTime()) ? QUIET_SLOT_MS : MAX_SLEEP_MS)
+      const tracked = quietNowHours || halfNow ? await nextTrackedStartAfter(db, now) : next
+      hourly = !tracked || tracked.getTime() - now.getTime() > REPRICE.windowMs + QUIET_SLOT_MS || ((quietNowHours || halfNow) && repriced?.hourly === true)
+      delay = idleSleepMs(now, next, hourly && quietNowHours ? QUIET_SLOT_MS : hourly && halfNow ? HALF_SLOT_MS : MAX_SLEEP_MS)
     } catch (error) {
       out("warn", "live.next_start_failed", { error: clip(error) })
     }

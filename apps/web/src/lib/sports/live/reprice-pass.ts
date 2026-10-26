@@ -1,5 +1,5 @@
 import { isWatched } from "./activity.ts"
-import { inQuietHours, msToNextSlot, QUIET_SLOT_MS, slotElapsed } from "./slots.ts"
+import { HALF_SLOT_MS, inHalfHourBand, inQuietHours, msToNextSlot, QUIET_SLOT_MS, slotElapsed } from "./slots.ts"
 import { canRecoverFreeze, confirmDue, decideReprice, REPRICE, type ExchangeView, type RepriceTarget } from "../reprice.ts"
 import { explainNoMatch, matchExchangeGame, matchGame } from "./match.ts"
 import { booksFromQuotes, exchangeThreeWay, type ThreeWayExchangeResult } from "../threeway-exchange.ts"
@@ -72,10 +72,11 @@ export async function runRepricePass(deps: WorkerDeps, st: WorkerState, now: Dat
   // (priceNeedsRefresh). A store without an activity signal counts as watched, which is the old behaviour.
   const watched = store.lastActivity ? isWatched(await store.lastActivity(), now) : true
   const fast = near && watched
-  // In quiet hours the slot pass may run hourly (see slots.ts): when nothing starts within the window plus an hour, or when nobody is
-  // watching. Unwatched, a quarter-hour pass only keeps the database awake between the hourly cron runs: picks on a game inside the
-  // window still wait for a fresh price (priceNeedsRefresh), and a viewer's watch signal brings a pass within seconds.
-  const hourly = soonest - t > REPRICE.windowMs + QUIET_SLOT_MS || (!watched && inQuietHours(t))
+  // A relaxed slot (see slots.ts: hourly in quiet hours, half-hourly in the half-hour band) when nothing starts within the window
+  // plus an hour, or when nobody is watching. Unwatched, a quarter-hour pass there only keeps the database awake between cron runs:
+  // picks on a game inside the window still wait for a fresh price (priceNeedsRefresh), and a viewer's watch signal brings a pass
+  // within seconds.
+  const hourly = soonest - t > REPRICE.windowMs + QUIET_SLOT_MS || (!watched && (inQuietHours(t) || inHalfHourBand(t)))
   st.reprice.hourly = hourly
   result.hourly = hourly
   // Slot-aligned passes wake early for a game entering the fast window only when someone is watching.
@@ -157,7 +158,9 @@ export async function runRepricePass(deps: WorkerDeps, st: WorkerState, now: Dat
     const slowRead = !fast || t.startsAt.getTime() - now.getTime() > REPRICE.windowMs
     // Hourly reads (quiet hours, or the first passes after them) get two missed hourly passes of tolerance.
     const hourlyRead = hourly && (inQuietHours(now.getTime()) || inQuietHours(now.getTime() - 2 * QUIET_SLOT_MS))
-    const d = decideReprice({ now, startsAt: t.startsAt, staleFreezeMs: hourlyRead ? REPRICE.quietStaleFreezeMs : slowRead ? REPRICE.farStaleFreezeMs : undefined, eventStatus: t.eventStatus, recovering: wasLocked && canRecoverFreeze(t.frozenReason ?? null), market: wasLocked ? { ...t.state, status: "open" } : t.state, exchange, exchange3 })
+    // Half-hourly reads (the half-hour band, or the first passes after it) get two missed half-hour passes.
+    const halfRead = hourly && (inHalfHourBand(now.getTime()) || inHalfHourBand(now.getTime() - 2 * HALF_SLOT_MS))
+    const d = decideReprice({ now, startsAt: t.startsAt, staleFreezeMs: hourlyRead ? REPRICE.quietStaleFreezeMs : halfRead ? REPRICE.halfStaleFreezeMs : slowRead ? REPRICE.farStaleFreezeMs : undefined, eventStatus: t.eventStatus, recovering: wasLocked && canRecoverFreeze(t.frozenReason ?? null), market: wasLocked ? { ...t.state, status: "open" } : t.state, exchange, exchange3 })
     const label = `${t.awayName} @ ${t.homeName}`
     if (wasLocked) {
       if (!(d.action === "update" || (d.action === "none" && d.confirm)) || !store.recover) {

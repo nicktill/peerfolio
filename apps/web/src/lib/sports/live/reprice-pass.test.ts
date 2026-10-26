@@ -519,3 +519,38 @@ describe("quiet-hours cadence (default SPORTS_QUIET_HOURS_UTC 5-15)", () => {
     assert.equal(await run(130), 1)
   })
 })
+
+describe("half-hour band cadence (weekends and weekday nights outside quiet hours)", () => {
+  const sat = new Date("2026-10-24T18:02:00Z")
+  const unwatched = (h: ReturnType<typeof harness>) => void (h.deps.reprice!.lastActivity = async () => null)
+  const startsIn = (min: number) => new Date(sat.getTime() + min * 60_000)
+
+  it("unwatched, a game inside the window is read on the half hour, with no database read at the quarter in between", async () => {
+    const h = harness([target({ startsAt: startsIn(90) })])
+    unwatched(h)
+    const st = newWorkerState()
+    const pass = await runRepricePass(h.deps, st, sat)
+    assert.equal(pass?.nextPassMs, new Date("2026-10-24T18:30:45Z").getTime() - sat.getTime())
+    assert.equal(pass?.hourly, true)
+    assert.equal((await runRepricePass(h.deps, st, new Date("2026-10-24T18:15:45Z")))?.skipped, true)
+  })
+
+  it("someone watching keeps the fast cadence near kickoff", async () => {
+    const h = harness([target({ startsAt: startsIn(90) })])
+    h.deps.reprice!.lastActivity = async () => sat
+    const pass = await runRepricePass(h.deps, newWorkerState(), sat)
+    assert.equal(pass?.nextPassMs, REPRICE.passMs)
+    assert.equal(pass?.hourly, false)
+  })
+
+  it("one missed half-hour read does not freeze an unwatched market; a long outage still does", async () => {
+    const run = async (minutes: number) => {
+      const h = harness([target({ startsAt: startsIn(90), state: state({ lockAt: startsIn(90), exchangeOkAt: new Date(sat.getTime() - minutes * 60_000) }) })], { half: 0.05 })
+      unwatched(h)
+      await runRepricePass(h.deps, newWorkerState(), sat)
+      return h.frozen.length
+    }
+    assert.equal(await run(50), 0)
+    assert.equal(await run(130), 1)
+  })
+})

@@ -58,7 +58,7 @@ npm test      # node --experimental-strip-types, no dependencies
 Cloudflare is the selected replacement for prices, news, snapshot, sports publish and sports settle. The exact legacy cadence
 is preserved in `test/fixtures/legacy-schedules.json`; route-level market/quiet-hour gates remain unchanged. GitHub sports
 publish, settle and latency are manual-only; `SPORTS_SCHEDULER`/`SPORTS_CRON_ENABLED` repository flags do not restore
-an automatic GitHub owner. The continuous odds worker and infrastructure budget/watchdog workflows are separate.
+an automatic GitHub owner. The continuous odds worker and the infrastructure budget workflow are separate.
 
 The repository expresses the intended cutover configuration, not proof of the deployed owner. Check deployed Vercel Cron
 Jobs, Cloudflare version/DRY_RUN/logs, and GitHub triggers before declaring migration complete.
@@ -68,3 +68,20 @@ Jobs, Cloudflare version/DRY_RUN/logs, and GitHub triggers before declaring migr
 The Worker configuration enables persisted Workers Logs at full sampling, including invocation outcomes and the existing per-job HTTP status/attempt records. Authentication headers, response bodies and secrets are not logged. Confirm the deployed settings after the approved deployment; this configuration does not retroactively retain older invocations or send alerts.
 
 Deploy the live scheduler with `npx wrangler deploy --var DRY_RUN:0` so the committed dry-run default does not interrupt ownership. Check the returned version, a due invocation's outcome and CPU time, and each due critical job's HTTP 200 in retained logs. Local `wrangler tail` output alone is temporary evidence.
+
+## Live odds watchdog
+
+`live-health` reads `/api/sports/live/health` at :01 and :31, 15:00-04:59 UTC, when `SPORTS_CRON_ENABLED` and
+`LIVE_WATCHDOG_ENABLED` are both `"1"`. Settle and publish do database work on :00 and :30 in every band, so this read shares an
+awake period instead of opening one. It replaces the GitHub schedule, whose runs started 10-25 minutes late and each woke Neon.
+
+The verdict uses the app's `judgeHealth` (down, silent worker, repeated failed cycles; three reads 20 s apart). On failure the
+invocation fails in Workers Logs and, if the optional secret is set, the Worker dispatches `.github/workflows/live-odds-watchdog.yml`
+with the summary. That run fails at once and GitHub emails you, about one Actions minute per alert.
+
+```bash
+npx wrangler secret put WATCHDOG_GITHUB_TOKEN   # fine-grained token, this repository only, Actions: read and write
+```
+
+Without the secret, failures are only visible in Workers Logs. Deploy the Worker with this code before merging the workflow change,
+or there is a gap with no watchdog.

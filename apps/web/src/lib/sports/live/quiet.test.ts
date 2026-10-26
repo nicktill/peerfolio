@@ -18,6 +18,16 @@ describe("quiet mode", () => {
       assert.equal(new Date(due).getUTCSeconds(), 45)
     }
   })
+  it("in the half-hour band the refresh shares the half-hour cron run instead of the quarter", () => {
+    const origin = Date.parse("2026-10-24T18:00:00Z")
+    for (let offset = 0; offset < 3600_000; offset += 7_919) {
+      const loaded = origin + offset
+      const due = quietRefreshAt(loaded)
+      assert.ok(due > loaded && due - loaded <= 2 * QUIET_REFRESH_MS)
+      assert.equal(new Date(due).getUTCMinutes() % 30, 0)
+      assert.equal(new Date(due).getUTCSeconds(), 45)
+    }
+  })
   it("a viewer ends quiet mode immediately even before the scheduled refresh", () => {
     const watched = cache({ watched: true })
     assert.ok(quietRefreshAt(watched.at) > NOW)
