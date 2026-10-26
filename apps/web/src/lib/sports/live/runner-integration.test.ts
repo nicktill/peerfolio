@@ -84,7 +84,6 @@ test("real poll cycle preserves active, quiet, viewer wake, restart and final se
         throw Error("Unexpected apply")
       },
       freeze: async () => true,
-      reopen: async () => true,
       confirm: async () => {},
       lastActivity: async () => null,
     },

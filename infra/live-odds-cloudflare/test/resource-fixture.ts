@@ -30,7 +30,7 @@ export class ResourceFixture extends DurableObject {
         return new Response(json).json()
       },
       postJson: async (_url, body) => (body as { token_id: string }[]).map(({ token_id }) => ({ asset_id: token_id, timestamp: String(now - 500), bids: [{ price: token_id === "bos" ? "0.57" : "0.41", size: "1000" }], asks: [{ price: token_id === "bos" ? "0.59" : "0.43", size: "1000" }] })),
-      reprice: { listTargets: async () => targets, apply: async () => { repriced++; return { applied: true, oldPrices: priceTwoWay(0.55)!, newPrices: priceTwoWay(0.58)!, version: 2 } }, freeze: async () => true, reopen: async () => true, confirm: async () => {} },
+      reprice: { listTargets: async () => targets, apply: async () => { repriced++; return { applied: true, oldPrices: priceTwoWay(0.55)!, newPrices: priceTwoWay(0.58)!, version: 2 } }, freeze: async () => true, confirm: async () => {} },
     }
     const io = { clock: () => now, watch: { changed: async () => false }, lockDueMarkets: async () => 0, nextStartAfter: async () => null, nextTrackedStartAfter: async () => null, pruneLiveQuotes: async () => 0, writeHeartbeat: async () => {} }
     let runner = createWorkerRunner(deps, io)
