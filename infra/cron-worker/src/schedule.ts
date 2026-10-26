@@ -5,7 +5,7 @@
  * and apps/web/vercel.json (snapshot and news). GitHub and Cloudflare crons are UTC and know nothing of daylight saving,
  * so the same supersets are used: the routes themselves check the New York clock and answer at once outside their windows.
  */
-export type JobName = "prices" | "news" | "snapshot" | "sports-settle" | "sports-publish" | "warm"
+export type JobName = "prices" | "news" | "snapshot" | "sports-settle" | "sports-publish" | "live-health" | "warm"
 
 export type Job = { name: JobName; path: string }
 
@@ -15,6 +15,7 @@ const PATH: Record<Exclude<JobName, "warm">, string> = {
   snapshot: "/api/cron/snapshot",
   "sports-settle": "/api/cron/sports/settle",
   "sports-publish": "/api/cron/sports/publish",
+  "live-health": "/api/sports/live/health",
 }
 
 /** Cloudflare numbers days 0-6 from Sunday, the same as cron: 1-5 is Monday to Friday. */
@@ -55,9 +56,19 @@ export function marketHoursNewYork(now: Date): boolean {
   return hm >= 930 && hm <= 1605
 }
 
-export type Options = { sports: boolean }
+/**
+ * The live odds watchdog (it used to be .github/workflows/live-odds-watchdog.yml): a minute after each half hour, in the hours
+ * games are on (15:00-04:59 UTC). Its one database read must share an awake period the sports crons already open. Settle and
+ * publish do database work on :00 and :30 in every band (the half-hour band skips :15 and :45), so :01 and :31 always land
+ * inside one. GitHub's scheduled runs started 10-25 minutes late and each woke Neon on its own.
+ */
+function liveHealthDue(min: number, hour: number): boolean {
+  return (min === 1 || min === 31) && (hour >= 15 || hour < 5)
+}
 
-export function jobsFor(now: Date, { sports }: Options): Job[] {
+export type Options = { sports: boolean; watchdog?: boolean }
+
+export function jobsFor(now: Date, { sports, watchdog = false }: Options): Job[] {
   const min = now.getUTCMinutes()
   const hour = now.getUTCHours()
   const dow = now.getUTCDay()
@@ -71,5 +82,6 @@ export function jobsFor(now: Date, { sports }: Options): Job[] {
   if (hour === 22 && min === 30) add("snapshot")
   if (sports && min % 15 === 0) add("sports-settle")
   if (sports && min % 15 === 0) add("sports-publish")
+  if (sports && watchdog && liveHealthDue(min, hour)) add("live-health")
   return jobs
 }

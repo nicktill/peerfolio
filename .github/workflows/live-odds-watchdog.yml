@@ -1,22 +1,41 @@
 name: Live odds watchdog
 
-# Fails (so GitHub notifies you) when /api/sports/live/health says live odds are down, or the odds worker has gone silent or keeps
-# failing. Runs a minute after each quarter-hour slot, in the hours games are on (15:00-04:59 UTC), so its one database read shares the
-# awake period the sports crons already open. It does not run in the overnight quiet hours.
+# The scheduled check now runs in the Cloudflare cron worker (infra/cron-worker), a minute after each half hour in the hours games
+# are on, so its database read shares an awake period the sports crons already open. GitHub's own schedule started 10-25 minutes
+# late and woke Neon on its own.
 #
-# OFF until the repository variable LIVE_WATCHDOG_ENABLED is "1". Needs the repository secret CRON_SECRET (the same value the app uses)
-# and, optionally, the variable APP_URL (default https://www.peerfolio.org). Manual runs always work.
+# This workflow stays for two things:
+# - The alert. When the Cloudflare check fails it dispatches this workflow with `alert` set. The run fails at once, without a
+#   checkout, and GitHub's failed-run email is the notification.
+# - A manual check. Run it from the Actions tab with `alert` empty: it calls /api/sports/live/health itself. Needs the repository
+#   secret CRON_SECRET and, optionally, the variable APP_URL (default https://www.peerfolio.org).
 on:
-  schedule:
-    - cron: "1,16,31,46 15-23,0-4 * * *"
   workflow_dispatch:
+    inputs:
+      alert:
+        description: "Set by the Cloudflare watchdog: the failure summary. Leave empty for a manual health check."
+        required: false
+        default: ""
 
 permissions:
   contents: read
 
 jobs:
+  alert:
+    if: ${{ inputs.alert != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Live odds watchdog failed
+        env:
+          SUMMARY: ${{ inputs.alert }}
+        run: |
+          echo "$SUMMARY"
+          echo "Live odds watchdog failed. Check Admin > Sports health and the Live odds worker workflow."
+          exit 1
+
   watchdog:
-    if: ${{ github.event_name == 'workflow_dispatch' || vars.LIVE_WATCHDOG_ENABLED == '1' }}
+    if: ${{ inputs.alert == '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

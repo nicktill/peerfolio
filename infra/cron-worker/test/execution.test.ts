@@ -86,3 +86,64 @@ test("default fetch preserves the native global receiver", async () => {
     globalThis.fetch = original
   }
 })
+
+const health = { name: "live-health" as const, path: "/api/sports/live/health" }
+const alertEnv = { ...env, WATCHDOG_GITHUB_TOKEN: "gh-test", WATCHDOG_ALERT_REPO: "owner/repo" }
+
+test("healthy watchdog passes on the first read and raises no alert", async () => {
+  const urls: string[] = []
+  await executeJobs(alertEnv, [health], when, {
+    fetch: async (url, init) => {
+      urls.push(String(url))
+      assert.equal((init!.headers as Record<string, string>).Authorization, "Bearer test-secret")
+      return Response.json({ status: "degraded", reasons: ["1 live game(s) unmatched on the exchange"] })
+    },
+    sleep: async () => assert.fail("slept after a healthy read"),
+  })
+  assert.deepEqual(urls, ["https://example.test/api/sports/live/health"])
+})
+
+test("a down watchdog retries, then dispatches one GitHub alert and fails the invocation", async () => {
+  const delays: number[] = []
+  const dispatches: { url: string; init: RequestInit }[] = []
+  let reads = 0
+  await assert.rejects(executeJobs(alertEnv, [health], when, {
+    fetch: async (url, init) => {
+      if (String(url).startsWith("https://api.github.com/")) { dispatches.push({ url: String(url), init: init! }); return new Response(null, { status: 204 }) }
+      reads++
+      return Response.json({ status: "down", reasons: ["no live game has a fresh quote (2 live)"] }, { status: 503 })
+    },
+    sleep: async (ms) => { delays.push(ms) },
+  }), AggregateError)
+  assert.equal(reads, 3)
+  assert.deepEqual(delays, [20_000, 20_000])
+  assert.equal(dispatches.length, 1)
+  assert.equal(dispatches[0]!.url, "https://api.github.com/repos/owner/repo/actions/workflows/live-odds-watchdog.yml/dispatches")
+  assert.equal((dispatches[0]!.init.headers as Record<string, string>).Authorization, "Bearer gh-test")
+  const body = JSON.parse(String(dispatches[0]!.init.body))
+  assert.equal(body.ref, "main")
+  assert.match(body.inputs.alert, /DOWN/)
+})
+
+test("a recovered read after a failure does not alert", async () => {
+  let reads = 0
+  await executeJobs(alertEnv, [health], when, {
+    fetch: async (url) => {
+      assert.ok(!String(url).startsWith("https://api.github.com/"), "alerted after recovery")
+      reads++
+      return reads === 1 ? new Response("starting", { status: 502 }) : Response.json({ status: "ok", reasons: [] })
+    },
+    sleep: async () => {},
+  })
+  assert.equal(reads, 2)
+})
+
+test("without an alert token a failing watchdog still fails the invocation and never calls GitHub", async () => {
+  await assert.rejects(executeJobs(env, [health], when, {
+    fetch: async (url) => {
+      assert.ok(!String(url).startsWith("https://api.github.com/"))
+      return Response.json({ status: "degraded", reasons: ["worker silent for 7200s (overdue 7100s)"] })
+    },
+    sleep: async () => {},
+  }), AggregateError)
+})
