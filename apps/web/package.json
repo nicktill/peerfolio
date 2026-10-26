@@ -52,7 +52,7 @@
     "server-only": "^0.0.1",
     "tailwind-merge": "^2.5.4",
     "tailwindcss-animate": "^1.0.7",
-    "zod": "^4.6.5"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@repo/eslint-config": "file:../../packages/eslint-config",
