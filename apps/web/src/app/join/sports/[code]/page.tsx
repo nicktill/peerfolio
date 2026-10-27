@@ -5,6 +5,7 @@ import Link from "next/link"
 import { db } from "@web/lib/sports/api"
 import { previewSportsLeague } from "@web/lib/sports/store"
 import { sportsEnabled } from "@web/lib/sports/flag"
+import { SPORTS_HOLD_MESSAGE, sportsOnHold } from "@web/lib/sports/maintenance"
 import { HeroBackdrop } from "@web/components/landing/hero-backdrop"
 import { LeagueBrand } from "@web/components/sports/league-brand"
 import { JoinSports } from "./join-sports"
@@ -43,7 +44,11 @@ export default async function JoinSportsPage({ params }: { params: Promise<{ cod
             {league.memberCount} {league.memberCount === 1 ? "player" : "players"} · {league.startingCredits.toLocaleString("en-US")} play credits each
           </p>
           {league.sports?.length ? <p className="mt-3 flex flex-wrap items-center gap-2" aria-label="Leagues">{league.sports.map((s: string) => <LeagueBrand key={s} sport={s} iconOnly />)}</p> : null}
-          <JoinSports code={normalized} leagueName={league.name} />
+          {sportsOnHold() ? (
+            <p className="mt-5 text-sm text-muted-foreground">{SPORTS_HOLD_MESSAGE} This invite works again then.</p>
+          ) : (
+            <JoinSports code={normalized} leagueName={league.name} />
+          )}
         </div>
       )}
     </main>

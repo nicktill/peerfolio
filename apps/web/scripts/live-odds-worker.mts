@@ -36,6 +36,7 @@ import { applyReprice, confirmExchange, freezeForReason, listRepriceTargets, loc
 import { HALF_SLOT_MS, inHalfHourBand, inQuietHours, msToNextSlot, QUIET_SLOT_MS } from "../src/lib/sports/live/slots.ts"
 import { REPRICE } from "../src/lib/sports/reprice-config.ts"
 import { runRepricePass } from "../src/lib/sports/live/reprice-pass.ts"
+import { SPORTS_HOLD_UNTIL, sportsOnHold } from "../src/lib/sports/maintenance.ts"
 import { MarketSocket } from "../src/lib/sports/live/ws.ts"
 import { WATCH_POLL_MS, WatchSignal } from "../src/lib/sports/live/watch-signal.ts"
 import type { PassResult } from "../src/lib/sports/live/reprice-pass.ts"
@@ -52,6 +53,13 @@ if (process.env.LIVE_ODDS_ENABLED !== "1") {
   if (process.argv.includes("--once")) process.exit(0)
   setInterval(() => {}, MAX_SLEEP_MS)
   await new Promise(() => {})
+}
+
+if (sportsOnHold()) {
+  // Sports is on hold (lib/sports/maintenance.ts): exit before any database or upstream call. The scheduled workflow starts a new
+  // worker every two hours, so the first one after the hold lifts picks up where this left off.
+  out("info", "live.on_hold", { until: SPORTS_HOLD_UNTIL.toISOString() })
+  process.exit(0)
 }
 
 const url = process.env.DATABASE_URL

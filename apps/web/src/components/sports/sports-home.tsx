@@ -18,6 +18,8 @@ import { CreateLeagueFlow } from "@web/components/fantasy/create-league-flow"
 import { timeLeft } from "@web/components/fantasy/time-left"
 import { formatCredits } from "@web/lib/sports/format"
 import { mutate, useApi } from "@web/lib/use-api"
+import { sportsOnHold } from "@web/lib/sports/maintenance"
+import { SportsHoldNotice } from "@web/components/sports/sports-on-hold"
 
 type SportsSummary = {
   id: string
@@ -37,6 +39,8 @@ type SportsSummary = {
 export function SportsHome() {
   const { data, loading, refetch } = useApi<{ leagues: SportsSummary[] }>("/api/sports/leagues")
   const [mode, setMode] = useState<"none" | "create" | "join">("none")
+  // On hold (lib/sports/maintenance.ts): your leagues stay listed, greyed out, and nothing can be opened, started or joined.
+  const onHold = sportsOnHold()
 
   return (
     <>
@@ -46,23 +50,26 @@ export function SportsHome() {
           <h1>Sports leagues</h1>
           <p className="fw-lede">Everyone starts with the same play cash. Back your picks on NFL, NBA, WNBA, NHL, MLB, college football, MLS, the Premier League, La Liga and the Champions League, and climb the standings. Lines are fixed contest lines, not live odds. No real money, ever.</p>
         </div>
-        <div className="fw-actions">
-          <span className="fw-pill">Play money</span>
-          <Link href="/fantasy/sports/market" className="fw-btn">
-            <Radio aria-hidden /> Browse the market
-          </Link>
-          <button type="button" className="fw-btn" data-solid aria-expanded={mode === "create"} onClick={() => setMode(mode === "create" ? "none" : "create")}>
-            <Plus aria-hidden /> Start sports league
-          </button>
-          <button type="button" className="fw-btn" aria-expanded={mode === "join"} onClick={() => setMode(mode === "join" ? "none" : "join")}>
-            Join with a code
-          </button>
-        </div>
+        {onHold ? null : (
+          <div className="fw-actions">
+            <span className="fw-pill">Play money</span>
+            <Link href="/fantasy/sports/market" className="fw-btn">
+              <Radio aria-hidden /> Browse the market
+            </Link>
+            <button type="button" className="fw-btn" data-solid aria-expanded={mode === "create"} onClick={() => setMode(mode === "create" ? "none" : "create")}>
+              <Plus aria-hidden /> Start sports league
+            </button>
+            <button type="button" className="fw-btn" aria-expanded={mode === "join"} onClick={() => setMode(mode === "join" ? "none" : "join")}>
+              Join with a code
+            </button>
+          </div>
+        )}
       </header>
 
       <ModePanel mode="sports">
-      {mode === "create" ? <CreateLeagueFlow kind="sports" onClose={() => setMode("none")} /> : null}
-      {mode === "join" ? (
+      {onHold ? <SportsHoldNotice className="mb-4" /> : null}
+      {mode === "create" && !onHold ? <CreateLeagueFlow kind="sports" onClose={() => setMode("none")} /> : null}
+      {mode === "join" && !onHold ? (
         <JoinForm
           onDone={() => {
             setMode("none")
@@ -80,31 +87,18 @@ export function SportsHome() {
         <ul className="fw-leagues">
           {data.leagues.map((league, i) => (
             <li key={league.id} className="reveal" style={revealStyle(i + 1)}>
-              <Link href={`/fantasy/sports/${league.id}`} className="fw-league">
-                <span className="fw-art" data-accent={league.accent} aria-hidden>
-                  <LeagueMark value={league.emoji} accent={league.accent} size={36} />
-                </span>
-                <div className="fw-league-body">
-                  <h2>{league.name}</h2>
-                  <p className="fw-league-meta">
-                    <span>
-                      <Users aria-hidden />
-                      <span className="numeric">{league.memberCount}</span> {league.memberCount === 1 ? "player" : "players"}
-                    </span>
-                    <span>
-                      {league.endsAt ? <Clock aria-hidden /> : <Forever aria-hidden />}
-                      {league.isClosed ? "Final" : league.endsAt ? timeLeft(league.endsAt) : "No end"}
-                    </span>
-                    <span className="sp-card-leagues">{league.sports.map((s) => <LeagueBrand key={s} sport={s} iconOnly />)}</span>
-                  </p>
+              {onHold ? (
+                <div className="fw-league cursor-not-allowed opacity-55 grayscale" aria-disabled="true" title="Paused until November 1">
+                  <LeagueCardBody league={league} />
+                  <SportsStandings leaders={league.leaders ?? []} total={league.memberCount} />
                 </div>
-                <div className="fw-league-return">
-                  <strong>{formatCredits(league.credits)}</strong>
-                  <span className="fw-note">Cash</span>
-                </div>
-                <ArrowRight aria-hidden />
-                <SportsStandings leaders={league.leaders ?? []} total={league.memberCount} />
-              </Link>
+              ) : (
+                <Link href={`/fantasy/sports/${league.id}`} className="fw-league">
+                  <LeagueCardBody league={league} />
+                  <ArrowRight aria-hidden />
+                  <SportsStandings leaders={league.leaders ?? []} total={league.memberCount} />
+                </Link>
+              )}
             </li>
           ))}
         </ul>
@@ -112,18 +106,49 @@ export function SportsHome() {
         <EmptyScene
           kind="picks"
           title="No sports leagues yet"
-          body="Start one and drop the link in the group chat."
+          body={onHold ? "Starting a league opens again on November 1." : "Start one and drop the link in the group chat."}
           action={
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              <button type="button" className="fw-btn" data-solid onClick={() => setMode("create")}>
-                <Plus aria-hidden /> Start sports league
-              </button>
-              <SampleLink href="/fantasy/sports/sample">See a sample league</SampleLink>
-            </div>
+            onHold ? undefined : (
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <button type="button" className="fw-btn" data-solid onClick={() => setMode("create")}>
+                  <Plus aria-hidden /> Start sports league
+                </button>
+                <SampleLink href="/fantasy/sports/sample">See a sample league</SampleLink>
+              </div>
+            )
           }
         />
       )}
       </ModePanel>
+    </>
+  )
+}
+
+/** A league card's mark, name, details and cash: the same whether the card links to the league or sits greyed out on hold. */
+function LeagueCardBody({ league }: { league: SportsSummary }) {
+  return (
+    <>
+      <span className="fw-art" data-accent={league.accent} aria-hidden>
+        <LeagueMark value={league.emoji} accent={league.accent} size={36} />
+      </span>
+      <div className="fw-league-body">
+        <h2>{league.name}</h2>
+        <p className="fw-league-meta">
+          <span>
+            <Users aria-hidden />
+            <span className="numeric">{league.memberCount}</span> {league.memberCount === 1 ? "player" : "players"}
+          </span>
+          <span>
+            {league.endsAt ? <Clock aria-hidden /> : <Forever aria-hidden />}
+            {league.isClosed ? "Final" : league.endsAt ? timeLeft(league.endsAt) : "No end"}
+          </span>
+          <span className="sp-card-leagues">{league.sports.map((s) => <LeagueBrand key={s} sport={s} iconOnly />)}</span>
+        </p>
+      </div>
+      <div className="fw-league-return">
+        <strong>{formatCredits(league.credits)}</strong>
+        <span className="fw-note">Cash</span>
+      </div>
     </>
   )
 }

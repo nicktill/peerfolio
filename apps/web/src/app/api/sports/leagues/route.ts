@@ -17,9 +17,10 @@ const CreateSportsLeague = z.object({
   endsAt: z.string().datetime().nullable().default(null),
 })
 
+// Still answers while sports is on hold: the Fantasy page lists your leagues greyed out (one read per visit, no polling).
 export const GET = withSportsUser<unknown>(async (userId) => {
   return NextResponse.json({ leagues: await listSportsLeagues(db, userId) })
-})
+}, { duringHold: true })
 
 export const POST = withSportsUser<unknown>(async (userId, request) => {
   if (!(await takeRateLimit(db, "create", userId))) throw new ApiError("You've started a lot of leagues. Try again later.", 429)
