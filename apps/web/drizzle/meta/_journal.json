@@ -316,6 +316,13 @@
       "when": 1792634882573,
       "tag": "0044_sports_member_resets",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1793159703875,
+      "tag": "0045_admin_updates",
+      "breakpoints": true
     }
   ]
 }

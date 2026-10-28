@@ -5,6 +5,7 @@ import "./globals.css"
 import "./peerfolio-5c.css"
 import { Analytics } from "@vercel/analytics/next"
 import { Providers } from "@web/components/providers"
+import { SourceCapture } from "@web/components/source-capture"
 import { SITE } from "@web/lib/site"
 
 // Words with character (titles, league names, ranks). Swap the family here and
@@ -97,6 +98,7 @@ export default function RootLayout({
         <link rel="icon" href="/favicon.png" />
       </head>
       <body className={`${display.variable} ${appSans.variable} ${appDisplay.variable} ${appMono.variable}`}>
+        <SourceCapture />
         <Providers>{children}</Providers>
         <Analytics />
       </body>
