@@ -2,10 +2,12 @@ import type { NextAuthOptions } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
 import GoogleProvider from "next-auth/providers/google"
 import { getServerSession } from "next-auth"
+import { cookies } from "next/headers"
 import { eq } from "drizzle-orm"
 import { db, users } from "@web/db"
 import { isAdminEmail } from "@web/lib/plaid-access-core"
 import { ensureDemoUser, rootMessage } from "@web/lib/demo-bootstrap"
+import { SOURCE_COOKIE, parseSourceCookie } from "@web/lib/signup-source"
 import { devLoginMode, passcodeMatches, passcodeRequired, previewAllowlist } from "@web/lib/dev-login"
 
 /**
@@ -39,9 +41,16 @@ async function upsertUser(profile: { email: string; name?: string | null; image?
     handle = seedHandle(profile.name)
   }
 
+  let source = null
+  try { source = parseSourceCookie((await cookies()).get(SOURCE_COOKIE)?.value) } catch { /* no request scope */ }
+
   const [created] = await db
     .insert(users)
-    .values({ email: profile.email, name: profile.name ?? null, image: profile.image ?? null, handle })
+    .values({
+      email: profile.email, name: profile.name ?? null, image: profile.image ?? null, handle,
+      signupReferrer: source?.referrer, signupUtmSource: source?.utmSource, signupUtmMedium: source?.utmMedium,
+      signupUtmCampaign: source?.utmCampaign, signupLandingPath: source?.landingPath,
+    })
     .returning({ id: users.id })
 
   return created!.id

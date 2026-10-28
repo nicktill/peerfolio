@@ -72,6 +72,12 @@ export const users = pgTable(
     brokerageLinkLimit: integer("brokerage_link_limit"),
     /** Admin grant for the sports beta while sports is in "admin" mode. Admins always have access. */
     sportsAccess: boolean("sports_access").notNull().default(false),
+    /** Where the person arrived from, written once when the row is created. Referrer is the host only; all are optional. */
+    signupReferrer: text("signup_referrer"),
+    signupUtmSource: text("signup_utm_source"),
+    signupUtmMedium: text("signup_utm_medium"),
+    signupUtmCampaign: text("signup_utm_campaign"),
+    signupLandingPath: text("signup_landing_path"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
