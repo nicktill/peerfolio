@@ -73,7 +73,7 @@ function toView(brief: PublishedBrief): RecapView {
  */
 export function NewsBoard({ holdingMoves, held = [] }: { holdingMoves: HoldingMoves; held?: string[] }) {
   const [period, setPeriod] = useState<Period>("day")
-  const newsApi = useApi<NewsResponse>("/api/news", [], { refreshMs: 60_000 })
+  const newsApi = useApi<NewsResponse>("/api/news", [], { refreshMs: 5 * 60_000 })
   const news = newsApi.data
   // The preview shows the sample figures; the real page shows live data or, where a source is down, nothing.
   const previewDemo = usePreviewDemo()
