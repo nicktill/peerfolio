@@ -96,7 +96,7 @@ function BoardPreview() {
  * Showing it again brings it up to date straight away.
  */
 function NewsPreview({ active }: { active: boolean }) {
-  const news = useApi<NewsResponse>("/api/news", [], { refreshMs: active ? 60_000 : undefined })
+  const news = useApi<NewsResponse>("/api/news", [], { refreshMs: active ? 5 * 60_000 : undefined })
   const market = useApi<{ board: MarketBoard | null }>("/api/news/market?part=board", [], { refreshMs: active ? 5 * 60_000 : undefined })
   const earnings = useApi<{ earnings: EarningsWeekData | null }>("/api/news/market?part=earnings", [], { refreshMs: active ? 60 * 60_000 : undefined })
   const { refetch: refetchNews } = news
